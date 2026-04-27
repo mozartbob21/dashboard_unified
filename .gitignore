@@ -1,7 +1,12 @@
+<<<<<<< HEAD
+=======
+# Virtual environment
+>>>>>>> 245e5c1195c79838ed3cafe9209d1b8af5c74818
 .venv/
 venv/
 env/
 
+<<<<<<< HEAD
 .env
 .env.*
 
@@ -12,3 +17,23 @@ __pycache__/
 Thumbs.db
 
 *.json
+=======
+# Environment variables
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# JSON files
+*.json
+
+# Logs
+*.log
+
+data/
+>>>>>>> 245e5c1195c79838ed3cafe9209d1b8af5c74818

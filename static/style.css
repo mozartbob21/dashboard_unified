@@ -749,6 +749,7 @@ tr.status-risk {
     .secondary-button {
         width: 100%;
     }
+<<<<<<< HEAD
 }
 .brand {
     display: flex;
@@ -945,4 +946,6 @@ tr.status-risk {
     .module-link {
         width: 100%;
     }
+=======
+>>>>>>> 245e5c1195c79838ed3cafe9209d1b8af5c74818
 }
