@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нейрона ИИ — Overdue</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=20260403c">
+    <style>
+        .collapse-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0 0 14px 0;
+            cursor: pointer;
+            text-align: left;
+            color: inherit;
+            font: inherit;
+        }
+
+        .collapse-toggle h2 {
+            margin: 0;
+        }
+
+        .collapse-icon {
+            font-size: 18px;
+            line-height: 1;
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+
+        .collapse-toggle.expanded .collapse-icon {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content.hidden-block {
+            display: none;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+        }
+
+        .brand-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .brand-logo {
+            width: 64px;
+            height: 64px;
+            display: block;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .brand-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-subtitle {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.3;
+            opacity: 0.75;
+        }
+
+        .brand-link:hover .brand-logo {
+            transform: scale(1.03);
+            transition: transform 0.2s ease;
+        }
+
+        @media (max-width: 640px) {
+            .brand-link {
+                gap: 10px;
+            }
+
+            .brand-logo {
+                width: 52px;
+                height: 52px;
+            }
+
+            .brand-title {
+                font-size: 17px;
+            }
+
+            .brand-subtitle {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="topbar">
+            <div class="brand">
+                <a href="/" class="brand-link">
+                    <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+                    <div class="brand-text">
+                        <div class="brand-title">Нейрона ИИ</div>
+                        <div class="brand-subtitle">Подмосковная Нейрона Роботовна</div>
+                    </div>
+                </a>
+            </div>
+
+            <div class="topbar-right">
+                <a
+                    href="https://mgkh.rm.mosreg.ru/login?back_url=https%3A%2F%2Fmgkh.rm.mosreg.ru%2Fissues%3Fquery_id%3D48"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="topbar-redmine-btn"
+                >
+                    Redmine
+                </a>
+            </div>
+        </header>
+
+        <section class="hero card">
+            <div class="hero-copy">
+                <div class="eyebrow">ЛОКАЛЬНОЕ AI-РЕШЕНИЕ ДЛЯ МОНИТОРИНГА</div>
+                <h1>Автоматический контроль просроченных задач и формирование служебных уведомлений</h1>
+                <p class="subtext">
+                    Система в локальном контуре открывает панель мониторинга, снимает текущее состояние,
+                    анализирует проблемные позиции и формирует готовую управленческую сводку.
+                </p>
+            </div>
+            <div class="hero-side">
+                <div class="hero-chip">Без облака</div>
+                <div class="hero-chip">Локальная логика</div>
+                <div class="hero-chip">Скриншоты + анализ</div>
+                <div class="hero-chip">Overdue</div>
+            </div>
+        </section>
+
+        <section class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Всего территорий</div>
+                <div class="metric-value">{{ metrics.total }}</div>
+            </div>
+            <div class="metric-card critical">
+                <div class="metric-label">Критичных</div>
+                <div class="metric-value">{{ metrics.critical }}</div>
+            </div>
+            <div class="metric-card risk">
+                <div class="metric-label">С риском</div>
+                <div class="metric-value">{{ metrics.risk }}</div>
+            </div>
+            <div class="metric-card ok">
+                <div class="metric-label">В норме</div>
+                <div class="metric-value">{{ metrics.ok }}</div>
+            </div>
+        </section>
+
+        <div class="card action-card">
+            <div>
+                <h2>Управление проверкой</h2>
+                <p class="subtext">Запустите автоматическую проверку или откройте информацию о проекте.</p>
+            </div>
+            <div class="action-panel">
+                <button id="aboutProjectBtn" class="secondary-button" type="button">О проекте</button>
+                <button id="runCheckBtn" class="primary-button" type="button">Запустить проверку</button>
+            </div>
+        </div>
+
+        <div class="card status-card">
+            <div class="system-status">
+                <div>
+                    <div class="status-title">Состояние системы</div>
+                    <div id="systemStateBadge" class="system-badge ready">Готова</div>
+                </div>
+
+                <div class="stage-block">
+                    <div class="stage-label">Текущий этап</div>
+                    <div id="currentStage" class="stage-value">Ожидание запуска</div>
+                    <div id="currentStageMessage" class="stage-message">Система готова к выполнению проверки.</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loaderBlock" class="card loader-card hidden">
+            <div class="loader-wrap">
+                <div class="spinner"></div>
+                <div>
+                    <h2>Выполняется проверка</h2>
+                    <p class="subtext">Пожалуйста, дождитесь завершения автоматической обработки.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="statusMessage" class="status-message hidden"></div>
+
+        {% if result %}
+            <div class="grid two">
+                <div class="card">
+                    <h2>Последнее обновление</h2>
+                    <p class="big-time">{{ result.created_at }}</p>
+                </div>
+                <div class="card">
+                    <h2>Статус системы</h2>
+                    <p>Проверка выполнена, данные обработаны и сохранены локально.</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <button type="button" class="collapse-toggle expanded" data-target="publicChatBlock">
+                    <h2>Общая информация в чат</h2>
+                    <span class="collapse-icon">▾</span>
+                </button>
+
+                <div id="publicChatBlock" class="collapsible-content">
+                    {% if result.public_chat_message %}
+                        <pre>{{ result.public_chat_message }}</pre>
+                    {% else %}
+                        <p>Сообщение пока не сформировано.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <button type="button" class="collapse-toggle expanded" data-target="issuesBlock">
+                    <h2>Проблемные строки</h2>
+                    <span class="collapse-icon">▾</span>
+                </button>
+
+                <div id="issuesBlock" class="collapsible-content">
+                    {% if result.missing_data_issues %}
+                        {% for item in result.missing_data_issues %}
+                            <div class="message-block">
+                                <div class="message-head">
+                                    <strong>{{ item.organization }}</strong>
+                                    <span class="pill pill-risk">Требует внимания</span>
+                                </div>
+                                <div class="message-meta">
+                                    {{ item.municipality }} / {{ item.responsible_name }}
+                                    {% if item.responsible_phone %}
+                                        / {{ item.responsible_phone }}
+                                    {% endif %}
+                                </div>
+                                <pre>{{ item.message }}</pre>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>Дополнительных замечаний не обнаружено.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-title-row">
+                    <h2 class="section-title">Скриншоты панели мониторинга</h2>
+                    <a
+                        href="https://mgkh.rm.mosreg.ru/login?back_url=https%3A%2F%2Fmgkh.rm.mosreg.ru%2Fissues%3Fquery_id%3D48"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="topbar-redmine-btn"
+                    >
+                        Redmine
+                    </a>
+                </div>
+
+                {% if result.screenshot_paths %}
+                    <div class="screenshots-grid">
+                        {% for screenshot in result.screenshot_paths %}
+                            <div class="screenshot-card">
+                                <div class="screenshot-card-title">Скриншот {{ loop.index }}</div>
+                                <a href="/{{ screenshot }}" target="_blank">
+                                    <img
+                                        src="/{{ screenshot }}"
+                                        alt="Скриншот {{ loop.index }}"
+                                        class="screenshot-gallery-image"
+                                    >
+                                </a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% elif result.screenshot_path %}
+                    <div class="screenshot-card">
+                        <div class="screenshot-card-title">Скриншот</div>
+                        <a href="/{{ result.screenshot_path }}" target="_blank">
+                            <img
+                                src="/{{ result.screenshot_path }}"
+                                alt="Скриншот панели"
+                                class="screenshot-gallery-image"
+                            >
+                        </a>
+                    </div>
+                {% else %}
+                    <p>Скриншоты отсутствуют.</p>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <h2>Персональные уведомления</h2>
+                {% if result.personal_messages %}
+                    {% for item in result.personal_messages %}
+                        <div
+                            class="message-block"
+                            data-municipality="{{ item.municipality }}"
+                            data-organization="{{ item.organization }}"
+                        >
+                            <div class="message-head">
+                                <div class="message-head-badges">
+                                    <strong>{{ item.responsible_name }}</strong>
+
+                                    {% if item.is_edited %}
+                                        <span class="pill pill-edited">Исправлено</span>
+                                    {% endif %}
+
+                                    <span class="pill pill-{{ item.status }}">
+                                        {% if item.status == "critical" %}
+                                            Критично
+                                        {% elif item.status == "risk" %}
+                                            Риск
+                                        {% else %}
+                                            Норма
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="message-meta">
+                                {{ item.municipality }} / {{ item.organization }}
+                                {% if item.responsible_phone %}
+                                    / {{ item.responsible_phone }}
+                                {% endif %}
+                            </div>
+
+                            <pre class="editable-message">{{ item.message }}</pre>
+
+                            <div class="message-actions">
+                                <button type="button" class="action-btn action-btn-warning js-edit-message">
+                                    Исправить
+                                </button>
+                                <button type="button" class="action-btn action-btn-success js-send-demo">
+                                    Подписать и отправить
+                                </button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p>Нет уведомлений для отображения.</p>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <h2>Детализация по позициям</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Муниципалитет</th>
+                                <th>Организация</th>
+                                <th>Просроченные задачи</th>
+                                <th>Ответственный</th>
+                                <th>Телефон</th>
+                                <th>Статус</th>
+                                <th>Причина</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in result.rows %}
+                                <tr class="status-{{ row.status }}">
+                                    <td>{{ row.municipality }}</td>
+                                    <td>{{ row.organization }}</td>
+                                    <td>{{ row.overdue_count }}</td>
+                                    <td>{{ row.responsible_name }}</td>
+                                    <td>{{ row.responsible_phone or "" }}</td>
+                                    <td>
+                                        <span class="pill pill-{{ row.status }}">
+                                            {% if row.status == "critical" %}
+                                                Критично
+                                            {% elif row.status == "risk" %}
+                                                Риск
+                                            {% else %}
+                                                Норма
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>{{ row.reason }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <h2>Данные пока не сформированы</h2>
+                <p>Нажмите кнопку <strong>«Запустить проверку»</strong>, после чего результат появится на этой странице.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div id="editModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-eyebrow"></div>
+                    <h3>Редактирование уведомления</h3>
+                </div>
+                <button type="button" id="closeModalBtn" class="modal-close-btn">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="modal-tools">
+                    <button type="button" id="improveWithLlmBtn" class="llm-btn">
+                        Улучшить формулировку
+                    </button>
+                    <div id="llmHint" class="llm-hint">Можно вручную скорректировать текст перед сохранением.</div>
+                </div>
+
+                <label for="editMessageTextarea" class="modal-label">Текст уведомления</label>
+                <textarea id="editMessageTextarea" class="modal-textarea"></textarea>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="cancelModalBtn" class="secondary-button">Отмена</button>
+                <button type="button" id="saveModalBtn" class="primary-button">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="aboutProjectModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-eyebrow">ИНФОРМАЦИЯ</div>
+                    <h3>Подмосковная Нейрона Роботовна</h3>
+                </div>
+                <button type="button" id="closeAboutProjectBtn" class="modal-close-btn">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <pre>Это ИИ-сотрудник для мониторинга просроченных задач по муниципалитетам.
+Использует:
+- Playwright для открытия дашборда
+- локальную обработку данных
+- подготовку скриншотов и сообщений
+
+Технологический стек:
+
+Язык разработки: Python
+Автоматизация интерфейса: Playwright
+Frontend: HTML, CSS, JavaScript
+Шаблонизация: Jinja2
+Контур работы: локальный, без использования облачных сервисов</pre>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="closeAboutProjectFooterBtn" class="primary-button">Понятно</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const runCheckBtn = document.getElementById("runCheckBtn");
+        const aboutProjectBtn = document.getElementById("aboutProjectBtn");
+        const loaderBlock = document.getElementById("loaderBlock");
+        const statusMessage = document.getElementById("statusMessage");
+        const systemStateBadge = document.getElementById("systemStateBadge");
+        const currentStage = document.getElementById("currentStage");
+        const currentStageMessage = document.getElementById("currentStageMessage");
+
+        const editModal = document.getElementById("editModal");
+        const editMessageTextarea = document.getElementById("editMessageTextarea");
+        const closeModalBtn = document.getElementById("closeModalBtn");
+        const cancelModalBtn = document.getElementById("cancelModalBtn");
+        const saveModalBtn = document.getElementById("saveModalBtn");
+        const improveWithLlmBtn = document.getElementById("improveWithLlmBtn");
+        const llmHint = document.getElementById("llmHint");
+
+        const aboutProjectModal = document.getElementById("aboutProjectModal");
+        const closeAboutProjectBtn = document.getElementById("closeAboutProjectBtn");
+        const closeAboutProjectFooterBtn = document.getElementById("closeAboutProjectFooterBtn");
+
+        let currentEditablePre = null;
+        let currentMessageBlock = null;
+
+        function setSystemReady() {
+            systemStateBadge.textContent = "Готова";
+            systemStateBadge.className = "system-badge ready";
+        }
+
+        function setSystemRunning() {
+            systemStateBadge.textContent = "Выполняется проверка";
+            systemStateBadge.className = "system-badge running";
+        }
+
+        function scrollToTopSmooth() {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+
+        function showToast(message, kind = "success", scrollTop = false) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message ${kind}`;
+
+            if (scrollTop) {
+                scrollToTopSmooth();
+            }
+
+            clearTimeout(window.__demoToastTimer);
+            window.__demoToastTimer = setTimeout(() => {
+                statusMessage.className = "status-message hidden";
+                statusMessage.textContent = "";
+            }, 2800);
+        }
+
+        function openEditModal(preElement, messageBlock) {
+            currentEditablePre = preElement;
+            currentMessageBlock = messageBlock;
+            editMessageTextarea.value = preElement.textContent.trim();
+            editModal.classList.remove("hidden");
+            document.body.classList.add("modal-open");
+            llmHint.textContent = "Можно вручную скорректировать текст перед сохранением.";
+            improveWithLlmBtn.disabled = false;
+            improveWithLlmBtn.textContent = "Улучшить формулировку";
+            setTimeout(() => editMessageTextarea.focus(), 50);
+        }
+
+        function closeEditModal() {
+            editModal.classList.add("hidden");
+            document.body.classList.remove("modal-open");
+            currentEditablePre = null;
+            currentMessageBlock = null;
+        }
+
+        function openAboutProjectModal() {
+            aboutProjectModal.classList.remove("hidden");
+            document.body.classList.add("modal-open");
+        }
+
+        function closeAboutProjectModal() {
+            aboutProjectModal.classList.add("hidden");
+            document.body.classList.remove("modal-open");
+        }
+
+        function improveMessageDemo(text) {
+            let improved = (text || "").trim();
+
+            if (!improved) {
+                return improved;
+            }
+
+            if (!improved.includes("Буду признателен за оперативную актуализацию сведений.")) {
+                improved += "\n\nБуду признателен за оперативную актуализацию сведений.";
+            }
+
+            return improved;
+        }
+
+        function toggleCollapseById(targetId, buttonElement) {
+            const content = document.getElementById(targetId);
+            if (!content || !buttonElement) return;
+
+            content.classList.toggle("hidden-block");
+            buttonElement.classList.toggle("expanded");
+        }
+
+        async function pollStatus() {
+            try {
+                const response = await fetch("/overdue/run-status");
+                const data = await response.json();
+
+                currentStage.textContent = data.stage || "Ожидание";
+                currentStageMessage.textContent = data.message || "";
+
+                if (data.running) {
+                    loaderBlock.classList.remove("hidden");
+                    setSystemRunning();
+                    runCheckBtn.disabled = true;
+                    if (aboutProjectBtn) {
+                        aboutProjectBtn.disabled = true;
+                    }
+                    runCheckBtn.textContent = "Проверка выполняется...";
+                    setTimeout(pollStatus, 1000);
+                } else {
+                    setSystemReady();
+                    runCheckBtn.disabled = false;
+                    if (aboutProjectBtn) {
+                        aboutProjectBtn.disabled = false;
+                    }
+                    runCheckBtn.textContent = "Запустить проверку";
+
+                    if (data.stage === "Готово") {
+                        showToast("Проверка успешно завершена. Страница будет обновлена...", "success", true);
+
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1200);
+                    } else if (data.stage === "Ошибка") {
+                        loaderBlock.classList.add("hidden");
+                        showToast(data.last_error || "Произошла ошибка", "error", true);
+                    }
+                }
+            } catch (error) {
+                loaderBlock.classList.add("hidden");
+                runCheckBtn.disabled = false;
+                if (aboutProjectBtn) {
+                    aboutProjectBtn.disabled = false;
+                }
+                runCheckBtn.textContent = "Запустить проверку";
+                setSystemReady();
+                showToast("Ошибка при получении статуса выполнения", "error", true);
+            }
+        }
+
+        if (runCheckBtn) {
+            runCheckBtn.addEventListener("click", async () => {
+                runCheckBtn.disabled = true;
+                if (aboutProjectBtn) {
+                    aboutProjectBtn.disabled = true;
+                }
+                loaderBlock.classList.remove("hidden");
+                statusMessage.className = "status-message hidden";
+                statusMessage.textContent = "";
+                setSystemRunning();
+                scrollToTopSmooth();
+
+                try {
+                    const response = await fetch("/overdue/run-check", {
+                        method: "POST"
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok || !data.ok) {
+                        throw new Error(data.message || "Не удалось выполнить проверку");
+                    }
+
+                    pollStatus();
+                } catch (error) {
+                    loaderBlock.classList.add("hidden");
+                    runCheckBtn.disabled = false;
+                    if (aboutProjectBtn) {
+                        aboutProjectBtn.disabled = false;
+                    }
+                    runCheckBtn.textContent = "Запустить проверку";
+                    setSystemReady();
+                    showToast(error.message || "Не удалось выполнить проверку", "error", true);
+                }
+            });
+        }
+
+        if (aboutProjectBtn) {
+            aboutProjectBtn.addEventListener("click", () => {
+                openAboutProjectModal();
+            });
+        }
+
+        document.querySelectorAll(".js-send-demo").forEach((button) => {
+            button.addEventListener("click", () => {
+                showToast("Отправка будет подключена на следующем этапе интеграции.", "success");
+            });
+        });
+
+        document.querySelectorAll(".js-edit-message").forEach((button) => {
+            button.addEventListener("click", () => {
+                const block = button.closest(".message-block");
+                const pre = block ? block.querySelector(".editable-message") : null;
+                if (!pre || !block) return;
+                openEditModal(pre, block);
+            });
+        });
+
+        document.querySelectorAll(".collapse-toggle").forEach((button) => {
+            button.addEventListener("click", () => {
+                const targetId = button.dataset.target;
+                toggleCollapseById(targetId, button);
+            });
+        });
+
+        improveWithLlmBtn.addEventListener("click", () => {
+            improveWithLlmBtn.disabled = true;
+            improveWithLlmBtn.textContent = "Обработка...";
+            llmHint.textContent = "Подготавливается более аккуратная формулировка...";
+
+            const currentText = editMessageTextarea.value;
+
+            setTimeout(() => {
+                const improved = improveMessageDemo(currentText);
+                editMessageTextarea.value = improved;
+                improveWithLlmBtn.disabled = false;
+                improveWithLlmBtn.textContent = "Улучшить формулировку";
+                llmHint.textContent = "Формулировка обновлена.";
+            }, 900);
+        });
+
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener("click", closeEditModal);
+        }
+
+        if (cancelModalBtn) {
+            cancelModalBtn.addEventListener("click", closeEditModal);
+        }
+
+        saveModalBtn.addEventListener("click", async () => {
+            if (!currentEditablePre || !currentMessageBlock) {
+                closeEditModal();
+                return;
+            }
+
+            const municipality = currentMessageBlock.dataset.municipality || "";
+            const organization = currentMessageBlock.dataset.organization || "";
+            const newMessage = editMessageTextarea.value.trim();
+
+            if (!municipality || !organization || !newMessage) {
+                showToast("Не удалось сохранить уведомление: недостаточно данных.", "error");
+                return;
+            }
+
+            saveModalBtn.disabled = true;
+            saveModalBtn.textContent = "Сохранение...";
+
+            try {
+                const response = await fetch("/overdue/save-personal-message", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        municipality,
+                        organization,
+                        message: newMessage
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.ok) {
+                    throw new Error(data.message || "Не удалось сохранить уведомление");
+                }
+
+                currentEditablePre.textContent = newMessage;
+
+                const badgesWrap = currentMessageBlock.querySelector(".message-head-badges");
+                if (badgesWrap && !currentMessageBlock.querySelector(".pill-edited")) {
+                    const editedBadge = document.createElement("span");
+                    editedBadge.className = "pill pill-edited";
+                    editedBadge.textContent = "Исправлено";
+
+                    const statusBadge = badgesWrap.querySelector(".pill");
+                    if (statusBadge) {
+                        badgesWrap.insertBefore(editedBadge, statusBadge);
+                    } else {
+                        badgesWrap.appendChild(editedBadge);
+                    }
+                }
+
+                showToast("Изменения сохранены.", "success");
+                closeEditModal();
+            } catch (error) {
+                showToast(error.message || "Ошибка сохранения", "error");
+            } finally {
+                saveModalBtn.disabled = false;
+                saveModalBtn.textContent = "Сохранить";
+            }
+        });
+
+        if (closeAboutProjectBtn) {
+            closeAboutProjectBtn.addEventListener("click", closeAboutProjectModal);
+        }
+
+        if (closeAboutProjectFooterBtn) {
+            closeAboutProjectFooterBtn.addEventListener("click", closeAboutProjectModal);
+        }
+
+        editModal.addEventListener("click", (event) => {
+            if (event.target === editModal) {
+                closeEditModal();
+            }
+        });
+
+        aboutProjectModal.addEventListener("click", (event) => {
+            if (event.target === aboutProjectModal) {
+                closeAboutProjectModal();
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                if (!editModal.classList.contains("hidden")) {
+                    closeEditModal();
+                }
+                if (!aboutProjectModal.classList.contains("hidden")) {
+                    closeAboutProjectModal();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нейрона ИИ — Единая точка входа</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix2">
+</head>
+<body>
+    <div class="container">
+        <header class="topbar">
+            <div class="brand">
+                <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+                <div>
+                    <div class="brand-title">Нейрона ИИ</div>
+                    <div class="brand-subtitle">Подмосковная Нейрона Роботовна</div>
+                </div>
+            </div>
+
+            <div class="top-actions">
+                <div class="badge">Unified Dashboard</div>
+            </div>
+        </header>
+
+        <section class="card hero">
+            <div>
+                <div class="eyebrow">ЕДИНАЯ ТОЧКА ВХОДА</div>
+                <h1>Локальная AI-платформа мониторинга и формирования управленческих уведомлений</h1>
+                <p class="lead">
+                    Единый интерфейс для запуска сценариев мониторинга, анализа проблемных позиций,
+                    просмотра скриншотов, итоговых сводок и персональных уведомлений по двум направлениям:
+                    контроль заполненности данных и контроль просроченных задач.
+                </p>
+            </div>
+
+            <div class="hero-side">
+                <div class="soft-card">
+                    <div class="soft-card-title">КОНТУР РАБОТЫ</div>
+                    <div class="soft-card-text">
+                        Локальный контур<br>
+                        FastAPI<br>
+                        Playwright<br>
+                        Jinja2
+                    </div>
+                </div>
+
+                <div class="soft-card">
+                    <div class="soft-card-title">НАЗНАЧЕНИЕ</div>
+                    <div class="muted">
+                        Платформа объединяет несколько независимых сценариев мониторинга
+                        в одном интерфейсе и позволяет развивать их как единое приложение.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="modules-grid">
+            <article class="card module-card">
+                <div class="module-head">
+                    <span class="pill primary">EDO</span>
+                    <span class="pill primary">Контроль данных</span>
+                </div>
+
+                <h2 class="module-title">Заполненность данных</h2>
+
+                <div class="module-description">
+                    Модуль автоматического контроля корректности и полноты данных.
+                    Открывает панель мониторинга, анализирует проблемные строки,
+                    формирует сводку, персональные уведомления и показывает скриншоты.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">Скриншоты панели</span>
+                    <span class="tag">Проблемные строки</span>
+                    <span class="tag">Служебная сводка</span>
+                    <span class="tag">Редактирование уведомлений</span>
+                </div>
+
+                <a href="/edo" class="module-link">
+                    <span>Открыть модуль</span>
+                    <span>→</span>
+                </a>
+            </article>
+
+            <article class="card module-card">
+                <div class="module-head">
+                    <span class="pill primary">OVERDUE</span>
+                    <span class="pill primary">Контроль исполнения</span>
+                </div>
+
+                <h2 class="module-title">Просроченные задачи</h2>
+
+                <div class="module-description">
+                    Модуль автоматического мониторинга просроченных задач по территориям и организациям.
+                    Позволяет запускать проверку, анализировать уровень риска,
+                    просматривать итоговые материалы и готовить персональные уведомления.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">Контроль просрочки</span>
+                    <span class="tag">Классификация риска</span>
+                    <span class="tag">Скриншоты</span>
+                    <span class="tag">Работа с сообщениями</span>
+                </div>
+
+                <a href="/overdue" class="module-link">
+                    <span>Открыть модуль</span>
+                    <span>→</span>
+                </a>
+            </article>
+        </section>
+
+        <section class="card">
+            <h2 class="section-title">О платформе</h2>
+
+            <div class="info-grid" style="margin-top: 18px;">
+                <div class="soft-card">
+                    <h3 style="margin: 0 0 12px;">Локальный контур</h3>
+                    <div class="info-text">
+                        Работа без внешних облачных сервисов: данные, отчёты, скриншоты
+                        и промежуточные результаты обрабатываются внутри локальной инфраструктуры.
+                    </div>
+                </div>
+
+                <div class="soft-card">
+                    <h3 style="margin: 0 0 12px;">Автоматизация сценариев</h3>
+                    <div class="info-text">
+                        Используются автоматизированные сценарии открытия панелей,
+                        получения снимков экрана, анализа содержимого и формирования итоговых сообщений.
+                    </div>
+                </div>
+
+                <div class="soft-card">
+                    <h3 style="margin: 0 0 12px;">Единый интерфейс</h3>
+                    <div class="info-text">
+                        Все направления сведены в одно приложение:
+                        можно быстро переключаться между модулями
+                        и развивать систему без дублирования общей инфраструктуры.
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
