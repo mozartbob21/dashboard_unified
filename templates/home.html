@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Нейрона ИИ — Единая точка входа</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix2">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix5">
 </head>
 <body>
     <div class="container">
@@ -28,8 +28,8 @@
                 <h1>Локальная AI-платформа мониторинга и формирования управленческих уведомлений</h1>
                 <p class="lead">
                     Единый интерфейс для запуска сценариев мониторинга, анализа проблемных позиций,
-                    просмотра скриншотов, итоговых сводок и персональных уведомлений по двум направлениям:
-                    контроль заполненности данных и контроль просроченных задач.
+                    просмотра скриншотов, итоговых сводок и персональных уведомлений по трём направлениям:
+                    контроль заполненности данных, контроль просроченных задач и мониторинг Контроля воды.
                 </p>
             </div>
 
@@ -76,10 +76,12 @@
                     <span class="tag">Редактирование уведомлений</span>
                 </div>
 
-                <a href="/edo" class="module-link">
-                    <span>Открыть модуль</span>
-                    <span>→</span>
-                </a>
+                <div class="action-panel">
+                    <a href="/edo" class="module-link">Открыть модуль →</a>
+                    <a href="https://datalens.yandex/f5wqqij889haz?tab=EL" target="_blank" rel="noopener noreferrer" class="secondary-button">
+                        Открыть сайт-источник ↗
+                    </a>
+                </div>
             </article>
 
             <article class="card module-card">
@@ -103,10 +105,41 @@
                     <span class="tag">Работа с сообщениями</span>
                 </div>
 
-                <a href="/overdue" class="module-link">
-                    <span>Открыть модуль</span>
-                    <span>→</span>
-                </a>
+                <div class="action-panel">
+                    <a href="/overdue" class="module-link">Открыть модуль →</a>
+                    <a href="https://datalens.yandex/hdxgldxnx8ui1?state=f6c37bf4134" target="_blank" rel="noopener noreferrer" class="secondary-button">
+                        Открыть сайт-источник ↗
+                    </a>
+                </div>
+            </article>
+
+            <article class="card module-card">
+                <div class="module-head">
+                    <span class="pill primary">Контроль воды</span>
+                    <span class="pill primary">Мониторинг карточек</span>
+                </div>
+
+                <h2 class="module-title">Контроль воды</h2>
+
+                <div class="module-description">
+                    Модуль автоматической проверки карточек WaterControl.
+                    Выявляет незаполненные обязательные поля, формирует сводку,
+                    персональные уведомления и показывает скриншоты панели.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">Обязательные поля</span>
+                    <span class="tag">Сводка</span>
+                    <span class="tag">Скриншоты панели</span>
+                    <span class="tag">Редактирование уведомлений</span>
+                </div>
+
+                <div class="action-panel">
+                    <a href="/watercontrol" class="module-link">Открыть модуль →</a>
+                    <a href="https://datalens.yandex/j9dqqujx03qa3" target="_blank" rel="noopener noreferrer" class="secondary-button">
+                        Открыть сайт-источник ↗
+                    </a>
+                </div>
             </article>
         </section>
 

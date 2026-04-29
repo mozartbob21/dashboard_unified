@@ -17,9 +17,11 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 
 EDO_DATA_DIR = DATA_DIR / "edo"
 OVERDUE_DATA_DIR = DATA_DIR / "overdue"
+WATERCONTROL_DATA_DIR = DATA_DIR / "watercontrol"
 
 EDO_RESULT_FILE = EDO_DATA_DIR / "result.json"
 OVERDUE_RESULT_FILE = OVERDUE_DATA_DIR / "final_result.json"
+WATERCONTROL_RESULT_FILE = WATERCONTROL_DATA_DIR / "result.json"
 
 app = FastAPI(title="Unified Dashboard")
 
@@ -40,6 +42,12 @@ run_status = {
         "running": False,
         "stage": "Ожидание запуска",
         "message": "Система готова к выполнению проверки просроченных задач.",
+        "last_error": ""
+    },
+    "watercontrol": {
+        "running": False,
+        "stage": "Ожидание запуска",
+        "message": "Система готова к выполнению проверки WaterControl.",
         "last_error": ""
     }
 }
@@ -144,6 +152,22 @@ def calculate_overdue_metrics(raw_result):
         "critical": critical,
         "risk": risk,
         "ok": ok,
+    }
+
+
+def calculate_watercontrol_metrics(result):
+    rows = (result or {}).get("rows", []) or []
+
+    total = len(rows)
+    critical = sum(1 for row in rows if row.get("status") == "critical")
+    risk = sum(1 for row in rows if row.get("status") == "risk")
+    ok = sum(1 for row in rows if row.get("status") == "ok")
+
+    return {
+        "total": total,
+        "critical": critical,
+        "risk": risk,
+        "ok": ok
     }
 
 
@@ -313,6 +337,23 @@ async def overdue_page(request: Request):
     )
 
 
+@app.get("/watercontrol", response_class=HTMLResponse)
+async def watercontrol_page(request: Request):
+    result = load_json_file(WATERCONTROL_RESULT_FILE)
+    result = ensure_personal_message_flags(result, WATERCONTROL_RESULT_FILE)
+    metrics = calculate_watercontrol_metrics(result)
+
+    return templates.TemplateResponse(
+        request,
+        "watercontrol.html",
+        {
+            "request": request,
+            "result": result,
+            "metrics": metrics
+        }
+    )
+
+
 @app.get("/edo/run-status")
 async def edo_run_status():
     return run_status["edo"]
@@ -321,6 +362,11 @@ async def edo_run_status():
 @app.get("/overdue/run-status")
 async def overdue_run_status():
     return run_status["overdue"]
+
+
+@app.get("/watercontrol/run-status")
+async def watercontrol_run_status():
+    return run_status["watercontrol"]
 
 
 @app.post("/edo/run-check")
@@ -354,6 +400,25 @@ async def overdue_run_check():
     thread = threading.Thread(
         target=run_subprocess_worker,
         args=("overdue", command, BASE_DIR),
+        daemon=True
+    )
+    thread.start()
+
+    return {"ok": True}
+
+
+@app.post("/watercontrol/run-check")
+async def watercontrol_run_check():
+    if run_status["watercontrol"]["running"]:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "message": "Проверка WaterControl уже выполняется."}
+        )
+
+    command = [sys.executable, "-m", "services.watercontrol.runner"]
+    thread = threading.Thread(
+        target=run_subprocess_worker,
+        args=("watercontrol", command, BASE_DIR),
         daemon=True
     )
     thread.start()
@@ -447,3 +512,45 @@ async def save_overdue_personal_message(payload: dict):
     save_json_file(OVERDUE_RESULT_FILE, data)
 
     return {"ok": True, "message": "Сообщение сохранено."}
+
+
+@app.post("/watercontrol/save-personal-message")
+async def save_watercontrol_personal_message(payload: dict):
+    municipality = normalize_text(payload.get("municipality"))
+    organization = normalize_text(payload.get("organization"))
+    message = normalize_text(payload.get("message"))
+
+    if not municipality or not organization or not message:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "message": "Не хватает данных для сохранения"}
+        )
+
+    data = load_json_file(WATERCONTROL_RESULT_FILE)
+    if not data:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "message": "Файл результата WaterControl не найден"}
+        )
+
+    target_key = normalize_key(municipality, organization)
+    updated = False
+
+    for item in data.get("personal_messages", []):
+        item_key = normalize_key(item.get("municipality", ""), item.get("organization", ""))
+        if item_key == target_key:
+            item["message"] = message
+            item["is_edited"] = True
+            updated = True
+            break
+
+    if not updated:
+        data.setdefault("personal_messages", []).append({
+            "municipality": municipality,
+            "organization": organization,
+            "message": message,
+            "is_edited": True
+        })
+
+    save_json_file(WATERCONTROL_RESULT_FILE, data)
+    return {"ok": True}
