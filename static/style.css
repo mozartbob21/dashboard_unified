@@ -1335,357 +1335,59 @@ html[data-theme="dark"] {
         justify-content: center;
     }
 }
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — Единая точка входа</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix8">
-</head>
-<body>
-    <div class="container">
-        <header class="topbar">
-            <div class="brand">
-                <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+.update-status-card {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  box-shadow: 0 14px 40px rgba(31, 41, 55, 0.08);
+  max-width: 720px;
+}
 
-                <div>
-                    <div class="brand-title">Нейрона ИИ</div>
-                    <div class="brand-subtitle">Подмосковная Нейрона Роботовна</div>
-                </div>
-            </div>
+.update-status-icon {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
 
-            <div class="top-actions">
-                <div class="version-label">Версия 2.0</div>
+.update-status-icon-success {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
 
-                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
-                    <span class="theme-toggle-icon">☀️</span>
-                    <span class="theme-toggle-text">Светлая тема</span>
-                </button>
+.update-status-icon-warning {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
 
-                <div class="badge">Unified Dashboard</div>
-            </div>
-        </header>
+.update-status-icon-local {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
 
-        <section class="card hero">
-            <div>
-                <div class="eyebrow">ЕДИНАЯ ТОЧКА ВХОДА</div>
+.update-status-icon-error {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
 
-                <h1>
-                    Локальная AI-платформа мониторинга и формирования управленческих уведомлений
-                </h1>
+.update-status-title {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+}
 
-                <p class="lead">
-                    Единый интерфейс для запуска сценариев мониторинга, анализа проблемных позиций,
-                    просмотра скриншотов, итоговых сводок, персональных уведомлений и служебных материалов
-                    по нескольким направлениям: контроль заполненности данных, контроль просроченных задач,
-                    мониторинг Контроля воды, технадзор УТНКР и проверка работоспособности камер.
-                </p>
-            </div>
-
-            <div class="hero-side">
-                <div class="soft-card">
-                    <div class="soft-card-title">КОНТУР РАБОТЫ</div>
-
-                    <div class="soft-card-text">
-                        Локальный контур<br>
-                        FastAPI<br>
-                        Playwright<br>
-                        Jinja2<br>
-                        FFmpeg
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <div class="soft-card-title">НАЗНАЧЕНИЕ</div>
-
-                    <div class="muted">
-                        Платформа объединяет независимые сценарии мониторинга
-                        в одном интерфейсе и позволяет развивать их как единое приложение
-                        без дублирования общей инфраструктуры.
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="modules-grid">
-            <article class="card module-card">
-                <div class="module-head">
-                    <span class="pill primary">EDO</span>
-                    <span class="pill primary">Контроль данных</span>
-                </div>
-
-                <h2 class="module-title">Заполненность данных</h2>
-
-                <div class="module-description">
-                    Модуль автоматического контроля корректности и полноты данных.
-                    Открывает панель мониторинга, анализирует проблемные строки,
-                    формирует сводку, персональные уведомления и показывает скриншоты.
-                </div>
-
-                <div class="tag-row">
-                    <span class="tag">Скриншоты панели</span>
-                    <span class="tag">Проблемные строки</span>
-                    <span class="tag">Служебная сводка</span>
-                    <span class="tag">Редактирование уведомлений</span>
-                </div>
-
-                <div class="action-panel">
-                    <a href="/edo" class="module-link">Открыть модуль →</a>
-
-                    <a href="https://datalens.yandex/f5wqqij889haz?tab=EL"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       class="secondary-button">
-                        Открыть сайт-источник ↗
-                    </a>
-                </div>
-            </article>
-
-            <article class="card module-card">
-                <div class="module-head">
-                    <span class="pill primary">OVERDUE</span>
-                    <span class="pill primary">Контроль исполнения</span>
-                </div>
-
-                <h2 class="module-title">Просроченные задачи</h2>
-
-                <div class="module-description">
-                    Модуль автоматического мониторинга просроченных задач по территориям и организациям.
-                    Позволяет запускать проверку, анализировать уровень риска,
-                    просматривать итоговые материалы и готовить персональные уведомления.
-                </div>
-
-                <div class="tag-row">
-                    <span class="tag">Контроль просрочки</span>
-                    <span class="tag">Классификация риска</span>
-                    <span class="tag">Скриншоты</span>
-                    <span class="tag">Работа с сообщениями</span>
-                </div>
-
-                <div class="action-panel">
-                    <a href="/overdue" class="module-link">Открыть модуль →</a>
-
-                    <a href="https://datalens.yandex/hdxgldxnx8ui1?state=f6c37bf4134"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       class="secondary-button">
-                        Открыть сайт-источник ↗
-                    </a>
-                </div>
-            </article>
-
-            <article class="card module-card">
-                <div class="module-head">
-                    <span class="pill primary">Контроль воды</span>
-                    <span class="pill primary">Мониторинг карточек</span>
-                </div>
-
-                <h2 class="module-title">Контроль воды</h2>
-
-                <div class="module-description">
-                    Модуль автоматической проверки карточек WaterControl.
-                    Выявляет незаполненные обязательные поля, формирует сводку,
-                    персональные уведомления и показывает скриншоты панели.
-                </div>
-
-                <div class="tag-row">
-                    <span class="tag">Обязательные поля</span>
-                    <span class="tag">Сводка</span>
-                    <span class="tag">Скриншоты панели</span>
-                    <span class="tag">Редактирование уведомлений</span>
-                </div>
-
-                <div class="action-panel">
-                    <a href="/watercontrol" class="module-link">Открыть модуль →</a>
-
-                    <a href="https://datalens.yandex/j9dqqujx03qa3"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       class="secondary-button">
-                        Открыть сайт-источник ↗
-                    </a>
-                </div>
-            </article>
-
-            <article class="card module-card">
-                <div class="module-head">
-                    <span class="pill primary">УТНКР</span>
-                    <span class="pill primary">Технадзор</span>
-                </div>
-
-                <h2 class="module-title">Технадзор УТНКР</h2>
-
-                <div class="module-description">
-                    Модуль автоматического контроля просрочек и проблематики по таблице УТНКР.
-                    Система авторизуется на сайте, открывает нужную таблицу,
-                    анализирует строки и классифицирует объекты по правилам светофора.
-                </div>
-
-                <div class="tag-row">
-                    <span class="tag">Авторизация</span>
-                    <span class="tag">Анализ таблицы</span>
-                    <span class="tag">Светофор УТНКР</span>
-                    <span class="tag">Просрочки по дням</span>
-                </div>
-
-                <div class="action-panel">
-                    <a href="/utnkr" class="module-link">Открыть модуль →</a>
-
-                    <a href="https://tehnadzor.utnkr.ru/"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       class="secondary-button">
-                        Открыть сайт-источник ↗
-                    </a>
-                </div>
-            </article>
-
-            <article class="card module-card">
-                <div class="module-head">
-                    <span class="pill primary">CAMERAS</span>
-                    <span class="pill primary">Видеонаблюдение</span>
-                </div>
-
-                <h2 class="module-title">Проверка камер</h2>
-
-                <div class="module-description">
-                    Модуль автоматической проверки подключения и работоспособности камер.
-                    Поддерживает загрузку адресной таблицы, сверку с сайтом камер,
-                    проверку видеопотоков и формирование предписаний по проблемным адресам.
-                </div>
-
-                <div class="tag-row">
-                    <span class="tag">Excel / CSV / TSV</span>
-                    <span class="tag">Проверка потоков</span>
-                    <span class="tag">FFmpeg / FFprobe</span>
-                    <span class="tag">Предписания Word</span>
-                </div>
-
-                <div class="action-panel">
-                    <a href="/cameras" class="module-link">Открыть модуль →</a>
-
-                    <a href="https://fkr.eiasmo.ru"
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       class="secondary-button">
-                        Открыть сайт-источник ↗
-                    </a>
-                </div>
-            </article>
-
-            <article class="card module-card module-card-disabled">
-                <div class="module-head">
-                    <span class="pill primary">AI RESPONSES</span>
-                    <span class="pill soon">Скоро</span>
-                </div>
-
-                <h2 class="module-title">Эмпатичные ответы</h2>
-
-                <div class="module-description">
-                    Модуль подготовки мягких, корректных и человекоориентированных ответов
-                    для служебной коммуникации, обращений, уведомлений и рабочих сообщений.
-                </div>
-
-                <div class="tag-row">
-                    <span class="tag">Тональность ответа</span>
-                    <span class="tag">Деловой стиль</span>
-                    <span class="tag">Эмпатичная формулировка</span>
-                    <span class="tag">AI-помощник</span>
-                </div>
-
-                <div class="action-panel">
-                    <button class="module-link module-link-disabled" type="button" disabled>
-                        Скоро
-                    </button>
-                </div>
-            </article>
-        </section>
-
-        <section class="card">
-            <h2 class="section-title">О платформе</h2>
-
-            <div class="info-grid" style="margin-top: 18px;">
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Локальный контур</h3>
-
-                    <div class="info-text">
-                        Работа без внешних облачных сервисов: данные, отчёты, скриншоты,
-                        таблицы, документы и промежуточные результаты обрабатываются
-                        внутри локальной инфраструктуры.
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Автоматизация сценариев</h3>
-
-                    <div class="info-text">
-                        Используются автоматизированные сценарии открытия панелей,
-                        авторизации на целевых сайтах, получения снимков экрана,
-                        анализа таблиц, проверки видеопотоков и формирования итоговых материалов.
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Единый интерфейс</h3>
-
-                    <div class="info-text">
-                        Все направления сведены в одно приложение:
-                        можно быстро переключаться между модулями,
-                        запускать проверки и развивать систему без дублирования общей инфраструктуры.
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
-
-    <script>
-        (function () {
-            const root = document.documentElement;
-            const themeToggle = document.getElementById("themeToggle");
-
-            function applyTheme(theme) {
-                root.setAttribute("data-theme", theme);
-
-                if (!themeToggle) {
-                    return;
-                }
-
-                const icon = themeToggle.querySelector(".theme-toggle-icon");
-                const text = themeToggle.querySelector(".theme-toggle-text");
-
-                if (theme === "dark") {
-                    if (icon) {
-                        icon.textContent = "🌙";
-                    }
-
-                    if (text) {
-                        text.textContent = "Тёмная тема";
-                    }
-                } else {
-                    if (icon) {
-                        icon.textContent = "☀️";
-                    }
-
-                    if (text) {
-                        text.textContent = "Светлая тема";
-                    }
-                }
-            }
-
-            const savedTheme = localStorage.getItem("homeTheme") || "light";
-            applyTheme(savedTheme);
-
-            if (themeToggle) {
-                themeToggle.addEventListener("click", function () {
-                    const currentTheme = root.getAttribute("data-theme") || "light";
-                    const nextTheme = currentTheme === "dark" ? "light" : "dark";
-
-                    localStorage.setItem("homeTheme", nextTheme);
-                    applyTheme(nextTheme);
-                });
-            }
-        })();
-    </script>
-</body>
-</html>
+.update-status-text {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.45;
+}

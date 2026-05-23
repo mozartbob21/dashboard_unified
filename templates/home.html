@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Нейрона ИИ — Единая точка входа</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix9">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix10">
 </head>
 <body>
     <div class="container">
@@ -297,11 +297,16 @@
                 </button>
             </div>
 
-            <div id="gitUpdateStatus" class="git-status-box">
-                Статус обновлений пока не проверялся.
-            </div>
+            <div id="gitUpdateStatus" class="update-status-card update-status-neutral">
+                <div class="update-status-icon">●</div>
 
-            <pre id="gitUpdateOutput" class="git-output">Ожидание действия...</pre>
+                <div class="update-status-content">
+                    <div class="update-status-title">Статус обновлений пока не проверялся</div>
+                    <div class="update-status-text">
+                        Нажмите кнопку «Проверить обновления», чтобы узнать, доступна ли новая версия проекта.
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section class="card">
@@ -395,32 +400,27 @@
             const tokenInput = document.getElementById("gitUpdateToken");
             const checkButton = document.getElementById("gitCheckButton");
             const pullButton = document.getElementById("gitPullButton");
-            const output = document.getElementById("gitUpdateOutput");
             const statusBox = document.getElementById("gitUpdateStatus");
 
             function getToken() {
                 return tokenInput ? tokenInput.value.trim() : "";
             }
 
-            function setStatus(message, type) {
+            function renderStatus(type, icon, title, text) {
                 if (!statusBox) {
                     return;
                 }
 
-                statusBox.textContent = message;
-                statusBox.className = "git-status-box";
+                statusBox.className = "update-status-card update-status-" + type;
 
-                if (type) {
-                    statusBox.classList.add("git-status-" + type);
-                }
-            }
+                statusBox.innerHTML = `
+                    <div class="update-status-icon">${icon}</div>
 
-            function setOutput(title, data) {
-                if (!output) {
-                    return;
-                }
-
-                output.textContent = title + "\n\n" + JSON.stringify(data, null, 2);
+                    <div class="update-status-content">
+                        <div class="update-status-title">${title}</div>
+                        <div class="update-status-text">${text}</div>
+                    </div>
+                `;
             }
 
             async function requestJson(url, options) {
@@ -457,10 +457,12 @@
                 checkButton.addEventListener("click", async function () {
                     checkButton.disabled = true;
 
-                    setStatus("Проверяю обновления...", "process");
-                    setOutput("Проверка выполняется", {
-                        status: "process"
-                    });
+                    renderStatus(
+                        "process",
+                        "⏳",
+                        "Проверяю обновления",
+                        "Идёт сверка локальной версии проекта с GitHub. Подождите несколько секунд."
+                    );
 
                     try {
                         const data = await requestJson("/system/git/check", {
@@ -468,28 +470,34 @@
                         });
 
                         if (data.has_local_changes) {
-                            setStatus(
-                                "Есть локальные изменения. Автообновление может быть остановлено.",
-                                "warning"
+                            renderStatus(
+                                "warning",
+                                "!",
+                                "Есть локальные изменения",
+                                "В проекте есть несохранённые или незакоммиченные изменения. Перед обновлением лучше сохранить их."
                             );
                         } else if (data.has_updates) {
-                            setStatus(
-                                "Найдены обновления. Можно загрузить.",
-                                "success"
+                            renderStatus(
+                                "update",
+                                "↻",
+                                "Доступно обновление",
+                                "На GitHub найдена новая версия проекта. Вы можете загрузить обновления кнопкой ниже."
                             );
                         } else {
-                            setStatus(
-                                "Обновлений нет. Проект актуален.",
-                                "success"
+                            renderStatus(
+                                "success",
+                                "✓",
+                                "Вы используете актуальную версию",
+                                "Обновлений нет. Локальный проект синхронизирован с GitHub."
                             );
                         }
-
-                        setOutput("Результат проверки обновлений:", data);
                     } catch (error) {
-                        setStatus("Ошибка проверки обновлений.", "error");
-                        setOutput("Ошибка проверки:", error.data || {
-                            message: error.message
-                        });
+                        renderStatus(
+                            "error",
+                            "×",
+                            "Ошибка проверки обновлений",
+                            "Не удалось проверить обновления. Проверьте ключ, подключение или настройки сервера."
+                        );
                     } finally {
                         checkButton.disabled = false;
                     }
@@ -509,27 +517,31 @@
 
                     pullButton.disabled = true;
 
-                    setStatus("Загружаю обновления из GitHub...", "process");
-                    setOutput("Загрузка выполняется", {
-                        status: "process"
-                    });
+                    renderStatus(
+                        "process",
+                        "⏳",
+                        "Загружаю обновления",
+                        "Проект получает свежие изменения из GitHub. Не закрывайте страницу до завершения."
+                    );
 
                     try {
-                        const data = await requestJson("/system/git/pull", {
+                        await requestJson("/system/git/pull", {
                             method: "POST"
                         });
 
-                        setStatus(
-                            "Обновления загружены. Рекомендуется перезапустить приложение.",
-                            "success"
+                        renderStatus(
+                            "success",
+                            "✓",
+                            "Обновления загружены",
+                            "Новая версия проекта успешно получена. Если обновлялся Python-код, перезапустите приложение."
                         );
-
-                        setOutput("Результат загрузки обновлений:", data);
                     } catch (error) {
-                        setStatus("Ошибка загрузки обновлений.", "error");
-                        setOutput("Ошибка загрузки:", error.data || {
-                            message: error.message
-                        });
+                        renderStatus(
+                            "error",
+                            "×",
+                            "Ошибка загрузки обновлений",
+                            "Не удалось загрузить обновления. Возможно, есть локальные изменения или проблема с подключением."
+                        );
                     } finally {
                         pullButton.disabled = false;
                     }
