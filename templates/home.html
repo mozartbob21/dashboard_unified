@@ -19,7 +19,9 @@
             </div>
 
             <div class="top-actions">
-                <div class="version-label">Версия 2.1</div>
+                <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.1">
+                    Версия 2.1
+                </button>
 
                 <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
                     <span class="theme-toggle-icon">☀️</span>
@@ -350,6 +352,92 @@
         </section>
     </div>
 
+
+    <div id="whatsNewModal" class="whats-new-modal" aria-hidden="true">
+        <div class="whats-new-backdrop" data-whats-new-close></div>
+
+        <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
+            <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
+                ×
+            </button>
+
+            <div class="whats-new-kicker">Нейрона ИИ 2.1</div>
+
+            <h2 id="whatsNewTitle" class="whats-new-title">Что нового?</h2>
+
+            <p class="whats-new-lead">
+                Самое цельное обновление домашней страницы и внутренних сценариев.
+                Мы сделали платформу быстрее, аккуратнее и удобнее: теперь ключевые модули,
+                обновления и настройки собраны в одном понятном интерфейсе.
+            </p>
+
+            <div class="whats-new-list">
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">↻</div>
+                    <div>
+                        <h3>Обновления прямо из интерфейса</h3>
+                        <p>
+                            Добавлена система проверки и загрузки обновлений из GitHub.
+                            Теперь можно узнать, доступна ли новая версия проекта, и получить её
+                            без ручной работы в терминале.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">◐</div>
+                    <div>
+                        <h3>Светлая и тёмная тема</h3>
+                        <p>
+                            На домашней странице появилась смена темы. Интерфейс запоминает выбранный режим
+                            и автоматически применяет его при следующем открытии.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">▣</div>
+                    <div>
+                        <h3>Новый модуль проверки камер</h3>
+                        <p>
+                            Добавлен блок «Проверка камер»: загрузка адресных таблиц, сверка с сайтом,
+                            проверка видеопотоков через FFmpeg / FFprobe и подготовка предписаний.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">✓</div>
+                    <div>
+                        <h3>Исправлен модуль просрочек</h3>
+                        <p>
+                            Улучшена логика блока с просроченными задачами: стабильнее отображаются материалы,
+                            корректнее работает переход в модуль и подготовка уведомлений.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">⚙</div>
+                    <div>
+                        <h3>Общее улучшение системы</h3>
+                        <p>
+                            Обновлена главная страница, выровнена структура модулей, улучшена навигация,
+                            повышена стабильность локального контура и подготовлена база для дальнейшего развития.
+                        </p>
+                    </div>
+                </article>
+            </div>
+
+            <div class="whats-new-footer">
+                <button class="module-link whats-new-done" type="button" data-whats-new-close>
+                    Отлично
+                </button>
+            </div>
+        </section>
+    </div>
+
+
     <script>
         (function () {
             const root = document.documentElement;
@@ -396,6 +484,41 @@
                     applyTheme(nextTheme);
                 });
             }
+        })();
+    </script>
+
+    <script>
+        (function () {
+            const button = document.getElementById("whatsNewButton");
+            const modal = document.getElementById("whatsNewModal");
+
+            if (!button || !modal) {
+                return;
+            }
+
+            function openModal() {
+                modal.classList.add("is-open");
+                modal.setAttribute("aria-hidden", "false");
+                document.body.classList.add("modal-open");
+            }
+
+            function closeModal() {
+                modal.classList.remove("is-open");
+                modal.setAttribute("aria-hidden", "true");
+                document.body.classList.remove("modal-open");
+            }
+
+            button.addEventListener("click", openModal);
+
+            modal.querySelectorAll("[data-whats-new-close]").forEach(function (element) {
+                element.addEventListener("click", closeModal);
+            });
+
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape" && modal.classList.contains("is-open")) {
+                    closeModal();
+                }
+            });
         })();
     </script>
 

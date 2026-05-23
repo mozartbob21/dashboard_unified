@@ -1590,3 +1590,215 @@ html[data-theme="dark"] .update-status-text {
     outline-offset: 3px;
 }
 
+
+
+/* What's new modal */
+
+.version-button {
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+}
+
+.version-button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.03);
+}
+
+.version-button:active {
+    transform: translateY(0);
+}
+
+body.modal-open {
+    overflow: hidden;
+}
+
+.whats-new-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.whats-new-modal.is-open {
+    display: flex;
+}
+
+.whats-new-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.46);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+.whats-new-dialog {
+    position: relative;
+    width: min(760px, 100%);
+    max-height: min(86vh, 820px);
+    overflow: auto;
+    border-radius: 34px;
+    padding: 38px;
+    background:
+        radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 34%),
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.16), transparent 36%),
+        rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    box-shadow:
+        0 34px 90px rgba(15, 23, 42, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    color: var(--text, #172033);
+    animation: whatsNewIn 0.22s ease-out;
+}
+
+html[data-theme="dark"] .whats-new-dialog {
+    background:
+        radial-gradient(circle at top left, rgba(99, 102, 241, 0.22), transparent 34%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.16), transparent 36%),
+        rgba(15, 23, 42, 0.94);
+    border-color: rgba(255, 255, 255, 0.10);
+    box-shadow:
+        0 34px 90px rgba(0, 0, 0, 0.46),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.whats-new-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    background: rgba(148, 163, 184, 0.18);
+    color: var(--text, #172033);
+    font-size: 26px;
+    line-height: 1;
+}
+
+.whats-new-close:hover {
+    background: rgba(148, 163, 184, 0.28);
+}
+
+.whats-new-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.12);
+    color: #4f46e5;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+html[data-theme="dark"] .whats-new-kicker {
+    color: #a5b4fc;
+    background: rgba(129, 140, 248, 0.14);
+}
+
+.whats-new-title {
+    margin: 0;
+    font-size: clamp(34px, 5vw, 58px);
+    line-height: 0.96;
+    font-weight: 900;
+}
+
+.whats-new-lead {
+    margin: 18px 0 26px;
+    max-width: 650px;
+    color: var(--muted, #667085);
+    font-size: 18px;
+    line-height: 1.58;
+}
+
+.whats-new-list {
+    display: grid;
+    gap: 14px;
+}
+
+.whats-new-item {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 16px;
+    padding: 18px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(148, 163, 184, 0.20);
+}
+
+html[data-theme="dark"] .whats-new-item {
+    background: rgba(15, 23, 42, 0.54);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.whats-new-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #5b5cf6, #7c3aed);
+    color: #ffffff;
+    font-size: 22px;
+    font-weight: 900;
+    box-shadow: 0 12px 28px rgba(91, 92, 246, 0.28);
+}
+
+.whats-new-item h3 {
+    margin: 0 0 6px;
+    font-size: 18px;
+}
+
+.whats-new-item p {
+    margin: 0;
+    color: var(--muted, #667085);
+    line-height: 1.55;
+}
+
+.whats-new-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 22px;
+}
+
+.whats-new-done {
+    border: 0;
+    cursor: pointer;
+}
+
+@keyframes whatsNewIn {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 640px) {
+    .whats-new-dialog {
+        padding: 30px 22px 24px;
+        border-radius: 28px;
+    }
+
+    .whats-new-item {
+        grid-template-columns: 1fr;
+    }
+
+    .whats-new-icon {
+        width: 44px;
+        height: 44px;
+    }
+}
