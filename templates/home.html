@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Нейрона ИИ — Единая точка входа</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix10">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix11">
 </head>
 <body>
     <div class="container">
@@ -19,7 +19,7 @@
             </div>
 
             <div class="top-actions">
-                <div class="version-label">Версия 2.0</div>
+                <div class="version-label">Версия 2.1</div>
 
                 <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
                     <span class="theme-toggle-icon">☀️</span>
@@ -297,8 +297,12 @@
                 </button>
             </div>
 
-            <div id="gitUpdateStatus" class="update-status-card update-status-neutral">
-                <div class="update-status-icon">●</div>
+            <div id="gitUpdateStatus"
+                 class="update-status-card update-status-neutral"
+                 aria-live="polite">
+                <div class="update-status-icon">
+                    <span>?</span>
+                </div>
 
                 <div class="update-status-content">
                     <div class="update-status-title">Статус обновлений пока не проверялся</div>
@@ -414,7 +418,9 @@
                 statusBox.className = "update-status-card update-status-" + type;
 
                 statusBox.innerHTML = `
-                    <div class="update-status-icon">${icon}</div>
+                    <div class="update-status-icon">
+                        <span>${icon}</span>
+                    </div>
 
                     <div class="update-status-content">
                         <div class="update-status-title">${title}</div>
