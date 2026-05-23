@@ -130,3 +130,5 @@ __pycache__/
 
 # OS files
 .DS_Store
+# Cameras runtime data
+data/cameras/
