@@ -1,6 +1,4 @@
-import html
 import json
-import re
 import shutil
 import time
 from datetime import datetime
@@ -235,102 +233,6 @@ def fetch_dashboard_data():
         except Exception:
             pass
 
-
-        # [dom_omsu_extract_start]
-        try:
-            dom_items = page.evaluate(
-                """
-                () => {
-                    const widgets = Array.from(document.querySelectorAll('.dl-widget'));
-
-                    const widget = widgets.find((node) => {
-                        const title = node.querySelector('.dl-widget__chart-title-text');
-                        return title && title.textContent && title.textContent.trim() === 'ОМСУ';
-                    });
-
-                    if (!widget) {
-                        return {
-                            source: 'dom_widget_not_found',
-                            items: [],
-                            debug: {
-                                widgetCount: widgets.length,
-                                titles: widgets.map((node) => {
-                                    const title = node.querySelector('.dl-widget__chart-title-text');
-                                    return title ? title.textContent.trim() : '';
-                                }).filter(Boolean),
-                            },
-                        };
-                    }
-
-                    const yLabels = Array.from(widget.querySelectorAll('.gcharts-y-axis__label'))
-                        .map((node) => {
-                            const text = (node.textContent || '').trim();
-                            const rect = node.getBoundingClientRect();
-
-                            return {
-                                text,
-                                top: rect.top,
-                            };
-                        })
-                        .filter((item) => item.text && !/^\\d+$/.test(item.text));
-
-                    const valueLabels = Array.from(widget.querySelectorAll('.gcharts-bar-y__label'))
-                        .map((node) => {
-                            const text = (node.textContent || '').trim();
-                            const value = parseInt(text.replace(/\\s+/g, ''), 10);
-                            const rect = node.getBoundingClientRect();
-
-                            return {
-                                text,
-                                value: Number.isFinite(value) ? value : null,
-                                top: rect.top,
-                            };
-                        })
-                        .filter((item) => item.value !== null);
-
-                    yLabels.sort((a, b) => a.top - b.top);
-                    valueLabels.sort((a, b) => a.top - b.top);
-
-                    const count = Math.min(yLabels.length, valueLabels.length);
-                    const items = [];
-
-                    for (let i = 0; i < count; i += 1) {
-                        items.push({
-                            municipality: yLabels[i].text,
-                            organization: yLabels[i].text,
-                            overdue_count: valueLabels[i].value,
-                            responsible_name: '',
-                            responsible_phone: '',
-                        });
-                    }
-
-                    return {
-                        source: 'playwright_dom_omsu',
-                        items,
-                        debug: {
-                            yLabelsCount: yLabels.length,
-                            valueLabelsCount: valueLabels.length,
-                            firstYLabels: yLabels.slice(0, 5),
-                            firstValueLabels: valueLabels.slice(0, 5),
-                        },
-                    };
-                }
-                """
-            )
-
-            dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
-            with open(dom_items_file, "w", encoding="utf-8") as f:
-                json.dump(dom_items, f, ensure_ascii=False, indent=2)
-
-            print(
-                "[saved] DOM OМСУ items:",
-                len(dom_items.get("items", [])),
-                dom_items_file,
-            )
-        except Exception as e:
-            print(f"[warn] DOM OМСУ extract failed: {e}")
-        # [dom_omsu_extract_end]
-
         context.close()
 
     print(f"[done] saved JSON responses: {saved_count}")
@@ -374,255 +276,6 @@ def load_wrappers():
     return wrappers
 
 
-
-
-def walk_json_objects(value):
-    if isinstance(value, dict):
-        yield value
-
-        for nested_value in value.values():
-            yield from walk_json_objects(nested_value)
-
-    elif isinstance(value, list):
-        for item in value:
-            yield from walk_json_objects(item)
-
-
-def extract_chart_items_from_payload(payload):
-    candidates = []
-
-    for obj in walk_json_objects(payload):
-        categories = obj.get("categories")
-        graphs = obj.get("graphs")
-
-        if not isinstance(categories, list) or not isinstance(graphs, list):
-            continue
-
-        if not categories or not graphs:
-            continue
-
-        first_graph = graphs[0] or {}
-        points = first_graph.get("data") or []
-
-        if not isinstance(points, list) or not points:
-            continue
-
-        max_len = min(len(categories), len(points))
-        items = []
-
-        for i in range(max_len):
-            municipality = str(categories[i]).strip()
-            point = points[i] or {}
-
-            if isinstance(point, dict):
-                overdue_count = safe_int(
-                    point.get("y", point.get("value", point.get("count", 0))),
-                    0,
-                )
-            else:
-                overdue_count = safe_int(point, 0)
-
-            if not municipality:
-                continue
-
-            items.append(
-                {
-                    "municipality": municipality,
-                    "organization": municipality,
-                    "overdue_count": overdue_count,
-                    "responsible_name": "",
-                    "responsible_phone": "",
-                }
-            )
-
-        if items:
-            candidates.append(items)
-
-    if not candidates:
-        return []
-
-    candidates.sort(
-        key=lambda items: (
-            len(items),
-            sum(safe_int(item.get("overdue_count", 0), 0) for item in items),
-        ),
-        reverse=True,
-    )
-
-    return candidates[0]
-
-
-def parse_translate_y(transform_value):
-    if not transform_value:
-        return None
-
-    match = re.search(r"translate\(\s*[-\d.]+\s*,\s*([-\d.]+)\s*\)", transform_value)
-
-    if not match:
-        return None
-
-    try:
-        return float(match.group(1))
-    except Exception:
-        return None
-
-
-def strip_tags(value):
-    value = re.sub(r"<[^>]+>", "", value or "")
-    value = html.unescape(value)
-    return value.strip()
-
-
-def extract_dashboard_data_from_html():
-    html_file = DEBUG_ENV_DIR / "dashboard_page.html"
-
-    if not html_file.exists():
-        return {
-            "source": "html_missing",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
-    try:
-        page_html = html_file.read_text(encoding="utf-8")
-    except Exception:
-        return {
-            "source": "html_read_error",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
-    title_index = page_html.find('title="ОМСУ"')
-
-    if title_index == -1:
-        title_index = page_html.find(">ОМСУ</span>")
-
-    if title_index == -1:
-        return {
-            "source": "html_omsu_title_not_found",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
-    axis_index = page_html.find("gcharts-y-axis", title_index)
-
-    if axis_index == -1:
-        return {
-            "source": "html_omsu_axis_not_found",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
-    svg_start = page_html.rfind("<svg", 0, axis_index)
-    svg_end = page_html.find("</svg>", axis_index)
-
-    if svg_start == -1 or svg_end == -1:
-        return {
-            "source": "html_omsu_svg_not_found",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
-    widget_html = page_html[svg_start:svg_end + len("</svg>")]
-
-    y_labels = []
-
-    for match in re.finditer(
-        r'<text(?=[^>]*transform="([^"]+)")[^>]*>\s*<tspan(?=[^>]*class="gcharts-y-axis__label")[^>]*>(.*?)</tspan>',
-        widget_html,
-        flags=re.IGNORECASE | re.DOTALL,
-    ):
-        y = parse_translate_y(match.group(1))
-        label = strip_tags(match.group(2))
-
-        if y is None or not label:
-            continue
-
-        if re.fullmatch(r"\d+", label):
-            continue
-
-        y_labels.append(
-            {
-                "y": y,
-                "municipality": label,
-            }
-        )
-
-    value_labels = []
-
-    for match in re.finditer(
-        r'<text(?=[^>]*class="gcharts-bar-y__label")(?=[^>]*\by="([^"]+)")[^>]*>(.*?)</text>',
-        widget_html,
-        flags=re.IGNORECASE | re.DOTALL,
-    ):
-        try:
-            y = float(match.group(1))
-        except Exception:
-            continue
-
-        value = strip_tags(match.group(2))
-        count = safe_int(value, None)
-
-        if count is None:
-            continue
-
-        value_labels.append(
-            {
-                "y": y,
-                "count": count,
-            }
-        )
-
-    if not y_labels or not value_labels:
-        return {
-            "source": "html_empty_omsu_labels",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
-    y_labels.sort(key=lambda x: x["y"])
-    value_labels.sort(key=lambda x: x["y"])
-
-    max_len = min(len(y_labels), len(value_labels))
-    items = []
-
-    for i in range(max_len):
-        municipality = y_labels[i]["municipality"]
-        overdue_count = value_labels[i]["count"]
-
-        items.append(
-            {
-                "municipality": municipality,
-                "organization": municipality,
-                "overdue_count": overdue_count,
-                "responsible_name": "",
-                "responsible_phone": "",
-            }
-        )
-
-    items.sort(key=lambda x: (-safe_int(x["overdue_count"], 0), x["municipality"]))
-
-    return {
-        "source": "saved_html_svg",
-        "items": items,
-        "matched_sources": [
-            {
-                "file": str(html_file),
-                "url": "dashboard_page.html",
-                "items_found": len(items),
-                "chart_id": "html_svg_omsu",
-            }
-        ],
-        "items_count": len(items),
-    }
-
-
 def find_omsu_chart_id(wrappers):
     for wrapper in wrappers:
         url = (wrapper.get("url") or "").lower()
@@ -651,7 +304,6 @@ def find_omsu_chart_id(wrappers):
     return None
 
 
-
 def extract_from_chart_run_response(wrapper, omsu_chart_id):
     url = wrapper.get("url") or ""
     payload = wrapper.get("data") or {}
@@ -659,24 +311,42 @@ def extract_from_chart_run_response(wrapper, omsu_chart_id):
     if "/charts/api/run" not in url:
         return []
 
-    wrapper_chart_id = (
-        payload.get("id")
-        or payload.get("_confStorageConfig", {}).get("entryId")
-        or payload.get("entryId")
-        or payload.get("chartId")
-    )
-
-    if omsu_chart_id and wrapper_chart_id and wrapper_chart_id != omsu_chart_id:
+    wrapper_chart_id = payload.get("id") or payload.get("_confStorageConfig", {}).get("entryId")
+    if omsu_chart_id and wrapper_chart_id != omsu_chart_id:
         return []
 
-    items = extract_chart_items_from_payload(payload)
+    chart_data = payload.get("data") or {}
+    categories = chart_data.get("categories") or []
+    graphs = chart_data.get("graphs") or []
 
-    if not items:
+    if not categories or not graphs:
         return []
+
+    first_graph = graphs[0] or {}
+    points = first_graph.get("data") or []
+
+    items = []
+    max_len = min(len(categories), len(points))
+
+    for i in range(max_len):
+        municipality = str(categories[i]).strip()
+        point = points[i] or {}
+        overdue_count = safe_int(point.get("y", 0), 0)
+
+        if not municipality:
+            continue
+
+        items.append(
+            {
+                "municipality": municipality,
+                "organization": municipality,
+                "overdue_count": overdue_count,
+                "responsible_name": "",
+                "responsible_phone": "",
+            }
+        )
 
     return items
-
-
 
 
 def extract_dashboard_data():
@@ -690,73 +360,32 @@ def extract_dashboard_data():
         items = extract_from_chart_run_response(wrapper, omsu_chart_id)
 
         if items:
-            total = sum(safe_int(item.get("overdue_count", 0), 0) for item in items)
-
             matched_sources.append(
                 {
                     "file": wrapper.get("file", ""),
                     "url": wrapper.get("url", ""),
                     "items_found": len(items),
-                    "total_overdue": total,
                     "chart_id": wrapper.get("data", {}).get("id")
                     or wrapper.get("data", {}).get("_confStorageConfig", {}).get("entryId", ""),
                 }
             )
 
-            current_total = sum(safe_int(item.get("overdue_count", 0), 0) for item in best_items)
-
-            if len(items) > len(best_items) or total > current_total:
+            if len(items) > len(best_items):
                 best_items = items
 
-    source = "saved_network"
-
-    # Главный fallback: данные, снятые напрямую из отрисованного DOM страницы.
-    # Это устойчивее, чем парсить внутренний JSON DataLens, который часто меняется.
-    if not best_items:
-        dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
-
-        if dom_items_file.exists():
-            try:
-                dom_payload = load_json(dom_items_file, default={}) or {}
-                dom_items = dom_payload.get("items", []) or []
-
-                if dom_items:
-                    best_items = dom_items
-                    source = dom_payload.get("source", "playwright_dom_omsu")
-                    matched_sources = [
-                        {
-                            "file": str(dom_items_file),
-                            "url": "dashboard_dom",
-                            "items_found": len(best_items),
-                            "chart_id": "dom_omsu",
-                        }
-                    ]
-            except Exception:
-                pass
-
-    # Резервный fallback: парсинг сохранённого HTML/SVG.
-    if not best_items:
-        try:
-            html_extracted = extract_dashboard_data_from_html()
-            best_items = html_extracted.get("items", []) or []
-            matched_sources = html_extracted.get("matched_sources", []) or []
-            source = html_extracted.get("source", "saved_html_svg")
-        except Exception:
-            pass
-
-    best_items.sort(key=lambda x: (-safe_int(x.get("overdue_count", 0), 0), x.get("municipality", "")))
+    best_items.sort(key=lambda x: (-safe_int(x["overdue_count"], 0), x["municipality"]))
 
     return {
-        "source": source if best_items else "empty",
+        "source": "saved_network" if best_items else "empty",
         "items": best_items,
         "matched_sources": matched_sources,
         "responses_scanned": len(wrappers),
         "items_count": len(best_items),
         "summary": {
             "total_records": len(best_items),
-            "critical": sum(1 for x in best_items if safe_int(x.get("overdue_count", 0), 0) >= 20),
-            "risk": sum(1 for x in best_items if 0 < safe_int(x.get("overdue_count", 0), 0) < 20),
-            "ok": sum(1 for x in best_items if safe_int(x.get("overdue_count", 0), 0) == 0),
+            "critical": sum(1 for x in best_items if safe_int(x["overdue_count"], 0) >= 20),
+            "risk": sum(1 for x in best_items if 0 < safe_int(x["overdue_count"], 0) < 20),
+            "ok": sum(1 for x in best_items if safe_int(x["overdue_count"], 0) == 0),
         },
         "debug": {
             "omsu_chart_id": omsu_chart_id,
@@ -833,7 +462,7 @@ def build_public_message(summary, items):
 
     lines = [
         "Добрый день.",
-        "По итогам проверки информационной панели выполнения поручений, зафиксированных в системе управления Министерства ЖКХ МО, выявлены невыполненные задачи.",
+        "По итогам проверки информационной панели выполнения поручений, зафиксированных в системе управления МинистерстаЖКХ МО, выявлены невыполненные задачи.",
   
         f"Общее количество просроченных задач: {summary.get('total_overdue', 0)}.",
     ]
@@ -902,9 +531,9 @@ def build_personal_messages(items):
         responsible_phone = item.get("responsible_phone", "")
 
         message = (
-            f"Добрый день!\n\n"
-            f"По итогам проверки информационной панели выполнения поручений, зафиксированных в системе управления Министерства ЖКХ МО по ОМСУ '{municipality}' "
-            f"выявлены невыполненные задачи: {overdue_count}.\n"
+            f"Добрый день!.\n\n"
+            f"По итогам проверки информационной панели выполнения поручений, зафиксированных в системе управления МинистерстаЖКХ МО по ОМСУ '{municipality}' "
+            f"выявлены невыполненные задачи.: {overdue_count}.\n"
             f"Просьба проверить блок '{organization}', отработать просроченные позиции и актуализировать отчёт.\n\n"
             f"Необходимо до конца следующего рабочего дня внести комментарии о текущем статусе исполнения поручения и перевести задачу на контролёра."
 

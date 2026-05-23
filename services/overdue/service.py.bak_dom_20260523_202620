@@ -235,102 +235,6 @@ def fetch_dashboard_data():
         except Exception:
             pass
 
-
-        # [dom_omsu_extract_start]
-        try:
-            dom_items = page.evaluate(
-                """
-                () => {
-                    const widgets = Array.from(document.querySelectorAll('.dl-widget'));
-
-                    const widget = widgets.find((node) => {
-                        const title = node.querySelector('.dl-widget__chart-title-text');
-                        return title && title.textContent && title.textContent.trim() === 'ОМСУ';
-                    });
-
-                    if (!widget) {
-                        return {
-                            source: 'dom_widget_not_found',
-                            items: [],
-                            debug: {
-                                widgetCount: widgets.length,
-                                titles: widgets.map((node) => {
-                                    const title = node.querySelector('.dl-widget__chart-title-text');
-                                    return title ? title.textContent.trim() : '';
-                                }).filter(Boolean),
-                            },
-                        };
-                    }
-
-                    const yLabels = Array.from(widget.querySelectorAll('.gcharts-y-axis__label'))
-                        .map((node) => {
-                            const text = (node.textContent || '').trim();
-                            const rect = node.getBoundingClientRect();
-
-                            return {
-                                text,
-                                top: rect.top,
-                            };
-                        })
-                        .filter((item) => item.text && !/^\\d+$/.test(item.text));
-
-                    const valueLabels = Array.from(widget.querySelectorAll('.gcharts-bar-y__label'))
-                        .map((node) => {
-                            const text = (node.textContent || '').trim();
-                            const value = parseInt(text.replace(/\\s+/g, ''), 10);
-                            const rect = node.getBoundingClientRect();
-
-                            return {
-                                text,
-                                value: Number.isFinite(value) ? value : null,
-                                top: rect.top,
-                            };
-                        })
-                        .filter((item) => item.value !== null);
-
-                    yLabels.sort((a, b) => a.top - b.top);
-                    valueLabels.sort((a, b) => a.top - b.top);
-
-                    const count = Math.min(yLabels.length, valueLabels.length);
-                    const items = [];
-
-                    for (let i = 0; i < count; i += 1) {
-                        items.push({
-                            municipality: yLabels[i].text,
-                            organization: yLabels[i].text,
-                            overdue_count: valueLabels[i].value,
-                            responsible_name: '',
-                            responsible_phone: '',
-                        });
-                    }
-
-                    return {
-                        source: 'playwright_dom_omsu',
-                        items,
-                        debug: {
-                            yLabelsCount: yLabels.length,
-                            valueLabelsCount: valueLabels.length,
-                            firstYLabels: yLabels.slice(0, 5),
-                            firstValueLabels: valueLabels.slice(0, 5),
-                        },
-                    };
-                }
-                """
-            )
-
-            dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
-            with open(dom_items_file, "w", encoding="utf-8") as f:
-                json.dump(dom_items, f, ensure_ascii=False, indent=2)
-
-            print(
-                "[saved] DOM OМСУ items:",
-                len(dom_items.get("items", [])),
-                dom_items_file,
-            )
-        except Exception as e:
-            print(f"[warn] DOM OМСУ extract failed: {e}")
-        # [dom_omsu_extract_end]
-
         context.close()
 
     print(f"[done] saved JSON responses: {saved_count}")
@@ -678,7 +582,6 @@ def extract_from_chart_run_response(wrapper, omsu_chart_id):
 
 
 
-
 def extract_dashboard_data():
     wrappers = load_wrappers()
     omsu_chart_id = find_omsu_chart_id(wrappers)
@@ -710,41 +613,13 @@ def extract_dashboard_data():
 
     source = "saved_network"
 
-    # Главный fallback: данные, снятые напрямую из отрисованного DOM страницы.
-    # Это устойчивее, чем парсить внутренний JSON DataLens, который часто меняется.
     if not best_items:
-        dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
+        html_extracted = extract_dashboard_data_from_html()
+        best_items = html_extracted.get("items", []) or []
+        matched_sources = html_extracted.get("matched_sources", []) or []
+        source = html_extracted.get("source", "saved_html_svg")
 
-        if dom_items_file.exists():
-            try:
-                dom_payload = load_json(dom_items_file, default={}) or {}
-                dom_items = dom_payload.get("items", []) or []
-
-                if dom_items:
-                    best_items = dom_items
-                    source = dom_payload.get("source", "playwright_dom_omsu")
-                    matched_sources = [
-                        {
-                            "file": str(dom_items_file),
-                            "url": "dashboard_dom",
-                            "items_found": len(best_items),
-                            "chart_id": "dom_omsu",
-                        }
-                    ]
-            except Exception:
-                pass
-
-    # Резервный fallback: парсинг сохранённого HTML/SVG.
-    if not best_items:
-        try:
-            html_extracted = extract_dashboard_data_from_html()
-            best_items = html_extracted.get("items", []) or []
-            matched_sources = html_extracted.get("matched_sources", []) or []
-            source = html_extracted.get("source", "saved_html_svg")
-        except Exception:
-            pass
-
-    best_items.sort(key=lambda x: (-safe_int(x.get("overdue_count", 0), 0), x.get("municipality", "")))
+    best_items.sort(key=lambda x: (-safe_int(x["overdue_count"], 0), x["municipality"]))
 
     return {
         "source": source if best_items else "empty",
@@ -754,9 +629,9 @@ def extract_dashboard_data():
         "items_count": len(best_items),
         "summary": {
             "total_records": len(best_items),
-            "critical": sum(1 for x in best_items if safe_int(x.get("overdue_count", 0), 0) >= 20),
-            "risk": sum(1 for x in best_items if 0 < safe_int(x.get("overdue_count", 0), 0) < 20),
-            "ok": sum(1 for x in best_items if safe_int(x.get("overdue_count", 0), 0) == 0),
+            "critical": sum(1 for x in best_items if safe_int(x["overdue_count"], 0) >= 20),
+            "risk": sum(1 for x in best_items if 0 < safe_int(x["overdue_count"], 0) < 20),
+            "ok": sum(1 for x in best_items if safe_int(x["overdue_count"], 0) == 0),
         },
         "debug": {
             "omsu_chart_id": omsu_chart_id,
