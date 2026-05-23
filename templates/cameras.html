@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Контроль запуска камер</title>
+
+    <script>
+        const savedTheme = localStorage.getItem("camera-dashboard-theme") || "dark";
+        document.documentElement.dataset.theme = savedTheme;
+    </script>
+
+    <link rel="stylesheet" href="{{ url_for('static', path='cameras/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header class="topbar">
+            <div class="brand">
+                <a href="/" class="brand-link">
+                    <img src="{{ url_for('static', path='logo.svg') }}" alt="Контроль камер" class="brand-logo">
+
+                    <div class="brand-text">
+                        <div class="brand-title">Подмосковная Нейрона Роботовна</div>
+                        <div class="brand-subtitle">Автоматическая проверка подключения и работоспособности</div>
+                    </div>
+                </a>
+            </div>
+
+            <div class="topbar-right">
+                <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="Переключить тему">
+                    <span class="theme-toggle-icon">🌙</span>
+                    <span class="theme-toggle-text">Тёмная</span>
+                </button>
+
+                <a href="https://fkr.eiasmo.ru" class="topbar-redmine-btn" target="_blank" rel="noopener noreferrer">
+                    Перейти на ФКР
+                </a>
+            </div>
+        </header>
+
+        <section class="hero card">
+            <div class="hero-copy">
+                <div class="eyebrow">ЛОКАЛЬНЫЙ МОНИТОРИНГ ВЕБ-КАМЕР</div>
+                <h1>Автоматический контроль запуска и работы камер</h1>
+                <p class="subtext">
+                    Система проверяет список адресов, определяет статус камеры,
+                    фиксирует проблемные позиции и формирует документы.
+                </p>
+            </div>
+
+            <div class="hero-side">
+                <div class="hero-chip">FastAPI + Jinja2</div>
+                <div class="hero-chip">Excel → TSV</div>
+                <div class="hero-chip">Проверка камер</div>
+                <div class="hero-chip">Фильтрация и группировка</div>
+            </div>
+        </section>
+
+        <section class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Всего адресов</div>
+                <div id="metricTotal" class="metric-value">{{ metrics.total }}</div>
+            </div>
+
+            <div class="metric-card ok">
+                <div class="metric-label">Работают</div>
+                <div id="metricWorking" class="metric-value">{{ metrics.working }}</div>
+            </div>
+
+            <div class="metric-card critical">
+                <div class="metric-label">Не работают</div>
+                <div id="metricNotWorking" class="metric-value">{{ metrics.not_working }}</div>
+            </div>
+
+            <div class="metric-card risk">
+                <div class="metric-label">Не подключены</div>
+                <div id="metricNotConnected" class="metric-value">{{ metrics.not_connected }}</div>
+            </div>
+        </section>
+
+        <div class="card action-card">
+            <div>
+                <h2>Управление проверкой</h2>
+                <p class="subtext">
+                    Запустите автоматическую проверку камер. После завершения результаты появятся ниже.
+                </p>
+            </div>
+
+            <div class="action-panel">
+                <button id="aboutProjectBtn" class="secondary-button" type="button">
+                    О проекте
+                </button>
+
+                <button id="openAddressUploadBtn" class="secondary-button premium-button" type="button">
+                    Обновить таблицу адресов
+                </button>
+
+                <a href="/camera-prescriptions" target="_blank" class="secondary-button">
+                    Открыть предписания
+                </a>
+
+
+                <button
+                    id="runCheckBtn"
+                    class="primary-button"
+                    type="button"
+                    {% if check_state.is_running %}disabled{% endif %}
+                >
+                    {% if check_state.is_running %}
+                        Проверка выполняется...
+                    {% else %}
+                        Запустить проверку
+                    {% endif %}
+                </button>
+            </div>
+        </div>
+
+        <div class="card premium-upload-card">
+            <div class="premium-upload-header">
+                <div>
+                    <div class="eyebrow">ТАБЛИЦА СВЕРКИ</div>
+                    <h2>Актуализация адресной базы</h2>
+                    <p class="subtext">
+                        Загрузите Excel, CSV или TSV. Система автоматически преобразует файл в
+                        <strong>data/addresses.tsv</strong>, который используется для сверки камер.
+                    </p>
+                </div>
+
+                <button id="openAddressUploadBtnInline" class="primary-button" type="button">
+                    Загрузить новый файл
+                </button>
+            </div>
+
+            <div class="premium-upload-grid">
+                <div class="premium-upload-stat">
+                    <div class="premium-upload-label">Путь к файлу</div>
+                    <div id="addressTablePath" class="premium-upload-value mono">{{ table_info.path }}</div>
+                </div>
+
+                <div class="premium-upload-stat">
+                    <div class="premium-upload-label">Количество строк</div>
+                    <div id="addressTableRows" class="premium-upload-value">{{ table_info.rows_count }}</div>
+                </div>
+
+                <div class="premium-upload-stat">
+                    <div class="premium-upload-label">Последнее обновление</div>
+                    <div id="addressTableUpdatedAt" class="premium-upload-value">{{ table_info.updated_at or "—" }}</div>
+                </div>
+
+                <div class="premium-upload-stat">
+                    <div class="premium-upload-label">Размер</div>
+                    <div id="addressTableSize" class="premium-upload-value">{{ table_info.size_bytes }} байт</div>
+                </div>
+            </div>
+
+            <div class="premium-preview-block">
+                <div class="premium-upload-label">Предпросмотр файла</div>
+                <pre id="addressTablePreview" class="premium-preview">{% if table_info.preview %}{{ table_info.preview | join('\n') }}{% else %}Файл пока не загружен{% endif %}</pre>
+            </div>
+        </div>
+
+        <div class="card status-card">
+            <div class="system-status">
+                <div>
+                    <div class="status-title">Состояние системы</div>
+
+                    {% if check_state.is_running %}
+                        <div id="systemStateBadge" class="system-badge running">Выполняется проверка</div>
+                    {% else %}
+                        <div id="systemStateBadge" class="system-badge ready">Готова</div>
+                    {% endif %}
+                </div>
+
+                <div class="stage-block">
+                    <div class="stage-label">Текущий этап</div>
+
+                    <div id="currentStage" class="stage-value">
+                        {{ check_state.stage }}
+                    </div>
+
+                    <div id="currentStageMessage" class="stage-message">
+                        {{ check_state.message }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loaderBlock" class="card loader-card {% if not check_state.is_running %}hidden{% endif %}">
+            <div class="loader-wrap">
+                <div class="spinner"></div>
+
+                <div>
+                    <h2>Выполняется проверка</h2>
+                    <p class="subtext">Пожалуйста, дождитесь завершения автоматической обработки.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="statusMessage" class="status-message hidden"></div>
+
+        <div id="checkTimesBlock" class="{% if not results and not check_state.started_at and not check_state.finished_at and not check_state.is_running %}hidden{% endif %}">
+            <div class="grid two">
+                <div class="card">
+                    <h2>Начало проверки</h2>
+                    <p id="startedAtValue" class="big-time">{{ check_state.started_at or "—" }}</p>
+                </div>
+
+                <div class="card">
+                    <h2>Завершение проверки</h2>
+                    <p id="finishedAtValue" class="big-time">{{ check_state.finished_at or "—" }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="emptyStateCard" class="card {% if results or check_state.is_running %}hidden{% endif %}">
+            <h2>Данные пока не сформированы</h2>
+            <p>
+                Нажмите кнопку <strong>«Запустить проверку»</strong>,
+                после чего результат появится на этой странице.
+            </p>
+        </div>
+
+        <div id="problemSection" class="card {% if not results %}hidden{% endif %}">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <h2>Проблемные адреса</h2>
+                <button id="toggleProblemSectionBtn" class="secondary-button" type="button">
+                    Свернуть
+                </button>
+            </div>
+
+            <div id="problemResultsContainer">
+                {% for item in results %}
+                    {% if item.camera_status != "working" %}
+                        <div class="message-block">
+                            <div class="message-head">
+                                <div class="message-head-badges">
+                                    <strong>{{ item.owner or "Не указан" }}</strong>
+
+                                    {% if item.camera_status == "not_working" %}
+                                        <span class="pill pill-critical">Камера не работает</span>
+                                    {% elif item.camera_status == "not_connected" %}
+                                        <span class="pill pill-risk">Не подключена</span>
+                                    {% elif item.camera_status == "unknown" %}
+                                        <span class="pill pill-risk">Статус не определён</span>
+                                    {% else %}
+                                        <span class="pill pill-risk">Статус не определён</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div class="message-meta">
+                                {{ item.address }} / Проверено: {{ item.checked_at }}
+                            </div>
+
+                            {% if item.camera_status == "not_working" %}
+                                <pre>По адресу "{{ item.address }}" камера не работает. Ответственный: {{ item.owner or "Не указан" }}.</pre>
+                            {% elif item.camera_status == "not_connected" %}
+                                <pre>По адресу "{{ item.address }}" камера не подключена или адрес отсутствует в таблице камер. Ответственный: {{ item.owner or "Не указан" }}.</pre>
+                            {% else %}
+                                <pre>По адресу "{{ item.address }}" статус камеры не удалось определить автоматически. Ответственный: {{ item.owner or "Не указан" }}.</pre>
+                            {% endif %}
+
+                            <div class="message-actions">
+                                {% if item.stream_url %}
+                                    <a class="action-btn action-btn-success" href="{{ item.stream_url }}" target="_blank" rel="noopener noreferrer">
+                                        Открыть ссылку
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div id="detailsSection" class="card {% if not results %}hidden{% endif %}">
+            <div class="section-title-row">
+                <div>
+                    <h2>Детализация по адресам</h2>
+                    <p class="subtext">Фильтрация по статусу и группировка по компаниям или городам.</p>
+                </div>
+
+                <form id="filtersForm" method="get" action="/" class="details-toolbar">
+                    <select id="statusFilter" name="status" class="secondary-button">
+                        <option value="all" {% if status_filter == "all" %}selected{% endif %}>Все статусы</option>
+                        <option value="working" {% if status_filter == "working" %}selected{% endif %}>Только работает</option>
+                        <option value="not_working" {% if status_filter == "not_working" %}selected{% endif %}>Только не работает</option>
+                        <option value="not_connected" {% if status_filter == "not_connected" %}selected{% endif %}>Только не подключена</option>
+                        <option value="problem" {% if status_filter == "problem" %}selected{% endif %}>Только проблемные</option>
+                    </select>
+
+                    <select id="groupByFilter" name="group_by" class="secondary-button">
+                        <option value="none" {% if group_by == "none" %}selected{% endif %}>Без группировки</option>
+                        <option value="company" {% if group_by == "company" %}selected{% endif %}>По компаниям</option>
+                        <option value="city" {% if group_by == "city" %}selected{% endif %}>По городам</option>
+                    </select>
+
+                    <button type="submit" class="primary-button">Применить</button>
+                </form>
+            </div>
+
+            <div id="detailsContent">
+                {% if group_by == "none" %}
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Адрес</th>
+                                    <th>Город</th>
+                                    <th>Ответственный</th>
+                                    <th>Статус камеры</th>
+                                    <th>Ссылка</th>
+                                    <th>Время проверки</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="resultsTableBody">
+                                {% for row in filtered_results %}
+                                    {% if row.camera_status == "working" %}
+                                        <tr class="status-ok">
+                                    {% elif row.camera_status == "not_working" %}
+                                        <tr class="status-critical">
+                                    {% else %}
+                                        <tr class="status-risk">
+                                    {% endif %}
+                                        <td>{{ row.id }}</td>
+                                        <td>{{ row.address }}</td>
+                                        <td>{{ row.city or "Не указан" }}</td>
+                                        <td>{{ row.owner or "Не указан" }}</td>
+
+                                        <td>
+                                            {% if row.camera_status == "working" %}
+                                                <span class="pill pill-ok">Работает</span>
+                                            {% elif row.camera_status == "not_working" %}
+                                                <span class="pill pill-critical">Не работает</span>
+                                            {% elif row.camera_status == "not_connected" %}
+                                                <span class="pill pill-risk">Не подключена</span>
+                                            {% else %}
+                                                <span class="pill pill-risk">Неизвестно</span>
+                                            {% endif %}
+                                        </td>
+
+                                        <td>
+                                            {% if row.link_url %}
+                                                <a href="{{ row.link_url }}" target="_blank" rel="noopener noreferrer" class="table-link">
+                                                    Открыть
+                                                </a>
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        </td>
+
+                                        <td>{{ row.checked_at }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div id="groupedResultsContainer">
+                        {% for group in grouped_results %}
+                            <div class="group-block">
+                                <div class="group-header">
+                                    <h3>{{ group.name }}</h3>
+                                    <span class="group-count">{{ group.items|length }}</span>
+                                </div>
+
+                                <div class="table-wrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Адрес</th>
+                                                <th>Город</th>
+                                                <th>Ответственный</th>
+                                                <th>Статус камеры</th>
+                                                <th>Ссылка</th>
+                                                <th>Время проверки</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody>
+                                            {% for row in group.items %}
+                                                {% if row.camera_status == "working" %}
+                                                    <tr class="status-ok">
+                                                {% elif row.camera_status == "not_working" %}
+                                                    <tr class="status-critical">
+                                                {% else %}
+                                                    <tr class="status-risk">
+                                                {% endif %}
+                                                    <td>{{ row.id }}</td>
+                                                    <td>{{ row.address }}</td>
+                                                    <td>{{ row.city or "Не указан" }}</td>
+                                                    <td>{{ row.owner or "Не указан" }}</td>
+
+                                                    <td>
+                                                        {% if row.camera_status == "working" %}
+                                                            <span class="pill pill-ok">Работает</span>
+                                                        {% elif row.camera_status == "not_working" %}
+                                                            <span class="pill pill-critical">Не работает</span>
+                                                        {% elif row.camera_status == "not_connected" %}
+                                                            <span class="pill pill-risk">Не подключена</span>
+                                                        {% else %}
+                                                            <span class="pill pill-risk">Неизвестно</span>
+                                                        {% endif %}
+                                                    </td>
+
+                                                    <td>
+                                                        {% if row.link_url %}
+                                                            <a href="{{ row.link_url }}" target="_blank" rel="noopener noreferrer" class="table-link">
+                                                                Открыть
+                                                            </a>
+                                                        {% else %}
+                                                            —
+                                                        {% endif %}
+                                                    </td>
+
+                                                    <td>{{ row.checked_at }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div id="aboutProjectModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-eyebrow">ИНФОРМАЦИЯ</div>
+                    <h3>Контроль запуска камер</h3>
+                </div>
+
+                <button type="button" id="closeAboutProjectBtn" class="modal-close-btn">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <pre>Проект предназначен для локальной проверки веб-камер.
+
+Основные функции:
+- загрузка Excel/TSV таблицы адресов;
+- автоматическая конвертация в data/addresses.tsv;
+- проверка статуса камеры;
+- отображение результата в HTML-дашборде;
+- формирование предписаний;
+- локальное хранение истории проверок.
+
+Технологический стек:
+- Python
+- FastAPI
+- Uvicorn
+- Jinja2
+- HTML/CSS
+- Vanilla JavaScript
+- JSON/TSV
+</pre>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="closeAboutProjectFooterBtn" class="primary-button">
+                    Понятно
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="addressUploadModal" class="modal-backdrop hidden">
+        <div class="modal-card modal-card-wide">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-eyebrow">ОБНОВЛЕНИЕ БАЗЫ</div>
+                    <h3>Загрузка адресной таблицы</h3>
+                </div>
+
+                <button type="button" id="closeAddressUploadBtn" class="modal-close-btn">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="upload-modal-note">
+                    Поддерживаются форматы: <strong>.xlsx</strong>, <strong>.xlsm</strong>, <strong>.csv</strong>, <strong>.tsv</strong>.
+                    После загрузки файл будет преобразован в <strong>data/addresses.tsv</strong>.
+                </div>
+
+                <form id="addressUploadForm" class="upload-form">
+                    <input id="addressFileInput" type="file" name="file" accept=".xlsx,.xlsm,.csv,.tsv" required>
+                    <button id="submitAddressUploadBtn" type="submit" class="primary-button">Загрузить и обновить</button>
+                </form>
+
+                <div id="uploadStatusBox" class="upload-status-box hidden"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="closeAddressUploadFooterBtn" class="secondary-button">
+                    Закрыть
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.__INITIAL_FILTERS__ = {
+            status: "{{ status_filter }}",
+            groupBy: "{{ group_by }}"
+        };
+    </script>
+    <script src="{{ url_for('static', path='cameras/app.js') }}"></script>
+</body>
+</html>

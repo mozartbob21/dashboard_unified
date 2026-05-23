@@ -1,39 +1,132 @@
-<<<<<<< HEAD
-=======
-# Virtual environment
->>>>>>> 245e5c1195c79838ed3cafe9209d1b8af5c74818
-.venv/
-venv/
-env/
-
-<<<<<<< HEAD
-.env
-.env.*
-
-__pycache__/
-*.py[cod]
-
+# macOS
 .DS_Store
-Thumbs.db
-
-*.json
-=======
-# Environment variables
-.env
-.env.*
+.AppleDouble
+.LSOverride
 
 # Python cache
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*$py.class
 
-# macOS
-.DS_Store
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
 
-# JSON files
-*.json
+# Environment variables
+.env
+.env.*
+!.env.example
 
 # Logs
 *.log
+logs/
 
-data/
->>>>>>> 245e5c1195c79838ed3cafe9209d1b8af5c74818
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS / temp
+Thumbs.db
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Archives
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# Playwright / browser profiles
+data/overdue/browser-profile/
+data/**/browser-profile/
+data/**/storage_state.json
+
+# Debug screenshots / html dumps
+debug_*.png
+debug_*.html
+data/**/debug/
+data/**/screenshots/
+data/cameras/debug/
+
+# Generated documents
+generated/prescriptions/*
+!generated/prescriptions/.gitkeep
+
+# Large media / frames
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.jpg
+*.jpeg
+*.png
+
+# But keep static images/icons if needed
+!static/logo.svg
+!static/**/*.svg
+!static/**/*.png
+!static/**/*.jpg
+!static/**/*.jpeg
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage / tests
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node if suddenly used
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Runtime data
+data/**/browser-profile/
+data/**/debug/
+data/**/*.json
+
+# Generated documents and files
+generated/
+
+# Browser/cache files
+**/Cache/
+**/Code Cache/
+**/GPUCache/
+**/ShaderCache/
+**/GrShaderCache/
+**/DawnGraphiteCache/
+**/DawnWebGPUCache/
+**/GraphiteDawnCache/
+**/Session Storage/
+**/Local Storage/
+**/Sessions/
+**/Cookies
+**/History
+**/Web Data
+**/Preferences
+**/Secure Preferences
+**/Local State
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS files
+.DS_Store

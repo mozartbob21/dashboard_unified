@@ -1,34 +1,72 @@
 from pathlib import Path
 import json
+import os
 import subprocess
 import sys
 import threading
+from typing import Any
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-
+from jinja2 import ChainableUndefined
 
 BASE_DIR = Path(__file__).resolve().parent
+
+GIT_UPDATE_TOKEN = os.getenv("GIT_UPDATE_TOKEN", "12345")
+GIT_REMOTE_NAME = os.getenv("GIT_REMOTE_NAME", "origin")
+
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
+GENERATED_DIR = BASE_DIR / "generated"
 
 EDO_DATA_DIR = DATA_DIR / "edo"
 OVERDUE_DATA_DIR = DATA_DIR / "overdue"
 WATERCONTROL_DATA_DIR = DATA_DIR / "watercontrol"
+UTNKR_DATA_DIR = DATA_DIR / "utnkr"
+CAMERAS_DATA_DIR = DATA_DIR / "cameras"
 
 EDO_RESULT_FILE = EDO_DATA_DIR / "result.json"
 OVERDUE_RESULT_FILE = OVERDUE_DATA_DIR / "final_result.json"
 WATERCONTROL_RESULT_FILE = WATERCONTROL_DATA_DIR / "result.json"
+UTNKR_RESULT_FILE = UTNKR_DATA_DIR / "violators.json"
+
+CAMERAS_ADDRESSES_FILE = CAMERAS_DATA_DIR / "addresses.tsv"
+CAMERAS_STATE_FILE = CAMERAS_DATA_DIR / "state" / "dashboard_state.json"
+
+GENERATED_PRESCRIPTIONS_DIR = GENERATED_DIR / "prescriptions"
+
+UTNKR_UI_CONFIG = {
+    "overdue_column_name": "Просрочка, дней",
+    "object_column_name": "Объект",
+    "municipality_column_name": "Муниципалитет",
+    "organization_column_name": "Организация",
+    "responsible_column_name": "Ответственный",
+    "status_column_name": "Статус",
+    "source_name": "Технадзор УТНКР",
+    "source_url": "https://tehnadzor.utnkr.ru/",
+}
+
+CAMERAS_UI_CONFIG = {
+    "source_name": "Проверка камер",
+    "source_url": "https://fkr.eiasmo.ru",
+    "addresses_file_name": "addresses.tsv",
+    "prescriptions_dir": "generated/prescriptions",
+}
+
 
 app = FastAPI(title="Unified Dashboard")
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
 
+if GENERATED_DIR.exists():
+    app.mount("/generated", StaticFiles(directory=str(GENERATED_DIR)), name="generated")
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.undefined = ChainableUndefined
 
 
 run_status = {
@@ -36,37 +74,57 @@ run_status = {
         "running": False,
         "stage": "Ожидание запуска",
         "message": "Система готова к выполнению проверки EDO.",
-        "last_error": ""
+        "last_error": "",
     },
     "overdue": {
         "running": False,
         "stage": "Ожидание запуска",
         "message": "Система готова к выполнению проверки просроченных задач.",
-        "last_error": ""
+        "last_error": "",
     },
     "watercontrol": {
         "running": False,
         "stage": "Ожидание запуска",
         "message": "Система готова к выполнению проверки WaterControl.",
-        "last_error": ""
-    }
+        "last_error": "",
+    },
+    "utnkr": {
+        "running": False,
+        "stage": "Ожидание запуска",
+        "message": "Система готова к выполнению проверки УТНКР.",
+        "last_error": "",
+    },
+    "cameras": {
+        "running": False,
+        "stage": "Ожидание запуска",
+        "message": "Система готова к выполнению проверки камер.",
+        "last_error": "",
+    },
+    "camera_prescriptions": {
+        "running": False,
+        "stage": "Ожидание запуска",
+        "message": "Система готова к формированию предписаний по камерам.",
+        "last_error": "",
+    },
 }
 
 
 def load_json_file(path: Path, default=None):
     if not path.exists():
         return default
+
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as e:
+        print(f"Ошибка чтения JSON {path}: {e}")
         return default
 
 
-def save_json_file(path: Path, data: dict):
+def save_json_file(path: Path, data: Any):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2, default=str),
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
 
@@ -77,7 +135,7 @@ def normalize_text(value):
 def normalize_key(municipality, organization):
     return (
         normalize_text(municipality).upper(),
-        normalize_text(organization).lower()
+        normalize_text(organization).lower(),
     )
 
 
@@ -85,24 +143,55 @@ def to_int(value, default=0):
     try:
         if value is None:
             return default
+
         if isinstance(value, str):
-            value = value.strip().replace(" ", "").replace("\u00A0", "").replace(",", ".")
+            value = (
+                value.strip()
+                .replace(" ", "")
+                .replace("\u00A0", "")
+                .replace(",", ".")
+            )
             if not value:
                 return default
+
         return int(float(value))
     except Exception:
         return default
 
 
-def ensure_personal_message_flags(result, result_file: Path):
+def as_list_from_result(result):
     if not result:
+        return []
+
+    if isinstance(result, list):
+        return result
+
+    if isinstance(result, dict):
+        for key in (
+            "rows",
+            "items",
+            "violators",
+            "cameras",
+            "results",
+            "data",
+            "records",
+        ):
+            value = result.get(key)
+            if isinstance(value, list):
+                return value
+
+    return []
+
+
+def ensure_personal_message_flags(result, result_file: Path):
+    if not result or not isinstance(result, dict):
         return result
 
     personal_messages = result.get("personal_messages", []) or []
     changed = False
 
     for item in personal_messages:
-        if "is_edited" not in item:
+        if isinstance(item, dict) and "is_edited" not in item:
             item["is_edited"] = False
             changed = True
 
@@ -115,24 +204,53 @@ def ensure_personal_message_flags(result, result_file: Path):
     return result
 
 
-def calculate_edo_metrics(result):
-    rows = (result or {}).get("rows", []) or []
+def calculate_standard_status_metrics(result):
+    rows = as_list_from_result(result)
 
     total = len(rows)
-    critical = sum(1 for row in rows if row.get("status") == "critical")
-    risk = sum(1 for row in rows if row.get("status") == "risk")
-    ok = sum(1 for row in rows if row.get("status") == "ok")
+    critical = 0
+    risk = 0
+    ok = 0
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+
+        status = normalize_text(row.get("status")).lower()
+
+        if status in ("critical", "red", "критично", "красный"):
+            critical += 1
+        elif status in ("risk", "warning", "yellow", "риск", "желтый", "жёлтый"):
+            risk += 1
+        elif status in ("ok", "green", "success", "норма", "зеленый", "зелёный"):
+            ok += 1
 
     return {
         "total": total,
         "critical": critical,
         "risk": risk,
-        "ok": ok
+        "ok": ok,
     }
+
+
+def calculate_edo_metrics(result):
+    return calculate_standard_status_metrics(result)
+
+
+def calculate_watercontrol_metrics(result):
+    return calculate_standard_status_metrics(result)
 
 
 def calculate_overdue_metrics(raw_result):
     if not raw_result:
+        return {
+            "total": 0,
+            "critical": 0,
+            "risk": 0,
+            "ok": 0,
+        }
+
+    if not isinstance(raw_result, dict):
         return {
             "total": 0,
             "critical": 0,
@@ -155,30 +273,235 @@ def calculate_overdue_metrics(raw_result):
     }
 
 
-def calculate_watercontrol_metrics(result):
-    rows = (result or {}).get("rows", []) or []
+def calculate_utnkr_metrics(result):
+    rows = as_list_from_result(result)
 
     total = len(rows)
-    critical = sum(1 for row in rows if row.get("status") == "critical")
-    risk = sum(1 for row in rows if row.get("status") == "risk")
-    ok = sum(1 for row in rows if row.get("status") == "ok")
+    critical = 0
+    risk = 0
+    ok = 0
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+
+        status = normalize_text(
+            row.get("status")
+            or row.get("traffic_light")
+            or row.get("color")
+            or row.get("level")
+        ).lower()
+
+        overdue_days = to_int(
+            row.get("overdue_days")
+            or row.get("days_overdue")
+            or row.get("days")
+            or row.get("delay_days"),
+            0,
+        )
+
+        if status in ("critical", "red", "критично", "красный"):
+            critical += 1
+        elif status in ("risk", "warning", "yellow", "риск", "желтый", "жёлтый"):
+            risk += 1
+        elif status in ("ok", "green", "success", "норма", "зеленый", "зелёный"):
+            ok += 1
+        elif overdue_days >= 20:
+            critical += 1
+        elif overdue_days > 0:
+            risk += 1
+        else:
+            ok += 1
 
     return {
         "total": total,
         "critical": critical,
         "risk": risk,
-        "ok": ok
+        "ok": ok,
     }
 
 
+def normalize_camera_status_value(row):
+    if not isinstance(row, dict):
+        return "unknown"
+
+    raw_status = normalize_text(
+        row.get("camera_status")
+        or row.get("status")
+        or row.get("stream_status")
+        or row.get("check_status")
+        or row.get("state")
+    ).lower()
+
+    online = row.get("online")
+    available = row.get("available")
+    has_stream = row.get("has_stream")
+    stream_url = normalize_text(row.get("stream_url") or row.get("link_url"))
+
+    if raw_status in (
+        "working",
+        "ok",
+        "online",
+        "success",
+        "active",
+        "green",
+        "норма",
+        "работает",
+        "активна",
+        "активный",
+    ):
+        return "working"
+
+    if raw_status in (
+        "not_working",
+        "critical",
+        "offline",
+        "error",
+        "failed",
+        "fail",
+        "broken",
+        "red",
+        "критично",
+        "не работает",
+        "неработает",
+        "ошибка",
+        "отключена",
+        "офлайн",
+    ):
+        return "not_working"
+
+    if raw_status in (
+        "not_connected",
+        "no_stream",
+        "missing_stream",
+        "no_url",
+        "empty_url",
+        "не подключена",
+        "не подключен",
+        "нет ссылки",
+        "нет потока",
+        "без ссылки",
+    ):
+        return "not_connected"
+
+    if online is False or available is False:
+        return "not_working"
+
+    if has_stream is False:
+        return "not_connected"
+
+    if online is True or available is True:
+        return "working"
+
+    if not stream_url:
+        return "not_connected"
+
+    return "unknown"
+
+
+def normalize_camera_row(row):
+    if not isinstance(row, dict):
+        row = {}
+
+    item = dict(row)
+    item["camera_status"] = normalize_camera_status_value(item)
+
+    if not item.get("city"):
+        item["city"] = item.get("municipality", "")
+
+    if not item.get("owner"):
+        item["owner"] = item.get("responsible", "") or item.get("organization", "")
+
+    if not item.get("link_url") and item.get("stream_url"):
+        item["link_url"] = item.get("stream_url")
+
+    return item
+
+
+def calculate_cameras_metrics(result):
+    rows = [normalize_camera_row(row) for row in as_list_from_result(result)]
+
+    total = len(rows)
+    working = 0
+    not_working = 0
+    not_connected = 0
+    unknown = 0
+
+    for row in rows:
+        status = row.get("camera_status")
+
+        if status == "working":
+            working += 1
+        elif status == "not_working":
+            not_working += 1
+        elif status == "not_connected":
+            not_connected += 1
+        else:
+            unknown += 1
+
+    # Возвращаем и новые ключи для камер, и старые ключи для общих карточек.
+    return {
+        "total": total,
+
+        "working": working,
+        "not_working": not_working,
+        "not_connected": not_connected,
+        "unknown": unknown,
+
+        "ok": working,
+        "critical": not_working,
+        "risk": not_connected + unknown,
+    }
+
+
+def filter_camera_rows(rows, status_filter="all"):
+    status_filter = status_filter or "all"
+
+    if status_filter == "all":
+        return rows
+
+    if status_filter == "problem":
+        return [row for row in rows if row.get("camera_status") != "working"]
+
+    return [row for row in rows if row.get("camera_status") == status_filter]
+
+
+def group_camera_rows(rows, group_by="none"):
+    group_by = group_by or "none"
+
+    if group_by == "none":
+        return []
+
+    groups = {}
+
+    for row in rows:
+        if group_by == "company":
+            key = row.get("owner") or "Не указано"
+        elif group_by == "city":
+            key = row.get("city") or row.get("municipality") or "Не указано"
+        else:
+            key = "Без группировки"
+
+        groups.setdefault(key, []).append(row)
+
+    return [
+        {
+            "name": name,
+            "items": items,
+        }
+        for name, items in sorted(groups.items(), key=lambda item: item[0])
+    ]
+
+
 def transform_overdue_result_for_ui(raw):
-    if not raw:
+    if not raw or not isinstance(raw, dict):
         return None
 
     summary = raw.get("summary", {}) or {}
     items = raw.get("items", []) or []
 
     rows = []
+
     for item in items:
         overdue_count = to_int(item.get("overdue_count", 0), 0)
 
@@ -192,17 +515,24 @@ def transform_overdue_result_for_ui(raw):
             status = "ok"
             reason = "Просроченные задачи отсутствуют"
 
-        rows.append({
-            "municipality": item.get("municipality", ""),
-            "organization": item.get("organization", item.get("municipality", "")),
-            "responsible_name": item.get("responsible_name", ""),
-            "responsible_phone": item.get("responsible_phone", ""),
-            "status": status,
-            "reason": reason,
-            "overdue_count": overdue_count,
-        })
+        rows.append(
+            {
+                "municipality": item.get("municipality", ""),
+                "organization": item.get("organization", item.get("municipality", "")),
+                "responsible_name": item.get("responsible_name", ""),
+                "responsible_phone": item.get("responsible_phone", ""),
+                "status": status,
+                "reason": reason,
+                "overdue_count": overdue_count,
+            }
+        )
 
-    rows.sort(key=lambda x: (-to_int(x.get("overdue_count", 0)), x.get("municipality", "")))
+    rows.sort(
+        key=lambda x: (
+            -to_int(x.get("overdue_count", 0)),
+            x.get("municipality", ""),
+        )
+    )
 
     return {
         "created_at": raw.get("created_at", ""),
@@ -223,6 +553,38 @@ def transform_overdue_result_for_ui(raw):
     }
 
 
+def set_status(service_name: str, **kwargs):
+    if service_name not in run_status:
+        return
+
+    for key, value in kwargs.items():
+        run_status[service_name][key] = value
+
+
+def make_check_state(service_name: str):
+    status = run_status.get(service_name, {})
+
+    return {
+        "is_running": bool(status.get("running", False)),
+        "running": bool(status.get("running", False)),
+        "stage": status.get("stage", "Ожидание запуска"),
+        "message": status.get("message", ""),
+        "last_error": status.get("last_error", ""),
+    }
+
+
+def build_table_info(file_path: Path):
+    exists = file_path.exists()
+    rel_path = str(file_path.relative_to(BASE_DIR)) if exists else ""
+
+    return {
+        "exists": exists,
+        "path": rel_path,
+        "name": file_path.name,
+        "size": file_path.stat().st_size if exists else 0,
+    }
+
+
 def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
     status = run_status[service_name]
 
@@ -230,7 +592,7 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
         status["running"] = True
         status["last_error"] = ""
         status["stage"] = "Запуск"
-        status["message"] = f"Запущена проверка {service_name}."
+        status["message"] = f"Запущена проверка: {service_name}."
 
         process = subprocess.Popen(
             command,
@@ -239,19 +601,20 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
             stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
-            errors="replace"
+            errors="replace",
         )
 
         if process.stdout:
             for line in process.stdout:
                 text = line.strip()
+
                 if not text:
                     continue
 
                 print(f"[{service_name.upper()}]", text)
 
                 if text.startswith("STAGE:"):
-                    stage_name = text.replace("STAGE:", "").strip()
+                    stage_name = text.replace("STAGE:", "", 1).strip()
                     status["stage"] = stage_name
                     status["message"] = stage_name
                     continue
@@ -261,14 +624,33 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
                 if "captcha" in lowered or "капча" in lowered:
                     status["stage"] = "Ожидание подтверждения"
                     status["message"] = text
+                elif "login" in lowered or "авторизац" in lowered or "вход" in lowered:
+                    status["stage"] = "Авторизация"
+                    status["message"] = text
                 elif "screenshot" in lowered or "скриншот" in lowered:
                     status["stage"] = "Снятие скриншотов"
                     status["message"] = text
-                elif "анализ" in lowered or "извлеч" in lowered:
+                elif "анализ" in lowered or "извлеч" in lowered or "parse" in lowered:
                     status["stage"] = "Анализ данных"
                     status["message"] = text
-                elif "сохранение" in lowered or "result saved" in lowered or "готово:" in lowered:
+                elif "camera" in lowered or "кам" in lowered or "stream" in lowered:
+                    status["stage"] = "Проверка камер"
+                    status["message"] = text
+                elif "ffmpeg" in lowered or "ffprobe" in lowered:
+                    status["stage"] = "Проверка видеопотоков"
+                    status["message"] = text
+                elif "docx" in lowered or "предпис" in lowered:
+                    status["stage"] = "Формирование документов"
+                    status["message"] = text
+                elif (
+                    "сохранение" in lowered
+                    or "result saved" in lowered
+                    or "saved" in lowered
+                    or "готово:" in lowered
+                ):
                     status["stage"] = "Сохранение результата"
+                    status["message"] = text
+                else:
                     status["message"] = text
 
         return_code = process.wait()
@@ -276,13 +658,13 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
         if return_code != 0:
             status["running"] = False
             status["stage"] = "Ошибка"
-            status["message"] = f"Проверка {service_name} завершилась с ошибкой."
+            status["message"] = f"Процесс {service_name} завершился с ошибкой."
             status["last_error"] = f"Процесс завершился с кодом {return_code}"
             return
 
         status["running"] = False
         status["stage"] = "Готово"
-        status["message"] = f"Проверка {service_name} завершена успешно."
+        status["message"] = f"Процесс {service_name} завершён успешно."
 
     except Exception as e:
         status["running"] = False
@@ -291,14 +673,207 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
         status["last_error"] = str(e)
 
 
+def start_background_service(service_name: str, command: list[str]):
+    if run_status[service_name]["running"]:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "message": f"Процесс {service_name} уже выполняется.",
+            },
+        )
+
+    thread = threading.Thread(
+        target=run_subprocess_worker,
+        args=(service_name, command, BASE_DIR),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"ok": True}
+
+
+def save_personal_message_to_file(
+    result_file: Path,
+    payload: dict,
+    not_found_message: str,
+    allow_create: bool = False,
+):
+    municipality = normalize_text(payload.get("municipality"))
+    organization = normalize_text(payload.get("organization"))
+    message = normalize_text(payload.get("message"))
+
+    if not municipality or not organization or not message:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "message": "Не хватает данных для сохранения",
+            },
+        )
+
+    data = load_json_file(result_file)
+
+    if not data:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "ok": False,
+                "message": not_found_message,
+            },
+        )
+
+    if not isinstance(data, dict):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "message": "Некорректный формат файла результата",
+            },
+        )
+
+    personal_messages = data.get("personal_messages", []) or []
+    target_key = normalize_key(municipality, organization)
+    updated = False
+
+    for item in personal_messages:
+        item_key = normalize_key(
+            item.get("municipality", ""),
+            item.get("organization", ""),
+        )
+
+        if item_key == target_key:
+            item["message"] = message
+            item["is_edited"] = True
+            updated = True
+            break
+
+    if not updated:
+        if not allow_create:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "ok": False,
+                    "message": "Уведомление не найдено",
+                },
+            )
+
+        personal_messages.append(
+            {
+                "municipality": municipality,
+                "organization": organization,
+                "message": message,
+                "is_edited": True,
+                "status": "risk",
+                "responsible_name": "",
+                "responsible_phone": "",
+            }
+        )
+
+    data["personal_messages"] = personal_messages
+    save_json_file(result_file, data)
+
+    return {
+        "ok": True,
+        "message": "Сообщение сохранено.",
+    }
+
+def require_git_update_token(x_git_update_token: str | None):
+    if not x_git_update_token or x_git_update_token != GIT_UPDATE_TOKEN:
+        raise HTTPException(
+            status_code=403,
+            detail="Недостаточно прав для проверки или загрузки обновлений.",
+        )
+
+
+def run_git_command(command: list[str], timeout: int = 90):
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            shell=False,
+            timeout=timeout,
+        )
+
+        return {
+            "ok": result.returncode == 0,
+            "returncode": result.returncode,
+            "command": " ".join(command),
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {
+            "ok": False,
+            "returncode": -1,
+            "command": " ".join(command),
+            "stdout": "",
+            "stderr": "Команда выполнялась слишком долго и была остановлена.",
+        }
+
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "returncode": -1,
+            "command": " ".join(command),
+            "stdout": "",
+            "stderr": "Git не найден. Проверьте, что Git установлен и доступен из терминала.",
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "returncode": -1,
+            "command": " ".join(command),
+            "stdout": "",
+            "stderr": str(e),
+        }
+
+
+def get_current_git_branch():
+    result = run_git_command(["git", "branch", "--show-current"], timeout=30)
+
+    if result.get("ok") and result.get("stdout", "").strip():
+        return result["stdout"].strip()
+
+    return "main"
+
+
+def is_git_repository():
+    result = run_git_command(["git", "rev-parse", "--is-inside-work-tree"], timeout=30)
+
+    return result.get("ok") and result.get("stdout", "").strip() == "true"
+
+
+def has_local_git_changes():
+    result = run_git_command(["git", "status", "--porcelain"], timeout=30)
+
+    if not result.get("ok"):
+        return {
+            "ok": False,
+            "has_changes": True,
+            "status": result,
+        }
+
+    return {
+        "ok": True,
+        "has_changes": bool(result.get("stdout", "").strip()),
+        "status": result,
+    }
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse(
         request,
         "home.html",
         {
-            "request": request
-        }
+            "request": request,
+        },
     )
 
 
@@ -314,8 +889,11 @@ async def edo_page(request: Request):
         {
             "request": request,
             "result": result,
-            "metrics": metrics
-        }
+            "metrics": metrics,
+            "status": run_status["edo"],
+            "check_state": make_check_state("edo"),
+            "run_status": run_status["edo"],
+        },
     )
 
 
@@ -323,6 +901,7 @@ async def edo_page(request: Request):
 async def overdue_page(request: Request):
     raw_result = load_json_file(OVERDUE_RESULT_FILE)
     raw_result = ensure_personal_message_flags(raw_result, OVERDUE_RESULT_FILE)
+
     result = transform_overdue_result_for_ui(raw_result)
     metrics = calculate_overdue_metrics(raw_result)
 
@@ -332,8 +911,12 @@ async def overdue_page(request: Request):
         {
             "request": request,
             "result": result,
-            "metrics": metrics
-        }
+            "raw_result": raw_result,
+            "metrics": metrics,
+            "status": run_status["overdue"],
+            "check_state": make_check_state("overdue"),
+            "run_status": run_status["overdue"],
+        },
     )
 
 
@@ -349,8 +932,123 @@ async def watercontrol_page(request: Request):
         {
             "request": request,
             "result": result,
-            "metrics": metrics
-        }
+            "metrics": metrics,
+            "status": run_status["watercontrol"],
+            "check_state": make_check_state("watercontrol"),
+            "run_status": run_status["watercontrol"],
+        },
+    )
+
+
+@app.get("/utnkr", response_class=HTMLResponse)
+async def utnkr_page(request: Request):
+    result = load_json_file(UTNKR_RESULT_FILE, default={})
+    rows = as_list_from_result(result)
+    metrics = calculate_utnkr_metrics(result)
+
+    return templates.TemplateResponse(
+        request,
+        "utnkr.html",
+        {
+            "request": request,
+            "result": result,
+            "data": result,
+            "rows": rows,
+            "items": rows,
+            "violators": rows,
+            "metrics": metrics,
+            "config": UTNKR_UI_CONFIG,
+            "check_state": make_check_state("utnkr"),
+            "status": run_status["utnkr"],
+            "run_status": run_status["utnkr"],
+        },
+    )
+
+
+@app.get("/cameras", response_class=HTMLResponse)
+async def cameras_page(
+    request: Request,
+    status: str = "all",
+    group_by: str = "none",
+):
+    state = load_json_file(CAMERAS_STATE_FILE, default={}) or {}
+    cameras = [normalize_camera_row(row) for row in as_list_from_result(state)]
+
+    filtered_results = filter_camera_rows(cameras, status)
+    grouped_results = group_camera_rows(filtered_results, group_by)
+    metrics = calculate_cameras_metrics({"rows": cameras})
+    table_info = build_table_info(CAMERAS_ADDRESSES_FILE)
+
+    return templates.TemplateResponse(
+        request,
+        "cameras.html",
+        {
+            "request": request,
+            "result": state,
+            "state": state,
+            "data": state,
+
+            "rows": cameras,
+            "items": cameras,
+            "cameras": cameras,
+            "results": cameras,
+            "filtered_results": filtered_results,
+            "grouped_results": grouped_results,
+
+            "metrics": metrics,
+            "config": CAMERAS_UI_CONFIG,
+            "check_state": make_check_state("cameras"),
+            "prescription_state": make_check_state("camera_prescriptions"),
+            "status": run_status["cameras"],
+            "run_status": run_status["cameras"],
+
+            "status_filter": status,
+            "group_by": group_by,
+
+            "addresses_exists": table_info["exists"],
+            "addresses_file": table_info["path"],
+            "table_info": table_info,
+        },
+    )
+
+
+
+@app.get("/prescriptions", response_class=HTMLResponse)
+async def prescriptions_alias(request: Request):
+    return RedirectResponse(url="/camera-prescriptions", status_code=302)
+
+
+@app.get("/camera-prescriptions", response_class=HTMLResponse)
+async def camera_prescriptions_page(request: Request):
+    state = load_json_file(CAMERAS_STATE_FILE, default={})
+    prescriptions = []
+
+    if GENERATED_PRESCRIPTIONS_DIR.exists():
+        for path in sorted(GENERATED_PRESCRIPTIONS_DIR.glob("*")):
+            if path.is_file():
+                prescriptions.append(
+                    {
+                        "name": path.name,
+                        "path": f"/generated/prescriptions/{path.name}",
+                        "size": path.stat().st_size,
+                    }
+                )
+
+    return templates.TemplateResponse(
+        request,
+        "camera_prescriptions.html",
+        {
+            "request": request,
+            "result": state,
+            "state": state,
+            "data": state,
+            "prescriptions": prescriptions,
+            "metrics": calculate_cameras_metrics(state),
+            "config": CAMERAS_UI_CONFIG,
+            "check_state": make_check_state("camera_prescriptions"),
+            "status": run_status["camera_prescriptions"],
+            "run_status": run_status["camera_prescriptions"],
+        },
     )
 
 
@@ -369,188 +1067,314 @@ async def watercontrol_run_status():
     return run_status["watercontrol"]
 
 
+@app.get("/utnkr/run-status")
+async def utnkr_run_status():
+    return run_status["utnkr"]
+
+
+@app.get("/cameras/run-status")
+async def cameras_run_status():
+    return run_status["cameras"]
+
+
+@app.get("/cameras/address-table-info")
+async def cameras_address_table_info():
+    table_info = build_table_info(CAMERAS_ADDRESSES_FILE)
+
+    return {
+        "ok": True,
+        "exists": table_info["exists"],
+        "path": table_info["path"],
+        "name": table_info["name"],
+        "size": table_info["size"],
+        "file": table_info,
+    }
+
+
+@app.get("/cameras/status")
+async def cameras_status(
+    status: str = "all",
+    group_by: str = "none",
+):
+    state = load_json_file(CAMERAS_STATE_FILE, default={}) or {}
+    rows = [normalize_camera_row(row) for row in as_list_from_result(state)]
+    filtered_results = filter_camera_rows(rows, status)
+    grouped_results = group_camera_rows(filtered_results, group_by)
+
+    current = run_status["cameras"]
+    check_state = make_check_state("cameras")
+
+    if current.get("running"):
+        check_state["status"] = "running"
+    elif current.get("last_error"):
+        check_state["status"] = "error"
+    elif rows:
+        check_state["status"] = "done"
+    else:
+        check_state["status"] = "idle"
+
+    return {
+        "ok": True,
+        "status": check_state["status"],
+
+        "check_state": check_state,
+        "running": check_state["running"],
+        "is_running": check_state["is_running"],
+        "stage": check_state["stage"],
+        "message": check_state["message"],
+        "last_error": check_state["last_error"],
+
+        "results": rows,
+        "rows": rows,
+        "items": rows,
+        "filtered_results": filtered_results,
+        "grouped_results": grouped_results,
+
+        "status_filter": status,
+        "group_by": group_by,
+
+        "metrics": calculate_cameras_metrics({"rows": rows}),
+        "table_info": build_table_info(CAMERAS_ADDRESSES_FILE),
+    }
+
+
+
 @app.post("/edo/run-check")
 async def edo_run_check():
-    if run_status["edo"]["running"]:
-        return JSONResponse(
-            status_code=400,
-            content={"ok": False, "message": "Проверка EDO уже выполняется."}
-        )
-
     command = [sys.executable, "-m", "services.edo.runner"]
-    thread = threading.Thread(
-        target=run_subprocess_worker,
-        args=("edo", command, BASE_DIR),
-        daemon=True
-    )
-    thread.start()
-
-    return {"ok": True}
+    return start_background_service("edo", command)
 
 
 @app.post("/overdue/run-check")
 async def overdue_run_check():
-    if run_status["overdue"]["running"]:
-        return JSONResponse(
-            status_code=400,
-            content={"ok": False, "message": "Проверка overdue уже выполняется."}
-        )
-
     command = [sys.executable, "-m", "services.overdue.runner"]
-    thread = threading.Thread(
-        target=run_subprocess_worker,
-        args=("overdue", command, BASE_DIR),
-        daemon=True
-    )
-    thread.start()
-
-    return {"ok": True}
+    return start_background_service("overdue", command)
 
 
 @app.post("/watercontrol/run-check")
 async def watercontrol_run_check():
-    if run_status["watercontrol"]["running"]:
-        return JSONResponse(
-            status_code=400,
-            content={"ok": False, "message": "Проверка WaterControl уже выполняется."}
-        )
-
     command = [sys.executable, "-m", "services.watercontrol.runner"]
-    thread = threading.Thread(
-        target=run_subprocess_worker,
-        args=("watercontrol", command, BASE_DIR),
-        daemon=True
-    )
-    thread.start()
+    return start_background_service("watercontrol", command)
 
-    return {"ok": True}
+
+@app.post("/utnkr/run-check")
+async def utnkr_run_check():
+    command = [sys.executable, "-m", "services.utnkr.scanner"]
+    return start_background_service("utnkr", command)
+
+
+@app.post("/cameras/run-check")
+async def cameras_run_check():
+    command = [sys.executable, "-m", "services.cameras.camera_checker"]
+    return start_background_service("cameras", command)
+
+
+@app.post("/camera-prescriptions/run-check")
+async def camera_prescriptions_run_check():
+    command = [sys.executable, "-m", "services.cameras.prescription_generator"]
+    return start_background_service("camera_prescriptions", command)
+
+
+@app.post("/cameras/generate-prescriptions")
+async def cameras_generate_prescriptions():
+    command = [sys.executable, "-m", "services.cameras.prescription_generator"]
+    return start_background_service("camera_prescriptions", command)
 
 
 @app.post("/edo/save-personal-message")
 async def save_edo_personal_message(payload: dict):
-    municipality = normalize_text(payload.get("municipality"))
-    organization = normalize_text(payload.get("organization"))
-    message = normalize_text(payload.get("message"))
-
-    if not municipality or not organization or not message:
-        return JSONResponse(
-            status_code=400,
-            content={"ok": False, "message": "Не хватает данных для сохранения"}
-        )
-
-    data = load_json_file(EDO_RESULT_FILE)
-    if not data:
-        return JSONResponse(
-            status_code=404,
-            content={"ok": False, "message": "Файл результата EDO не найден"}
-        )
-
-    target_key = normalize_key(municipality, organization)
-    updated = False
-
-    for item in data.get("personal_messages", []):
-        item_key = normalize_key(item.get("municipality", ""), item.get("organization", ""))
-        if item_key == target_key:
-            item["message"] = message
-            item["is_edited"] = True
-            updated = True
-            break
-
-    if not updated:
-        return JSONResponse(
-            status_code=404,
-            content={"ok": False, "message": "Уведомление EDO не найдено"}
-        )
-
-    save_json_file(EDO_RESULT_FILE, data)
-    return {"ok": True}
+    return save_personal_message_to_file(
+        result_file=EDO_RESULT_FILE,
+        payload=payload,
+        not_found_message="Файл результата EDO не найден",
+        allow_create=False,
+    )
 
 
 @app.post("/overdue/save-personal-message")
 async def save_overdue_personal_message(payload: dict):
-    municipality = normalize_text(payload.get("municipality"))
-    organization = normalize_text(payload.get("organization"))
-    message = normalize_text(payload.get("message"))
-
-    if not municipality or not organization or not message:
-        return JSONResponse(
-            status_code=400,
-            content={"ok": False, "message": "Недостаточно данных для сохранения"}
-        )
-
-    data = load_json_file(OVERDUE_RESULT_FILE)
-    if not data:
-        return JSONResponse(
-            status_code=404,
-            content={"ok": False, "message": "Результаты проверки overdue ещё не сформированы"}
-        )
-
-    personal_messages = data.get("personal_messages", []) or []
-    target_key = normalize_key(municipality, organization)
-    updated = False
-
-    for item in personal_messages:
-        item_key = normalize_key(item.get("municipality", ""), item.get("organization", ""))
-        if item_key == target_key:
-            item["message"] = message
-            item["is_edited"] = True
-            updated = True
-            break
-
-    if not updated:
-        personal_messages.append({
-            "municipality": municipality,
-            "organization": organization,
-            "message": message,
-            "is_edited": True,
-            "status": "risk",
-            "responsible_name": "",
-            "responsible_phone": "",
-        })
-
-    data["personal_messages"] = personal_messages
-    save_json_file(OVERDUE_RESULT_FILE, data)
-
-    return {"ok": True, "message": "Сообщение сохранено."}
+    return save_personal_message_to_file(
+        result_file=OVERDUE_RESULT_FILE,
+        payload=payload,
+        not_found_message="Результаты проверки overdue ещё не сформированы",
+        allow_create=True,
+    )
 
 
 @app.post("/watercontrol/save-personal-message")
 async def save_watercontrol_personal_message(payload: dict):
-    municipality = normalize_text(payload.get("municipality"))
-    organization = normalize_text(payload.get("organization"))
-    message = normalize_text(payload.get("message"))
+    return save_personal_message_to_file(
+        result_file=WATERCONTROL_RESULT_FILE,
+        payload=payload,
+        not_found_message="Файл результата WaterControl не найден",
+        allow_create=True,
+    )
 
-    if not municipality or not organization or not message:
+
+@app.get("/api/summary")
+async def api_summary():
+    edo_result = load_json_file(EDO_RESULT_FILE)
+    overdue_result = load_json_file(OVERDUE_RESULT_FILE)
+    watercontrol_result = load_json_file(WATERCONTROL_RESULT_FILE)
+    utnkr_result = load_json_file(UTNKR_RESULT_FILE)
+    cameras_state = load_json_file(CAMERAS_STATE_FILE)
+
+    return {
+        "ok": True,
+        "modules": {
+            "edo": {
+                "status": run_status["edo"],
+                "metrics": calculate_edo_metrics(edo_result),
+            },
+            "overdue": {
+                "status": run_status["overdue"],
+                "metrics": calculate_overdue_metrics(overdue_result),
+            },
+            "watercontrol": {
+                "status": run_status["watercontrol"],
+                "metrics": calculate_watercontrol_metrics(watercontrol_result),
+            },
+            "utnkr": {
+                "status": run_status["utnkr"],
+                "metrics": calculate_utnkr_metrics(utnkr_result),
+            },
+            "cameras": {
+                "status": run_status["cameras"],
+                "metrics": calculate_cameras_metrics(cameras_state),
+            },
+            "camera_prescriptions": {
+                "status": run_status["camera_prescriptions"],
+            },
+        },
+    }
+
+@app.get("/system/git/check")
+async def system_git_check(x_git_update_token: str | None = Header(default=None)):
+    require_git_update_token(x_git_update_token)
+
+    if not is_git_repository():
         return JSONResponse(
             status_code=400,
-            content={"ok": False, "message": "Не хватает данных для сохранения"}
+            content={
+                "ok": False,
+                "message": "Текущая папка проекта не является Git-репозиторием.",
+                "project_root": str(BASE_DIR),
+            },
         )
 
-    data = load_json_file(WATERCONTROL_RESULT_FILE)
-    if not data:
+    branch = get_current_git_branch()
+
+    fetch_result = run_git_command(["git", "fetch", GIT_REMOTE_NAME], timeout=120)
+
+    status_result = run_git_command(["git", "status", "-sb"], timeout=30)
+
+    incoming_result = run_git_command(
+        [
+            "git",
+            "log",
+            "--oneline",
+            "--decorate",
+            "--max-count=10",
+            f"HEAD..{GIT_REMOTE_NAME}/{branch}",
+        ],
+        timeout=30,
+    )
+
+    local_changes = has_local_git_changes()
+
+    has_updates = bool(incoming_result.get("stdout", "").strip())
+
+    return {
+        "ok": True,
+        "message": "Проверка обновлений выполнена.",
+        "project_root": str(BASE_DIR),
+        "branch": branch,
+        "remote": GIT_REMOTE_NAME,
+        "has_updates": has_updates,
+        "has_local_changes": local_changes.get("has_changes", True),
+        "fetch": fetch_result,
+        "status": status_result,
+        "incoming_commits": incoming_result,
+        "local_changes": local_changes,
+    }
+
+
+@app.post("/system/git/pull")
+async def system_git_pull(x_git_update_token: str | None = Header(default=None)):
+    require_git_update_token(x_git_update_token)
+
+    if not is_git_repository():
         return JSONResponse(
-            status_code=404,
-            content={"ok": False, "message": "Файл результата WaterControl не найден"}
+            status_code=400,
+            content={
+                "ok": False,
+                "message": "Текущая папка проекта не является Git-репозиторием.",
+                "project_root": str(BASE_DIR),
+            },
         )
 
-    target_key = normalize_key(municipality, organization)
-    updated = False
+    local_changes = has_local_git_changes()
 
-    for item in data.get("personal_messages", []):
-        item_key = normalize_key(item.get("municipality", ""), item.get("organization", ""))
-        if item_key == target_key:
-            item["message"] = message
-            item["is_edited"] = True
-            updated = True
-            break
+    if not local_changes.get("ok"):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "message": "Не удалось проверить локальные изменения.",
+                "local_changes": local_changes,
+            },
+        )
 
-    if not updated:
-        data.setdefault("personal_messages", []).append({
-            "municipality": municipality,
-            "organization": organization,
-            "message": message,
-            "is_edited": True
-        })
+    if local_changes.get("has_changes"):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "message": "Есть локальные изменения. Автоматическое обновление остановлено, чтобы не потерять правки.",
+                "hint": "Сначала выполните commit/stash или уберите локальные изменения.",
+                "local_changes": local_changes,
+            },
+        )
 
-    save_json_file(WATERCONTROL_RESULT_FILE, data)
-    return {"ok": True}
+    branch = get_current_git_branch()
+
+    fetch_result = run_git_command(["git", "fetch", GIT_REMOTE_NAME], timeout=120)
+
+    if not fetch_result.get("ok"):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "message": "Не удалось выполнить git fetch.",
+                "fetch": fetch_result,
+            },
+        )
+
+    pull_result = run_git_command(["git", "pull", GIT_REMOTE_NAME, branch], timeout=180)
+
+    response_status = 200 if pull_result.get("ok") else 400
+
+    return JSONResponse(
+        status_code=response_status,
+        content={
+            "ok": pull_result.get("ok"),
+            "message": (
+                "Обновления загружены. Если обновлялся Python-код, перезапустите приложение."
+                if pull_result.get("ok")
+                else "Не удалось загрузить обновления."
+            ),
+            "project_root": str(BASE_DIR),
+            "branch": branch,
+            "remote": GIT_REMOTE_NAME,
+            "fetch": fetch_result,
+            "pull": pull_result,
+            "restart_required": True,
+        },
+    )
+
+@app.get("/health")
+async def health():
+    return {
+        "ok": True,
+        "service": "Unified Dashboard",
+    }

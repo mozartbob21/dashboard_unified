@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сформированные предписания</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='cameras/style.css') }}">
+</head>
+<body class="prescriptions-page">
+    <div class="container prescriptions-container">
+        <header class="topbar prescriptions-topbar">
+            <div class="brand">
+                <a href="/" class="brand-link">
+                    <img src="{{ url_for('static', path='/logo.svg') }}" alt="Контроль камер" class="brand-logo">
+                    <div class="brand-text">
+                        <div class="brand-title">Подмосковная Нейрона Роботовна</div>
+                        <div class="brand-subtitle">Сформированные предписания</div>
+                    </div>
+                </a>
+            </div>
+
+            <div class="topbar-right">
+                <button id="themeToggle" class="theme-toggle-btn" type="button" aria-label="Переключить тему">
+                    <span class="theme-toggle-icon">🌙</span>
+                    <span class="theme-toggle-text">Тёмная тема</span>
+                </button>
+
+                <a href="/cameras" class="topbar-redmine-btn">Назад</a>
+            </div>
+        </header>
+
+        <section class="card prescriptions-hero">
+            <div class="prescriptions-hero-content">
+                <div class="eyebrow">ГЕНЕРАЦИЯ ДОКУМЕНТОВ</div>
+
+                <h1>Предписания по проблемным адресам</h1>
+
+                <p class="subtext">
+                    Выберите способ формирования документов: отдельные Word-файлы, общий Word-файл или ZIP-архив.
+                </p>
+
+                <div class="prescriptions-summary">
+                    <div class="prescriptions-summary-item">
+                        <span class="summary-label">Проблемных адресов</span>
+                        <strong>{{ problem_count }}</strong>
+                    </div>
+
+                    <div class="prescriptions-summary-item">
+                        <span class="summary-label">Время формирования</span>
+                        <strong>{{ generated_at or "—" }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prescriptions-hero-side">
+                <div class="hero-chip">Word по каждому адресу</div>
+                <div class="hero-chip">Один общий Word</div>
+                <div class="hero-chip">ZIP-архив документов</div>
+            </div>
+        </section>
+
+        <section class="card prescriptions-action-card">
+            <div class="prescriptions-action-copy">
+                <h2>Режим формирования</h2>
+                <p class="subtext">
+                    Выберите нужный формат выгрузки документов.
+                </p>
+            </div>
+
+            <form method="get" action="/camera-prescriptions" class="prescriptions-filter-form">
+                <select name="mode" class="prescriptions-select">
+                    <option value="individual" {% if mode == "individual" %}selected{% endif %}>
+                        По одному Word-файлу
+                    </option>
+                    <option value="combined" {% if mode == "combined" %}selected{% endif %}>
+                        Один Word на все адреса
+                    </option>
+                    <option value="zip" {% if mode == "zip" %}selected{% endif %}>
+                        ZIP-архив с отдельными файлами
+                    </option>
+                </select>
+
+                <button type="submit" class="primary-button">
+                    Применить
+                </button>
+            </form>
+        </section>
+
+        {% if problem_count == 0 %}
+            <section class="card prescriptions-empty-card">
+                <h2>Проблемных адресов нет</h2>
+                <p class="subtext">
+                    Сначала выполните проверку камер, после этого здесь появятся документы.
+                </p>
+
+                <a href="/cameras" class="secondary-button prescriptions-back-link">
+                    Перейти к проверке камер
+                </a>
+            </section>
+        {% endif %}
+
+        {% if mode == "individual" and problem_count > 0 %}
+            <section class="card prescriptions-table-card">
+                <div class="prescriptions-section-head">
+                    <div>
+                        <h2>Отдельные Word-файлы</h2>
+                        <p class="subtext">
+                            Каждый проблемный адрес сформирован отдельным документом.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="table-wrap prescriptions-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Организация</th>
+                                <th>Адрес</th>
+                                <th>Статус</th>
+                                <th>Проверено</th>
+                                <th>Файл</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                                <tr>
+                                    <td>{{ item.owner or "Не указано" }}</td>
+                                    <td>{{ item.address }}</td>
+                                    <td>
+                                        {% if item.camera_status == "not_working" %}
+                                            <span class="pill pill-critical">Не работает</span>
+                                        {% elif item.camera_status == "not_connected" %}
+                                            <span class="pill pill-warning">Не подключена</span>
+                                        {% else %}
+                                            <span class="pill pill-risk">Статус не определён</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.checked_at or "—" }}</td>
+                                    <td>
+                                        {% if item.filename %}
+                                            <a class="action-btn action-btn-success" href="/prescriptions/download/{{ item.filename }}">
+                                                Скачать Word
+                                            </a>
+                                        {% else %}
+                                            <span class="muted-text">Файл не создан</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        {% endif %}
+
+        {% if mode == "combined" and problem_count > 0 %}
+            <section class="card prescriptions-download-card">
+                <div>
+                    <h2>Один Word-файл на все проблемные адреса</h2>
+                    <p class="subtext">
+                        В документе будут собраны все проблемные адреса из последней проверки.
+                    </p>
+                </div>
+
+                {% if combined_filename %}
+                    <div class="message-actions">
+                        <a class="action-btn action-btn-success" href="/prescriptions/download/{{ combined_filename }}">
+                            Скачать общий Word-файл
+                        </a>
+                    </div>
+                {% else %}
+                    <p class="subtext">Файл пока не сформирован.</p>
+                {% endif %}
+            </section>
+        {% endif %}
+
+        {% if mode == "zip" and problem_count > 0 %}
+            <section class="card prescriptions-download-card">
+                <div>
+                    <h2>ZIP-архив с отдельными документами</h2>
+                    <p class="subtext">
+                        Архив содержит отдельный Word-файл по каждому проблемному адресу.
+                    </p>
+                </div>
+
+                {% if zip_filename %}
+                    <div class="message-actions">
+                        <a class="action-btn action-btn-success" href="/prescriptions/download/{{ zip_filename }}">
+                            Скачать ZIP-архив
+                        </a>
+                    </div>
+                {% else %}
+                    <p class="subtext">Архив пока не сформирован.</p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </div>
+
+    <script>
+        (function () {
+            const root = document.documentElement;
+            const themeToggle = document.getElementById("themeToggle");
+
+            function applyTheme(theme) {
+                root.setAttribute("data-theme", theme);
+
+                if (!themeToggle) return;
+
+                const icon = themeToggle.querySelector(".theme-toggle-icon");
+                const text = themeToggle.querySelector(".theme-toggle-text");
+
+                if (theme === "light") {
+                    if (icon) icon.textContent = "☀️";
+                    if (text) text.textContent = "Светлая тема";
+                } else {
+                    if (icon) icon.textContent = "🌙";
+                    if (text) text.textContent = "Тёмная тема";
+                }
+            }
+
+            const savedTheme = localStorage.getItem("theme") || "dark";
+            applyTheme(savedTheme);
+
+            if (themeToggle) {
+                themeToggle.addEventListener("click", function () {
+                    const currentTheme = root.getAttribute("data-theme") || "dark";
+                    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+                    localStorage.setItem("theme", nextTheme);
+                    applyTheme(nextTheme);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>
