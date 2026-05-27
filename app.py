@@ -1925,3 +1925,13 @@ async def health():
         "ok": True,
         "service": "Unified Dashboard",
     }
+
+# ===============================
+# MUNICIPALITY HTML/PDF REPORT
+# ===============================
+try:
+    from services.municipality_report import router as municipality_report_router
+    app.include_router(municipality_report_router)
+except Exception as e:
+    print(f"[municipality_report] router init error: {e}")
+

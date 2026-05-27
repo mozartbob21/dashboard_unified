@@ -267,6 +267,34 @@
                     <a href="/appeals" class="module-link">Открыть модуль →</a>
                 </div>
             </article>
+
+            <article class="card module-card module-card-municipality-report module-card-municipality-report-beta">
+                <div class="module-head module-head-beta">
+                    <span class="pill primary">Сводный отчёт</span>
+                    <span class="pill primary">Муниципалитет</span>
+                    <span class="pill beta-accent">Бета</span>
+                </div>
+
+                <h2 class="module-title">Отчёт по муниципалитету</h2>
+
+                <div class="module-description">
+                    Единая карточка по выбранному муниципалитету: просрочки, незаполненные поля,
+                    проблемные камеры, риски, источники данных и фактическая управленческая сводка
+                    без JSON-простыней.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">Факты по модулям</span>
+                    <span class="tag">Просрочки</span>
+                    <span class="tag">Пустые поля</span>
+                    <span class="tag">PDF</span>
+                </div>
+
+                <div class="action-panel">
+                    <a href="/municipality-report" class="module-link">Открыть отчёт →</a>
+                </div>
+            </article>
+
         </section>
 
         <section class="card git-update-card">
@@ -412,11 +440,25 @@
                 <article class="whats-new-item">
                     <div class="whats-new-icon">⚙</div>
                     <div>
-                        <h3>Эмпатичные ответы в Beta</h3>
+                        <h3>Эмпатичные ответы Бета</h3>
                         <p>
                             Добавлен модуль подготовки ответов на обращения. Он использует локальный
                             кодовый анализ эмоции и критичности, затем собирает черновик ответа
                             по шаблону с эмпатичным блоком.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">◇</div>
+                    <div>
+                        <h3>Бета-блок сводного отчёта по муниципалитету</h3>
+                        <p>
+                            Добавлен экспериментальный блок формирования сводного отчёта по выбранному
+                            муниципалитету. Он собирает факты по направлениям: просрочки, незаполненные
+                            поля, проблемные камеры, риски и источники данных. Для адресов используется
+                            справочник муниципалитетов, чтобы не путать город Чехов с улицей Чехова
+                            в других городах.
                         </p>
                     </div>
                 </article>
