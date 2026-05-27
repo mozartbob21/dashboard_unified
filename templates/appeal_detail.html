@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карточка обращения {{ item.request_id }} — Нейрона ИИ</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+</head>
+
+<body class="compact-module-page appeal-detail-page">
+    <div class="container">
+        <header class="topbar">
+            <div class="brand">
+                <a href="/appeals" class="brand-link">
+                    <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+
+                    <div>
+                        <div class="brand-title">Нейрона ИИ</div>
+                        <div class="brand-subtitle">Карточка обращения {{ item.request_id }}</div>
+                    </div>
+                </a>
+            </div>
+
+            <div class="top-actions">
+                <span class="version-label">Beta</span>
+
+                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
+                    <span class="theme-toggle-icon">☀️</span>
+                    <span class="theme-toggle-text">Светлая тема</span>
+                </button>
+
+                <a href="/appeals" class="secondary-button">← К обращениям</a>
+            </div>
+        </header>
+
+        {% if message %}
+            <div class="status-message success">{{ message }}</div>
+        {% endif %}
+
+        {% if error %}
+            <div class="status-message error">{{ error }}</div>
+        {% endif %}
+
+        <section class="card hero appeal-detail-hero">
+            <div class="appeal-detail-hero-content">
+                <div>
+                    <div class="eyebrow">КАРТОЧКА ОБРАЩЕНИЯ</div>
+
+                    <h1>{{ item.subject }}</h1>
+
+                    <p class="lead">
+                        Краткая оценка обращения, подготовка ответа и ручная проверка перед утверждением.
+                    </p>
+
+                    <div class="appeal-detail-status-row">
+                        <span class="appeal-detail-status">
+                            Статус: {{ item.status_label }}
+                        </span>
+
+                        <span class="appeal-detail-id">
+                            ID: <code>{{ item.request_id }}</code>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="appeal-detail-hero-panel">
+                    <div class="appeal-detail-score-card">
+                        <div class="appeal-detail-score-label">Индекс</div>
+                        <div class="appeal-detail-score-value">{{ item.final_index }}</div>
+                    </div>
+
+                    <div class="appeal-detail-chip">
+                        Приоритет: <strong>{{ item.priority_label }}</strong>
+                    </div>
+
+                    <div class="appeal-detail-chip">
+                        Эмоция: <strong>{{ item.emotion_label }}</strong>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="appeal-detail-card-header">
+                <div>
+                    <div class="eyebrow">СВЕДЕНИЯ</div>
+                    <h2 class="section-title">Основные сведения</h2>
+                    <p class="muted">
+                        Ключевые параметры обращения и результаты первичного анализа.
+                    </p>
+                </div>
+            </div>
+
+            <div class="appeal-meta-grid">
+                <div class="appeal-meta-item">
+                    <div class="appeal-meta-label">ID</div>
+                    <div class="appeal-meta-value">
+                        <code>{{ item.request_id }}</code>
+                    </div>
+                </div>
+
+                <div class="appeal-meta-item">
+                    <div class="appeal-meta-label">Отправитель</div>
+                    <div class="appeal-meta-value">{{ item.sender_email }}</div>
+                </div>
+
+                <div class="appeal-meta-item">
+                    <div class="appeal-meta-label">Критичность</div>
+                    <div class="appeal-meta-value">{{ item.criticality_label }}</div>
+                </div>
+
+                <div class="appeal-meta-item">
+                    <div class="appeal-meta-label">Адрес</div>
+                    <div class="appeal-meta-value">
+                        {{ item.analysis_data.address or "Не найден" }}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="appeal-grid">
+            <div class="card">
+                <div class="appeal-detail-card-header">
+                    <div>
+                        <div class="eyebrow">ИСХОДНЫЕ ДАННЫЕ</div>
+                        <h2 class="section-title">Текст обращения</h2>
+                    </div>
+                </div>
+
+                <pre class="content-block appeal-pre">{{ item.original_text }}</pre>
+            </div>
+
+            <div class="card appeal-analysis-card">
+                <div class="appeal-detail-card-header">
+                    <div>
+                        <div class="eyebrow">АНАЛИЗ</div>
+                        <h2 class="section-title">Эмоциональная сводка</h2>
+                        <p class="muted">
+                            Система перевела технический анализ в короткие выводы для специалиста.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="analysis-summary-grid">
+                    <div class="analysis-summary-item">
+                        <div class="analysis-summary-label">Настроение заявителя</div>
+                        <div class="analysis-summary-value">{{ item.emotion_label }}</div>
+                        <div class="analysis-summary-note">
+                            Помогает выбрать более спокойный и уважительный тон ответа.
+                        </div>
+                    </div>
+
+                    <div class="analysis-summary-item">
+                        <div class="analysis-summary-label">Критичность</div>
+                        <div class="analysis-summary-value">{{ item.criticality_label }}</div>
+                        <div class="analysis-summary-note">
+                            Показывает, насколько внимательно нужно отнестись к обращению.
+                        </div>
+                    </div>
+
+                    <div class="analysis-summary-item">
+                        <div class="analysis-summary-label">Приоритет</div>
+                        <div class="analysis-summary-value">{{ item.priority_label }}</div>
+                        <div class="analysis-summary-note">
+                            Используется для очередности обработки и контроля сроков.
+                        </div>
+                    </div>
+
+                    <div class="analysis-summary-item">
+                        <div class="analysis-summary-label">Итоговый индекс</div>
+                        <div class="analysis-summary-value">{{ item.final_index }}</div>
+                        <div class="analysis-summary-note">
+                            Сводная оценка по эмоциональности, критичности и признакам срочности.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="analysis-details">
+                    <div class="analysis-detail-row">
+                        <span>Адрес</span>
+                        <strong>{{ item.analysis_data.address or "Не найден" }}</strong>
+                    </div>
+
+                    <div class="analysis-detail-row">
+                        <span>Коллективное обращение</span>
+                        <strong>{% if item.analysis_data.isCollective %}Да{% else %}Нет{% endif %}</strong>
+                    </div>
+
+                    <div class="analysis-detail-row">
+                        <span>Количество подписантов</span>
+                        <strong>{{ item.analysis_data.n_signers or 1 }}</strong>
+                    </div>
+                </div>
+
+                <div class="analysis-tags-block">
+                    <div class="analysis-tags-title">Найденные признаки</div>
+
+                    <div class="analysis-tags">
+                        {% if item.analysis_data.matched_words %}
+                            {% for word in item.analysis_data.matched_words %}
+                                <span class="analysis-tag">{{ word }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="analysis-tag muted-tag">Явных эмоциональных маркеров не найдено</span>
+                        {% endif %}
+
+                        {% if item.analysis_data.criticality_reasons %}
+                            {% for reason in item.analysis_data.criticality_reasons %}
+                                <span class="analysis-tag warning-tag">{{ reason }}</span>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="appeal-detail-card-header">
+                <div>
+                    <div class="eyebrow">ЭМПАТИЧНАЯ ДОРАБОТКА</div>
+                    <h2 class="section-title">Официальный ответ</h2>
+                    <p class="muted">
+                        Вставьте готовый официальный ответ. Система добавит к нему короткий эмпатичный блок
+                        с учётом эмоционального фона обращения.
+                    </p>
+                </div>
+            </div>
+
+            <form method="post" action="/appeals/{{ item.request_id }}/generate">
+                <div class="appeal-field">
+                    <label class="appeal-label" for="officialReply">Официальный ответ</label>
+                    <textarea
+                        id="officialReply"
+                        class="appeal-textarea appeal-manual-textarea"
+                        name="official_reply"
+                        rows="14"
+                        placeholder="Вставьте сюда готовый официальный ответ..."
+                    >{{ item.facts_for_reply or item.manual_reply or item.draft or "" }}</textarea>
+                </div>
+
+                <div class="appeal-empathy-preview">
+                    <div class="appeal-empathy-preview-title">Что добавит система</div>
+                    <p>
+                        К официальному ответу будет добавлен короткий эмпатичный фрагмент.
+                        Текст зависит от определённой эмоции обращения:
+                        <strong>{{ item.emotion_label }}</strong>.
+                    </p>
+                </div>
+
+                <div class="appeal-actions">
+                    <button class="module-link" type="submit">
+                        Добавить эмпатию к ответу →
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <div class="appeal-detail-card-header">
+                <div>
+                    <div class="eyebrow">РЕЗУЛЬТАТ</div>
+                    <h2 class="section-title">Черновик ответа</h2>
+                    <p class="muted">
+                        Этот текст можно использовать как основу для ручной доработки.
+                    </p>
+                </div>
+            </div>
+
+            <pre class="content-block appeal-pre">{{ item.draft or "Черновик пока не сформирован." }}</pre>
+        </section>
+
+        <section class="card">
+            <div class="appeal-detail-card-header">
+                <div>
+                    <div class="eyebrow">РУЧНАЯ ПРОВЕРКА</div>
+                    <h2 class="section-title">Ручная доработка</h2>
+                    <p class="muted">
+                        Отредактируйте итоговый текст ответа перед утверждением или отправкой.
+                    </p>
+                </div>
+            </div>
+
+            <form method="post" action="/appeals/{{ item.request_id }}/save-revision">
+                <div class="appeal-field">
+                    <label class="appeal-label" for="manualReply">Финальный текст ответа</label>
+                    <textarea
+                        id="manualReply"
+                        class="appeal-textarea appeal-manual-textarea"
+                        name="manual_reply"
+                        rows="14"
+                        placeholder="Финальный текст ответа..."
+                    >{{ item.manual_reply or item.draft or "" }}</textarea>
+                </div>
+
+                <div class="appeal-actions">
+                    <button class="secondary-button" type="submit">
+                        Сохранить доработку
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <div class="appeal-detail-card-header">
+                <div>
+                    <div class="eyebrow">УПРАВЛЕНИЕ</div>
+                    <h2 class="section-title">Управление обращением</h2>
+                    <p class="muted">
+                        Измените статус обращения после проверки подготовленного ответа.
+                    </p>
+                </div>
+            </div>
+
+            <div class="appeal-management-actions">
+                <form method="post" action="/appeals/{{ item.request_id }}/approve">
+                    <button class="module-link" type="submit">
+                        Утвердить →
+                    </button>
+                </form>
+
+                <form method="post" action="/appeals/{{ item.request_id }}/reject">
+                    <button class="secondary-button" type="submit">
+                        Отклонить
+                    </button>
+                </form>
+
+                <form method="post" action="/appeals/{{ item.request_id }}/mark-sent">
+                    <button class="secondary-button" type="submit">
+                        Отметить отправленным
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="appeal-detail-card-header">
+                <div>
+                    <div class="eyebrow">ЖУРНАЛ</div>
+                    <h2 class="section-title">История действий</h2>
+                    <p class="muted">
+                        Последовательность изменений и служебных действий по обращению.
+                    </p>
+                </div>
+            </div>
+
+            {% if item.history %}
+                <div class="appeal-history-list">
+                    {% for row in item.history %}
+                        <div class="appeal-history-item">
+                            <div class="appeal-history-meta">
+                                <span>{{ row.created_at }}</span>
+                                <span>{{ row.action }}</span>
+                            </div>
+
+                            <pre class="appeal-pre appeal-history-payload">{{ row.payload }}</pre>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="appeal-empty-history">
+                    <h3>История пока пуста</h3>
+                    <p>После генерации, доработки или смены статуса здесь появятся записи.</p>
+                </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <script>
+        (function () {
+            const root = document.documentElement;
+            const themeToggle = document.getElementById("themeToggle");
+
+            function applyTheme(theme) {
+                root.setAttribute("data-theme", theme);
+
+                if (!themeToggle) {
+                    return;
+                }
+
+                const icon = themeToggle.querySelector(".theme-toggle-icon");
+                const text = themeToggle.querySelector(".theme-toggle-text");
+
+                if (theme === "dark") {
+                    if (icon) {
+                        icon.textContent = "🌙";
+                    }
+
+                    if (text) {
+                        text.textContent = "Тёмная тема";
+                    }
+                } else {
+                    if (icon) {
+                        icon.textContent = "☀️";
+                    }
+
+                    if (text) {
+                        text.textContent = "Светлая тема";
+                    }
+                }
+            }
+
+            const savedTheme = localStorage.getItem("homeTheme") || "light";
+            applyTheme(savedTheme);
+
+            if (themeToggle) {
+                themeToggle.addEventListener("click", function () {
+                    const currentTheme = root.getAttribute("data-theme") || "light";
+                    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+
+                    localStorage.setItem("homeTheme", nextTheme);
+                    applyTheme(nextTheme);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

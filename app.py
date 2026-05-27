@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 from typing import Any
+from datetime import datetime
 
 from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -12,6 +13,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import ChainableUndefined
 import re
+
+from services.appeals.storage import (
+    create_appeal,
+    list_appeals,
+    get_appeal,
+    update_appeal,
+    append_appeal_history,
+    calculate_stats as calculate_appeals_stats,
+)
+from services.appeals.reply_builder import DEFAULT_REPLY_TEMPLATE, generate_reply_from_template
+from services.appeals.files import extract_text_from_file
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -1651,6 +1664,260 @@ async def system_git_pull(x_git_update_token: str | None = Header(default=None))
             "restart_required": True,
         },
     )
+
+
+
+# =========================
+# APPEALS / ОБРАЩЕНИЯ
+# =========================
+
+@app.get("/appeals", response_class=HTMLResponse)
+async def appeals_page(
+    request: Request,
+    status: str = "",
+    message: str = "",
+    error: str = "",
+):
+    appeals = list_appeals(status)
+    stats = calculate_appeals_stats()
+
+    return templates.TemplateResponse(
+        request,
+        "appeals.html",
+        {
+            "request": request,
+            "appeals": appeals,
+            "stats": stats,
+            "current_status": status,
+            "message": message,
+            "error": error,
+        },
+    )
+
+
+@app.post("/appeals/create")
+async def appeals_create(request: Request):
+    try:
+        form = await request.form()
+
+        subject = str(form.get("subject") or "").strip()
+        sender_email = str(form.get("sender_email") or "manual@local").strip()
+        text = str(form.get("text") or "").strip()
+
+        uploaded_file = form.get("letter_file")
+        uploaded_text = ""
+
+        if uploaded_file is not None and getattr(uploaded_file, "filename", ""):
+            file_bytes = await uploaded_file.read()
+            uploaded_text = extract_text_from_file(uploaded_file.filename, file_bytes)
+
+        original_text = "\n\n".join([part for part in [text, uploaded_text] if part.strip()]).strip()
+
+        if not original_text:
+            return RedirectResponse(
+                url="/appeals?error=Нужно указать текст обращения или загрузить файл",
+                status_code=303,
+            )
+
+        if not subject:
+            subject = "Обращение без темы"
+
+        item = create_appeal(
+            subject=subject,
+            original_text=original_text,
+            sender_email=sender_email or "manual@local",
+        )
+
+        return RedirectResponse(
+            url=f"/appeals/{item['request_id']}?message=Заявка создана",
+            status_code=303,
+        )
+
+    except Exception as e:
+        return RedirectResponse(
+            url=f"/appeals?error=Ошибка создания обращения: {str(e)}",
+            status_code=303,
+        )
+
+
+@app.get("/appeals/{request_id}", response_class=HTMLResponse)
+async def appeal_detail_page(
+    request: Request,
+    request_id: str,
+    message: str = "",
+    error: str = "",
+):
+    item = get_appeal(request_id)
+
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "appeal_detail.html",
+        {
+            "request": request,
+            "item": item,
+            "default_template": DEFAULT_REPLY_TEMPLATE,
+            "message": message,
+            "error": error,
+        },
+    )
+
+
+@app.post("/appeals/{request_id}/generate")
+async def appeal_generate_draft(request: Request, request_id: str):
+    item = get_appeal(request_id)
+
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    form = await request.form()
+
+    official_text = str(
+        form.get("official_reply")
+        or form.get("facts_for_reply")
+        or ""
+    ).strip()
+
+    if not official_text:
+        return RedirectResponse(
+            url=f"/appeals/{request_id}?error=Нужно вставить официальный ответ",
+            status_code=303,
+        )
+
+    item["facts_for_reply"] = official_text
+
+    empathy_append_template = "{{ facts }}\n\n{{ empathy_block }}"
+
+    draft = generate_reply_from_template(
+        template_text=empathy_append_template,
+        facts_text=official_text,
+        item=item,
+    )
+
+    update_appeal(
+        request_id,
+        facts_for_reply=official_text,
+        reply_template=empathy_append_template,
+        draft=draft,
+        status="awaiting_review",
+        draft_created_at=datetime.now().isoformat(timespec="seconds"),
+    )
+
+    append_appeal_history(request_id, "draft_generated", {
+        "official_reply": official_text,
+        "draft": draft,
+    })
+
+    return RedirectResponse(
+        url=f"/appeals/{request_id}?message=Эмпатичный блок добавлен к ответу",
+        status_code=303,
+    )
+
+
+@app.post("/appeals/{request_id}/save-revision")
+async def appeal_save_revision(request: Request, request_id: str):
+    item = get_appeal(request_id)
+
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    form = await request.form()
+    manual_reply = str(form.get("manual_reply") or "").strip()
+
+    if not manual_reply:
+        return RedirectResponse(
+            url=f"/appeals/{request_id}?error=Текст доработки не может быть пустым",
+            status_code=303,
+        )
+
+    update_appeal(
+        request_id,
+        manual_reply=manual_reply,
+        draft=manual_reply,
+        status="awaiting_review",
+    )
+
+    append_appeal_history(request_id, "manual_revision_saved", {
+        "manual_reply": manual_reply,
+    })
+
+    return RedirectResponse(
+        url=f"/appeals/{request_id}?message=Доработка сохранена",
+        status_code=303,
+    )
+
+
+@app.post("/appeals/{request_id}/approve")
+async def appeal_approve(request_id: str):
+    item = get_appeal(request_id)
+
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    update_appeal(request_id, status="approved")
+    append_appeal_history(request_id, "approved", {})
+
+    return RedirectResponse(
+        url=f"/appeals/{request_id}?message=Обращение утверждено",
+        status_code=303,
+    )
+
+
+@app.post("/appeals/{request_id}/reject")
+async def appeal_reject(request_id: str):
+    item = get_appeal(request_id)
+
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    update_appeal(request_id, status="rejected")
+    append_appeal_history(request_id, "rejected", {})
+
+    return RedirectResponse(
+        url=f"/appeals/{request_id}?message=Обращение отклонено",
+        status_code=303,
+    )
+
+
+@app.post("/appeals/{request_id}/mark-sent")
+async def appeal_mark_sent(request_id: str):
+    item = get_appeal(request_id)
+
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    update_appeal(
+        request_id,
+        status="sent",
+        sent_at=datetime.now().isoformat(timespec="seconds"),
+    )
+    append_appeal_history(request_id, "sent_marked", {})
+
+    return RedirectResponse(
+        url=f"/appeals/{request_id}?message=Обращение отмечено отправленным",
+        status_code=303,
+    )
+
 
 @app.get("/health")
 async def health():

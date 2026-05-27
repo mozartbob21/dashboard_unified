@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Нейрона ИИ — Единая точка входа</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix11">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
 </head>
 
 <body class="compact-module-page">
@@ -21,8 +21,8 @@
             </div>
 
             <div class="top-actions">
-                <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.1">
-                    Версия 2.2
+                <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.2">
+                    Версия 2.3 (Бета)
                 </button>
 
                 <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
@@ -46,7 +46,8 @@
                     Единый интерфейс для запуска сценариев мониторинга, анализа проблемных позиций,
                     просмотра скриншотов, итоговых сводок, персональных уведомлений и служебных материалов
                     по нескольким направлениям: контроль заполненности данных, контроль просроченных задач,
-                    мониторинг Контроля воды, технадзор УТНКР и проверка работоспособности камер.
+                    мониторинг Контроля воды, технадзор УТНКР, проверка работоспособности камер
+                    и подготовка эмпатичных ответов на обращения.
                 </p>
             </div>
 
@@ -241,30 +242,29 @@
                 </div>
             </article>
 
-            <article class="card module-card module-card-disabled">
-                <div class="module-head">
+            <article class="card module-card module-card-appeals-beta">
+                <div class="module-head module-head-beta">
                     <span class="pill primary">ИИ Ответы</span>
-                    <span class="pill soon">Скоро</span>
+                    <span class="pill beta-accent">Бета</span>
                 </div>
 
                 <h2 class="module-title">Эмпатичные ответы</h2>
 
                 <div class="module-description">
                     Модуль подготовки мягких, корректных и человекоориентированных ответов
-                    для служебной коммуникации, обращений, уведомлений и рабочих сообщений.
+                    на обращения. Определяет эмоцию и критичность кодом, подставляет эмпатичный
+                    блок и формирует черновик по редактируемому шаблону.
                 </div>
 
                 <div class="tag-row">
                     <span class="tag">Тональность ответа</span>
                     <span class="tag">Деловой стиль</span>
                     <span class="tag">Эмпатичная формулировка</span>
-                    <span class="tag">AI-помощник</span>
+                    <span class="tag">Шаблоны без тяжёлого ИИ</span>
                 </div>
 
                 <div class="action-panel">
-                    <button class="module-link module-link-disabled" type="button" disabled>
-                        Скоро
-                    </button>
+                    <a href="/appeals" class="module-link">Открыть модуль →</a>
                 </div>
             </article>
         </section>
@@ -354,82 +354,93 @@
         </section>
     </div>
 
-
     <div id="whatsNewModal" class="whats-new-modal" aria-hidden="true">
-    <div class="whats-new-backdrop" data-whats-new-close></div>
+        <div class="whats-new-backdrop" data-whats-new-close></div>
 
-    <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
-        <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
-            ×
-        </button>
-
-        <div class="whats-new-kicker">Нейрона 2.2</div>
-
-        <h2 id="whatsNewTitle" class="whats-new-title">Что нового?</h2>
-
-        <p class="whats-new-lead">
-            Обновление сфокусировано на едином визуальном стиле, удобстве работы с модулями
-            и подготовке новых автоматизированных сценариев. Интерфейс стал аккуратнее,
-            стабильнее и ближе к единой системе.
-        </p>
-
-        <div class="whats-new-list">
-            <article class="whats-new-item">
-                <div class="whats-new-icon">◐</div>
-                <div>
-                    <h3>Единый стиль и смена темы</h3>
-                    <p>
-                        Основные страницы и рабочие модули приведены к единому визуальному стилю.
-                        Добавлена поддержка светлой и тёмной темы: выбранный режим сохраняется
-                        и автоматически применяется при следующем открытии системы.
-                    </p>
-                </div>
-            </article>
-
-            <article class="whats-new-item">
-                <div class="whats-new-icon">▦</div>
-                <div>
-                    <h3>Оптимизирован блок УТНК</h3>
-                    <p>
-                        Улучшена работа блока УТНК: обновлена структура интерфейса,
-                        повышена стабильность обработки данных и сделана более удобной работа
-                        с результатами проверки.
-                    </p>
-                </div>
-            </article>
-
-            <article class="whats-new-item">
-                <div class="whats-new-icon">▣</div>
-                <div>
-                    <h3>Бета-версия предписаний в блоке камер</h3>
-                    <p>
-                        В модуле проверки камер запущена бета-версия формирования предписаний.
-                        Система готовит документы для проблемных адресов: при отсутствии видеопотока
-                        и при отсутствии подключенной камеры.
-                    </p>
-                </div>
-            </article>
-
-            <article class="whats-new-item">
-                <div class="whats-new-icon">⚙</div>
-                <div>
-                    <h3>Улучшена общая работа системы</h3>
-                    <p>
-                        Проведена общая оптимизация локального контура: улучшена навигация,
-                        выровнена структура модулей, повышена стабильность интерфейса
-                        и подготовлена основа для дальнейшего развития платформы.
-                    </p>
-                </div>
-            </article>
-        </div>
-
-        <div class="whats-new-footer">
-            <button class="module-link whats-new-done" type="button" data-whats-new-close>
-                Отлично
+        <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
+            <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
+                ×
             </button>
-        </div>
-    </section>
-</div>
+
+            <div class="whats-new-kicker">Нейрона 2.3 бета</div>
+
+            <h2 id="whatsNewTitle" class="whats-new-title">Что уже есть в 2.3 (Бета)?</h2>
+
+            <p class="whats-new-lead">
+                Обновление сфокусировано на едином визуальном стиле, удобстве работы с модулями
+                и подготовке новых автоматизированных сценариев. Интерфейс стал аккуратнее,
+                стабильнее и ближе к единой системе.
+            </p>
+
+            <div class="whats-new-list">
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">◐</div>
+                    <div>
+                        <h3>Единый стиль и смена темы</h3>
+                        <p>
+                            Основные страницы и рабочие модули приведены к единому визуальному стилю.
+                            Добавлена поддержка светлой и тёмной темы: выбранный режим сохраняется
+                            и автоматически применяется при следующем открытии системы.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">▦</div>
+                    <div>
+                        <h3>Оптимизирован блок УТНК</h3>
+                        <p>
+                            Улучшена работа блока УТНК: обновлена структура интерфейса,
+                            повышена стабильность обработки данных и сделана более удобной работа
+                            с результатами проверки.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">▣</div>
+                    <div>
+                        <h3>Бета-версия предписаний в блоке камер</h3>
+                        <p>
+                            В модуле проверки камер запущена бета-версия формирования предписаний.
+                            Система готовит документы для проблемных адресов: при отсутствии видеопотока
+                            и при отсутствии подключенной камеры.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">⚙</div>
+                    <div>
+                        <h3>Эмпатичные ответы в Beta</h3>
+                        <p>
+                            Добавлен модуль подготовки ответов на обращения. Он использует локальный
+                            кодовый анализ эмоции и критичности, затем собирает черновик ответа
+                            по шаблону с эмпатичным блоком.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">✓</div>
+                    <div>
+                        <h3>Улучшена общая работа системы</h3>
+                        <p>
+                            Проведена общая оптимизация локального контура: улучшена навигация,
+                            выровнена структура модулей, повышена стабильность интерфейса
+                            и подготовлена основа для дальнейшего развития платформы.
+                        </p>
+                    </div>
+                </article>
+            </div>
+
+            <div class="whats-new-footer">
+                <button class="module-link whats-new-done" type="button" data-whats-new-close>
+                    Отлично
+                </button>
+            </div>
+        </section>
+    </div>
 
     <script>
         (function () {

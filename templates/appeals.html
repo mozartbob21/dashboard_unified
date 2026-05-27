@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Обращения граждан — Нейрона ИИ</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+</head>
+
+<body class="compact-module-page appeals-page">
+    <div class="container">
+        <header class="topbar">
+            <div class="brand">
+                <a href="/" class="brand-link">
+                    <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+
+                    <div>
+                        <div class="brand-title">Нейрона ИИ</div>
+                        <div class="brand-subtitle">Эмпатичные ответы на обращения</div>
+                    </div>
+                </a>
+            </div>
+
+            <div class="top-actions">
+                <span class="version-label">Бета</span>
+
+                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
+                    <span class="theme-toggle-icon">☀️</span>
+                    <span class="theme-toggle-text">Светлая тема</span>
+                </button>
+
+                <a href="/" class="secondary-button">На главную</a>
+            </div>
+        </header>
+
+        <section class="card hero appeals-hero">
+            <div class="appeals-hero-content appeals-hero-grid">
+                <div>
+                    <div class="eyebrow">ЛОКАЛЬНАЯ ОБРАБОТКА ОБРАЩЕНИЙ</div>
+
+                    <h1>Обращения граждан</h1>
+
+                    <p class="lead">
+                        Модуль помогает быстро разобрать обращение, понять настроение заявителя,
+                        оценить срочность вопроса и подготовить аккуратный ответ с уважительным тоном.
+                    </p>
+
+                    <div class="appeals-chips">
+                        <span class="appeals-chip">Локальная обработка</span>
+                        <span class="appeals-chip">Понятная логика</span>
+                        <span class="appeals-chip">Человечный тон</span>
+                        <span class="appeals-chip">Контроль специалиста</span>
+                    </div>
+                </div>
+
+                <div class="appeals-hero-panel">
+                    <div class="appeals-mini-card">
+                        <div class="appeals-mini-title">Как работает</div>
+                        <div class="appeals-mini-text">
+                            Система выделяет ключевые признаки обращения: настроение, критичность,
+                            приоритет и возможные причины недовольства.
+                        </div>
+                    </div>
+
+                    <div class="appeals-mini-card">
+                        <div class="appeals-mini-title">Важно</div>
+                        <div class="appeals-mini-text">
+                            Решение остаётся за специалистом. Система только помогает оформить ответ
+                            внимательнее, понятнее и спокойнее.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {% if message %}
+            <div class="status-message success">{{ message }}</div>
+        {% endif %}
+
+        {% if error %}
+            <div class="status-message error">{{ error }}</div>
+        {% endif %}
+
+        <section class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Всего заявок</div>
+                <div class="metric-value">{{ stats.total }}</div>
+            </div>
+
+            <div class="metric-card risk">
+                <div class="metric-label">Ожидаются факты</div>
+                <div class="metric-value">{{ stats.awaiting_facts }}</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-label">На проверке</div>
+                <div class="metric-value">{{ stats.awaiting_review }}</div>
+            </div>
+
+            <div class="metric-card ok">
+                <div class="metric-label">Утверждено</div>
+                <div class="metric-value">{{ stats.approved }}</div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="appeals-card-header">
+                <div>
+                    <div class="eyebrow">НОВОЕ ОБРАЩЕНИЕ</div>
+                    <h2 class="section-title">Создать обращение</h2>
+                    <p class="muted">
+                        Вставьте текст вручную или загрузите файл. Поддерживаются форматы:
+                        <strong>.txt</strong>, <strong>.docx</strong>, <strong>.pdf</strong>.
+                    </p>
+                </div>
+
+                <span class="appeals-beta">Бета</span>
+            </div>
+
+            <form method="post" action="/appeals/create" enctype="multipart/form-data">
+                <div class="appeals-form-grid">
+                    <div class="appeals-field">
+                        <label class="appeals-label" for="appealSubject">Тема обращения</label>
+                        <input
+                            id="appealSubject"
+                            class="appeals-input"
+                            name="subject"
+                            type="text"
+                            placeholder="Например: Жалоба на вывоз мусора"
+                        >
+                    </div>
+
+                    <div class="appeals-field">
+                        <label class="appeals-label" for="appealEmail">Email заявителя</label>
+                        <input
+                            id="appealEmail"
+                            class="appeals-input"
+                            name="sender_email"
+                            type="email"
+                            placeholder="manual@local"
+                        >
+                    </div>
+                </div>
+
+                <div class="appeals-field appeals-field-spaced">
+                    <label class="appeals-label" for="appealText">Текст обращения</label>
+                    <textarea
+                        id="appealText"
+                        class="appeals-textarea"
+                        name="text"
+                        placeholder="Вставьте текст обращения..."
+                    ></textarea>
+                </div>
+
+                <div class="appeals-form-grid appeals-field-spaced">
+                    <div class="appeals-field">
+                        <label class="appeals-label" for="appealFile">Файл обращения</label>
+                        <input
+                            id="appealFile"
+                            class="appeals-file"
+                            type="file"
+                            name="letter_file"
+                            accept=".txt,.docx,.pdf"
+                        >
+                    </div>
+
+                    <div class="appeals-field">
+                        <label class="appeals-label">Что будет сделано</label>
+                        <div class="appeals-mini-card">
+                            <div class="appeals-mini-text">
+                                После создания система определит эмоцию, критичность, адрес,
+                                коллективность обращения и рассчитает приоритет.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="appeals-form-actions">
+                    <button class="module-link" type="submit">
+                        Создать заявку →
+                    </button>
+
+                    <div class="appeals-help">
+                        Если загружен файл и введён текст, они будут объединены в одно обращение.
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <section class="card appeals-registry-card">
+            <div class="appeals-table-title">
+                <div>
+                    <div class="eyebrow">РЕЕСТР</div>
+                    <h2 class="section-title">Обращения</h2>
+                    <p class="muted">
+                        Список заявок, обработанных локальным кодовым анализатором.
+                    </p>
+                </div>
+
+                <div class="appeals-filter-row">
+                    <a
+                        class="secondary-button appeals-filter-link {% if not current_status %}is-active{% endif %}"
+                        href="/appeals"
+                    >
+                        Все
+                    </a>
+
+                    <a
+                        class="secondary-button appeals-filter-link {% if current_status == 'awaiting_facts' %}is-active{% endif %}"
+                        href="/appeals?status=awaiting_facts"
+                    >
+                        Ожидаются факты
+                    </a>
+
+                    <a
+                        class="secondary-button appeals-filter-link {% if current_status == 'awaiting_review' %}is-active{% endif %}"
+                        href="/appeals?status=awaiting_review"
+                    >
+                        На проверке
+                    </a>
+
+                    <a
+                        class="secondary-button appeals-filter-link {% if current_status == 'approved' %}is-active{% endif %}"
+                        href="/appeals?status=approved"
+                    >
+                        Утверждено
+                    </a>
+
+                    <a
+                        class="secondary-button appeals-filter-link {% if current_status == 'rejected' %}is-active{% endif %}"
+                        href="/appeals?status=rejected"
+                    >
+                        Отклонено
+                    </a>
+                </div>
+            </div>
+
+            {% if appeals %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Дата</th>
+                                <th>Тема</th>
+                                <th>Эмоция</th>
+                                <th>Критичность</th>
+                                <th>Индекс</th>
+                                <th>Приоритет</th>
+                                <th>Статус</th>
+                                <th>Карточка</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for item in appeals %}
+                                <tr>
+                                    <td>
+                                        <code class="appeals-id">{{ item.request_id }}</code>
+                                    </td>
+
+                                    <td>
+                                        <div>{{ item.created_at }}</div>
+                                    </td>
+
+                                    <td>
+                                        <div class="appeals-subject">{{ item.subject }}</div>
+                                    </td>
+
+                                    <td>
+                                        <div>{{ item.emotion_label }}</div>
+                                    </td>
+
+                                    <td>
+                                        <div>{{ item.criticality_label }}</div>
+                                    </td>
+
+                                    <td>
+                                        <strong>{{ item.final_index }}</strong>
+                                    </td>
+
+                                    <td>
+                                        <span class="appeals-badge {{ item.priority_level }}">
+                                            {{ item.priority_label }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="appeals-status">
+                                            {{ item.status_label }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <a class="module-link" href="/appeals/{{ item.request_id }}">
+                                            Открыть →
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="appeals-empty">
+                    <div>
+                        <h3>Обращений пока нет</h3>
+                        <p>
+                            Создайте первое обращение через форму выше. После создания оно появится в реестре.
+                        </p>
+                    </div>
+                </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <script>
+        (function () {
+            const root = document.documentElement;
+            const themeToggle = document.getElementById("themeToggle");
+
+            function applyTheme(theme) {
+                root.setAttribute("data-theme", theme);
+
+                if (!themeToggle) {
+                    return;
+                }
+
+                const icon = themeToggle.querySelector(".theme-toggle-icon");
+                const text = themeToggle.querySelector(".theme-toggle-text");
+
+                if (theme === "dark") {
+                    if (icon) {
+                        icon.textContent = "🌙";
+                    }
+
+                    if (text) {
+                        text.textContent = "Тёмная тема";
+                    }
+                } else {
+                    if (icon) {
+                        icon.textContent = "☀️";
+                    }
+
+                    if (text) {
+                        text.textContent = "Светлая тема";
+                    }
+                }
+            }
+
+            const savedTheme = localStorage.getItem("homeTheme") || "light";
+            applyTheme(savedTheme);
+
+            if (themeToggle) {
+                themeToggle.addEventListener("click", function () {
+                    const currentTheme = root.getAttribute("data-theme") || "light";
+                    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+
+                    localStorage.setItem("homeTheme", nextTheme);
+                    applyTheme(nextTheme);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>
