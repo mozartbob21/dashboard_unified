@@ -50,6 +50,9 @@ echo.
 echo Чтобы остановить сервер — закрой это окно или нажми Ctrl+C.
 echo.
 
+start http://127.0.0.1:8000
+
+
 REM ВАЖНО:
 REM Если у тебя другой entrypoint, замени main:app на свой.
 python -m uvicorn app:app --host 127.0.0.1 --port 8000

@@ -10,8 +10,117 @@
         document.documentElement.dataset.theme = savedTheme;
     </script>
 
-   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
-   <link rel="stylesheet" href="{{ url_for('static', path='utnkr/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+    <style>
+        .utnkr-filters-card {
+            margin-bottom: 20px;
+        }
+
+        .utnkr-filters-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .utnkr-filters-title-wrap h2 {
+            margin-bottom: 6px;
+        }
+
+        .utnkr-filter-count {
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            background: rgba(59, 130, 246, 0.14);
+            color: #60a5fa;
+            border: 1px solid rgba(96, 165, 250, 0.28);
+            white-space: nowrap;
+        }
+
+        .utnkr-filters-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr)) auto;
+            gap: 14px;
+            align-items: end;
+        }
+
+        .utnkr-filter-field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .utnkr-filter-field label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted, #8b95a7);
+        }
+
+        .utnkr-filter-field select {
+            width: 100%;
+            min-height: 42px;
+            padding: 9px 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main, #ffffff);
+            outline: none;
+            font-size: 14px;
+        }
+
+        html[data-theme="light"] .utnkr-filter-field select {
+            background: #ffffff;
+            color: #111827;
+        }
+
+        .utnkr-filter-field select:focus {
+            border-color: rgba(96, 165, 250, 0.8);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+        }
+
+        .utnkr-reset-filters-btn {
+            min-height: 42px;
+            padding: 10px 16px;
+            border-radius: 14px;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            background: rgba(239, 68, 68, 0.14);
+            color: #f87171;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .utnkr-reset-filters-btn:hover {
+            background: rgba(239, 68, 68, 0.22);
+        }
+
+        .utnkr-no-filter-results {
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        .utnkr-no-filter-results.hidden {
+            display: none;
+        }
+
+        @media (max-width: 900px) {
+            .utnkr-filters-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .utnkr-reset-filters-btn {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -170,6 +279,50 @@
 
         <div id="statusError" class="status-message hidden"></div>
 
+        {% if items %}
+            <div class="card utnkr-filters-card">
+                <div class="utnkr-filters-header">
+                    <div class="utnkr-filters-title-wrap">
+                        <h2>Фильтры</h2>
+
+                        <p class="subtext">
+                            Отфильтруйте результаты по муниципалитету и организации.
+                        </p>
+                    </div>
+
+                    <div id="utnkrFilterCount" class="utnkr-filter-count">
+                        Показано: {{ items|length }}
+                    </div>
+                </div>
+
+                <div class="utnkr-filters-grid">
+                    <div class="utnkr-filter-field">
+                        <label for="municipalityFilter">Муниципалитет</label>
+
+                        <select id="municipalityFilter">
+                            <option value="">Все муниципалитеты</option>
+                        </select>
+                    </div>
+
+                    <div class="utnkr-filter-field">
+                        <label for="organizationFilter">Организация</label>
+
+                        <select id="organizationFilter">
+                            <option value="">Все организации</option>
+                        </select>
+                    </div>
+
+                    <button id="resetUtnkrFiltersBtn" class="utnkr-reset-filters-btn" type="button">
+                        Сбросить
+                    </button>
+                </div>
+
+                <div id="utnkrNoFilterResults" class="utnkr-no-filter-results hidden">
+                    По выбранным фильтрам ничего не найдено.
+                </div>
+            </div>
+        {% endif %}
+
         <div class="card violators-section" id="violatorsSection">
             <div class="violators-section-header">
                 <div class="violators-section-title-wrap">
@@ -197,8 +350,14 @@
                     {% if items %}
                         {% for item in items %}
                             {% set color = item.get('color_code') or item.get('status') or item.get('traffic_light') or 'risk' %}
+                            {% set municipality = item.get("municipality") or item.get("Муниципалитет") or "—" %}
+                            {% set organization = item.get("organization") or item.get("Организация") or item.get("grbs") or "—" %}
 
-                            <div class="message-block message-block-{{ color }}">
+                            <div
+                                class="message-block message-block-{{ color }} utnkr-filter-item"
+                                data-municipality="{{ municipality|e }}"
+                                data-organization="{{ organization|e }}"
+                            >
                                 <div class="message-head">
                                     <div class="message-head-badges">
                                         <strong>
@@ -214,12 +373,12 @@
                                 <div class="message-meta">
                                     <div>
                                         <strong>Муниципалитет:</strong>
-                                        {{ item.get("municipality") or item.get("Муниципалитет") or "—" }}
+                                        {{ municipality }}
                                     </div>
 
                                     <div>
                                         <strong>Организация:</strong>
-                                        {{ item.get("organization") or item.get("Организация") or item.get("grbs") or "—" }}
+                                        {{ organization }}
                                     </div>
 
                                     <div>
@@ -262,38 +421,45 @@
             <div class="card">
                 <h2>Детализация по объектам</h2>
 
-               <div class="table-wrap utnkr-table-wrap">
-    <table class="utnkr-detail-table">
-        <colgroup>
-            <col class="utnkr-col-number">
-            <col class="utnkr-col-municipality">
-            <col class="utnkr-col-object">
-            <col class="utnkr-col-organization">
-            <col class="utnkr-col-responsible">
-            <col class="utnkr-col-status">
-            <col class="utnkr-col-overdue">
-        </colgroup>
+                <div class="table-wrap utnkr-table-wrap">
+                    <table id="utnkrDetailTable" class="utnkr-detail-table">
+                        <colgroup>
+                            <col class="utnkr-col-number">
+                            <col class="utnkr-col-municipality">
+                            <col class="utnkr-col-object">
+                            <col class="utnkr-col-organization">
+                            <col class="utnkr-col-responsible">
+                            <col class="utnkr-col-status">
+                            <col class="utnkr-col-overdue">
+                        </colgroup>
 
-        <thead>
-            <tr>
-                <th>№</th>
-                <th>Муниципалитет</th>
-                <th>Объект</th>
-                <th>Организация</th>
-                <th>Ответственный</th>
-                <th>Статус</th>
-                <th>Просрочка</th>
-            </tr>
-        </thead>
+                        <thead>
+                            <tr>
+                                <th>№</th>
+                                <th>Муниципалитет</th>
+                                <th>Объект</th>
+                                <th>Организация</th>
+                                <th>Ответственный</th>
+                                <th>Статус</th>
+                                <th>Просрочка</th>
+                            </tr>
+                        </thead>
+
                         <tbody>
                             {% for item in items %}
                                 {% set color = item.get('color_code') or item.get('status') or item.get('traffic_light') or 'risk' %}
+                                {% set municipality = item.get("municipality") or item.get("Муниципалитет") or "—" %}
+                                {% set organization = item.get("organization") or item.get("Организация") or item.get("grbs") or "—" %}
 
-                                <tr class="status-{{ color }}">
-                                    <td>{{ loop.index }}</td>
-                                    <td>{{ item.get("municipality") or item.get("Муниципалитет") or "—" }}</td>
+                                <tr
+                                    class="status-{{ color }} utnkr-filter-row"
+                                    data-municipality="{{ municipality|e }}"
+                                    data-organization="{{ organization|e }}"
+                                >
+                                    <td class="utnkr-row-number">{{ loop.index }}</td>
+                                    <td>{{ municipality }}</td>
                                     <td>{{ item.get("name") or item.get("object") or item.get("Объект") or item.get("title") or "—" }}</td>
-                                    <td>{{ item.get("organization") or item.get("Организация") or item.get("grbs") or "—" }}</td>
+                                    <td>{{ organization }}</td>
                                     <td>{{ item.get("responsible") or item.get("responsible_name") or item.get("Ответственный") or "—" }}</td>
 
                                     <td>
@@ -354,6 +520,139 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const municipalityFilter = document.getElementById("municipalityFilter");
+            const organizationFilter = document.getElementById("organizationFilter");
+            const resetButton = document.getElementById("resetUtnkrFiltersBtn");
+            const filterCount = document.getElementById("utnkrFilterCount");
+            const noResultsBlock = document.getElementById("utnkrNoFilterResults");
+
+            const tableRows = Array.from(document.querySelectorAll(".utnkr-filter-row"));
+            const cards = Array.from(document.querySelectorAll(".utnkr-filter-item"));
+
+            if (!municipalityFilter || !organizationFilter || tableRows.length === 0) {
+                return;
+            }
+
+            function normalizeValue(value) {
+                return String(value || "").trim();
+            }
+
+            function getUniqueValues(attributeName) {
+                const values = tableRows
+                    .map(function (row) {
+                        return normalizeValue(row.dataset[attributeName]);
+                    })
+                    .filter(function (value) {
+                        return value && value !== "—";
+                    });
+
+                return Array.from(new Set(values)).sort(function (a, b) {
+                    return a.localeCompare(b, "ru");
+                });
+            }
+
+            function fillSelect(selectElement, values, defaultLabel) {
+                selectElement.innerHTML = "";
+
+                const defaultOption = document.createElement("option");
+                defaultOption.value = "";
+                defaultOption.textContent = defaultLabel;
+                selectElement.appendChild(defaultOption);
+
+                values.forEach(function (value) {
+                    const option = document.createElement("option");
+                    option.value = value;
+                    option.textContent = value;
+                    selectElement.appendChild(option);
+                });
+            }
+
+            function rowMatchesFilters(element) {
+                const selectedMunicipality = normalizeValue(municipalityFilter.value);
+                const selectedOrganization = normalizeValue(organizationFilter.value);
+
+                const elementMunicipality = normalizeValue(element.dataset.municipality);
+                const elementOrganization = normalizeValue(element.dataset.organization);
+
+                const municipalityMatches =
+                    !selectedMunicipality || elementMunicipality === selectedMunicipality;
+
+                const organizationMatches =
+                    !selectedOrganization || elementOrganization === selectedOrganization;
+
+                return municipalityMatches && organizationMatches;
+            }
+
+            function updateRowNumbers() {
+                let visibleIndex = 1;
+
+                tableRows.forEach(function (row) {
+                    const numberCell = row.querySelector(".utnkr-row-number");
+
+                    if (row.style.display !== "none" && numberCell) {
+                        numberCell.textContent = visibleIndex;
+                        visibleIndex += 1;
+                    }
+                });
+            }
+
+            function applyFilters() {
+                let visibleCount = 0;
+
+                tableRows.forEach(function (row) {
+                    const isVisible = rowMatchesFilters(row);
+                    row.style.display = isVisible ? "" : "none";
+
+                    if (isVisible) {
+                        visibleCount += 1;
+                    }
+                });
+
+                cards.forEach(function (card) {
+                    const isVisible = rowMatchesFilters(card);
+                    card.style.display = isVisible ? "" : "none";
+                });
+
+                updateRowNumbers();
+
+                if (filterCount) {
+                    filterCount.textContent = "Показано: " + visibleCount;
+                }
+
+                if (noResultsBlock) {
+                    noResultsBlock.classList.toggle("hidden", visibleCount > 0);
+                }
+            }
+
+            fillSelect(
+                municipalityFilter,
+                getUniqueValues("municipality"),
+                "Все муниципалитеты"
+            );
+
+            fillSelect(
+                organizationFilter,
+                getUniqueValues("organization"),
+                "Все организации"
+            );
+
+            municipalityFilter.addEventListener("change", applyFilters);
+            organizationFilter.addEventListener("change", applyFilters);
+
+            if (resetButton) {
+                resetButton.addEventListener("click", function () {
+                    municipalityFilter.value = "";
+                    organizationFilter.value = "";
+                    applyFilters();
+                });
+            }
+
+            applyFilters();
+        });
+    </script>
 
     <script src="{{ url_for('static', path='utnkr/app.js') }}"></script>
 </body>

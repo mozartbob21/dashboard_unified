@@ -13,53 +13,6 @@
 
 <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 
-
-<style id="cameras-filter-style-v2">
-    .cameras-filters-form {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
-
-    .cameras-filters-form select {
-        min-width: 170px;
-    }
-
-    .cameras-shown-count {
-        display: inline-flex;
-        align-items: center;
-        min-height: 40px;
-        padding: 0 14px;
-        border-radius: 999px;
-        background: rgba(59, 130, 246, 0.14);
-        border: 1px solid rgba(96, 165, 250, 0.3);
-        color: #93c5fd;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-
-    .camera-empty-filter-row td {
-        text-align: center;
-        padding: 18px;
-        color: var(--text-muted);
-        font-weight: 700;
-    }
-
-    @media (max-width: 900px) {
-        .cameras-filters-form {
-            justify-content: stretch;
-        }
-
-        .cameras-filters-form select,
-        .cameras-filters-form button,
-        .cameras-shown-count {
-            width: 100%;
-        }
-    }
-</style>
-
 </head>
 
 
@@ -332,7 +285,7 @@
                 <p class="subtext">Фильтрация по статусу и группировка по компаниям или городам.</p>
             </div>
 
-            <form id="filtersForm" class="details-toolbar cameras-filters-form">
+            <form id="filtersForm" method="get" action="/" class="details-toolbar">
                 <select id="statusFilter" name="status" class="secondary-button">
                     <option value="all" {% if status_filter == "all" %}selected{% endif %}>Все статусы</option>
                     <option value="working" {% if status_filter == "working" %}selected{% endif %}>Только работает</option>
@@ -341,25 +294,13 @@
                     <option value="problem" {% if status_filter == "problem" %}selected{% endif %}>Только проблемные</option>
                 </select>
 
-                <select id="companyFilter" name="company" class="secondary-button">
-                    <option value="">Все компании</option>
-                </select>
-
-                <select id="cityFilter" name="city" class="secondary-button">
-                    <option value="">Все города</option>
-                </select>
-
                 <select id="groupByFilter" name="group_by" class="secondary-button">
                     <option value="none" {% if group_by == "none" %}selected{% endif %}>Без группировки</option>
                     <option value="company" {% if group_by == "company" %}selected{% endif %}>По компаниям</option>
                     <option value="city" {% if group_by == "city" %}selected{% endif %}>По городам</option>
                 </select>
 
-                <button id="resetCamerasFiltersBtn" type="button" class="secondary-button">Сбросить</button>
-
-                <span id="camerasShownCount" class="cameras-shown-count">
-                    Показано: {{ filtered_results|length }}
-                </span>
+                <button type="submit" class="primary-button">Применить</button>
             </form>
         </div>
 

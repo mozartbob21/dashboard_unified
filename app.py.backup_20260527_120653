@@ -11,7 +11,6 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import ChainableUndefined
-import re
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -1022,17 +1021,11 @@ async def cameras_page(
 async def prescriptions_alias(request: Request):
     return RedirectResponse(url="/camera-prescriptions", status_code=302)
 
-
 @app.get("/camera-prescriptions", response_class=HTMLResponse)
 async def camera_prescriptions_page(
     request: Request,
     mode: str = "individual",
 ):
-    allowed_modes = {"individual", "combined", "zip", "all"}
-
-    if mode not in allowed_modes:
-        mode = "individual"
-
     state = load_json_file(CAMERAS_STATE_FILE, default={}) or {}
 
     camera_rows = [normalize_camera_row(row) for row in as_list_from_result(state)]
@@ -1067,13 +1060,11 @@ async def camera_prescriptions_page(
         zip_url = generation_result.get("zip_url")
 
     if GENERATED_PRESCRIPTIONS_DIR.exists():
-        all_files = sorted(
+        for path in sorted(
             GENERATED_PRESCRIPTIONS_DIR.glob("*"),
-            key=lambda item: item.stat().st_mtime if item.exists() else 0,
+            key=lambda item: item.stat().st_mtime,
             reverse=True,
-        )
-
-        for path in all_files:
+        ):
             if not path.is_file():
                 continue
 
@@ -1103,182 +1094,6 @@ async def camera_prescriptions_page(
             ):
                 combined_filename = path.name
                 combined_url = f"/generated/prescriptions/{path.name}"
-
-    def clean_filename_text(value):
-        value = str(value or "")
-        value = value.replace("_", " ")
-        value = re.sub(r"\s+", " ", value)
-        return value.strip(" -_.,;")
-
-    def parse_generated_prescription_filename(filename):
-        stem = Path(filename).stem
-
-        # Убираем начальный номер: 177_no_video_stream_...
-        stem_without_number = re.sub(r"^\d+[_-]+", "", stem)
-
-        reason_map = [
-            {
-                "prefixes": ("no_video_stream", "no_stream", "missing_stream"),
-                "label": "Нет видеопотока",
-                "status": "not_connected",
-            },
-            {
-                "prefixes": ("not_connected", "camera_not_connected", "no_camera"),
-                "label": "Камера отсутствует / не подключена",
-                "status": "not_connected",
-            },
-            {
-                "prefixes": ("not_working", "camera_not_working", "offline", "camera_offline"),
-                "label": "Камера не работает",
-                "status": "not_working",
-            },
-            {
-                "prefixes": ("broken", "error", "failed", "fail"),
-                "label": "Ошибка работы камеры",
-                "status": "not_working",
-            },
-        ]
-
-        reason_label = "Статус не определён"
-        camera_status = ""
-        rest = stem_without_number
-
-        for item in reason_map:
-            for prefix in item["prefixes"]:
-                if rest.lower().startswith(prefix.lower() + "_"):
-                    reason_label = item["label"]
-                    camera_status = item["status"]
-                    rest = rest[len(prefix) + 1:]
-                    break
-
-                if rest.lower() == prefix.lower():
-                    reason_label = item["label"]
-                    camera_status = item["status"]
-                    rest = ""
-
-            if camera_status:
-                break
-
-        def cleanup(value):
-            value = str(value or "")
-
-            value = value.replace("__", " ")
-            value = value.replace("_", " ")
-
-            value = re.sub(r"\s+", " ", value)
-            value = re.sub(r"\s+,", ",", value)
-            value = re.sub(r",\s*", ", ", value)
-
-            value = value.strip(" -_.,;")
-
-            replacements = [
-                (r"\bг\s+", "г. "),
-                (r"\bул\s+", "ул. "),
-                (r"\bд\s+", "д. "),
-                (r"\bмкр\s+", "мкр. "),
-                (r"\bпгт\s+", "пгт. "),
-                (r"\bрп\s+", "рп. "),
-            ]
-
-            for pattern_item, replacement in replacements:
-                value = re.sub(pattern_item, replacement, value, flags=re.IGNORECASE)
-
-            value = re.sub(r"\s+", " ", value)
-            value = re.sub(r"\s+,", ",", value)
-
-            return value.strip(" -_.,;")
-
-        normalized = cleanup(rest)
-        lowered = normalized.lower()
-
-        owner = ""
-        address = ""
-
-        unknown_org_variants = [
-            "не указана организация",
-            "не указано организация",
-            "организация не указана",
-            "без организации",
-        ]
-
-        for variant in unknown_org_variants:
-            if lowered.startswith(variant):
-                owner = "Не указана организация"
-                address = cleanup(normalized[len(variant):])
-                break
-
-        if not owner:
-            address_pattern = re.compile(
-                r"(?<![А-Яа-яA-Za-z0-9])"
-                r"("
-                r"г\.?|город|ул\.?|улица|д\.?|дом|"
-                r"пр-кт|проспект|пр\.?|проезд|пер\.?|переулок|"
-                r"ш\.?|шоссе|п\.?|пос\.?|поселок|посёлок|"
-                r"с\.?|село|дер\.?|деревня|рп\.?|пгт\.?|мкр\.?"
-                r")"
-                r"\s+",
-                re.IGNORECASE,
-            )
-
-            match = address_pattern.search(normalized)
-
-            if match:
-                if match.start() == 0:
-                    owner = "Не указана организация"
-                    address = normalized
-                else:
-                    owner = cleanup(normalized[:match.start()])
-                    address = cleanup(normalized[match.start():])
-            else:
-                owner = cleanup(normalized)
-                address = ""
-
-        if owner.lower().startswith("не указана организация") and owner.lower() != "не указана организация":
-            tail = owner[len("Не указана организация"):]
-            owner = "Не указана организация"
-
-            if not address:
-                address = cleanup(tail)
-
-        if address.lower().startswith("не указана организация"):
-            address = cleanup(address[len("Не указана организация"):])
-
-        owner = cleanup(owner) or "Не указана организация"
-        address = cleanup(address) or normalized or filename
-
-        return {
-            "owner": owner,
-            "address": address,
-            "camera_status": camera_status,
-            "camera_status_label": reason_label,
-        }
-
-    if not generated_items:
-        generated_items = []
-
-        for file_info in prescriptions:
-            filename = file_info.get("filename", "")
-            lower_name = filename.lower()
-
-            if not lower_name.endswith(".docx"):
-                continue
-
-            if "combined" in lower_name or "общ" in lower_name or "all" in lower_name:
-                continue
-
-            parsed = parse_generated_prescription_filename(filename)
-
-            generated_items.append(
-                {
-                    "owner": parsed.get("owner") or "Не указано",
-                    "address": parsed.get("address") or filename,
-                    "checked_at": "",
-                    "camera_status": parsed.get("camera_status") or "",
-                    "camera_status_label": parsed.get("camera_status_label") or "Статус не определён",
-                    "filename": filename,
-                    "url": file_info.get("url"),
-                }
-            )
 
     generated_at = (
         generation_result.get("generated_at")
@@ -1331,7 +1146,6 @@ async def camera_prescriptions_page(
             "run_status": run_status["camera_prescriptions"],
         },
     )
-
 @app.get("/edo/run-status")
 async def edo_run_status():
     return run_status["edo"]

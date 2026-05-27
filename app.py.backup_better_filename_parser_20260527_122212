@@ -1141,6 +1141,7 @@ async def camera_prescriptions_page(
 
         reason_label = "Статус не определён"
         camera_status = ""
+
         rest = stem_without_number
 
         for item in reason_map:
@@ -1159,96 +1160,99 @@ async def camera_prescriptions_page(
             if camera_status:
                 break
 
-        def cleanup(value):
-            value = str(value or "")
+        # В именах часто организация и адрес разделены двойным подчёркиванием:
+        # ООО__ТЕХНИЧЕСКИЕ_РЕШЕНИЯ__г_Раменское,_ул_...
+        raw_parts = [part for part in rest.split("__") if part]
 
-            value = value.replace("__", " ")
-            value = value.replace("_", " ")
+        address_prefixes = (
+            "г ",
+            "город ",
+            "ул ",
+            "улица ",
+            "д ",
+            "дом ",
+            "пр ",
+            "проспект ",
+            "ш ",
+            "шоссе ",
+            "п ",
+            "пос ",
+            "поселок ",
+            "посёлок ",
+            "с ",
+            "село ",
+            "дер ",
+            "деревня ",
+            "рп ",
+            "мкр ",
+            "кв л ",
+        )
 
-            value = re.sub(r"\s+", " ", value)
-            value = re.sub(r"\s+,", ",", value)
-            value = re.sub(r",\s*", ", ", value)
+        owner_parts = []
+        address_parts = []
 
-            value = value.strip(" -_.,;")
+        for part in raw_parts:
+            cleaned = clean_filename_text(part)
+            lowered = cleaned.lower()
 
-            replacements = [
-                (r"\bг\s+", "г. "),
-                (r"\bул\s+", "ул. "),
-                (r"\bд\s+", "д. "),
-                (r"\bмкр\s+", "мкр. "),
-                (r"\bпгт\s+", "пгт. "),
-                (r"\bрп\s+", "рп. "),
+            if address_parts:
+                address_parts.append(cleaned)
+                continue
+
+            if lowered.startswith(address_prefixes):
+                address_parts.append(cleaned)
+            else:
+                owner_parts.append(cleaned)
+
+        owner = " ".join(owner_parts).strip()
+        address = " ".join(address_parts).strip()
+
+        # Если адрес не нашли по двойным разделителям, попробуем найти маркер адреса внутри строки.
+        if not address and rest:
+            normalized_rest = clean_filename_text(rest)
+            lowered_rest = normalized_rest.lower()
+
+            markers = [
+                " г ",
+                " город ",
+                " ул ",
+                " улица ",
+                " д ",
+                " дом ",
+                " пр ",
+                " проспект ",
+                " ш ",
+                " шоссе ",
+                " п ",
+                " пос ",
+                " поселок ",
+                " посёлок ",
+                " с ",
+                " село ",
+                " дер ",
+                " деревня ",
+                " рп ",
+                " мкр ",
             ]
 
-            for pattern_item, replacement in replacements:
-                value = re.sub(pattern_item, replacement, value, flags=re.IGNORECASE)
+            split_index = -1
 
-            value = re.sub(r"\s+", " ", value)
-            value = re.sub(r"\s+,", ",", value)
+            for marker in markers:
+                found = lowered_rest.find(marker)
 
-            return value.strip(" -_.,;")
+                if found > 0:
+                    split_index = found + 1
+                    break
 
-        normalized = cleanup(rest)
-        lowered = normalized.lower()
-
-        owner = ""
-        address = ""
-
-        unknown_org_variants = [
-            "не указана организация",
-            "не указано организация",
-            "организация не указана",
-            "без организации",
-        ]
-
-        for variant in unknown_org_variants:
-            if lowered.startswith(variant):
-                owner = "Не указана организация"
-                address = cleanup(normalized[len(variant):])
-                break
-
-        if not owner:
-            address_pattern = re.compile(
-                r"(?<![А-Яа-яA-Za-z0-9])"
-                r"("
-                r"г\.?|город|ул\.?|улица|д\.?|дом|"
-                r"пр-кт|проспект|пр\.?|проезд|пер\.?|переулок|"
-                r"ш\.?|шоссе|п\.?|пос\.?|поселок|посёлок|"
-                r"с\.?|село|дер\.?|деревня|рп\.?|пгт\.?|мкр\.?"
-                r")"
-                r"\s+",
-                re.IGNORECASE,
-            )
-
-            match = address_pattern.search(normalized)
-
-            if match:
-                if match.start() == 0:
-                    owner = "Не указана организация"
-                    address = normalized
-                else:
-                    owner = cleanup(normalized[:match.start()])
-                    address = cleanup(normalized[match.start():])
-            else:
-                owner = cleanup(normalized)
-                address = ""
-
-        if owner.lower().startswith("не указана организация") and owner.lower() != "не указана организация":
-            tail = owner[len("Не указана организация"):]
-            owner = "Не указана организация"
-
-            if not address:
-                address = cleanup(tail)
-
-        if address.lower().startswith("не указана организация"):
-            address = cleanup(address[len("Не указана организация"):])
-
-        owner = cleanup(owner) or "Не указана организация"
-        address = cleanup(address) or normalized or filename
+            if split_index > 0:
+                owner = normalized_rest[:split_index].strip()
+                address = normalized_rest[split_index:].strip()
+            elif not owner:
+                address = normalized_rest
 
         return {
-            "owner": owner,
-            "address": address,
+            "owner": owner or "Не указано",
+            "address": address or clean_filename_text(rest) or filename,
             "camera_status": camera_status,
             "camera_status_label": reason_label,
         }

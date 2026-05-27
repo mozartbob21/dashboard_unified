@@ -44,27 +44,17 @@ const addressTableUpdatedAt = document.getElementById("addressTableUpdatedAt");
 const addressTableSize = document.getElementById("addressTableSize");
 const addressTablePreview = document.getElementById("addressTablePreview");
 
-const filtersForm = document.getElementById("filtersForm");
 const statusFilter = document.getElementById("statusFilter");
 const groupByFilter = document.getElementById("groupByFilter");
-const companyFilter = document.getElementById("companyFilter");
-const cityFilter = document.getElementById("cityFilter");
-const resetCamerasFiltersBtn = document.getElementById("resetCamerasFiltersBtn");
-const camerasShownCount = document.getElementById("camerasShownCount");
 
 let statusPollTimer = null;
 let lastShownFinalStatus = null;
 let isProblemSectionCollapsed = false;
-let latestCameraResults = [];
-let latestFilteredResults = [];
-let latestGroupedResults = [];
 
 function getCurrentFilters() {
     return {
-        status: statusFilter?.value || window.INITIAL_FILTERS?.status || "all",
-        groupBy: groupByFilter?.value || window.INITIAL_FILTERS?.groupBy || "none",
-        company: companyFilter?.value || "",
-        city: cityFilter?.value || ""
+        status: statusFilter?.value || window.__INITIAL_FILTERS__?.status || "all",
+        groupBy: groupByFilter?.value || window.__INITIAL_FILTERS__?.groupBy || "none"
     };
 }
 
@@ -450,12 +440,7 @@ function renderFlatTable(results) {
                 </thead>
                 <tbody>
                     ${results.map((row) => `
-                        <tr
-                            class="${getRowClass(row.camera_status)} camera-result-row"
-                            data-status="${escapeHtml(row.camera_status || "")}"
-                            data-company="${escapeHtml(row.owner || "Не указан")}"
-                            data-city="${escapeHtml(row.city || "Не указан")}"
-                        >
+                        <tr class="${getRowClass(row.camera_status)}">
                             <td>${escapeHtml(row.id ?? "")}</td>
                             <td>${escapeHtml(row.address ?? "")}</td>
                             <td>${escapeHtml(row.city || "Не указан")}</td>
@@ -496,12 +481,7 @@ function renderGroupedTable(groups) {
                             </thead>
                             <tbody>
                                 ${group.items.map((row) => `
-                                    <tr
-                                        class="${getRowClass(row.camera_status)} camera-result-row"
-                                        data-status="${escapeHtml(row.camera_status || "")}"
-                                        data-company="${escapeHtml(row.owner || "Не указан")}"
-                                        data-city="${escapeHtml(row.city || "Не указан")}"
-                                    >
+                                    <tr class="${getRowClass(row.camera_status)}">
                                         <td>${escapeHtml(row.id ?? "")}</td>
                                         <td>${escapeHtml(row.address ?? "")}</td>
                                         <td>${escapeHtml(row.city || "Не указан")}</td>
@@ -527,11 +507,6 @@ function renderDetailsContent(filteredResults, groupedResults, groupBy) {
 
     if (!filteredResults.length && (!groupedResults || !groupedResults.length)) {
         detailsSection.classList.add("hidden");
-
-        if (camerasShownCount) {
-            camerasShownCount.textContent = "Показано: 0";
-        }
-
         return;
     }
 
@@ -542,153 +517,6 @@ function renderDetailsContent(filteredResults, groupedResults, groupBy) {
     } else {
         detailsContent.innerHTML = renderGroupedTable(groupedResults || []);
     }
-
-    applyClientSideCameraFilters();
-}
-
-
-function normalizeFilterValue(value) {
-    return String(value ?? "").trim();
-}
-
-function uniqueSortedValues(items, fieldName) {
-    const values = items
-        .map((item) => normalizeFilterValue(item?.[fieldName] || "Не указан"))
-        .filter((value) => value && value !== "—");
-
-    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "ru"));
-}
-
-function fillDynamicSelect(selectElement, values, defaultLabel) {
-    if (!selectElement) {
-        return;
-    }
-
-    const previousValue = selectElement.value;
-
-    selectElement.innerHTML = "";
-
-    const defaultOption = document.createElement("option");
-    defaultOption.value = "";
-    defaultOption.textContent = defaultLabel;
-    selectElement.appendChild(defaultOption);
-
-    for (const value of values) {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = value;
-        selectElement.appendChild(option);
-    }
-
-    if (previousValue && values.includes(previousValue)) {
-        selectElement.value = previousValue;
-    }
-}
-
-function updateCompanyAndCityFilters(results) {
-    fillDynamicSelect(companyFilter, uniqueSortedValues(results, "owner"), "Все компании");
-    fillDynamicSelect(cityFilter, uniqueSortedValues(results, "city"), "Все города");
-}
-
-function statusMatchesFilter(rowStatus, selectedStatus) {
-    if (!selectedStatus || selectedStatus === "all") {
-        return true;
-    }
-
-    if (selectedStatus === "problem") {
-        return rowStatus !== "working";
-    }
-
-    return rowStatus === selectedStatus;
-}
-
-function rowMatchesCurrentFilters(row) {
-    const filters = getCurrentFilters();
-
-    const rowStatus = normalizeFilterValue(row.dataset.status);
-    const rowCompany = normalizeFilterValue(row.dataset.company);
-    const rowCity = normalizeFilterValue(row.dataset.city);
-
-    return (
-        statusMatchesFilter(rowStatus, filters.status) &&
-        (!filters.company || rowCompany === filters.company) &&
-        (!filters.city || rowCity === filters.city)
-    );
-}
-
-function applyClientSideCameraFilters() {
-    const rows = Array.from(document.querySelectorAll(".camera-result-row"));
-    let visibleCount = 0;
-
-    for (const row of rows) {
-        const isVisible = rowMatchesCurrentFilters(row);
-        row.style.display = isVisible ? "" : "none";
-
-        if (isVisible) {
-            visibleCount += 1;
-        }
-    }
-
-    const groupBlocks = Array.from(document.querySelectorAll(".group-block"));
-
-    for (const groupBlock of groupBlocks) {
-        const groupRows = Array.from(groupBlock.querySelectorAll(".camera-result-row"));
-        const groupVisibleCount = groupRows.filter((row) => row.style.display !== "none").length;
-        const groupCount = groupBlock.querySelector(".group-count");
-
-        groupBlock.style.display = groupVisibleCount > 0 ? "" : "none";
-
-        if (groupCount) {
-            groupCount.textContent = String(groupVisibleCount);
-        }
-    }
-
-    if (camerasShownCount) {
-        camerasShownCount.textContent = `Показано: ${visibleCount}`;
-    }
-
-    const tableBodies = Array.from(document.querySelectorAll("#detailsContent tbody"));
-
-    for (const tbody of tableBodies) {
-        const oldEmptyRow = tbody.querySelector(".camera-empty-filter-row");
-
-        if (oldEmptyRow) {
-            oldEmptyRow.remove();
-        }
-
-        const bodyRows = Array.from(tbody.querySelectorAll(".camera-result-row"));
-        const bodyVisibleCount = bodyRows.filter((row) => row.style.display !== "none").length;
-
-        if (bodyRows.length && bodyVisibleCount === 0) {
-            const emptyRow = document.createElement("tr");
-            emptyRow.className = "camera-empty-filter-row";
-            emptyRow.innerHTML = `<td colspan="7">По выбранным фильтрам ничего не найдено</td>`;
-            tbody.appendChild(emptyRow);
-        }
-    }
-
-    return visibleCount;
-}
-
-function resetCameraFilters() {
-    if (statusFilter) {
-        statusFilter.value = "all";
-    }
-
-    if (companyFilter) {
-        companyFilter.value = "";
-    }
-
-    if (cityFilter) {
-        cityFilter.value = "";
-    }
-
-    if (groupByFilter) {
-        groupByFilter.value = "none";
-    }
-
-    renderDetailsContent(latestFilteredResults, latestGroupedResults, "none");
-    applyClientSideCameraFilters();
 }
 
 function updateVisibility(results, checkState) {
@@ -767,13 +595,8 @@ async function fetchStatus() {
         const metrics = data.metrics || {};
         const groupBy = data.group_by || "none";
 
-        latestCameraResults = results;
-        latestFilteredResults = filteredResults;
-        latestGroupedResults = groupedResults;
-
         updateRunState(checkState);
         updateMetrics(metrics);
-        updateCompanyAndCityFilters(results);
         renderProblemResults(results);
         renderDetailsContent(filteredResults, groupedResults, groupBy);
         updateVisibility(results, checkState);
@@ -888,34 +711,6 @@ function showUploadStatus(message, kind) {
 
     uploadStatusBox.textContent = message;
     uploadStatusBox.className = `upload-status-box ${kind}`;
-}
-
-
-if (filtersForm) {
-    filtersForm.addEventListener("submit", (event) => {
-        event.preventDefault();
-        fetchStatus();
-    });
-}
-
-if (statusFilter) {
-    statusFilter.addEventListener("change", fetchStatus);
-}
-
-if (groupByFilter) {
-    groupByFilter.addEventListener("change", fetchStatus);
-}
-
-if (companyFilter) {
-    companyFilter.addEventListener("change", applyClientSideCameraFilters);
-}
-
-if (cityFilter) {
-    cityFilter.addEventListener("change", applyClientSideCameraFilters);
-}
-
-if (resetCamerasFiltersBtn) {
-    resetCamerasFiltersBtn.addEventListener("click", resetCameraFilters);
 }
 
 if (themeToggleBtn) {

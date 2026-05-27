@@ -6,7 +6,9 @@
     <title>Нейрона ИИ — Единая точка входа</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=homefix11">
 </head>
-<body>
+
+<body class="compact-module-page">
+
     <div class="container">
         <header class="topbar">
             <div class="brand">
@@ -20,7 +22,7 @@
 
             <div class="top-actions">
                 <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.1">
-                    Версия 2.1
+                    Версия 2.2
                 </button>
 
                 <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
@@ -354,89 +356,80 @@
 
 
     <div id="whatsNewModal" class="whats-new-modal" aria-hidden="true">
-        <div class="whats-new-backdrop" data-whats-new-close></div>
+    <div class="whats-new-backdrop" data-whats-new-close></div>
 
-        <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
-            <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
-                ×
+    <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
+        <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
+            ×
+        </button>
+
+        <div class="whats-new-kicker">Нейрона 2.2</div>
+
+        <h2 id="whatsNewTitle" class="whats-new-title">Что нового?</h2>
+
+        <p class="whats-new-lead">
+            Обновление сфокусировано на едином визуальном стиле, удобстве работы с модулями
+            и подготовке новых автоматизированных сценариев. Интерфейс стал аккуратнее,
+            стабильнее и ближе к единой системе.
+        </p>
+
+        <div class="whats-new-list">
+            <article class="whats-new-item">
+                <div class="whats-new-icon">◐</div>
+                <div>
+                    <h3>Единый стиль и смена темы</h3>
+                    <p>
+                        Основные страницы и рабочие модули приведены к единому визуальному стилю.
+                        Добавлена поддержка светлой и тёмной темы: выбранный режим сохраняется
+                        и автоматически применяется при следующем открытии системы.
+                    </p>
+                </div>
+            </article>
+
+            <article class="whats-new-item">
+                <div class="whats-new-icon">▦</div>
+                <div>
+                    <h3>Оптимизирован блок УТНК</h3>
+                    <p>
+                        Улучшена работа блока УТНК: обновлена структура интерфейса,
+                        повышена стабильность обработки данных и сделана более удобной работа
+                        с результатами проверки.
+                    </p>
+                </div>
+            </article>
+
+            <article class="whats-new-item">
+                <div class="whats-new-icon">▣</div>
+                <div>
+                    <h3>Бета-версия предписаний в блоке камер</h3>
+                    <p>
+                        В модуле проверки камер запущена бета-версия формирования предписаний.
+                        Система готовит документы для проблемных адресов: при отсутствии видеопотока
+                        и при отсутствии подключенной камеры.
+                    </p>
+                </div>
+            </article>
+
+            <article class="whats-new-item">
+                <div class="whats-new-icon">⚙</div>
+                <div>
+                    <h3>Улучшена общая работа системы</h3>
+                    <p>
+                        Проведена общая оптимизация локального контура: улучшена навигация,
+                        выровнена структура модулей, повышена стабильность интерфейса
+                        и подготовлена основа для дальнейшего развития платформы.
+                    </p>
+                </div>
+            </article>
+        </div>
+
+        <div class="whats-new-footer">
+            <button class="module-link whats-new-done" type="button" data-whats-new-close>
+                Отлично
             </button>
-
-            <div class="whats-new-kicker">Нейрона 2.1</div>
-
-            <h2 id="whatsNewTitle" class="whats-new-title">Что нового?</h2>
-
-            <p class="whats-new-lead">
-                Самое цельное обновление домашней страницы и внутренних сценариев.
-                Мы сделали платформу быстрее, аккуратнее и удобнее: теперь ключевые модули,
-                обновления и настройки собраны в одном понятном интерфейсе.
-            </p>
-
-            <div class="whats-new-list">
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">↻</div>
-                    <div>
-                        <h3>Обновления прямо из интерфейса</h3>
-                        <p>
-                            Добавлена система проверки и загрузки обновлений из GitHub.
-                            Теперь можно узнать, доступна ли новая версия проекта, и получить её
-                            без ручной работы в терминале.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">◐</div>
-                    <div>
-                        <h3>Светлая и тёмная тема</h3>
-                        <p>
-                            На домашней странице появилась смена темы. Интерфейс запоминает выбранный режим
-                            и автоматически применяет его при следующем открытии.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">▣</div>
-                    <div>
-                        <h3>Новый модуль проверки камер</h3>
-                        <p>
-                            Добавлен блок «Проверка камер»: загрузка адресных таблиц, сверка с сайтом,
-                            проверка видеопотоков через FFmpeg / FFprobe и подготовка предписаний.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">✓</div>
-                    <div>
-                        <h3>Исправлен модуль просрочек</h3>
-                        <p>
-                            Улучшена логика блока с просроченными задачами: стабильнее отображаются материалы,
-                            корректнее работает переход в модуль и подготовка уведомлений.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">⚙</div>
-                    <div>
-                        <h3>Общее улучшение системы</h3>
-                        <p>
-                            Обновлена главная страница, выровнена структура модулей, улучшена навигация,
-                            повышена стабильность локального контура и подготовлена база для дальнейшего развития.
-                        </p>
-                    </div>
-                </article>
-            </div>
-
-            <div class="whats-new-footer">
-                <button class="module-link whats-new-done" type="button" data-whats-new-close>
-                    Отлично
-                </button>
-            </div>
-        </section>
-    </div>
-
+        </div>
+    </section>
+</div>
 
     <script>
         (function () {
