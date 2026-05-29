@@ -1,13 +1,267 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Карточка обращения {{ item.request_id }} — Нейрона ИИ</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+
+    <style id="appeal-empathy-layout-fix">
+        /* === Новый компактный экран эмпатичной доработки обращения === */
+
+        .appeal-empathy-workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+            gap: 18px;
+            align-items: stretch;
+            margin-top: 18px;
+        }
+
+        .appeal-empathy-column-card {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .appeal-empathy-text-box {
+            flex: 1;
+            min-height: 420px;
+            max-height: 640px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.65;
+        }
+
+        .appeal-empathy-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            flex: 1;
+        }
+
+        .appeal-empathy-form .appeal-field {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .appeal-empathy-form textarea {
+            flex: 1;
+            min-height: 420px;
+            resize: vertical;
+        }
+
+        .appeal-empathy-hint {
+            border: 1px solid rgba(59, 130, 246, .22);
+            background: rgba(59, 130, 246, .08);
+            border-radius: 18px;
+            padding: 14px 16px;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .appeal-empathy-hint strong {
+            color: var(--text);
+        }
+
+        .appeal-empathy-result-card {
+            margin-top: 18px;
+        }
+
+        .appeal-empathy-result-box {
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.7;
+            min-height: 180px;
+        }
+
+        .appeal-empathy-empty {
+            border: 1px dashed rgba(148, 163, 184, .6);
+            border-radius: 20px;
+            padding: 24px;
+            color: var(--muted);
+            background: rgba(148, 163, 184, .08);
+        }
+
+        .appeal-empathy-decode {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        .appeal-empathy-decode-title {
+            margin: 0 0 12px;
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+        }
+
+        .appeal-empathy-decode-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .appeal-empathy-decode-item {
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 14px;
+            background: rgba(148, 163, 184, .08);
+            min-width: 0;
+        }
+
+        .appeal-empathy-decode-label {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            margin-bottom: 7px;
+        }
+
+        .appeal-empathy-decode-value {
+            font-size: 18px;
+            font-weight: 950;
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        .appeal-empathy-final-edit {
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid var(--border);
+        }
+
+        .appeal-empathy-final-edit textarea {
+            min-height: 260px;
+        }
+
+        .appeal-management-actions {
+            flex-wrap: wrap;
+        }
+
+        html[data-theme="dark"] .appeal-empathy-hint {
+            background: rgba(96, 165, 250, .10);
+            border-color: rgba(96, 165, 250, .25);
+        }
+
+        html[data-theme="dark"] .appeal-empathy-empty {
+            background: rgba(15, 23, 42, .55);
+            border-color: rgba(148, 163, 184, .35);
+        }
+
+        html[data-theme="dark"] .appeal-empathy-decode-item {
+            background: rgba(15, 23, 42, .45);
+        }
+
+        @media (max-width: 980px) {
+            .appeal-empathy-workspace {
+                grid-template-columns: 1fr;
+            }
+
+            .appeal-empathy-text-box,
+            .appeal-empathy-form textarea {
+                min-height: 300px;
+                max-height: none;
+            }
+
+            .appeal-empathy-decode-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            .appeal-empathy-decode-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+
 </head>
 
 <body class="compact-module-page appeal-detail-page">
+    {% set analysis = item.analysis_data or {} %}
+
+    {# Берём индекс только как число/строку, никогда не выводим весь словарь #}
+    {% if analysis.index_final is defined and analysis.index_final is mapping %}
+        {% set final_index = analysis.index_final.index_final or analysis.index_final.final_index or "—" %}
+    {% elif analysis.index_final is defined and analysis.index_final is not none %}
+        {% set final_index = analysis.index_final %}
+    {% elif analysis.final_index is defined and analysis.final_index is mapping %}
+        {% set final_index = analysis.final_index.index_final or analysis.final_index.final_index or "—" %}
+    {% elif analysis.final_index is defined and analysis.final_index is not none %}
+        {% set final_index = analysis.final_index %}
+    {% elif item.final_index is mapping %}
+        {% set final_index = item.final_index.index_final or item.final_index.final_index or "—" %}
+    {% elif item.final_index is defined and item.final_index is not none %}
+        {% set final_index = item.final_index %}
+    {% else %}
+        {% set final_index = "—" %}
+    {% endif %}
+
+    {% set priority_label = item.priority_label or analysis.priority_label or "Плановый" %}
+    {% set emotion_label = item.emotion_label or analysis.emotion_label or "Нейтральное обращение" %}
+    {% set criticality_label = item.criticality_label or analysis.criticality_label or "Низкая" %}
+    {% set address_value = analysis.address or item.address or "Не найден" %}
+
     <div class="container">
         <header class="topbar">
             <div class="brand">
@@ -66,15 +320,15 @@
                 <div class="appeal-detail-hero-panel">
                     <div class="appeal-detail-score-card">
                         <div class="appeal-detail-score-label">Индекс</div>
-                        <div class="appeal-detail-score-value">{{ item.final_index }}</div>
+                        <div class="appeal-detail-score-value">{{ final_index }}</div>
                     </div>
 
                     <div class="appeal-detail-chip">
-                        Приоритет: <strong>{{ item.priority_label }}</strong>
+                        Приоритет: <strong>{{ priority_label }}</strong>
                     </div>
 
                     <div class="appeal-detail-chip">
-                        Эмоция: <strong>{{ item.emotion_label }}</strong>
+                        Эмоция: <strong>{{ emotion_label }}</strong>
                     </div>
                 </div>
             </div>
@@ -106,199 +360,154 @@
 
                 <div class="appeal-meta-item">
                     <div class="appeal-meta-label">Критичность</div>
-                    <div class="appeal-meta-value">{{ item.criticality_label }}</div>
+                    <div class="appeal-meta-value">{{ criticality_label }}</div>
                 </div>
 
                 <div class="appeal-meta-item">
                     <div class="appeal-meta-label">Адрес</div>
                     <div class="appeal-meta-value">
-                        {{ item.analysis_data.address or "Не найден" }}
+                        {{ address_value }}
                     </div>
                 </div>
             </div>
         </section>
 
-        <section class="appeal-grid">
-            <div class="card">
+
+        <section class="appeal-empathy-workspace">
+            <div class="card appeal-empathy-column-card">
                 <div class="appeal-detail-card-header">
                     <div>
-                        <div class="eyebrow">ИСХОДНЫЕ ДАННЫЕ</div>
+                        <div class="eyebrow">ОБРАЩЕНИЕ</div>
                         <h2 class="section-title">Текст обращения</h2>
-                    </div>
-                </div>
-
-                <pre class="content-block appeal-pre">{{ item.original_text }}</pre>
-            </div>
-
-            <div class="card appeal-analysis-card">
-                <div class="appeal-detail-card-header">
-                    <div>
-                        <div class="eyebrow">АНАЛИЗ</div>
-                        <h2 class="section-title">Эмоциональная сводка</h2>
                         <p class="muted">
-                            Система перевела технический анализ в короткие выводы для специалиста.
+                            Исходный текст заявителя. Используйте его как контекст при подготовке ответа.
                         </p>
                     </div>
                 </div>
 
-                <div class="analysis-summary-grid">
-                    <div class="analysis-summary-item">
-                        <div class="analysis-summary-label">Настроение заявителя</div>
-                        <div class="analysis-summary-value">{{ item.emotion_label }}</div>
-                        <div class="analysis-summary-note">
-                            Помогает выбрать более спокойный и уважительный тон ответа.
-                        </div>
-                    </div>
+                <pre class="content-block appeal-pre appeal-empathy-text-box">{{ item.original_text }}</pre>
+            </div>
 
-                    <div class="analysis-summary-item">
-                        <div class="analysis-summary-label">Критичность</div>
-                        <div class="analysis-summary-value">{{ item.criticality_label }}</div>
-                        <div class="analysis-summary-note">
-                            Показывает, насколько внимательно нужно отнестись к обращению.
-                        </div>
-                    </div>
-
-                    <div class="analysis-summary-item">
-                        <div class="analysis-summary-label">Приоритет</div>
-                        <div class="analysis-summary-value">{{ item.priority_label }}</div>
-                        <div class="analysis-summary-note">
-                            Используется для очередности обработки и контроля сроков.
-                        </div>
-                    </div>
-
-                    <div class="analysis-summary-item">
-                        <div class="analysis-summary-label">Итоговый индекс</div>
-                        <div class="analysis-summary-value">{{ item.final_index }}</div>
-                        <div class="analysis-summary-note">
-                            Сводная оценка по эмоциональности, критичности и признакам срочности.
-                        </div>
+            <div class="card appeal-empathy-column-card">
+                <div class="appeal-detail-card-header">
+                    <div>
+                        <div class="eyebrow">ПРОЕКТ ОТВЕТА</div>
+                        <h2 class="section-title">Ваш официальный ответ</h2>
+                        <p class="muted">
+                            Вставьте подготовленный проект ответа. Система аккуратно добавит эмпатичный фрагмент.
+                        </p>
                     </div>
                 </div>
 
-                <div class="analysis-details">
-                    <div class="analysis-detail-row">
-                        <span>Адрес</span>
-                        <strong>{{ item.analysis_data.address or "Не найден" }}</strong>
+                <form class="appeal-empathy-form" method="post" action="/appeals/{{ item.request_id }}/generate">
+                    <div class="appeal-field">
+                        <label class="appeal-label" for="officialReply">Проект официального ответа</label>
+
+                        <textarea
+                            id="officialReply"
+                            class="appeal-textarea appeal-manual-textarea"
+                            name="official_reply"
+                            rows="18"
+                            placeholder="Вставьте сюда ваш проект официального ответа..."
+                        >{{ item.facts_for_reply or item.manual_reply or "" }}</textarea>
                     </div>
 
-                    <div class="analysis-detail-row">
-                        <span>Коллективное обращение</span>
-                        <strong>{% if item.analysis_data.isCollective %}Да{% else %}Нет{% endif %}</strong>
+                    <div class="appeal-empathy-hint">
+                        Эмпатичный фрагмент будет добавлен автоматически с учётом характера обращения.
+                        Итоговый текст необходимо проверить перед утверждением или отправкой.
                     </div>
 
-                    <div class="analysis-detail-row">
-                        <span>Количество подписантов</span>
-                        <strong>{{ item.analysis_data.n_signers or 1 }}</strong>
+                    <div class="appeal-actions">
+                        <button class="module-link" type="submit">
+                            Добавить эмпатию →
+                        </button>
                     </div>
-                </div>
-
-                <div class="analysis-tags-block">
-                    <div class="analysis-tags-title">Найденные признаки</div>
-
-                    <div class="analysis-tags">
-                        {% if item.analysis_data.matched_words %}
-                            {% for word in item.analysis_data.matched_words %}
-                                <span class="analysis-tag">{{ word }}</span>
-                            {% endfor %}
-                        {% else %}
-                            <span class="analysis-tag muted-tag">Явных эмоциональных маркеров не найдено</span>
-                        {% endif %}
-
-                        {% if item.analysis_data.criticality_reasons %}
-                            {% for reason in item.analysis_data.criticality_reasons %}
-                                <span class="analysis-tag warning-tag">{{ reason }}</span>
-                            {% endfor %}
-                        {% endif %}
-                    </div>
-                </div>
+                </form>
             </div>
         </section>
 
-        <section class="card">
-            <div class="appeal-detail-card-header">
-                <div>
-                    <div class="eyebrow">ЭМПАТИЧНАЯ ДОРАБОТКА</div>
-                    <h2 class="section-title">Официальный ответ</h2>
-                    <p class="muted">
-                        Вставьте готовый официальный ответ. Система добавит к нему короткий эмпатичный блок
-                        с учётом эмоционального фона обращения.
-                    </p>
-                </div>
-            </div>
-
-            <form method="post" action="/appeals/{{ item.request_id }}/generate">
-                <div class="appeal-field">
-                    <label class="appeal-label" for="officialReply">Официальный ответ</label>
-                    <textarea
-                        id="officialReply"
-                        class="appeal-textarea appeal-manual-textarea"
-                        name="official_reply"
-                        rows="14"
-                        placeholder="Вставьте сюда готовый официальный ответ..."
-                    >{{ item.facts_for_reply or item.manual_reply or item.draft or "" }}</textarea>
-                </div>
-
-                <div class="appeal-empathy-preview">
-                    <div class="appeal-empathy-preview-title">Что добавит система</div>
-                    <p>
-                        К официальному ответу будет добавлен короткий эмпатичный фрагмент.
-                        Текст зависит от определённой эмоции обращения:
-                        <strong>{{ item.emotion_label }}</strong>.
-                    </p>
-                </div>
-
-                <div class="appeal-actions">
-                    <button class="module-link" type="submit">
-                        Добавить эмпатию к ответу →
-                    </button>
-                </div>
-            </form>
-        </section>
-
-        <section class="card">
+        <section class="card appeal-empathy-result-card" id="empathy-result">
             <div class="appeal-detail-card-header">
                 <div>
                     <div class="eyebrow">РЕЗУЛЬТАТ</div>
-                    <h2 class="section-title">Черновик ответа</h2>
+                    <h2 class="section-title">Ответ с эмпатией</h2>
                     <p class="muted">
-                        Этот текст можно использовать как основу для ручной доработки.
+                        Ниже отображается официальный ответ после добавления эмпатичного блока.
                     </p>
                 </div>
             </div>
 
-            <pre class="content-block appeal-pre">{{ item.draft or "Черновик пока не сформирован." }}</pre>
-        </section>
+            {% if item.draft %}
+                <pre class="content-block appeal-pre appeal-empathy-result-box">{{ item.draft }}</pre>
+            {% else %}
+                <div class="appeal-empathy-empty">
+                    Ответ с эмпатией пока не сформирован. Вставьте проект ответа справа и нажмите
+                    «Добавить эмпатию».
+                </div>
+            {% endif %}
 
-        <section class="card">
-            <div class="appeal-detail-card-header">
-                <div>
-                    <div class="eyebrow">РУЧНАЯ ПРОВЕРКА</div>
-                    <h2 class="section-title">Ручная доработка</h2>
-                    <p class="muted">
-                        Отредактируйте итоговый текст ответа перед утверждением или отправкой.
-                    </p>
+            <div class="appeal-empathy-decode">
+                <h3 class="appeal-empathy-decode-title">Краткая расшифровка анализа</h3>
+
+                <div class="appeal-empathy-decode-grid">
+                    <div class="appeal-empathy-decode-item">
+                        <div class="appeal-empathy-decode-label">Индекс</div>
+                        <div class="appeal-empathy-decode-value">{{ final_index }}</div>
+                    </div>
+
+                    <div class="appeal-empathy-decode-item">
+                        <div class="appeal-empathy-decode-label">Приоритет</div>
+                        <div class="appeal-empathy-decode-value">{{ priority_label }}</div>
+                    </div>
+
+                    <div class="appeal-empathy-decode-item">
+                        <div class="appeal-empathy-decode-label">Эмоция</div>
+                        <div class="appeal-empathy-decode-value">{{ emotion_label }}</div>
+                    </div>
+
+                    <div class="appeal-empathy-decode-item">
+                        <div class="appeal-empathy-decode-label">Критичность</div>
+                        <div class="appeal-empathy-decode-value">{{ criticality_label }}</div>
+                    </div>
                 </div>
             </div>
 
-            <form method="post" action="/appeals/{{ item.request_id }}/save-revision">
-                <div class="appeal-field">
-                    <label class="appeal-label" for="manualReply">Финальный текст ответа</label>
-                    <textarea
-                        id="manualReply"
-                        class="appeal-textarea appeal-manual-textarea"
-                        name="manual_reply"
-                        rows="14"
-                        placeholder="Финальный текст ответа..."
-                    >{{ item.manual_reply or item.draft or "" }}</textarea>
-                </div>
+            {% if item.draft %}
+                <div class="appeal-empathy-final-edit">
+                    <div class="appeal-detail-card-header">
+                        <div>
+                            <div class="eyebrow">РУЧНАЯ ПРОВЕРКА</div>
+                            <h2 class="section-title">Финальная доработка</h2>
+                            <p class="muted">
+                                При необходимости отредактируйте итоговый текст перед утверждением или отправкой.
+                            </p>
+                        </div>
+                    </div>
 
-                <div class="appeal-actions">
-                    <button class="secondary-button" type="submit">
-                        Сохранить доработку
-                    </button>
+                    <form method="post" action="/appeals/{{ item.request_id }}/save-revision">
+                        <div class="appeal-field">
+                            <label class="appeal-label" for="manualReply">Финальный текст ответа</label>
+
+                            <textarea
+                                id="manualReply"
+                                class="appeal-textarea appeal-manual-textarea"
+                                name="manual_reply"
+                                rows="12"
+                                placeholder="Финальный текст ответа..."
+                            >{{ item.manual_reply or item.draft or "" }}</textarea>
+                        </div>
+
+                        <div class="appeal-actions">
+                            <button class="secondary-button" type="submit">
+                                Сохранить финальную доработку
+                            </button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            {% endif %}
         </section>
+
+
 
         <section class="card">
             <div class="appeal-detail-card-header">
@@ -365,53 +574,170 @@
         </section>
     </div>
 
+    
     <script>
-        (function () {
-            const root = document.documentElement;
-            const themeToggle = document.getElementById("themeToggle");
+    (function () {
+        const root = document.documentElement;
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
 
-            function applyTheme(theme) {
-                root.setAttribute("data-theme", theme);
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
 
-                if (!themeToggle) {
-                    return;
-                }
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                activeTheme = isDaytimeInMoscow() ? "light" : "dark";
+            }
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
 
-                const icon = themeToggle.querySelector(".theme-toggle-icon");
-                const text = themeToggle.querySelector(".theme-toggle-text");
+            const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+            if (!toggle) return;
+            const icon = toggle.querySelector(".theme-toggle-icon");
+            const text = toggle.querySelector(".theme-toggle-text");
+            
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+            }
+        }
 
-                if (theme === "dark") {
-                    if (icon) {
-                        icon.textContent = "🌙";
-                    }
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
 
-                    if (text) {
-                        text.textContent = "Тёмная тема";
-                    }
+        const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+        if (toggle) {
+            // Удаляем старый обработчик, если он был задан атрибутом
+            toggle.onclick = null;
+            toggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
                 } else {
-                    if (icon) {
-                        icon.textContent = "☀️";
-                    }
-
-                    if (text) {
-                        text.textContent = "Светлая тема";
-                    }
+                    nextMode = "auto-moscow";
                 }
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(() => {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
             }
+        }, 60000);
+    })();
+    </script>
+    <script>
+    (function () {
+        const root = document.documentElement;
+        const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
 
-            const savedTheme = localStorage.getItem("homeTheme") || "light";
-            applyTheme(savedTheme);
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
 
-            if (themeToggle) {
-                themeToggle.addEventListener("click", function () {
-                    const currentTheme = root.getAttribute("data-theme") || "light";
-                    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H;
+            if (cosH >= 1) H = 0;
+            else if (cosH <= -1) H = Math.PI;
+            else H = Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
 
-                    localStorage.setItem("homeTheme", nextTheme);
-                    applyTheme(nextTheme);
-                });
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                const isDay = isDaytimeInMoscow();
+                activeTheme = isDay ? "light" : "dark";
             }
-        })();
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+            if (!themeToggle) return;
+            const icon = themeToggle.querySelector(".theme-toggle-icon");
+            const text = themeToggle.querySelector(".theme-toggle-text");
+            
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+            }
+        }
+
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
+
+        if (themeToggle) {
+            themeToggle.onclick = null;
+            themeToggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
+                } else {
+                    nextMode = "auto-moscow";
+                }
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(() => {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
     </script>
 </body>
 </html>

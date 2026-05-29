@@ -1,14 +1,39 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="dark">
 <head>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Контроль УТНКР</title>
 
-    <script>
-        const savedTheme = localStorage.getItem("camera-dashboard-theme") || "dark";
-        document.documentElement.dataset.theme = savedTheme;
-    </script>
+    
 
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
     <style>
@@ -655,5 +680,86 @@
     </script>
 
     <script src="{{ url_for('static', path='utnkr/app.js') }}"></script>
+    <script>
+    (function () {
+        const root = document.documentElement;
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
+
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
+
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                activeTheme = isDaytimeInMoscow() ? "light" : "dark";
+            }
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+
+            const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+            if (!toggle) return;
+            const icon = toggle.querySelector(".theme-toggle-icon");
+            const text = toggle.querySelector(".theme-toggle-text");
+            
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+            }
+        }
+
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
+
+        const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+        if (toggle) {
+            // Удаляем старый обработчик, если он был задан атрибутом
+            toggle.onclick = null;
+            toggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
+                } else {
+                    nextMode = "auto-moscow";
+                }
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(() => {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
+    </script>
 </body>
 </html>

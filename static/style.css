@@ -3888,3 +3888,292 @@ body.appeal-detail-page section.card:not(.hero) {
         text-align: left !important;
     }
 }
+/* ==========================================================================
+   УЛУЧШЕНИЯ ЮЗАБИЛИТИ И ПРЕМИАЛЬНЫЙ СТИЛЬ (ВЕРСИЯ 2.3) С ПОДДЕРЖКОЙ ТЁМНОЙ ТЕМЫ
+   ========================================================================== */
+
+:root {
+    --status-stable-color: #10b981;
+    --status-beta-color: #6366f1;
+    --status-config-color: #f59e0b;
+    --premium-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    --premium-shadow: 0 10px 30px rgba(99, 102, 241, 0.15);
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 1. Блок "Сегодня можно быстро" */
+.quick-actions-bar {
+    margin-bottom: 24px;
+    padding: 20px 24px;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Адаптация быстрой панели под тёмную тему */
+[data-theme="dark"] .quick-actions-bar {
+    background: #111827 !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+.quick-actions-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-color, #1f2937);
+    letter-spacing: -0.01em;
+}
+
+[data-theme="dark"] .quick-actions-title {
+    color: #f3f4f6 !important;
+}
+
+.quick-actions-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.quick-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: var(--transition-smooth);
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid rgba(0,0,0,0.02);
+}
+
+/* Кнопки быстрой панели в тёмной теме */
+[data-theme="dark"] .quick-action-btn {
+    background: #1f2937 !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    background: #e5e7eb;
+}
+
+[data-theme="dark"] .quick-action-btn:hover {
+    background: #374151 !important;
+    color: #ffffff !important;
+}
+
+.quick-action-btn.btn-premium {
+    background: var(--premium-gradient);
+    color: #ffffff;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+}
+
+.quick-action-btn.btn-premium:hover {
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+    filter: brightness(1.05);
+}
+
+.btn-icon {
+    font-size: 1.1rem;
+}
+
+/* 2. Модульная сетка и статусы */
+.head-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.status-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 30px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-badge.status-stable {
+    background: rgba(16, 185, 129, 0.08);
+    color: var(--status-stable-color);
+}
+
+.status-badge.status-stable::before {
+    background: var(--status-stable-color);
+}
+
+.status-badge.status-beta {
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--status-beta-color);
+}
+
+.status-badge.status-beta::before {
+    background: var(--status-beta-color);
+}
+
+.status-badge.status-config {
+    background: rgba(245, 158, 11, 0.08);
+    color: var(--status-config-color);
+}
+
+.status-badge.status-config::before {
+    background: var(--status-config-color);
+}
+
+/* 3. Кнопки внутри карточек */
+.action-panel {
+    display: flex;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 16px;
+}
+
+.module-link, .secondary-button {
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    transition: var(--transition-smooth) !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px !important;
+}
+
+.module-link {
+    background: var(--premium-gradient) !important;
+    color: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15) !important;
+}
+
+.module-link:hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3) !important;
+    filter: brightness(1.03);
+}
+
+.secondary-button {
+    background: #ffffff !important;
+    color: #4b5563 !important;
+    border: 1px solid #e5e7eb !important;
+}
+
+[data-theme="dark"] .secondary-button {
+    background: #1f2937 !important;
+    color: #d1d5db !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.secondary-button:hover {
+    transform: translateY(-1.5px);
+    background: #f9fafb !important;
+    border-color: #d1d5db !important;
+}
+
+[data-theme="dark"] .secondary-button:hover {
+    background: #2d3748 !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 4. Выделение карточки Отчёта по муниципалитету */
+.highlight-premium-card {
+    grid-column: span 2;
+    border: 2px solid transparent !important;
+    background-image: linear-gradient(#ffffff, #ffffff), var(--premium-gradient);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: var(--premium-shadow) !important;
+    position: relative;
+    overflow: hidden;
+    transform: scale(1);
+    transition: var(--transition-smooth);
+}
+
+/* Карточка отчёта в ТЁМНОЙ ТЕМЕ (меняем фон на тёмный и убираем слепящую белизну) */
+[data-theme="dark"] .highlight-premium-card {
+    background-image: linear-gradient(#111827, #111827), var(--premium-gradient) !important;
+    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3) !important;
+}
+
+.highlight-premium-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 35px rgba(99, 102, 241, 0.25) !important;
+}
+
+@media (max-width: 900px) {
+    .highlight-premium-card {
+        grid-column: span 1;
+    }
+}
+
+/* Стилизация элементов внутри карточки для светлой темы */
+.highlight-premium-card .pill-white {
+    background: rgba(99, 102, 241, 0.08) !important;
+    color: #4f46e5 !important;
+    border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.highlight-premium-card .status-badge-white {
+    background: rgba(99, 102, 241, 0.1) !important;
+    color: var(--status-beta-color) !important;
+}
+
+.highlight-premium-card .tag-white {
+    background: rgba(0, 0, 0, 0.03) !important;
+    color: #4b5563 !important;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.highlight-premium-card .btn-white {
+    background: var(--premium-gradient) !important;
+    color: #ffffff !important;
+}
+
+/* Стилизация элементов внутри карточки для ТЁМНОЙ ТЕМЫ */
+[data-theme="dark"] .highlight-premium-card .module-title {
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] .highlight-premium-card .module-description {
+    color: #9ca3af !important;
+}
+
+[data-theme="dark"] .highlight-premium-card .pill-white {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #e5e7eb !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="dark"] .highlight-premium-card .status-badge-white {
+    background: rgba(99, 102, 241, 0.15) !important;
+    color: #a5b4fc !important;
+}
+
+[data-theme="dark"] .highlight-premium-card .tag-white {
+    background: rgba(99, 102, 241, 0.1) !important;
+    color: #a5b4fc !important;
+    border: 1px solid rgba(99, 102, 241, 0.2) !important;
+}

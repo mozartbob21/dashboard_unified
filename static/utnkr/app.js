@@ -3,7 +3,6 @@
 
     const root = document.documentElement;
 
-    const themeToggleBtn = document.getElementById("themeToggleBtn");
     const syncButton = document.getElementById("syncButton");
 
     const loaderBlock = document.getElementById("loaderBlock");
@@ -51,37 +50,6 @@
 
         statusError.textContent = "";
         statusError.classList.add("hidden");
-    }
-
-    function applyTheme(theme) {
-        root.setAttribute("data-theme", theme);
-        localStorage.setItem("camera-dashboard-theme", theme);
-
-        if (!themeToggleBtn) return;
-
-        const icon = themeToggleBtn.querySelector(".theme-toggle-icon");
-        const text = themeToggleBtn.querySelector(".theme-toggle-text");
-
-        if (theme === "light") {
-            if (icon) icon.textContent = "☀️";
-            if (text) text.textContent = "Светлая";
-        } else {
-            if (icon) icon.textContent = "🌙";
-            if (text) text.textContent = "Тёмная";
-        }
-    }
-
-    function initTheme() {
-        const savedTheme = localStorage.getItem("camera-dashboard-theme") || "dark";
-        applyTheme(savedTheme);
-
-        if (!themeToggleBtn) return;
-
-        themeToggleBtn.addEventListener("click", function () {
-            const currentTheme = root.getAttribute("data-theme") || "dark";
-            const nextTheme = currentTheme === "dark" ? "light" : "dark";
-            applyTheme(nextTheme);
-        });
     }
 
     function updateStatusUi(status) {
@@ -304,7 +272,6 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        initTheme();
         initRunButton();
         initAboutModal();
         initViolatorsCollapse();

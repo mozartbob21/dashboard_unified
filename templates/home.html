@@ -1,6 +1,62 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Нейрона ИИ — Единая точка входа</title>
@@ -21,11 +77,11 @@
             </div>
 
             <div class="top-actions">
-                <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.2">
-                    Версия 2.3 (Бета)
+                <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
+                    Версия 2.3 (Бета 2)
                 </button>
 
-                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Переключить тему">
+                <button id="themeToggle" class="theme-toggle bg-neutral-100 hover:bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 transition-colors secondary-button quick-action-btn" type="button" aria-label="Переключить тему">
                     <span class="theme-toggle-icon">☀️</span>
                     <span class="theme-toggle-text">Светлая тема</span>
                 </button>
@@ -76,11 +132,36 @@
             </div>
         </section>
 
+        <!-- Секция быстрого доступа "Сегодня можно быстро" (Нейтральные серые кнопки) -->
+        <section class="quick-actions-bar">
+            <div class="quick-actions-title">
+                <span class="btn-icon">⚡</span> Сегодня можно быстро посмотреть:
+            </div>
+            <div class="quick-actions-links">
+                <a href="/edo" class="quick-action-btn">
+                    <span class="btn-icon">📋</span> Заполненность данных
+                </a>
+                <a href="/cameras" class="quick-action-btn">
+                    <span class="btn-icon">📹</span> Проверить камеры
+                </a>
+                <a href="/overdue" class="quick-action-btn">
+                    <span class="btn-icon">⏱️</span> Посмотреть просрочки
+                </a>
+                <a href="/utnkr" class="quick-action-btn">
+                    <span class="btn-icon">🛡️</span> Технадзор УТНКР
+                </a>
+            </div>
+        </section>
+
         <section class="modules-grid">
+            
             <article class="card module-card">
                 <div class="module-head">
-                    <span class="pill primary">ЭДО</span>
-                    <span class="pill primary">Контроль данных</span>
+                    <div class="head-pills">
+                        <span class="pill primary">ЭДО</span>
+                        <span class="pill primary">Контроль данных</span>
+                    </div>
+                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Заполненность данных</h2>
@@ -105,15 +186,18 @@
                        target="_blank"
                        rel="noopener noreferrer"
                        class="secondary-button">
-                        Открыть сайт-источник ↗
+                        Открыть источник ↗
                     </a>
                 </div>
             </article>
 
             <article class="card module-card">
                 <div class="module-head">
-                    <span class="pill primary">Просрочки</span>
-                    <span class="pill primary">Контроль исполнения</span>
+                    <div class="head-pills">
+                        <span class="pill primary">Просрочки</span>
+                        <span class="pill primary">Контроль исполнения</span>
+                    </div>
+                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Просроченные задачи</h2>
@@ -138,15 +222,18 @@
                        target="_blank"
                        rel="noopener noreferrer"
                        class="secondary-button">
-                        Открыть сайт-источник ↗
+                        Открыть источник ↗
                     </a>
                 </div>
             </article>
 
             <article class="card module-card">
                 <div class="module-head">
-                    <span class="pill primary">Контроль воды</span>
-                    <span class="pill primary">Мониторинг карточек</span>
+                    <div class="head-pills">
+                        <span class="pill primary">Контроль воды</span>
+                        <span class="pill primary">Мониторинг карточек</span>
+                    </div>
+                    <span class="status-badge status-config">Требует настройки</span>
                 </div>
 
                 <h2 class="module-title">Контроль воды</h2>
@@ -171,15 +258,18 @@
                        target="_blank"
                        rel="noopener noreferrer"
                        class="secondary-button">
-                        Открыть сайт-источник ↗
+                        Открыть источник ↗
                     </a>
                 </div>
             </article>
 
             <article class="card module-card">
                 <div class="module-head">
-                    <span class="pill primary">УТНКР</span>
-                    <span class="pill primary">Технадзор</span>
+                    <div class="head-pills">
+                        <span class="pill primary">УТНКР</span>
+                        <span class="pill primary">Технадзор</span>
+                    </div>
+                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Технадзор УТНКР</h2>
@@ -204,15 +294,18 @@
                        target="_blank"
                        rel="noopener noreferrer"
                        class="secondary-button">
-                        Открыть сайт-источник ↗
+                        Открыть источник ↗
                     </a>
                 </div>
             </article>
 
             <article class="card module-card">
                 <div class="module-head">
-                    <span class="pill primary">Камеры</span>
-                    <span class="pill primary">Видеонаблюдение</span>
+                    <div class="head-pills">
+                        <span class="pill primary">Камеры</span>
+                        <span class="pill primary">Видеонаблюдение</span>
+                    </div>
+                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Проверка камер</h2>
@@ -237,15 +330,17 @@
                        target="_blank"
                        rel="noopener noreferrer"
                        class="secondary-button">
-                        Открыть сайт-источник ↗
+                        Открыть источник ↗
                     </a>
                 </div>
             </article>
 
             <article class="card module-card module-card-appeals-beta">
-                <div class="module-head module-head-beta">
-                    <span class="pill primary">ИИ Ответы</span>
-                    <span class="pill beta-accent">Бета</span>
+                <div class="module-head">
+                    <div class="head-pills">
+                        <span class="pill primary">ИИ Ответы</span>
+                    </div>
+                    <span class="status-badge status-beta">Бета</span>
                 </div>
 
                 <h2 class="module-title">Эмпатичные ответы</h2>
@@ -268,29 +363,35 @@
                 </div>
             </article>
 
-            <article class="card module-card module-card-municipality-report module-card-municipality-report-beta">
-                <div class="module-head module-head-beta">
-                    <span class="pill primary">Сводный отчёт</span>
-                    <span class="pill beta-accent">Бета</span>
+            <!-- Сводный отчёт по муниципалитету (Выделен премиальным градиентным бордером, ленточка удалена) -->
+            <article class="card module-card module-card-municipality-report highlight-premium-card">
+                <div class="module-head">
+                    <div class="head-pills">
+                        <span class="pill primary">Сводный отчёт</span>
+                        <span class="pill primary pill-white">Муниципалитет</span>
+                    </div>
+                    <span class="status-badge status-beta status-badge-white">Бета</span>
                 </div>
 
                 <h2 class="module-title">Отчёт по муниципалитету</h2>
 
                 <div class="module-description">
-                    Единая карточка по выбранному муниципалитету: просрочки, незаполненные поля,
-                    проблемные камеры, риски, источники данных и фактическая управленческая сводка
-                    без JSON-простыней.
+                    Единый аналитический срез по выбранному городскому округу: просрочки, незаполненные поля в системах,
+                    проблемные камеры, критические риски, сводные данные из всех источников и структурированная 
+                    фактическая управленческая сводка без перегруженных JSON-данных.
                 </div>
 
                 <div class="tag-row">
-                    <span class="tag">Факты по модулям</span>
-                    <span class="tag">Просрочки</span>
-                    <span class="tag">Пустые поля</span>
-                    <span class="tag">PDF</span>
+                    <span class="tag tag-white">Факты по модулям</span>
+                    <span class="tag tag-white">Просрочки</span>
+                    <span class="tag tag-white">Пустые поля</span>
+                    <span class="tag tag-white">PDF Экспорт</span>
                 </div>
 
                 <div class="action-panel">
-                    <a href="/municipality-report" class="module-link">Открыть отчёт →</a>
+                    <a href="/municipality-report" class="module-link btn-white">
+                        Открыть отчёт →
+                    </a>
                 </div>
             </article>
 
@@ -381,6 +482,7 @@
         </section>
     </div>
 
+    <!-- Модальное окно "Что нового" -->
     <div id="whatsNewModal" class="whats-new-modal" aria-hidden="true">
         <div class="whats-new-backdrop" data-whats-new-close></div>
 
@@ -401,13 +503,21 @@
 
             <div class="whats-new-list">
                 <article class="whats-new-item">
-                    <div class="whats-new-icon">◐</div>
+                    <div class="whats-new-icon">☀️</div>
                     <div>
-                        <h3>Единый стиль и смена темы</h3>
+                        <h3>Адаптивная тема «Подмосковное солнце»</h3>
                         <p>
-                            Основные страницы и рабочие модули приведены к единому визуальному стилю.
-                            Добавлена поддержка светлой и тёмной темы: выбранный режим сохраняется
-                            и автоматически применяется при следующем открытии системы.
+                            Добавлен интеллектуальный режим отслеживания светового дня. Система автоматически переключает тему на светную или тёмную, основываясь на точном времени восхода и заката солнца в Московском регионе.
+                        </p>
+                    </div>
+                </article>
+
+                <article class="whats-new-item">
+                    <div class="whats-new-icon">⚡</div>
+                    <div>
+                        <h3>Панель быстрого доступа</h3>
+                        <p>
+                            Добавлен удобный интерактивный блок «Сегодня можно быстро посмотреть». Он позволяет мгновенно в один клик переходить к ключевым стабильным модулям платформы прямо с главной страницы.
                         </p>
                     </div>
                 </article>
@@ -455,9 +565,7 @@
                         <p>
                             Добавлен экспериментальный блок формирования сводного отчёта по выбранному
                             муниципалитету. Он собирает факты по направлениям: просрочки, незаполненные
-                            поля, проблемные камеры, риски и источники данных. Для адресов используется
-                            справочник муниципалитетов, чтобы не путать город Чехов с улицей Чехова
-                            в других городах.
+                            поля, проблемные камеры, риски и источники данных.
                         </p>
                     </div>
                 </article>
@@ -483,54 +591,7 @@
         </section>
     </div>
 
-    <script>
-        (function () {
-            const root = document.documentElement;
-            const themeToggle = document.getElementById("themeToggle");
-
-            function applyTheme(theme) {
-                root.setAttribute("data-theme", theme);
-
-                if (!themeToggle) {
-                    return;
-                }
-
-                const icon = themeToggle.querySelector(".theme-toggle-icon");
-                const text = themeToggle.querySelector(".theme-toggle-text");
-
-                if (theme === "dark") {
-                    if (icon) {
-                        icon.textContent = "🌙";
-                    }
-
-                    if (text) {
-                        text.textContent = "Тёмная тема";
-                    }
-                } else {
-                    if (icon) {
-                        icon.textContent = "☀️";
-                    }
-
-                    if (text) {
-                        text.textContent = "Светлая тема";
-                    }
-                }
-            }
-
-            const savedTheme = localStorage.getItem("homeTheme") || "light";
-            applyTheme(savedTheme);
-
-            if (themeToggle) {
-                themeToggle.addEventListener("click", function () {
-                    const currentTheme = root.getAttribute("data-theme") || "light";
-                    const nextTheme = currentTheme === "dark" ? "light" : "dark";
-
-                    localStorage.setItem("homeTheme", nextTheme);
-                    applyTheme(nextTheme);
-                });
-            }
-        })();
-    </script>
+    
 
     <script>
         (function () {
@@ -722,6 +783,170 @@
                 });
             }
         })();
+    </script>
+    <script>
+    (function () {
+        const root = document.documentElement;
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
+
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
+
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                activeTheme = isDaytimeInMoscow() ? "light" : "dark";
+            }
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+
+            const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+            if (!toggle) return;
+            const icon = toggle.querySelector(".theme-toggle-icon");
+            const text = toggle.querySelector(".theme-toggle-text");
+            
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+            }
+        }
+
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
+
+        const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+        if (toggle) {
+            // Удаляем старый обработчик, если он был задан атрибутом
+            toggle.onclick = null;
+            toggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
+                } else {
+                    nextMode = "auto-moscow";
+                }
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(() => {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
+    </script>
+    <script>
+    (function () {
+        const root = document.documentElement;
+        const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
+
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H;
+            if (cosH >= 1) H = 0;
+            else if (cosH <= -1) H = Math.PI;
+            else H = Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
+
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                const isDay = isDaytimeInMoscow();
+                activeTheme = isDay ? "light" : "dark";
+            }
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+            if (!themeToggle) return;
+            const icon = themeToggle.querySelector(".theme-toggle-icon");
+            const text = themeToggle.querySelector(".theme-toggle-text");
+            
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+            }
+        }
+
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
+
+        if (themeToggle) {
+            themeToggle.onclick = null;
+            themeToggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
+                } else {
+                    nextMode = "auto-moscow";
+                }
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(() => {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
     </script>
 </body>
 </html>

@@ -2,7 +2,48 @@
 <!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="utf-8">
+    <script id="neurona-theme-head-init">
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+
+            if (activeTheme === "dark") {
+                document.documentElement.classList.add("dark");
+            } else {
+                document.documentElement.classList.remove("dark");
+            }
+        })();
+    </script>
+<meta charset="utf-8">
     <title>Сводный отчёт по муниципалитету</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -511,7 +552,136 @@
                 grid-template-columns: 1fr;
             }
         }
-    </style>
+    
+        html[data-theme="dark"] {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: #334155;
+            --gray-soft: #1e293b;
+            --sky-soft: #0c4a6e;
+            --green-soft: #064e3b;
+            --red-soft: #7f1d1d;
+            --orange-soft: #7c2d12;
+            --shadow: 0 18px 50px rgba(0, 0, 0, .4);
+        }
+        .theme-toggle-report {
+            min-height: 42px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--card);
+            color: var(--text);
+            font-weight: 800;
+            cursor: pointer;
+        }
+        
+
+        /* === Исправления тёмной темы для municipality_report.html === */
+        html[data-theme="dark"] {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: #334155;
+            --blue: #60a5fa;
+            --blue-dark: #3b82f6;
+            --green: #22c55e;
+            --green-soft: #064e3b;
+            --red: #f87171;
+            --red-soft: #7f1d1d;
+            --orange: #fb923c;
+            --orange-soft: #7c2d12;
+            --sky-soft: #0c4a6e;
+            --gray-soft: #1e293b;
+            --shadow: 0 18px 50px rgba(0, 0, 0, .45);
+        }
+
+        html[data-theme="dark"] body {
+            background:
+                radial-gradient(circle at top left, rgba(96, 165, 250, .12), transparent 32rem),
+                radial-gradient(circle at top right, rgba(34, 197, 94, .10), transparent 34rem),
+                var(--bg);
+            color: var(--text);
+        }
+
+        html[data-theme="dark"] .card {
+            background: rgba(30, 41, 59, .94);
+            border-color: rgba(51, 65, 85, .95);
+        }
+
+        html[data-theme="dark"] .btn.secondary,
+        html[data-theme="dark"] .theme-toggle-report {
+            background: #1e293b;
+            color: #f8fafc;
+            border-color: #475569;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, .20);
+        }
+
+        html[data-theme="dark"] .btn.secondary:hover,
+        html[data-theme="dark"] .theme-toggle-report:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+
+        html[data-theme="dark"] input[type="text"],
+        html[data-theme="dark"] .metric,
+        html[data-theme="dark"] .object-card,
+        html[data-theme="dark"] .small-table {
+            background: #0f172a;
+            color: #f8fafc;
+            border-color: #334155;
+        }
+
+        html[data-theme="dark"] input[type="text"]::placeholder {
+            color: #64748b;
+        }
+
+        html[data-theme="dark"] .source,
+        html[data-theme="dark"] .fact {
+            background: #0f172a;
+            color: #cbd5e1;
+            border-color: #334155;
+        }
+
+        html[data-theme="dark"] .module-icon {
+            background: #0f172a;
+        }
+
+        html[data-theme="dark"] summary {
+            color: #f8fafc;
+        }
+
+        html[data-theme="dark"] .object-problem {
+            color: #cbd5e1;
+        }
+
+        html[data-theme="dark"] .badge {
+            background: #312e81;
+            color: #e0e7ff;
+        }
+
+        html[data-theme="dark"] .missing-pill {
+            background: #7c2d12;
+            color: #ffedd5;
+            border-color: #9a3412;
+        }
+
+        html[data-theme="dark"] th,
+        html[data-theme="dark"] td {
+            border-bottom-color: #334155;
+        }
+
+        html[data-theme="dark"] .theme-toggle-report {
+            gap: 7px;
+        }
+
+</style>
 </head>
 
 <body>
@@ -528,6 +698,10 @@
         </div>
 
         <div class="actions">
+            <button id="themeToggle" class="theme-toggle-report" type="button">
+                <span class="theme-toggle-icon">☀️</span>
+                <span class="theme-toggle-text">Светлая тема</span>
+            </button>
             <a class="btn secondary" href="/">На главную</a>
 
             {% if name %}
@@ -703,5 +877,108 @@
     {% endif %}
 
 </div>
+    <script id="neurona-theme-bottom-controller">
+    (function () {
+        const root = document.documentElement;
+        const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
+
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+
+            let H;
+            if (cosH >= 1) H = 0;
+            else if (cosH <= -1) H = Math.PI;
+            else H = Math.acos(cosH);
+
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
+
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+
+            if (themeMode === "auto-moscow") {
+                activeTheme = isDaytimeInMoscow() ? "light" : "dark";
+            }
+
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+
+            if (activeTheme === "dark") {
+                root.classList.add("dark");
+            } else {
+                root.classList.remove("dark");
+            }
+
+            if (!themeToggle) return;
+
+            const icon = themeToggle.querySelector(".theme-toggle-icon");
+            const text = themeToggle.querySelector(".theme-toggle-text");
+
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+                themeToggle.setAttribute("aria-label", "Тёмная тема");
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+                themeToggle.setAttribute("aria-label", "Светлая тема");
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+                themeToggle.setAttribute("aria-label", "Автоматическая тема по солнцу Подмосковья");
+            }
+        }
+
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
+
+        if (themeToggle && themeToggle.dataset.neuronaThemeBound !== "1") {
+            themeToggle.dataset.neuronaThemeBound = "1";
+            themeToggle.onclick = null;
+
+            themeToggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
+                } else {
+                    nextMode = "auto-moscow";
+                }
+
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(function () {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
+    </script>
 </body>
 </html>
