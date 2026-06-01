@@ -1935,3 +1935,22 @@ try:
 except Exception as e:
     print(f"[municipality_report] router init error: {e}")
 
+
+from fastapi.responses import FileResponse
+
+@app.get('/favicon.ico', include_in_schema=False)
+async def favicon():
+    return FileResponse('favicon.ico', media_type='image/png')
+
+@app.post("/appeals/{request_id}/delete")
+async def delete_appeal(request_id: str):
+    global appeals
+    for var in ["appeals", "appeals_list", "db_appeals"]:
+        if var in globals():
+            globals()[var] = [a for a in globals()[var] if (a.get("request_id") if isinstance(a, dict) else getattr(a, "request_id", None)) != request_id]
+    try:
+        import storage
+        if hasattr(storage, "delete_appeal"): storage.delete_appeal(request_id)
+        elif hasattr(storage, "appeals"): storage.appeals = [a for a in storage.appeals if (a.get("request_id") if isinstance(a, dict) else getattr(a, "request_id", None)) != request_id]
+    except: pass
+    return RedirectResponse(url="/appeals", status_code=303)

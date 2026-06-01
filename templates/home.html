@@ -29,38 +29,133 @@
             document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
-    <script>
-        (function() {
-            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            let activeTheme = savedThemeMode;
-            if (savedThemeMode === "auto-moscow") {
-                const MOSCOW_LAT = 55.7558;
-                const MOSCOW_LON = 37.6173;
-                const MOSCOW_TZ = 3;
-                const now = new Date();
-                const start = new Date(now.getFullYear(), 0, 0);
-                const diff = now - start;
-                const oneDay = 1000 * 60 * 60 * 24;
-                const dayOfYear = Math.floor(diff / oneDay);
-                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
-                const latRad = MOSCOW_LAT * Math.PI / 180;
-                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
-                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
-                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
-                const currentHour = now.getHours() + now.getMinutes() / 60;
-                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
-            }
-            document.documentElement.setAttribute("data-theme", activeTheme);
-            document.documentElement.dataset.theme = activeTheme;
-        })();
-    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Нейрона ИИ — Единая точка входа</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+
+    <!-- Дополнительные стили для профессионального кастомайзера -->
+    <style>
+        .quick-actions-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding: 16px 20px !important;
+        }
+        .quick-actions-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+        .quick-actions-configure-btn {
+            background: var(--bg-neutral-100, rgba(0,0,0,0.03));
+            border: 1px dashed var(--border-color, #cbd5e1);
+            color: var(--text-color, #475569);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .quick-actions-configure-btn:hover {
+            background: var(--bg-neutral-200, rgba(0,0,0,0.06));
+            border-style: solid;
+            transform: translateY(-1px);
+        }
+        
+        /* Стили современных переключателей (iOS style toggle) */
+        .neurona-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .neurona-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .neurona-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        .neurona-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+        input:checked + .neurona-slider {
+            background-color: #8b5cf6;
+        }
+        input:checked + .neurona-slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Список элементов кастомизации */
+        .customizer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+            max-height: 320px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .customizer-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+        }
+        [data-theme="dark"] .customizer-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+        .customizer-item:hover {
+            background: rgba(0, 0, 0, 0.04);
+        }
+        [data-theme="dark"] .customizer-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .customizer-item-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .customizer-item-icon {
+            font-size: 20px;
+            width: 28px;
+            text-align: center;
+        }
+        .customizer-item-name {
+            font-weight: 500;
+            font-size: 14px;
+        }
+    </style>
 </head>
 
 <body class="compact-module-page">
@@ -78,7 +173,7 @@
 
             <div class="top-actions">
                 <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
-                    Версия 2.3 (Бета 2)
+                    Версия 2.3 (Бета 3)
                 </button>
 
                 <button id="themeToggle" class="theme-toggle bg-neutral-100 hover:bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 transition-colors secondary-button quick-action-btn" type="button" aria-label="Переключить тему">
@@ -132,25 +227,19 @@
             </div>
         </section>
 
-        <!-- Секция быстрого доступа "Сегодня можно быстро" (Нейтральные серые кнопки) -->
-        <section class="quick-actions-bar">
-            <div class="quick-actions-title">
-                <span class="btn-icon">⚡</span> Сегодня можно быстро посмотреть:
+        <!-- Улучшенная кастомизируемая секция быстрого доступа -->
+        <section class="card quick-actions-bar">
+            <div class="quick-actions-left">
+                <div class="quick-actions-title" style="margin: 0; white-space: nowrap;">
+                    <span class="btn-icon">⚡</span> Сегодня можно быстро посмотреть:
+                </div>
+                <div id="quickActionsContainer" class="quick-actions-links" style="display: flex; gap: 8px; flex-wrap: wrap; margin: 0;">
+                    <!-- Рендерится через JavaScript динамически -->
+                </div>
             </div>
-            <div class="quick-actions-links">
-                <a href="/edo" class="quick-action-btn">
-                    <span class="btn-icon">📋</span> Заполненность данных
-                </a>
-                <a href="/cameras" class="quick-action-btn">
-                    <span class="btn-icon">📹</span> Проверить камеры
-                </a>
-                <a href="/overdue" class="quick-action-btn">
-                    <span class="btn-icon">⏱️</span> Посмотреть просрочки
-                </a>
-                <a href="/utnkr" class="quick-action-btn">
-                    <span class="btn-icon">🛡️</span> Технадзор УТНКР
-                </a>
-            </div>
+            <button id="configureQuickActionsBtn" class="quick-actions-configure-btn" type="button">
+                <span>⚙️</span> Настроить
+            </button>
         </section>
 
         <section class="modules-grid">
@@ -591,9 +680,148 @@
         </section>
     </div>
 
-    
+    <!-- Новое модальное окно кастомизации быстрого доступа -->
+    <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
+        <div class="whats-new-backdrop" data-quick-modal-close></div>
+
+        <section class="whats-new-dialog" style="max-width: 480px;" role="dialog" aria-modal="true">
+            <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-quick-modal-close>
+                ×
+            </button>
+
+            <div class="whats-new-kicker">Настройки панели</div>
+
+            <h2 class="whats-new-title" style="margin-bottom: 8px;">Быстрый доступ</h2>
+
+            <p class="whats-new-lead" style="font-size: 13px; margin-bottom: 16px;">
+                Отметьте модули, которые вы хотите видеть в верхней строке быстрого перехода. Настройки сохраняются мгновенно.
+            </p>
+
+            <div class="customizer-list" id="customizerList">
+                <!-- Сюда JS вставит варианты выбора -->
+            </div>
+
+            <div class="whats-new-footer">
+                <button class="module-link" type="button" style="width: 100%;" data-quick-modal-close>
+                    Сохранить и закрыть
+                </button>
+            </div>
+        </section>
+    </div>
 
     <script>
+        // JS скрипт настройки панели быстрого доступа
+        (function () {
+            // Список всех доступных на платформе модулей
+            const ALL_MODULES = [
+                { id: "edo", name: "Заполненность данных", path: "/edo", icon: "📋" },
+                { id: "cameras", name: "Проверить камеры", path: "/cameras", icon: "📹" },
+                { id: "overdue", name: "Посмотреть просрочки", path: "/overdue", icon: "⏱️" },
+                { id: "utnkr", name: "Технадзор УТНКР", path: "/utnkr", icon: "🛡️" },
+                { id: "watercontrol", name: "Контроль воды", path: "/watercontrol", icon: "💧" },
+                { id: "appeals", name: "Эмпатичные ответы", path: "/appeals", icon: "✍️" },
+                { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" }
+            ];
+
+            // Дефолтный выбор (если пользователь зашел первый раз)
+            const DEFAULT_SELECTION = ["edo", "cameras", "overdue", "utnkr"];
+
+            const container = document.getElementById("quickActionsContainer");
+            const configBtn = document.getElementById("configureQuickActionsBtn");
+            const modal = document.getElementById("quickActionsModal");
+            const customizerList = document.getElementById("customizerList");
+
+            // Загружаем текущие настройки или ставим дефолтные
+            function getSelectedModuleIds() {
+                const saved = localStorage.getItem("neurona-quick-links");
+                return saved ? JSON.parse(saved) : DEFAULT_SELECTION;
+            }
+
+            // Отрисовка кнопок быстрого перехода
+            function renderQuickButtons() {
+                if (!container) return;
+                const activeIds = getSelectedModuleIds();
+                const activeModules = ALL_MODULES.filter(m => activeIds.includes(m.id));
+
+                if (activeModules.length === 0) {
+                    container.innerHTML = `<span style="font-size: 13px; color: var(--muted-color, #94a3b8); font-style: italic;">Панель пуста. Нажмите «Настроить»</span>`;
+                    return;
+                }
+
+                container.innerHTML = activeModules.map(m => `
+                    <a href="${m.path}" class="quick-action-btn">
+                        <span class="btn-icon">${m.icon}</span> ${m.name}
+                    </a>
+                `).join("");
+            }
+
+            // Отрисовка списка тумблеров в модалке настроек
+            function renderCustomizerList() {
+                if (!customizerList) return;
+                const activeIds = getSelectedModuleIds();
+
+                customizerList.innerHTML = ALL_MODULES.map(m => {
+                    const checked = activeIds.includes(m.id) ? "checked" : "";
+                    return `
+                        <div class="customizer-item">
+                            <div class="customizer-item-info">
+                                <span class="customizer-item-icon">${m.icon}</span>
+                                <span class="customizer-item-name">${m.name}</span>
+                            </div>
+                            <label class="neurona-switch">
+                                <input type="checkbox" data-id="${m.id}" ${checked}>
+                                <span class="neurona-slider"></span>
+                            </label>
+                        </div>
+                    `;
+                }).join("");
+
+                // Вешаем события на изменение тумблеров
+                customizerList.querySelectorAll("input[type='checkbox']").forEach(checkbox => {
+                    checkbox.addEventListener("change", function () {
+                        saveSelectionFromModal();
+                    });
+                });
+            }
+
+            // Сохранение положения тумблеров в LocalStorage
+            function saveSelectionFromModal() {
+                const checkboxes = customizerList.querySelectorAll("input[type='checkbox']");
+                const newSelected = [];
+                checkboxes.forEach(cb => {
+                    if (cb.checked) {
+                        newSelected.push(cb.getAttribute("data-id"));
+                    }
+                });
+                localStorage.setItem("neurona-quick-links", JSON.stringify(newSelected));
+                renderQuickButtons();
+            }
+
+            // Открытие / закрытие модалки
+            if (configBtn && modal) {
+                configBtn.addEventListener("click", () => {
+                    renderCustomizerList();
+                    modal.classList.add("is-open");
+                    modal.setAttribute("aria-hidden", "false");
+                    document.body.classList.add("modal-open");
+                });
+
+                modal.querySelectorAll("[data-quick-modal-close]").forEach(el => {
+                    el.addEventListener("click", () => {
+                        modal.classList.remove("is-open");
+                        modal.setAttribute("aria-hidden", "true");
+                        document.body.classList.remove("modal-open");
+                    });
+                });
+            }
+
+            // Инициализация при старте страницы
+            renderQuickButtons();
+        })();
+    </script>
+
+    <script>
+        // Скрипт модального окна "Что нового"
         (function () {
             const button = document.getElementById("whatsNewButton");
             const modal = document.getElementById("whatsNewModal");
@@ -629,6 +857,7 @@
     </script>
 
     <script>
+        // Скрипт обновления Git
         (function () {
             const tokenInput = document.getElementById("gitUpdateToken");
             const checkButton = document.getElementById("gitCheckButton");
@@ -785,87 +1014,7 @@
         })();
     </script>
     <script>
-    (function () {
-        const root = document.documentElement;
-        const MOSCOW_LAT = 55.7558;
-        const MOSCOW_LON = 37.6173;
-        const MOSCOW_TZ = 3;
-
-        function isDaytimeInMoscow() {
-            const now = new Date();
-            const start = new Date(now.getFullYear(), 0, 0);
-            const diff = now - start;
-            const oneDay = 1000 * 60 * 60 * 24;
-            const dayOfYear = Math.floor(diff / oneDay);
-            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
-            const latRad = MOSCOW_LAT * Math.PI / 180;
-            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
-            let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
-            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
-            const currentHour = now.getHours() + now.getMinutes() / 60;
-            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
-        }
-
-        function applyTheme(themeMode) {
-            let activeTheme = themeMode;
-            if (themeMode === "auto-moscow") {
-                activeTheme = isDaytimeInMoscow() ? "light" : "dark";
-            }
-            root.setAttribute("data-theme", activeTheme);
-            root.dataset.theme = activeTheme;
-
-            const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
-            if (!toggle) return;
-            const icon = toggle.querySelector(".theme-toggle-icon");
-            const text = toggle.querySelector(".theme-toggle-text");
-            
-            if (themeMode === "dark") {
-                if (icon) icon.textContent = "🌙";
-                if (text) text.textContent = "Тёмная тема";
-            } else if (themeMode === "light") {
-                if (icon) icon.textContent = "☀️";
-                if (text) text.textContent = "Светлая тема";
-            } else {
-                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
-                if (icon) icon.textContent = currentStatusIcon;
-                if (text) text.textContent = "Подмосковное солнце";
-            }
-        }
-
-        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-        applyTheme(savedThemeMode);
-
-        const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
-        if (toggle) {
-            // Удаляем старый обработчик, если он был задан атрибутом
-            toggle.onclick = null;
-            toggle.addEventListener("click", function () {
-                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-                let nextMode;
-                if (currentMode === "auto-moscow") {
-                    nextMode = "light";
-                } else if (currentMode === "light") {
-                    nextMode = "dark";
-                } else {
-                    nextMode = "auto-moscow";
-                }
-                localStorage.setItem("neurona-theme-mode", nextMode);
-                applyTheme(nextMode);
-            });
-        }
-
-        setInterval(() => {
-            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            if (currentMode === "auto-moscow") {
-                applyTheme("auto-moscow");
-            }
-        }, 60000);
-    })();
-    </script>
-    <script>
+    // Скрипт интеллектуальной смены темы
     (function () {
         const root = document.documentElement;
         const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
