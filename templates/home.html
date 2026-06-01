@@ -34,45 +34,77 @@
     <title>Нейрона ИИ — Единая точка входа</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
 
-    <!-- Дополнительные стили для профессионального кастомайзера -->
+    <!-- Абсолютно надежные стили для панели быстрого доступа -->
     <style>
         .quick-actions-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 16px;
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            flex-wrap: nowrap !important;
+            gap: 20px !important;
             padding: 16px 20px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            text-align: left !important;
         }
         .quick-actions-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-            flex: 1;
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            gap: 16px !important;
+            flex-wrap: wrap !important;
+            flex: 1 !important;
+            text-align: left !important;
+        }
+        .quick-actions-title {
+            margin: 0 !important;
+            padding: 0 !important;
+            font-weight: 600 !important;
+            font-size: 15px !important;
+            color: var(--text-color, #1e293b) !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+            text-align: left !important;
+        }
+        .quick-actions-links {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            gap: 8px !important;
+            flex-wrap: wrap !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
         .quick-actions-configure-btn {
-            background: var(--bg-neutral-100, rgba(0,0,0,0.03));
-            border: 1px dashed var(--border-color, #cbd5e1);
-            color: var(--text-color, #475569);
-            border-radius: 8px;
-            padding: 8px 14px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s ease;
-            white-space: nowrap;
+            background: var(--bg-neutral-100, rgba(0,0,0,0.03)) !important;
+            border: 1px dashed var(--border-color, #cbd5e1) !important;
+            color: var(--text-color, #475569) !important;
+            border-radius: 8px !important;
+            padding: 8px 14px !important;
+            font-size: 13px !important;
+            font-weight: 500 !important;
+            cursor: pointer !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            transition: all 0.2s ease !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+            margin-left: auto !important; /* Всегда прижимает кнопку настройки к правому краю */
         }
         .quick-actions-configure-btn:hover {
-            background: var(--bg-neutral-200, rgba(0,0,0,0.06));
-            border-style: solid;
-            transform: translateY(-1px);
+            background: var(--bg-neutral-200, rgba(0,0,0,0.06)) !important;
+            border-style: solid !important;
+            transform: translateY(-1px) !important;
         }
         
-        /* Стили современных переключателей (iOS style toggle) */
+        /* Стили модального окна кастомизации */
         .neurona-switch {
             position: relative;
             display: inline-block;
@@ -111,7 +143,6 @@
             transform: translateX(20px);
         }
 
-        /* Список элементов кастомизации */
         .customizer-list {
             display: flex;
             flex-direction: column;
@@ -155,6 +186,25 @@
             font-weight: 500;
             font-size: 14px;
         }
+
+        /* Адаптивность для мобильных телефонов */
+        @media (max-width: 768px) {
+            .quick-actions-bar {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 12px !important;
+            }
+            .quick-actions-left {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                width: 100% !important;
+            }
+            .quick-actions-configure-btn {
+                margin-left: 0 !important;
+                width: 100% !important;
+                justify-content: center !important;
+            }
+        }
     </style>
 </head>
 
@@ -173,7 +223,7 @@
 
             <div class="top-actions">
                 <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
-                    Версия 2.3 (Бета 3)
+                    Версия 2.3 (Бета 2)
                 </button>
 
                 <button id="themeToggle" class="theme-toggle bg-neutral-100 hover:bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 transition-colors secondary-button quick-action-btn" type="button" aria-label="Переключить тему">
@@ -227,14 +277,14 @@
             </div>
         </section>
 
-        <!-- Улучшенная кастомизируемая секция быстрого доступа -->
+        <!-- ИСПРАВЛЕННАЯ СЕКЦИЯ БЫСТРОГО ДОСТУПА -->
         <section class="card quick-actions-bar">
             <div class="quick-actions-left">
-                <div class="quick-actions-title" style="margin: 0; white-space: nowrap;">
-                    <span class="btn-icon">⚡</span> Сегодня можно быстро посмотреть:
+                <div class="quick-actions-title">
+                    <span>⚡</span> Сегодня можно быстро посмотреть:
                 </div>
-                <div id="quickActionsContainer" class="quick-actions-links" style="display: flex; gap: 8px; flex-wrap: wrap; margin: 0;">
-                    <!-- Рендерится через JavaScript динамически -->
+                <div id="quickActionsContainer" class="quick-actions-links">
+                    <!-- Заполняется через JS динамически -->
                 </div>
             </div>
             <button id="configureQuickActionsBtn" class="quick-actions-configure-btn" type="button">
@@ -680,7 +730,7 @@
         </section>
     </div>
 
-    <!-- Новое модальное окно кастомизации быстрого доступа -->
+    <!-- Модальное окно кастомизации быстрого доступа -->
     <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
         <div class="whats-new-backdrop" data-quick-modal-close></div>
 
