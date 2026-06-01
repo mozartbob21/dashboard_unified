@@ -223,20 +223,21 @@
 
             <div class="top-actions">
                 <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
-                    Версия 2.3 (Финальная бета)
+                    v2.3 бета
                 </button>
 
-                <button id="themeToggle" class="theme-toggle bg-neutral-100 hover:bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 transition-colors secondary-button quick-action-btn" type="button" aria-label="Переключить тему">
+                <button id="themeToggle" class="theme-toggle secondary-button" type="button" aria-label="Переключить тему">
                     <span class="theme-toggle-icon">☀️</span>
-                    <span class="theme-toggle-text">Светлая тема</span>
+                    <span class="theme-toggle-text">Тема</span>
                 </button>
 
-                <div class="badge">Локально. Просто</div>
+                <div class="badge">Локально</div>
 
-                {% if user_role %}
+                {% if user_username %}
                 <div class="badge"
-                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
-                    👤 {{ user_username }} — {{ user_role }}
+                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;"
+                     title="{{ user_role or '' }}">
+                    👤 {{ user_username }}
                 </div>
                 {% endif %}
 
@@ -1126,17 +1127,16 @@
             
             if (themeMode === "dark") {
                 if (icon) icon.textContent = "🌙";
-                if (text) text.textContent = "Тёмная тема";
+                if (text) text.textContent = "Тёмная";
             } else if (themeMode === "light") {
                 if (icon) icon.textContent = "☀️";
-                if (text) text.textContent = "Светлая тема";
+                if (text) text.textContent = "Светлая";
             } else {
-                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️" : "🌙";
                 if (icon) icon.textContent = currentStatusIcon;
                 if (text) text.textContent = "Подмосковное солнце";
             }
         }
-
         const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
         applyTheme(savedThemeMode);
 
