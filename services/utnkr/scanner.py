@@ -1667,11 +1667,6 @@ async def extract_planfix_table_all_rows(page: Any) -> list[dict[str, Any]]:
 
     await page.wait_for_timeout(3000)
 
-    try:
-        await page.screenshot(path="debug_planfix_table_start.png", full_page=True)
-    except Exception as error:
-        print("Не удалось сделать debug_planfix_table_start.png:", error)
-
     max_scroll_steps = int(os.getenv("MAX_TABLE_SCROLL_STEPS", "250"))
     horizontal_positions_limit = int(os.getenv("MAX_HORIZONTAL_SCROLL_POSITIONS", "5"))
 
@@ -1882,12 +1877,6 @@ async def try_login_planfix(page: Any) -> None:
     await page.wait_for_timeout(3000)
 
     try:
-        await page.screenshot(path="debug_login_page.png", full_page=True)
-        print("[scanner] Сохранён скриншот debug_login_page.png")
-    except Exception as error:
-        print("[scanner] Не удалось сделать debug_login_page.png:", repr(error))
-
-    try:
         already_logged_in = await page.evaluate(
             """
             () => {
@@ -1968,12 +1957,6 @@ async def try_login_planfix(page: Any) -> None:
     print("[scanner] Заполняю пароль")
     await password_locator.fill(SITE_PASSWORD)
 
-    try:
-        await page.screenshot(path="debug_before_login_click.png", full_page=True)
-        print("[scanner] Сохранён скриншот debug_before_login_click.png")
-    except Exception as error:
-        print("[scanner] Не удалось сделать debug_before_login_click.png:", repr(error))
-
     submit_locator = page.locator(SUBMIT_SELECTOR).first
     clicked = False
 
@@ -2007,12 +1990,6 @@ async def try_login_planfix(page: Any) -> None:
         raise RuntimeError("Не удалось нажать кнопку входа")
 
     await page.wait_for_timeout(5000)
-
-    try:
-        await page.screenshot(path="debug_after_login_click.png", full_page=True)
-        print("[scanner] Сохранён скриншот debug_after_login_click.png")
-    except Exception as error:
-        print("[scanner] Не удалось сделать debug_after_login_click.png:", repr(error))
 
     print("[scanner] URL после клика входа:", page.url)
 
@@ -2086,12 +2063,6 @@ async def open_planfix_page(page: Any, url: str | None = None) -> None:
     else:
         print("[scanner] Уже на странице таблицы после логина")
 
-    try:
-        await page.screenshot(path="debug_table_page.png", full_page=True)
-        print("[scanner] Сохранён скриншот debug_table_page.png")
-    except Exception as error:
-        print("[scanner] Не удалось сделать debug_table_page.png:", repr(error))
-
     row_selectors = ".tr-common-item, tr.tr-common-item, [class*='tr-taskid-']"
 
     try:
@@ -2106,12 +2077,6 @@ async def open_planfix_page(page: Any, url: str | None = None) -> None:
         print("[scanner] Делаю fallback: дополнительное ожидание и продолжаю")
 
         await page.wait_for_timeout(5000)
-
-        try:
-            await page.screenshot(path="debug_table_page_wait_failed.png", full_page=True)
-            print("[scanner] Сохранён скриншот debug_table_page_wait_failed.png")
-        except Exception as screenshot_error:
-            print("[scanner] Не удалось сделать debug_table_page_wait_failed.png:", repr(screenshot_error))
 
 
 async def scan_current_page(page: Any) -> dict[str, Any]:
