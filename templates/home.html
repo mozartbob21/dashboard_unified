@@ -223,7 +223,7 @@
 
             <div class="top-actions">
                 <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
-                    Версия 2.3 (Бета 3)
+                    Версия 2.3 (Финальная бета)
                 </button>
 
                 <button id="themeToggle" class="theme-toggle bg-neutral-100 hover:bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700 transition-colors secondary-button quick-action-btn" type="button" aria-label="Переключить тему">
@@ -232,8 +232,33 @@
                 </button>
 
                 <div class="badge">Локально. Просто</div>
+
+                {% if user_role %}
+                <div class="badge"
+                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    👤 {{ user_username }} — {{ user_role }}
+                </div>
+                {% endif %}
+
+                <a href="/logout"
+                   class="badge"
+                   style="text-decoration: none; cursor: pointer; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;">
+                   Выйти
+                </a>
             </div>
         </header>
+
+        {% if access_error == "no_access" %}
+        <div style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+                    padding: 14px 18px; border-radius: 12px; margin-bottom: 16px;
+                    display: flex; align-items: center; gap: 10px; font-size: 14px;">
+            <span style="font-size: 18px;">⚠️</span>
+            <div>
+                <b>Нет доступа к этому модулю.</b>
+                Войдите под другой учётной записью или попросите администратора расширить права.
+            </div>
+        </div>
+        {% endif %}
 
         <section class="card hero">
             <div>
@@ -277,7 +302,8 @@
             </div>
         </section>
 
-        <!-- ИСПРАВЛЕННАЯ СЕКЦИЯ БЫСТРОГО ДОСТУПА -->
+        <!-- ИСПРАВЛЕННАЯ СЕКЦИЯ БЫСТРОГО ДОСТУПА (только для admin) -->
+        {% if user_username == "admin" %}
         <section class="card quick-actions-bar">
             <div class="quick-actions-left">
                 <div class="quick-actions-title">
@@ -291,9 +317,12 @@
                 <span>⚙️</span> Настроить
             </button>
         </section>
+        {% endif %}
 
         <section class="modules-grid">
             
+            
+            {% if 'edo' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -329,7 +358,11 @@
                     </a>
                 </div>
             </article>
+            {% endif %}
 
+
+            
+            {% if 'overdue' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -365,7 +398,11 @@
                     </a>
                 </div>
             </article>
+            {% endif %}
 
+
+            
+            {% if 'watercontrol' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -401,7 +438,11 @@
                     </a>
                 </div>
             </article>
+            {% endif %}
 
+
+            
+            {% if 'utnkr' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -437,7 +478,11 @@
                     </a>
                 </div>
             </article>
+            {% endif %}
 
+
+            
+            {% if 'cameras' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -473,7 +518,11 @@
                     </a>
                 </div>
             </article>
+            {% endif %}
 
+
+            
+            {% if 'appeals' in user_modules %}
             <article class="card module-card module-card-appeals-beta">
                 <div class="module-head">
                     <div class="head-pills">
@@ -501,8 +550,12 @@
                     <a href="/appeals" class="module-link">Открыть модуль →</a>
                 </div>
             </article>
+            {% endif %}
+
 
             <!-- Сводный отчёт по муниципалитету (Выделен премиальным градиентным бордером, ленточка удалена) -->
+            
+            {% if 'municipality-report' in user_modules %}
             <article class="card module-card module-card-municipality-report highlight-premium-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -533,6 +586,8 @@
                     </a>
                 </div>
             </article>
+            {% endif %}
+
 
         </section>
 
@@ -630,93 +685,52 @@
                 ×
             </button>
 
-            <div class="whats-new-kicker">Нейрона 2.3 бета</div>
+            <div class="whats-new-kicker">Нейрона 2.3 — Финальная бета</div>
 
-            <h2 id="whatsNewTitle" class="whats-new-title">Что уже есть в 2.3 (Бета)?</h2>
+            <h2 id="whatsNewTitle" class="whats-new-title">Что нового в версии 2.3?</h2>
 
             <p class="whats-new-lead">
-                Обновление сфокусировано на едином визуальном стиле, удобстве работы с модулями
-                и подготовке новых автоматизированных сценариев. Интерфейс стал аккуратнее,
-                стабильнее и ближе к единой системе.
+                Финальная бета сфокусирована на трёх ключевых направлениях: безопасном доступе,
+                устойчивости работы платформы и обновлённом визуальном стиле. Платформа стала
+                надёжнее, аккуратнее и удобнее в повседневном использовании.
             </p>
 
             <div class="whats-new-list">
                 <article class="whats-new-item">
-                    <div class="whats-new-icon">☀️</div>
+                    <div class="whats-new-icon">🔐</div>
                     <div>
-                        <h3>Адаптивная тема «Подмосковное солнце»</h3>
+                        <h3>Персональный вход в систему</h3>
                         <p>
-                            Добавлен интеллектуальный режим отслеживания светового дня. Система автоматически переключает тему на светлую или тёмную, основываясь на точном времени восхода и заката солнца в Московском регионе.
+                            Добавлена система авторизации с персональными учётными записями
+                            и разграничением доступа. Каждый пользователь видит только те разделы,
+                            которые ему действительно необходимы для работы — это делает интерфейс
+                            чище, а платформу — безопаснее.
                         </p>
                     </div>
                 </article>
 
                 <article class="whats-new-item">
-                    <div class="whats-new-icon">⚡</div>
+                    <div class="whats-new-icon">⚙️</div>
                     <div>
-                        <h3>Панель быстрого доступа</h3>
+                        <h3>Стабилизация серверной части</h3>
                         <p>
-                            Добавлен удобный интерактивный блок «Сегодня можно быстро посмотреть». Он позволяет мгновенно в один клик переходить к ключевым стабильным модулям платформы прямо с главной страницы.
+                            Проведена комплексная оптимизация бэкенда: улучшена обработка
+                            длительных операций, повышена устойчивость к нагрузкам и сокращено
+                            время отклика интерфейса. Работа платформы стала предсказуемее
+                            и заметно плавнее даже при параллельных сценариях.
                         </p>
                     </div>
                 </article>
 
                 <article class="whats-new-item">
-                    <div class="whats-new-icon">▦</div>
+                    <div class="whats-new-icon">🎨</div>
                     <div>
-                        <h3>Оптимизирован блок УТНК</h3>
+                        <h3>Обновлённый визуальный стиль</h3>
                         <p>
-                            Улучшена работа блока УТНК: обновлена структура интерфейса,
-                            повышена стабильность обработки данных и сделана более удобной работа
-                            с результатами проверки.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">▣</div>
-                    <div>
-                        <h3>Бета-версия предписаний в блоке камер</h3>
-                        <p>
-                            В модуле проверки камер запущена бета-версия формирования предписаний.
-                            Система готовит документы для проблемных адресов: при отсутствии видеопотока
-                            и при отсутствии подключенной камеры.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">⚙</div>
-                    <div>
-                        <h3>Эмпатичные ответы Бета</h3>
-                        <p>
-                            Добавлен модуль подготовки ответов на обращения. Он использует локальный
-                            кодовый анализ эмоции и критичности, затем собирает черновик ответа
-                            по шаблону с эмпатичным блоком.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">◇</div>
-                    <div>
-                        <h3>Бета-блок сводного отчёта по муниципалитету</h3>
-                        <p>
-                            Добавлен экспериментальный блок формирования сводного отчёта по выбранному
-                            муниципалитету. Он собирает факты по направлениям: просрочки, незаполненные
-                            поля, проблемные камеры, риски и источники данных.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">✓</div>
-                    <div>
-                        <h3>Улучшена общая работа системы</h3>
-                        <p>
-                            Проведена общая оптимизация локального контура: улучшена навигация,
-                            выровнена структура модулей, повышена стабильность интерфейса
-                            и подготовлена основа для дальнейшего развития платформы.
+                            Интерфейс приведён к единой современной эстетике: выровнены отступы
+                            и типографика, обновлены карточки и акценты, улучшена читаемость
+                            в светлой и тёмной темах. Все разделы теперь воспринимаются
+                            как части одной целостной системы.
                         </p>
                     </div>
                 </article>
@@ -730,7 +744,8 @@
         </section>
     </div>
 
-    <!-- Модальное окно кастомизации быстрого доступа -->
+    <!-- Модальное окно кастомизации быстрого доступа (только для admin) -->
+    {% if user_username == "admin" %}
     <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
         <div class="whats-new-backdrop" data-quick-modal-close></div>
 
@@ -758,7 +773,9 @@
             </div>
         </section>
     </div>
+    {% endif %}
 
+    {% if user_username == "admin" %}
     <script>
         // JS скрипт настройки панели быстрого доступа
         (function () {
@@ -869,6 +886,7 @@
             renderQuickButtons();
         })();
     </script>
+    {% endif %}
 
     <script>
         // Скрипт модального окна "Что нового"

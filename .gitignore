@@ -147,3 +147,12 @@ static/*.bak*
 *.bak_fix_jinja_*
 *.bak_compact_*
 *.bak_ux_*
+
+# Локальная авторизация (секреты не коммитим)
+data/auth/jwt_secret.key
+data/auth/users.json
+
+# Бэкапы при ручном патчинге кода
+*.before_*
+*.bak
+*.backup

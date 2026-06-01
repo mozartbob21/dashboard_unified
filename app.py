@@ -11,6 +11,14 @@ from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi import Form
+from services.auth.security import (
+    authenticate_user,
+    create_access_token,
+    get_user_from_token,
+    has_module_access,
+)
+
 from jinja2 import ChainableUndefined
 import re
 
@@ -884,13 +892,139 @@ def has_local_git_changes():
         "status": result,
     }
 
+
+# =========================
+# AUTH: КОНФИГ И MIDDLEWARE
+# =========================
+
+PATH_MODULE_MAP = {
+    "/edo": "edo",
+    "/overdue": "overdue",
+    "/watercontrol": "watercontrol",
+    "/utnkr": "utnkr",
+    "/cameras": "cameras",
+    "/camera-prescriptions": "cameras",
+    "/prescriptions": "cameras",
+    "/appeals": "appeals",
+    "/municipality-report": "municipality-report",
+}
+
+PUBLIC_PATH_PREFIXES = (
+    "/login",
+    "/logout",
+    "/static",
+    "/data",
+    "/generated",
+    "/favicon.ico",
+    "/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+)
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+
+    # Публичные пути - пропускаем без проверки
+    if any(path.startswith(p) for p in PUBLIC_PATH_PREFIXES):
+        return await call_next(request)
+
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token)
+
+    if not user:
+        if path == "/" or request.method == "GET":
+            return RedirectResponse(url="/login", status_code=302)
+        return JSONResponse(
+            status_code=401,
+            content={"ok": False, "message": "Требуется авторизация"},
+        )
+
+    # Проверка прав на конкретный модуль
+    for path_prefix, module_id in PATH_MODULE_MAP.items():
+        if path.startswith(path_prefix):
+            if not has_module_access(user, module_id):
+                return RedirectResponse(url="/?error=no_access", status_code=302)
+            break
+
+    request.state.user = user
+    return await call_next(request)
+
+
+# =========================
+# AUTH: РОУТЫ ВХОДА И ВЫХОДА
+# =========================
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = "", message: str = ""):
+    token = request.cookies.get("access_token")
+    if get_user_from_token(token):
+        return RedirectResponse(url="/", status_code=302)
+
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {
+            "request": request,
+            "error": error,
+            "message": message,
+        },
+    )
+
+
+@app.post("/login")
+async def login_submit(
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    user = authenticate_user(username, password)
+    if not user:
+        return RedirectResponse(
+            url="/login?error=Неверный логин или пароль",
+            status_code=303,
+        )
+
+    access_token = create_access_token({
+        "sub": user["username"],
+        "role": user.get("role", ""),
+    })
+
+    response = RedirectResponse(url="/", status_code=303)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=60 * 60 * 8,
+        samesite="lax",
+        secure=False,  # В проде с HTTPS поставьте True
+    )
+    return response
+
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/login?message=Вы вышли из системы", status_code=303)
+    response.delete_cookie("access_token")
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, error: str = ""):
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+
     return templates.TemplateResponse(
         request,
         "home.html",
         {
             "request": request,
+            "user": user,
+            "user_modules": user.get("modules", []),
+            "user_role": user.get("role", ""),
+            "user_username": user.get("username", ""),
+            "access_error": error,
         },
     )
 
