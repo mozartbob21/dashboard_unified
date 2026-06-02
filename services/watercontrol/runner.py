@@ -35,50 +35,50 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 EMPTY_MARKERS = {"", "null", "none", "-", "—", "n/a", "nan", "не заполнено"}
 
-REQUIRED_FIELDS_ALIASES = {
-    "Дата плановой промывки": [
-        "Дата плановой промывки",
-        "Плановая промывка",
-        "Дата промывки",
-        "date_planned_flush",
-        "planned_flush_date",
-    ],
-    "Ссылка на акт": [
-        "Ссылка на акт",
-        "Акт",
-        "Ссылка",
-        "URL акта",
-        "act_link",
-        "act_url",
-    ],
-}
+# Проверяем ВСЕ колонки таблицы на null — не нужен фиксированный список.
+# Колонки-идентификаторы (Sys, Городской округ) не считаются "проблемными" если пустые.
+SKIP_NULL_CHECK_COLUMNS = {"sys", "городской округ"}
+
+# Поля дат промывки — выделяются отдельно в HTML-отчёте
+CRITICAL_DATE_FIELDS = {"дата плановой промывки", "дата фактической промывки"}
+REQUIRED_FIELDS_ALIASES = {}
 
 COLUMN_ALIASES = {
     "municipality": [
         "Муниципалитет",
         "municipality",
         "Городской округ",
+        "Городской округ ▼",
         "Округ",
+        "Территория",
     ],
     "organization": [
+        "Наименование РСО",
         "Организация",
         "Объект",
         "organization",
         "Наименование",
+        "РСО",
+        "Наименование организации",
     ],
     "address": [
+        "Адрес ВЗУ",
         "Адрес",
         "Адрес объекта",
         "address",
         "Местоположение",
+        "ВЗУ",
     ],
     "task_id": [
+        "Sys",
+        "sys",
         "ID задачи",
         "Номер задачи",
         "ID",
         "№",
         "task_id",
         "id",
+        "Номер",
     ],
     "responsible_name": [
         "Ответственный",
@@ -98,6 +98,14 @@ for aliases in COLUMN_ALIASES.values():
     COMMON_HEADER_HINTS.extend(aliases)
 for aliases in REQUIRED_FIELDS_ALIASES.values():
     COMMON_HEADER_HINTS.extend(aliases)
+# Дополнительные подсказки для распознавания таблицы DataLens
+COMMON_HEADER_HINTS.extend([
+    "Дата плановой промывки", "Дата фактической промывки",
+    "Основание промывки", "Статус выполнения",
+    "Фото до промывки", "Фото после промывки",
+    "Акт выполнения промывки", "Причина невыполнения",
+    "Протокол лабораторных испытаний",
+])
 
 
 def emit_stage(text: str):
@@ -105,7 +113,9 @@ def emit_stage(text: str):
 
 
 def normalize_text(value):
-    return (value or "").replace("\xa0", " ").strip()
+    text = (value or "").replace("\xa0", " ")
+    text = " ".join(text.split())
+    return text.strip()
 
 
 def normalize_check(value):
@@ -495,7 +505,7 @@ def looks_like_target_headers(headers):
     hints = [normalize_check(x) for x in COMMON_HEADER_HINTS]
     matched = sum(1 for h in normalized_headers if h in hints)
 
-    return matched >= 3
+    return matched >= 2
 
 
 def cleanup_table_rows(headers, rows):
@@ -550,24 +560,18 @@ def map_row_by_aliases(row_dict, aliases_map):
 
 
 def find_missing_fields(row_dict):
+    """Проверяет ВСЕ ячейки строки. Если значение = null/пустое — добавляет имя колонки."""
     missing_fields = []
 
-    lowered = {normalize_check(k): v for k, v in row_dict.items()}
+    for col_name, value in row_dict.items():
+        col_key = normalize_check(col_name)
 
-    for pretty_name, aliases in REQUIRED_FIELDS_ALIASES.items():
-        found_value = ""
+        # Пропускаем колонки-идентификаторы
+        if col_key in SKIP_NULL_CHECK_COLUMNS:
+            continue
 
-        for alias in aliases:
-            alias_key = normalize_check(alias)
-            if alias in row_dict:
-                found_value = normalize_text(row_dict.get(alias))
-                break
-            if alias_key in lowered:
-                found_value = normalize_text(lowered[alias_key])
-                break
-
-        if is_empty_value(found_value):
-            missing_fields.append(pretty_name)
+        if is_empty_value(value):
+            missing_fields.append(col_name)
 
     return missing_fields
 
@@ -582,12 +586,14 @@ def build_public_chat_message(issues):
     ]
 
     for index, item in enumerate(issues, start=1):
+        task_id = item.get("task_id", "")
         municipality = item.get("municipality", "Не указан")
-        organization = item.get("organization", "Не указана")
         missing_fields = ", ".join(item.get("missing_fields", []))
 
+        identifier = f"Задача {task_id} / {municipality}" if task_id else municipality
+
         lines.append(
-            f"{index}. {municipality} / {organization} — не заполнены поля: {missing_fields}."
+            f"{index}. {identifier} — не заполнены поля: {missing_fields}."
         )
 
     lines.append("")
@@ -759,6 +765,10 @@ def build_row_result(row_dict, responsibles_map):
         status = "risk"
         reason = "Не заполнены обязательные поля: " + ", ".join(missing_fields)
 
+    # Выделяем даты промывки отдельно для HTML
+    missing_dates = [f for f in missing_fields if f.lower().strip() in CRITICAL_DATE_FIELDS]
+    missing_other = [f for f in missing_fields if f.lower().strip() not in CRITICAL_DATE_FIELDS]
+
     return {
         "municipality": municipality or "Не указан",
         "organization": organization or address or "Не указана",
@@ -769,6 +779,8 @@ def build_row_result(row_dict, responsibles_map):
         "status": status,
         "reason": reason,
         "missing_fields": missing_fields,
+        "missing_dates": missing_dates,
+        "missing_other": missing_other,
     }
 
 
@@ -801,6 +813,116 @@ def try_extract_by_generic_grid(page, responsibles_map):
         result_rows.append(build_row_result(row, responsibles_map))
 
     return result_rows
+
+
+
+def get_all_pages_data(page, responsibles_map):
+    """Проходит по всем страницам пагинации DataLens-таблицы и собирает строки."""
+    all_rows = []
+    extraction_note = ""
+    page_num = 0
+    max_pages = 50  # защита от бесконечного цикла
+
+    # Сначала пробуем перейти на первую страницу
+    try:
+        page_input = page.locator('[data-qa="chartkit-table-paginator"] input[type="text"]')
+        if page_input.count() == 0:
+            page_input = page.locator('.chartkit-table-paginator input[type="text"]')
+        if page_input.count() == 0:
+            page_input = page.locator('input.g-text-input__control').first
+        
+        if page_input.count() > 0:
+            page_input.first.click()
+            page_input.first.fill("1")
+            page_input.first.press("Enter")
+            page.wait_for_timeout(3000)
+            print("  Перешли на страницу 1", flush=True)
+        else:
+            # Альтернатива — кликаем "назад" до упора
+            prev_btn = page.locator('button:has(svg), [data-qa*="prev"]').first
+            for _ in range(max_pages):
+                try:
+                    if prev_btn.is_enabled():
+                        prev_btn.click()
+                        page.wait_for_timeout(1500)
+                    else:
+                        break
+                except Exception:
+                    break
+    except Exception as e:
+        print(f"  Не удалось перейти на первую страницу: {e}", flush=True)
+
+    # Собираем данные со всех страниц
+    while page_num < max_pages:
+        page_num += 1
+        print(f"  Обработка страницы пагинации #{page_num}...", flush=True)
+
+        # Извлекаем строки с текущей страницы
+        rows, note = try_extract_by_html_table(page, responsibles_map)
+        if not rows:
+            rows = try_extract_by_generic_grid(page, responsibles_map)
+            if rows:
+                note = "Данные извлечены из grid-структуры."
+
+        if rows:
+            all_rows.extend(rows)
+            if not extraction_note and note:
+                extraction_note = note
+
+        # Ищем кнопку "вперёд" в пагинаторе
+        next_btn = None
+        # Способ 1: data-qa атрибут
+        candidate = page.locator('[data-qa="chartkit-table-paginator-next-btn"]')
+        if candidate.count() > 0:
+            next_btn = candidate
+        else:
+            # Способ 2: кнопка > (вторая кнопка пагинатора)
+            paginator_buttons = page.locator('.chartkit-table-paginator button, [class*="paginator"] button')
+            if paginator_buttons.count() >= 2:
+                next_btn = paginator_buttons.nth(-1)  # последняя кнопка = вперёд
+
+        if next_btn is None or next_btn.count() == 0:
+            print(f"  Кнопка 'вперёд' не найдена — конец данных.", flush=True)
+            break
+
+        try:
+            is_disabled = next_btn.get_attribute("disabled")
+            if is_disabled is not None:
+                print(f"  Кнопка 'вперёд' неактивна — достигнут конец.", flush=True)
+                break
+
+            btn_classes = next_btn.get_attribute("class") or ""
+            if "disabled" in btn_classes.lower():
+                print(f"  Кнопка 'вперёд' отключена (по классу) — конец.", flush=True)
+                break
+
+            next_btn.click()
+            page.wait_for_timeout(3000)
+
+        except Exception as e:
+            print(f"  Ошибка при переходе на следующую страницу: {e}", flush=True)
+            break
+
+    # Дедупликация по task_id + municipality + organization
+    seen = set()
+    unique_rows = []
+    for row in all_rows:
+        key = (
+            row.get("task_id", ""),
+            row.get("municipality", ""),
+            row.get("organization", ""),
+        )
+        if key not in seen:
+            seen.add(key)
+            unique_rows.append(row)
+
+    if not extraction_note:
+        extraction_note = "Строки таблицы не найдены."
+
+    extraction_note += f" Обработано страниц пагинации: {page_num}."
+
+    print(f"  Итого уникальных строк со всех страниц: {len(unique_rows)}", flush=True)
+    return unique_rows, extraction_note
 
 
 def run():
@@ -869,18 +991,8 @@ def run():
                 )
                 return
 
-            emit_stage("Анализ данных")
-            rows_result, extraction_note = try_extract_by_html_table(page, responsibles_map)
-
-            if not rows_result:
-                rows_result = try_extract_by_generic_grid(page, responsibles_map)
-                if rows_result:
-                    extraction_note = "Данные извлечены из grid-структуры."
-                else:
-                    extraction_note = (
-                        "Строки таблицы не найдены. Возможно, структура WaterControl отличается "
-                        "от ожидаемой или данные не успели прогрузиться."
-                    )
+            emit_stage("Анализ данных (все страницы пагинации)")
+            rows_result, extraction_note = get_all_pages_data(page, responsibles_map)
 
             total_rows = len(rows_result)
 
