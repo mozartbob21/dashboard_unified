@@ -917,6 +917,7 @@ PUBLIC_PATH_PREFIXES = (
     "/generated",
     "/favicon.ico",
     "/health",
+    "/api/system/health",
     "/docs",
     "/redoc",
     "/openapi.json",
@@ -2068,6 +2069,16 @@ try:
     app.include_router(municipality_report_router)
 except Exception as e:
     print(f"[municipality_report] router init error: {e}")
+
+
+# ===============================
+# SYSTEM CONTROL: RESTART & CACHE
+# ===============================
+try:
+    from services.system_control import router as system_control_router
+    app.include_router(system_control_router)
+except Exception as e:
+    print(f"[system_control] router init error: {e}")
 
 
 from fastapi.responses import FileResponse

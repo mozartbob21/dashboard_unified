@@ -1,4 +1,4 @@
-@echo off
+das@echo off
 chcp 65001 >nul
 title Нейрона ИИ — Unified Dashboard
 
@@ -93,7 +93,7 @@ echo Чтобы остановить сервер — закрой это окн
 echo.
 
 REM ВАЖНО: если у тебя другой entrypoint, замени app:app на свой
-python -m uvicorn app:app --host 127.0.0.1 --port 8000
+python -m uvicorn app:app --host 127.0.0.1 --port 8000 -- reload
 
 echo.
 echo Сервер остановлен.

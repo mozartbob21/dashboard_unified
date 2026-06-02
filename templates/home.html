@@ -617,6 +617,11 @@
                 <button id="gitPullButton" class="module-link" type="button">
                     Загрузить обновления
                 </button>
+
+                <button id="appRestartButton" class="secondary-button" type="button"
+                        style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;">
+                    🔄 Перезапустить приложение
+                </button>
             </div>
 
             <div id="gitUpdateStatus"
@@ -1075,6 +1080,61 @@
                     }
                 });
             }
+
+            // === Перезапуск приложения ===
+            const restartButton = document.getElementById("appRestartButton");
+
+            if (restartButton) {
+                restartButton.addEventListener("click", async function () {
+                    const confirmed = confirm(
+                        "Перезапустить приложение?\n\n" +
+                        "Сервер перечитает Python-код. Страница автоматически обновится через 5 секунд."
+                    );
+
+                    if (!confirmed) return;
+
+                    restartButton.disabled = true;
+
+                    renderStatus(
+                        "process",
+                        "⏳",
+                        "Перезапускаю приложение",
+                        "Сервер перечитывает код. Страница автоматически обновится через несколько секунд."
+                    );
+
+                    try {
+                        const response = await fetch("/api/system/restart", {
+                            method: "POST"
+                        });
+
+                        let data = {};
+                        try { data = await response.json(); } catch (_) {}
+
+                        renderStatus(
+                            "success",
+                            "✓",
+                            "Команда перезапуска отправлена",
+                            (data.message || "Сервер перезагружается.") + " Перезагружаю страницу..."
+                        );
+
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+
+                    } catch (error) {
+                        renderStatus(
+                            "process",
+                            "⏳",
+                            "Соединение прервано — сервер перезапускается",
+                            "Это ожидаемо. Перезагружаю страницу через 5 секунд..."
+                        );
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+                    }
+                });
+            }
+
         })();
     </script>
     <script>
