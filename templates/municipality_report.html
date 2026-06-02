@@ -681,6 +681,30 @@
             gap: 7px;
         }
 
+
+        select.municipality-select {
+            flex: 1;
+            min-width: 280px;
+            min-height: 44px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            padding: 11px 14px;
+            font-size: 15px;
+            outline: none;
+            background: #fff;
+            color: var(--text);
+            cursor: pointer;
+        }
+        select.municipality-select:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
+        }
+        html[data-theme="dark"] select.municipality-select {
+            background: #0f172a;
+            color: #f8fafc;
+            border-color: #334155;
+        }
+
 </style>
 </head>
 
@@ -714,13 +738,14 @@
 
     <section class="card search-card">
         <form class="search-form" method="get" action="/municipality-report">
-            <input
-                type="text"
-                name="name"
-                value="{{ name }}"
-                placeholder="Введите муниципалитет, например: Чехов"
-                autocomplete="off"
-            >
+            <select name="name" class="municipality-select" required>
+                <option value="" {% if not name %}selected{% endif %} disabled>
+                    Выберите муниципалитет…
+                </option>
+                {% for m in municipalities %}
+                    <option value="{{ m }}" {% if name == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
             <button class="btn" type="submit">Сформировать отчёт</button>
         </form>
 

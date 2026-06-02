@@ -568,6 +568,8 @@ async def municipality_report_page(
         report = collect_municipality_data(name.strip())
         report = prepare_report_for_html(report)
 
+    municipalities = list_available_municipalities()
+
     return templates.TemplateResponse(
         request=request,
         name="municipality_report.html",
@@ -575,6 +577,7 @@ async def municipality_report_page(
             "request": request,
             "name": name.strip(),
             "report": report,
+            "municipalities": municipalities,
         },
     )
 
@@ -1895,3 +1898,54 @@ def row_matches_municipality(row, municipality_name):
 
     return False
 
+
+# ============================================================
+# LIST OF AVAILABLE MUNICIPALITIES (для выпадающего списка)
+# ============================================================
+
+def _normalize_display_name(name: str) -> str:
+    """Привести 'БОГОРОДСКИЙ' к 'Богородский', а 'дмитров' к 'Дмитров'."""
+    s = str(name or "").strip()
+    if not s:
+        return s
+    # Если строка целиком в верхнем регистре кириллицей — переведём в Title-case
+    letters = [c for c in s if c.isalpha()]
+    if letters and all(c.isupper() for c in letters):
+        s = s.capitalize()
+    return s
+
+
+def list_available_municipalities():
+    """
+    Возвращает отсортированный список муниципалитетов
+    строго из справочника data/municipality_registry.json.
+    """
+    try:
+        registry = load_municipality_registry() or {}
+    except Exception:
+        registry = {}
+
+    names = list((registry.get("municipalities", {}) or {}).keys())
+
+    cleaned = []
+    seen = set()
+    for raw in names:
+        display = _normalize_display_name(raw)
+        if not display:
+            continue
+        # Должна быть хотя бы одна кириллическая буква
+        if not re.search(r"[А-Яа-яЁё]", display):
+            continue
+        # Длина минимум 3 символа
+        if len(display) < 3:
+            continue
+        key = display.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(display)
+
+    cleaned.sort(key=lambda s: s.lower())
+    return cleaned
+
+# ============================================================
