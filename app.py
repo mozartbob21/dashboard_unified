@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 import threading
+
+from services import run_history
 from typing import Any
 from datetime import datetime
 
@@ -613,8 +615,10 @@ def build_table_info(file_path: Path):
 
 def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
     status = run_status[service_name]
+    run_id = None
 
     try:
+        run_id = run_history.record_start(service_name, user="—")
         status["running"] = True
         status["last_error"] = ""
         status["stage"] = "Запуск"
@@ -686,17 +690,23 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
             status["stage"] = "Ошибка"
             status["message"] = f"Процесс {service_name} завершился с ошибкой."
             status["last_error"] = f"Процесс завершился с кодом {return_code}"
+            if run_id:
+                run_history.record_finish(run_id, "error", f"код {return_code}")
             return
 
         status["running"] = False
         status["stage"] = "Готово"
         status["message"] = f"Процесс {service_name} завершён успешно."
+        if run_id:
+            run_history.record_finish(run_id, "success")
 
     except Exception as e:
         status["running"] = False
         status["stage"] = "Ошибка"
         status["message"] = "Во время выполнения произошла ошибка."
         status["last_error"] = str(e)
+        if run_id:
+            run_history.record_finish(run_id, "error", str(e))
 
 
 def start_background_service(service_name: str, command: list[str]):
@@ -1675,6 +1685,26 @@ async def api_summary():
             },
         },
     }
+
+@app.get("/api/history/recent")
+async def api_history_recent(request: Request, limit: int = 10):
+    # admin-only: история запусков
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+    if (user.get("role") or "").strip().lower() not in {"admin", "администратор"}:
+        raise HTTPException(status_code=403, detail="Доступ только для администратора")
+    return run_history.get_recent(limit)
+
+
+@app.get("/api/history/all")
+async def api_history_all(request: Request, limit: int = 200):
+    # admin-only: история запусков
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+    if (user.get("role") or "").strip().lower() not in {"admin", "администратор"}:
+        raise HTTPException(status_code=403, detail="Доступ только для администратора")
+    return run_history.get_all(limit)
+
 
 @app.get("/system/git/check")
 async def system_git_check(x_git_update_token: str | None = Header(default=None)):
