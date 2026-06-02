@@ -103,6 +103,17 @@
             border-style: solid !important;
             transform: translateY(-1px) !important;
         }
+        [data-theme="dark"] .quick-actions-configure-btn {
+            background: rgba(255,255,255,0.04) !important;
+            border-color: rgba(255,255,255,0.15) !important;
+            color: #e2e8f0 !important;
+        }
+        [data-theme="dark"] .quick-actions-configure-btn:hover {
+            background: rgba(255,255,255,0.08) !important;
+        }
+        [data-theme="dark"] .quick-actions-title {
+            color: #e2e8f0 !important;
+        }
         
         /* Стили модального окна кастомизации */
         .neurona-switch {
@@ -260,6 +271,14 @@
             display: flex; align-items: center; gap: 8px;
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        [data-theme="dark"] .history-module-name {
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .history-meta,
+        [data-theme="dark"] .history-duration,
+        [data-theme="dark"] .history-empty {
+            color: #94a3b8;
+        }
         .history-module-icon { font-size: 16px; }
         .history-meta {
             font-size: 12px; color: var(--muted-color, #94a3b8);
@@ -354,7 +373,7 @@
                 <div class="eyebrow">ЕДИНАЯ ТОЧКА ВХОДА</div>
 
                 <h1>
-                    Локальная AI-платформа мониторинга и формирования управленческих уведомлений
+                    Локальная AI-платформа мониторинга и формирования управленческих уведомлений 
                 </h1>
 
                 <p class="lead">
