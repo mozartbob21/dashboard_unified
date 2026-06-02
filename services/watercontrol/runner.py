@@ -606,11 +606,10 @@ def build_default_personal_message(item):
 
     return (
         "Здравствуйте!\n\n"
-        f"В системе WaterControl по объекту {organization} ({municipality}){task_part} "
+        f"При проверке дашборда по объекту {organization} ({municipality}){task_part} "
         "обнаружены незаполненные обязательные поля:\n"
         f"{missing_fields}.\n\n"
-        "Просим актуализировать сведения в возможно короткий срок.\n\n"
-        "Буду признателен за оперативное реагирование."
+        "Сведения нужно внести до конца следующего рабочего дня.\n\n"
     )
 
 
