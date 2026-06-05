@@ -10,19 +10,19 @@ CONFIG = {
     "WEIGHT_DURATION": 0.20,
     "WEIGHT_SYSTEMATICITY": 0.10,
     "WEIGHT_COLLECTIVE": 0.10,
-    
+
     # Параметры доверия к тексту
     "CONF_TEXT_THRESHOLD": 300, # символов
     "CONF_TEXT_MIN": 0.20,
-    
+
     # Параметры коллективных жалоб
     "COLLECTIVE_MIN": 0.2,
     "COLLECTIVE_COEF": 15.0, # скорость насыщения n_signers
-    
+
     # Длительность и системность
     "DURATION_COEF": 20.0,      # дней
     "SYSTEMATICITY_COEF": 90.0, # дней
-    
+
     # Критичность
     "CRITICAL_COEF": 0.60,      # Соотношение баллов фактов и ключевых слов (60% факты, 40% слова)
     "W_LOW": 0.25,
@@ -34,6 +34,9 @@ CONFIG = {
     "MAX_PUNCT_EXCLAM": 0.30,   # Максимальный балл за восклицательные знаки (!)
     "MAX_PUNCT_QUEST": 0.15,    # Максимальный балл за вопросительные знаки (?)
     "MAX_CAPS_SCORE": 0.25,     # Максимальный балл за КАПСЛОК
+
+    # === ПОВТОРНЫЕ ЖАЛОБЫ ===
+    "REPEATED_MIN_INDEX": 0.70, # Мин. итоговый индекс для повторных обращений
 }
 
 # Обсценная/агрессивная лексика
@@ -57,6 +60,16 @@ INTENSIFIERS = [
 COMPLAINT_MARKERS = [
     "нет", "не работает", "отсутств", "сломал", "плохо", "ужас", "грязная", "ржавая",
     "вонь", "течет", "безобразие", "отписка", "игнор", "не чинят", "отключили"
+]
+
+# Маркеры повторного обращения (отдельный список, НЕ пересекается со словарями-маячками ТЗ)
+REPEATED_MARKERS = [
+    "уже не первый раз", "не первый раз", "не в первый раз", "повторно",
+    "повторное обращение", "повторная жалоба", "снова обращаюсь", "опять обращаюсь",
+    "обращаюсь не впервые", "обращаюсь повторно", "пишу повторно", "в который раз",
+    "неоднократно", "много раз обращались", "обращались ранее", "обращались неоднократно",
+    "уже писали", "писали ранее", "уже жаловались", "ранее жаловались",
+    "очередное обращение", "предыдущее обращение", "на прошлое обращение", "ответа так и нет"
 ]
 
 # Словари критичности по уровням (п. 8.1)
@@ -134,19 +147,19 @@ def calculate_emotion_score(text):
     """
     if not text:
         return 0.0
-        
+
     tl = text.lower()
-    
+
     # 1. Базовый негатив (п. 4.3.6)
     baseline = 0.0
     if any(marker in tl for marker in COMPLAINT_MARKERS):
         baseline = 0.05
-        
+
     # 2. Пунктуационная интенсивность (п. 4.3.1)
     exclam = text.count("!")
     quest = text.count("?")
     punct_score = min(CONFIG["MAX_PUNCT_EXCLAM"], exclam / 20.0) + min(CONFIG["MAX_PUNCT_QUEST"], quest / 10.0)
-    
+
     # 3. Вклад капса (п. 4.3.2)
     letters = [c for c in text if c.isalpha()]
     if letters:
@@ -156,18 +169,18 @@ def calculate_emotion_score(text):
         caps_score = min(CONFIG["MAX_CAPS_SCORE"], 0.35 * caps_ratio)
     else:
         caps_score = 0.0
-        
+
     # 4. Обсценная/агрессивная лексика (п. 4.3.3)
     prof_score = 0.0
     for pattern in PROFANITY_DICT:
         if re.search(pattern, tl, flags=re.IGNORECASE):
             prof_score = 0.20
             break
-            
+
     # 5. Усилители и сильные фразы (п. 4.3.4)
     inten_hits = sum(1 for word in INTENSIFIERS if word in tl)
     inten_score = min(0.25, 0.04 * inten_hits)
-    
+
     total_score = baseline + punct_score + caps_score + prof_score + inten_score
     return clamp01(total_score)
 
@@ -176,21 +189,21 @@ def classify_emotion_class(text):
     Классифицирует эмоцию обращения на один из 7 классов на основе словарей (п. 4.1 ТЗ)
     """
     if not text:
-        return "РАЗДРАЖЕНИЕ" # Default
-        
+        return "РАЗДРАЖЕНИЕ"
+
     tl = text.lower()
     scores = {}
-    
+
     for emotion, patterns in EMOTION_DICTIONARIES.items():
         count = 0
         for pattern in patterns:
             if re.search(pattern, tl, flags=re.IGNORECASE):
                 count += 1
         scores[emotion] = count
-        
+
     max_emotion = max(scores, key=scores.get)
     if scores[max_emotion] == 0:
-        return "РАЗДРАЖЕНИЕ" # Значение по умолчанию для жалоб
+        return "РАЗДРАЖЕНИЕ"
     return max_emotion
 
 def extract_social_class(text):
@@ -199,10 +212,10 @@ def extract_social_class(text):
     """
     if not text:
         return "Житель"
-        
+
     tl = text.lower()
     classes = []
-    
+
     if any(word in tl for word in ["маломобильн", "коляск", "пандус", "инвалид"]):
         classes.append("Маломобильные")
     if any(word in tl for word in ["дети", "ребенок", "ребёнок", "новорожден", "садик", "сын", "дочь", "малыш"]):
@@ -213,7 +226,7 @@ def extract_social_class(text):
         classes.append("Многодетные")
     if any(word in tl for word in ["ветеран"]):
         classes.append("Ветераны")
-        
+
     if not classes:
         return "Житель"
     return ", ".join(classes)
@@ -224,47 +237,46 @@ def extract_duration_days(text):
     """
     if not text:
         return None
-        
+
     tl = text.lower().replace("ё", "е")
-    
+
     word_numbers = {
-        "один": 1, "одна": 1, "два": 2, "две": 2, "три": 3, "четыре": 4, 
+        "один": 1, "одна": 1, "два": 2, "две": 2, "три": 3, "четыре": 4,
         "пять": 5, "шесть": 6, "семь": 7, "восемь": 8, "девять": 9, "десять": 10
     }
-    
-    # Регулярные выражения для явных указаний времени
+
     # Шаблоны дней
     for m in re.finditer(r"(\d+)\s*(?:день|дня|дней|сутки|суток)", tl):
         return int(m.group(1))
     for m in re.finditer(rf"\b({'|'.join(word_numbers.keys())})\s*(?:день|дня|дней|сутки|суток)", tl):
         return word_numbers[m.group(1)]
-        
+
     # Шаблоны недель
     for m in re.finditer(r"(\d+)\s*(?:недел)", tl):
         return int(m.group(1)) * 7
     for m in re.finditer(rf"\b({'|'.join(word_numbers.keys())})\s*(?:недел)", tl):
         return word_numbers[m.group(1)] * 7
-        
+
     # Шаблоны месяцев
     for m in re.finditer(r"(\d+)\s*(?:месяц)", tl):
         return int(m.group(1)) * 30
     for m in re.finditer(rf"\b({'|'.join(word_numbers.keys())})\s*(?:месяц)", tl):
         return word_numbers[m.group(1)] * 30
-        
+
     # Шаблоны лет
     for m in re.finditer(r"(\d+)\s*(?:год|лет)", tl):
         return int(m.group(1)) * 365
-        
+
     # Эвристические бакеты (п. 6.1.4)
     fuzzy_mapping = {
         "каждый день": 7, "ежедневно": 7, "постоянно": 14, "уже не первый раз": 14,
         "давно": 30, "длительное время": 30, "уже месяц": 30, "уже год": 365, "годами": 730
     }
-    
+
     for phrase, days in fuzzy_mapping.items():
         if phrase in tl:
             return days
-            
+
     return None
 
 def calculate_duration_score(days):
@@ -272,23 +284,35 @@ def calculate_duration_score(days):
         return 0.0
     return 1.0 - math.exp(-days / CONFIG["DURATION_COEF"])
 
+def detect_repeated_complaint(text):
+    """
+    Определяет, является ли обращение повторным по текстовым маркерам.
+    Возвращает (is_repeated: bool, matched_marker: str|None)
+    """
+    if not text:
+        return False, None
+    tl = text.lower().replace("ё", "е")
+    for marker in REPEATED_MARKERS:
+        if marker.replace("ё", "е") in tl:
+            return True, marker
+    return False, None
+
 def detect_criticality_score_and_level(text):
     """
     Расчет критичности ситуации по ключевым словам и логическим правилам (п. 8)
     """
     if not text:
         return 0.0, "НИЗКИЙ"
-        
+
     tl = text.lower().replace("ё", "е")
     base_score = 0.0
     level = "НИЗКИЙ"
-    
-    # 1. Поиск совпадений по словарям
+
     has_max = any(re.search(pat, tl) for pat in CRITICALITY_PATTERNS["MAXIMAL"])
     has_high = any(re.search(pat, tl) for pat in CRITICALITY_PATTERNS["HIGH"])
     has_med = any(re.search(pat, tl) for pat in CRITICALITY_PATTERNS["MEDIUM"])
     has_low = any(re.search(pat, tl) for pat in CRITICALITY_PATTERNS["LOW"])
-    
+
     if has_max:
         base_score = CONFIG["W_EXT"]
         level = "МАКСИМАЛЬНЫЙ"
@@ -301,18 +325,16 @@ def detect_criticality_score_and_level(text):
     elif has_low:
         base_score = CONFIG["W_LOW"]
         level = "НИЗКИЙ"
-        
-    # 2. Добавление бонуса за контекст (Объект опасности + Вред)
+
     bonus = 0.0
     has_object = any(re.search(obj, tl) for obj in DANGER_OBJECTS)
     has_harm = any(re.search(harm, tl) for harm in HARM_CONSEQUENCES)
-    
+
     if has_object and has_harm:
         bonus = 0.10
-        
+
     final_score = clamp01(base_score + bonus)
-    
-    # Переопределение уровня после применения бонуса, если применимо
+
     if final_score >= 0.90:
         level = "МАКСИМАЛЬНЫЙ"
     elif final_score >= 0.65:
@@ -321,7 +343,7 @@ def detect_criticality_score_and_level(text):
         level = "СРЕДНИЙ"
     else:
         level = "НИЗКИЙ"
-        
+
     return final_score, level
 
 def calculate_systematicity_days_and_score(text, address=None, date_history=None):
@@ -330,26 +352,22 @@ def calculate_systematicity_days_and_score(text, address=None, date_history=None
     """
     systematicity_days = 0
     tl = text.lower() if text else ""
-    
-    # Эвристика по тексту (п. 7.1.1)
+
     text_detected = False
     if any(word in tl for word in ["постоянно", "каждый год", "уже не первый раз", "из года в год", "регулярно"]):
         text_detected = True
-        systematicity_days = 14 # Условный период при словесном триггере
-        
-    # Расчет по истории дат по конкретному адресу (п. 7.1.2)
+        systematicity_days = 14
+
     if address and date_history and len(date_history) > 1:
-        # date_history - список объектов datetime для данного адреса
         sorted_dates = sorted(date_history)
         delta = (sorted_dates[-1] - sorted_dates[0]).days
         systematicity_days = max(systematicity_days, delta)
-        
+
     score = 1.0 - math.exp(-systematicity_days / CONFIG["SYSTEMATICITY_COEF"])
-    
-    # Добавляем надбавочный фиксированный коэффициент при текстовом обнаружении (п. 7.1.1)
+
     if text_detected:
         score = clamp01(score + 0.08)
-        
+
     return systematicity_days, score
 
 def detect_collective_complaint(text, is_collective_status=False, n_signers=0):
@@ -357,58 +375,51 @@ def detect_collective_complaint(text, is_collective_status=False, n_signers=0):
     Автоматическое выявление коллективных жалоб по ТЗ (п. 10)
     """
     if is_collective_status:
-        # Если статус явный, то поиск по ключевым словам не производится (п. 10.1.2)
         score = 1.0 - math.exp(-n_signers / CONFIG["COLLECTIVE_COEF"])
         return True, n_signers, score
-        
+
     if not text:
         return False, 0, 0.0
-        
+
     tl = text.lower()
-    
-    # Маркеры коллективности (regex с поддержкой падежей)
+
     collective_patterns = [
-        r"\bмы\b", r"\bнам\b", r"\bу нас\b", r"\bнаш\w*\b", r"\bсосед[ия]\b", 
+        r"\bмы\b", r"\bнам\b", r"\bу нас\b", r"\bнаш\w*\b", r"\bсосед[ия]\b",
         r"\bжител[ияь]\w*\b", r"\bжильц[ыа]\w*\b", r"всем домом", r"весь дом",
         r"наш подъезд", r"наша улица", r"коллективное обращение", r"коллективная жалоба",
         r"от лица жителей", r"просим от имени жителей", r"инициативная группа", r"собрание жильцов"
     ]
-    
-    # Anti-правила (п. 10.1.3)
+
     anti_patterns = [
         r"мы с мужем", r"мы с ребенком", r"мы с мамой", r"мы с женой", r"мы с девушкой",
         r"мы семья", r"мы вдвоем", r"мы вдвоём"
     ]
-    
+
     has_collective = any(re.search(pat, tl) for pat in collective_patterns)
     has_anti = any(re.search(pat, tl) for pat in anti_patterns)
-    
+
     is_collective = False
     score = 0.0
     detected_signers = 0
-    
+
     if has_collective:
         if has_anti:
-            # Требуется дополнительное жесткое совпадение, не только слабое "мы"
             strong_markers = [r"коллективн\w*", r"инициативная группа", r"собрание жильцов", r"жители дома", r"подписи"]
             if any(re.search(sm, tl) for sm in strong_markers):
                 is_collective = True
         else:
             is_collective = True
-            
+
     if is_collective:
-        # Пытаемся распарсить количество подписантов
         signer_match = re.search(r"(\d+)\s*(?:подпис(?:ей|и|антов)|жителей)", tl)
         if signer_match:
             detected_signers = int(signer_match.group(1))
             score = 1.0 - math.exp(-detected_signers / CONFIG["COLLECTIVE_COEF"])
         else:
-            # При наличии только ключевых слов, score = COLLECTIVE_MIN = 0.2 (п. 10.1.4)
             score = CONFIG["COLLECTIVE_MIN"]
-            detected_signers = 3 # Эквивалент по ТЗ
-            
-    return is_collective, detected_signers, score
+            detected_signers = 3
 
+    return is_collective, detected_signers, score
 def analyze_appeal(subject, text, is_collective_status=False, n_signers=0, address_history_dates=None):
     """
     Суперпрофессиональный комплексный анализ обращения.
@@ -417,45 +428,45 @@ def analyze_appeal(subject, text, is_collective_status=False, n_signers=0, addre
     subject = subject or ""
     text = text or ""
     full_text = f"{subject}\n{text}"
-    
+
     # Предварительная подготовка (п. 13.2)
     clean_text = normalize_text(full_text)
-    
+
     # 1. Эмоциональность и Класс эмоции
     emotion_score = calculate_emotion_score(clean_text)
     emotion_class = classify_emotion_class(clean_text)
-    
+
     # 2. Доверие к эмоции на основе длины текста (п. 9)
     text_len = len(clean_text)
     conf_text = max(
         CONFIG["CONF_TEXT_MIN"],
         1.0 - math.exp(-text_len / CONFIG["CONF_TEXT_THRESHOLD"])
     )
-    
+
     # Скорректированная эмоция
     emotion_adj = emotion_score * conf_text
-    
+
     # 3. Социальный класс
     social_class = extract_social_class(clean_text)
-    
+
     # 4. Длительность проблемы
     duration_days = extract_duration_days(clean_text)
     duration_score = calculate_duration_score(duration_days)
-    
+
     # 5. Адрес
     address = extract_address(clean_text)
-    
+
     # 6. Системность проблемы
     systematicity_days, systematicity_score = calculate_systematicity_days_and_score(
         clean_text, address=address, date_history=address_history_dates
     )
-    
+
     # 7. Коллективность
     is_collective, final_signers, collective_score = detect_collective_complaint(
         clean_text, is_collective_status=is_collective_status, n_signers=n_signers
     )
-    
-    # 8. Критичность и Балл фактов (fact_score ∈ [0..3], п. 8.4)
+
+    # 8. Критичность и Балл фактов (fact_score in [0..3], п. 8.4)
     fact_score = 0.0
     if address:
         fact_score += 1.0
@@ -463,17 +474,20 @@ def analyze_appeal(subject, text, is_collective_status=False, n_signers=0, addre
         fact_score += 1.0
     if is_collective:
         fact_score += 1.0
-        
+
     fact_max = 3.0
     fact01 = clamp01(fact_score / fact_max)
-    
+
     criticality_score, criticality_level = detect_criticality_score_and_level(clean_text)
-    
+
+    # Повторное обращение (не первая жалоба)
+    is_repeated, repeated_marker = detect_repeated_complaint(clean_text)
+
     # Формула criticality_adj (п. 8.4)
     criticality_adj = clamp01(
         CONFIG["CRITICAL_COEF"] * fact01 + (1.0 - CONFIG["CRITICAL_COEF"]) * criticality_score
     )
-    
+
     # 9. Линейная комбинация весов (Итоговый индекс заявки index_raw, п. 11.1)
     index_raw = (
         CONFIG["WEIGHT_EMOTIONAL"] * emotion_adj +
@@ -482,51 +496,58 @@ def analyze_appeal(subject, text, is_collective_status=False, n_signers=0, addre
         CONFIG["WEIGHT_SYSTEMATICITY"] * systematicity_score +
         CONFIG["WEIGHT_COLLECTIVE"] * collective_score
     )
-    
+
     # 10. Защита "коротко, но опасно" (п. 11.2)
     index_final = index_raw
     if criticality_level == "МАКСИМАЛЬНЫЙ":
         index_final = max(index_raw, 0.70)
     elif criticality_level == "ВЫСОКИЙ":
         index_final = max(index_raw, 0.50)
-        
+
+    # Повторная жалоба гарантированно поднимает приоритет минимум до Высокого
+    if is_repeated:
+        index_final = max(index_final, CONFIG["REPEATED_MIN_INDEX"])
+
     index_final = clamp01(index_final)
-    
+
     # Приоритет реагирования
     priority_level, priority_label = get_priority(index_final)
-    
+
     return {
         "created_by": "rule_based_analyzer_v2_res",
         "analyzed_at": datetime.now().isoformat(timespec="seconds"),
-        
+
         "emotion_class": emotion_class,
         "emotion_label": emotion_class.capitalize(),
         "emotion_score": round(emotion_score, 3),
         "emotion_confidence": round(conf_text, 3),
         "emotion_adj": round(emotion_adj, 3),
-        
+
         "social_class": social_class,
-        
+
         "criticality_level": criticality_level,
         "criticality_score": round(criticality_score, 3),
         "criticality_adj": round(criticality_adj, 3),
         "fact_score": fact_score,
-        
+
         "duration_days": duration_days,
         "duration_score": round(duration_score, 3),
-        
+
         "systematicity_days": systematicity_days,
         "systematicity_score": round(systematicity_score, 3),
-        
+
         "isCollective": is_collective,
         "n_signers": final_signers,
         "collective_score": round(collective_score, 3),
-        
+
         "address": address,
+        "is_repeated": is_repeated,
+        "repeated_marker": repeated_marker,
         "index_final": round(index_final, 3),
         "priority_level": priority_level,
         "priority_label": priority_label
     }
+
 
 # Вспомогательные функции
 def get_priority(index_value):
