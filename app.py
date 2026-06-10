@@ -916,6 +916,7 @@ PATH_MODULE_MAP = {
     "/camera-prescriptions": "cameras",
     "/prescriptions": "cameras",
     "/appeals": "appeals",
+    "/cds": "cds",
     "/municipality-report": "municipality-report",
 }
 
@@ -1830,6 +1831,125 @@ async def system_git_pull(x_git_update_token: str | None = Header(default=None))
         },
     )
 
+
+
+
+# =========================
+# CDS / ДИСПЕТЧЕРСКАЯ ЖКХ
+# =========================
+
+CDS_DATA_DIR = DATA_DIR / "cds"
+CDS_RESULT_FILE = CDS_DATA_DIR / "result.json"
+
+run_status["cds"] = {
+    "running": False,
+    "stage": "Ожидание запуска",
+    "message": "Система готова к выгрузке из CDS.",
+    "last_error": "",
+}
+
+
+@app.get("/cds", response_class=HTMLResponse)
+async def cds_page(request: Request):
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+
+    return templates.TemplateResponse(
+        request,
+        "cds.html",
+        {
+            "request": request,
+            "user_role": user.get("role", ""),
+            "user_username": user.get("username", ""),
+        },
+    )
+
+@app.post("/api/cds/export")
+async def api_cds_export(payload: dict):
+    if run_status["cds"]["running"]:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Выгрузка уже выполняется."},
+        )
+
+    def to_ru_date(value: str) -> str:
+        """2026-05-01 -> 01.05.2026"""
+        value = (value or "").strip()
+        m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", value)
+        if m:
+            return f"{m.group(3)}.{m.group(2)}.{m.group(1)}"
+        return value
+
+    date_from = to_ru_date(payload.get("date_from", ""))
+    date_to = to_ru_date(payload.get("date_to", ""))
+
+    if not date_from or not date_to:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Не указан период (date_from, date_to)."},
+        )
+
+    run_status["cds"]["running"] = True
+    run_status["cds"]["stage"] = "Выполняется"
+    run_status["cds"]["message"] = f"Выгрузка за период {date_from} — {date_to}..."
+    run_status["cds"]["last_error"] = ""
+
+    try:
+        from services.cds.scraper import scrape_cds_appeals
+
+        result = await scrape_cds_appeals(date_from, date_to, headless=True)
+
+        if not result.get("success"):
+            error = result.get("error", "Неизвестная ошибка")
+            run_status["cds"].update(
+                running=False, stage="Ошибка", message=error, last_error=error
+            )
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": error},
+            )
+
+        rows = result.get("data", []) or []
+
+        def count_by_status(needles):
+            count = 0
+            for r in rows:
+                s = (r.get("status") or "").lower()
+                if any(n in s for n in needles):
+                    count += 1
+            return count
+
+        run_status["cds"].update(
+            running=False,
+            stage="Готово",
+            message=f"Выгружено {len(rows)} обращений.",
+        )
+
+        return {
+            "success": True,
+            "total": len(rows),
+            "count_new": count_by_status(("нов", "открыт")),
+            "count_in_work": count_by_status(("в работе", "выполня", "назнач")),
+            "count_done": count_by_status(("заверш", "закрыт", "выполнено")),
+            "rows": rows[:200],
+            "download_url": "/data/cds/appeals.xlsx",
+        }
+
+    except Exception as e:
+        import traceback
+        run_status["cds"].update(
+            running=False, stage="Ошибка",
+            message="Ошибка: " + str(e), last_error=str(e),
+        )
+        print("[CDS] Export error:", traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)},
+        )
+
+@app.get("/cds/run-status")
+async def cds_run_status():
+    return run_status["cds"]
 
 
 # =========================

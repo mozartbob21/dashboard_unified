@@ -683,6 +683,46 @@
             {% endif %}
 
 
+            
+            {% if 'cds' in user_modules %}
+            <article class="card module-card module-card-appeals-beta">
+                <div class="module-head">
+                    <div class="head-pills">
+                        <span class="pill primary">Диспетчерская</span>
+                        <span class="pill primary">ЖКХ</span>
+                    </div>
+                    <span class="status-badge status-beta">Бета</span>
+                </div>
+
+                <h2 class="module-title">Обращения ЖКХ</h2>
+
+                <div class="module-description">
+                    Модуль автоматического экспорта обращений из системы диспетчерской ЖКХ (1С).
+                    Авторизуется в веб-интерфейсе, переходит в раздел обращений, устанавливает период
+                    и выгружает структурированный список для анализа и отчётности.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">Авторизация 1С</span>
+                    <span class="tag">Период выгрузки</span>
+                    <span class="tag">Экспорт списка</span>
+                    <span class="tag">Таблица обращений</span>
+                </div>
+
+                <div class="action-panel">
+                    <a href="/cds" class="module-link">Открыть модуль →</a>
+
+                    <a href="http://176.100.216.181:63871/CDS/ru/"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="secondary-button">
+                        Открыть источник ↗
+                    </a>
+                </div>
+            </article>
+            {% endif %}
+
+
             <!-- Сводный отчёт по муниципалитету (Выделен премиальным градиентным бордером, ленточка удалена) -->
             
             {% if 'municipality-report' in user_modules %}
@@ -924,7 +964,8 @@
                 { id: "utnkr", name: "Технадзор УТНКР", path: "/utnkr", icon: "🛡️" },
                 { id: "watercontrol", name: "Контроль воды", path: "/watercontrol", icon: "💧" },
                 { id: "appeals", name: "Эмпатичные ответы", path: "/appeals", icon: "✍️" },
-                { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" }
+                { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" },
+                { id: "cds", name: "Обращения ЖКХ", path: "/cds", icon: "🏠" }
             ];
 
             // Дефолтный выбор (если пользователь зашел первый раз)
@@ -1372,7 +1413,8 @@
             "utnkr":                { name: "Технадзор УТНКР",        icon: "🛡️" },
             "watercontrol":         { name: "Контроль воды",          icon: "💧" },
             "appeals":              { name: "Эмпатичные ответы",      icon: "✍️" },
-            "municipality-report":  { name: "Отчёт по округу",        icon: "📊" }
+            "municipality-report":  { name: "Отчёт по округу",        icon: "📊" },
+            "cds":                  { name: "Обращения ЖКХ",          icon: "🏠" }
         };
         const STATUS_LABELS = {
             "running": "Выполняется", "success": "Успешно",
