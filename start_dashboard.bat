@@ -93,7 +93,7 @@ echo Чтобы остановить сервер — закрой это окн
 echo.
 
 REM ВАЖНО: если у тебя другой entrypoint, замени app:app на свой
-python -m uvicorn app:app --host 127.0.0.1 --port 8000 -- reload
+python -m uvicorn app:app --host 127.0.0.1 --port 8000 
 
 echo.
 echo Сервер остановлен.
