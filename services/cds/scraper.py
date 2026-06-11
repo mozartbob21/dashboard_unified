@@ -119,18 +119,79 @@ async def export_to_excel(page) -> Path:
     await page.wait_for_timeout(1500)
     await click_ok(page)
 
-    # Документ заполняется с задержкой — даём время на полную подгрузку данных
-    print("[CDS] Ждём формирование табличного документа (15 сек)...")
-    await page.wait_for_timeout(15000)
+    # Документ формируется с задержкой. Критерий готовности — не "кнопка
+    # меню существует" (она есть и в основном интерфейсе!), а "меню реально
+    # открылось и в нём виден пункт 'Файл'". Пробуем циклом до 180 сек.
+    print("[CDS] Ждём документ и открываем меню (до 180 сек)...")
+    await page.wait_for_timeout(5000)  # минимальная пауза на старт рендера
 
-    # 1. Меню (⋮) → Файл → Сохранить как...
-    print("[CDS] Открываем меню документа...")
-    menu_btn = page.locator('[title*="Меню"]:visible')
-    if await menu_btn.count() > 0:
-        await menu_btn.last.click()
-    else:
-        await page.keyboard.press("Alt+Minus")
-    await page.wait_for_timeout(800)
+    menu_selectors = [
+        '[title*="Меню"]:visible',
+        '[title*="Ещё"]:visible',
+        'button:has-text("Меню"):visible',
+    ]
+
+    async def _file_item_visible() -> bool:
+        loc = page.locator('text="Файл"')
+        n = await loc.count()
+        for i in range(n):
+            try:
+                if await loc.nth(i).is_visible():
+                    return True
+            except Exception:
+                pass
+        return False
+
+    menu_opened = False
+    for attempt in range(35):  # ~35 * 5 сек = 175 сек
+        # Собираем всех кандидатов и пробуем кликать с конца
+        # (кнопка документа обычно последняя в DOM)
+        candidates = []
+        for sel in menu_selectors:
+            try:
+                loc = page.locator(sel)
+                for i in range(await loc.count()):
+                    candidates.append(loc.nth(i))
+            except Exception:
+                pass
+
+        for cand in reversed(candidates):
+            try:
+                await cand.click(timeout=3000)
+            except Exception:
+                continue
+            await page.wait_for_timeout(800)
+            if await _file_item_visible():
+                menu_opened = True
+                print(f"[CDS] Меню документа открыто (попытка {attempt + 1})")
+                break
+            # Открылось не то меню — закрываем и пробуем следующего кандидата
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(400)
+
+        if menu_opened:
+            break
+
+        # Кликами не вышло — пробуем хоткей Alt+Minus
+        try:
+            await page.keyboard.press("Alt+Minus")
+            await page.wait_for_timeout(800)
+            if await _file_item_visible():
+                menu_opened = True
+                print(f"[CDS] Меню открыто через Alt+Minus (попытка {attempt + 1})")
+                break
+            await page.keyboard.press("Escape")
+        except Exception:
+            pass
+
+        await page.wait_for_timeout(4000)
+
+    if not menu_opened:
+        await page.screenshot(path="cds_menu_not_found.png")
+        raise RuntimeError(
+            "Не удалось открыть меню документа за 180 сек "
+            "(скриншот: cds_menu_not_found.png)"
+        )
 
     await click_visible(page, "Файл")
     await page.wait_for_timeout(600)

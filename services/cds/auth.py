@@ -47,13 +47,25 @@ async def login_to_cds(headless: bool = True):
     print(f"[CDS] Переходим на {CDS_BASE_URL}...")
     print(f"[CDS] HTTP User: {CDS_HTTP_USER}")
 
-    # Пробуем с domcontentloaded (быстрее чем networkidle)
-    try:
-        await page.goto(CDS_BASE_URL, wait_until="domcontentloaded", timeout=90000)
-    except Exception as e:
-        print(f"[CDS] Первая попытка: {e}")
-        await page.wait_for_timeout(3000)
-        await page.goto(CDS_BASE_URL, wait_until="domcontentloaded", timeout=90000)
+    # Подключение с ретраями: сеть/VPN могут моргать, даём до 4 попыток
+    _last_err = None
+    for _attempt, _pause in [(1, 5), (2, 15), (3, 30), (4, 0)]:
+        try:
+            await page.goto(CDS_BASE_URL, wait_until="domcontentloaded", timeout=90000)
+            if _attempt > 1:
+                print(f"[CDS] ✅ Подключились с попытки {_attempt}")
+            _last_err = None
+            break
+        except Exception as e:
+            _last_err = e
+            print(f"[CDS] Попытка {_attempt}/4 не удалась: {type(e).__name__}: {e}")
+            if _pause:
+                print(f"[CDS] Пауза {_pause} сек перед повтором...")
+                await page.wait_for_timeout(_pause * 1000)
+    if _last_err is not None:
+        raise RuntimeError(
+            f"Сервер 1С недоступен после 4 попыток (проверьте сеть/VPN): {_last_err}"
+        ) from _last_err
 
     await page.wait_for_timeout(5000)
     await page.screenshot(path=str(SCREENSHOT_DIR / "after_goto.png"))

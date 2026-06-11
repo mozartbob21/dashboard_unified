@@ -436,5 +436,316 @@
     })();
     </script>
 
+
+<!-- ============ CDS CHARTS (auto-patch) ============ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+#cds-charts .charts-row { display:grid; gap:20px; margin-bottom:20px; }
+#cds-charts .row-1 { grid-template-columns: 1fr 1.4fr; }
+#cds-charts .row-2 { grid-template-columns: 1fr 1fr; }
+#cds-charts .chart-card { background:#fff; border-radius:16px; padding:20px;
+  box-shadow:0 2px 12px rgba(99,102,241,.10); }
+#cds-charts .chart-card h3 { margin:0 0 12px; font-size:15px; color:#4b5563; }
+#cds-charts canvas { max-height:300px; }
+@media (max-width: 900px) {
+  #cds-charts .row-1, #cds-charts .row-2 { grid-template-columns: 1fr; }
+}
+</style>
+
+<div id="cds-charts" style="display:none; margin:24px 0;">
+  <div class="charts-row row-1">
+    <div class="chart-card"><h3>📊 По статусам</h3><canvas id="chartStatus"></canvas></div>
+    <div class="chart-card"><h3>📈 Динамика по дням</h3><canvas id="chartDays"></canvas></div>
+  </div>
+  <div class="charts-row row-2">
+    <div class="chart-card"><h3>🏘 По муниципалитетам (топ-12)</h3><canvas id="chartMun"></canvas></div>
+    <div class="chart-card"><h3>🛠 По типам заявок</h3><canvas id="chartType"></canvas></div>
+  </div>
+</div>
+
+<script>
+var CDS_PALETTE = ["#6366f1","#22c55e","#f59e0b","#ef4444","#06b6d4",
+  "#a855f7","#84cc16","#f97316","#14b8a6","#e879f9","#64748b","#facc15"];
+var cdsCharts = [];
+
+function renderCdsCharts(a) {
+  if (!a || typeof Chart === "undefined") return;
+  var box = document.getElementById("cds-charts");
+  if (!box) return;
+
+  // Переносим блок над заголовком "Выгруженные обращения", если он есть
+  try {
+    var heads = document.querySelectorAll("h1,h2,h3");
+    for (var i = 0; i < heads.length; i++) {
+      if (heads[i].textContent.indexOf("Выгруженные обращения") !== -1) {
+        var target = heads[i].closest("section") || heads[i].parentElement;
+        if (target && target.parentElement && target !== box) {
+          target.parentElement.insertBefore(box, target);
+        }
+        break;
+      }
+    }
+  } catch (e) {}
+
+  box.style.display = "block";
+  cdsCharts.forEach(function (c) { c.destroy(); });
+  cdsCharts = [];
+
+  function labels(arr) { return (arr || []).map(function (x) { return x.label; }); }
+  function values(arr) { return (arr || []).map(function (x) { return x.value; }); }
+  function mk(id, cfg) {
+    var el = document.getElementById(id);
+    if (el) cdsCharts.push(new Chart(el, cfg));
+  }
+
+  mk("chartStatus", {
+    type: "doughnut",
+    data: { labels: labels(a.by_status),
+      datasets: [{ data: values(a.by_status), backgroundColor: CDS_PALETTE, borderWidth: 2 }] },
+    options: { cutout: "62%", plugins: { legend: { position: "bottom" } } }
+  });
+
+  mk("chartDays", {
+    type: "line",
+    data: { labels: labels(a.by_day),
+      datasets: [{ label: "Обращений", data: values(a.by_day),
+        borderColor: "#6366f1", backgroundColor: "rgba(99,102,241,.15)",
+        fill: true, tension: 0.35, pointRadius: 2 }] },
+    options: { plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } } }
+  });
+
+  mk("chartMun", {
+    type: "bar",
+    data: { labels: labels(a.by_municipality),
+      datasets: [{ data: values(a.by_municipality),
+        backgroundColor: "#6366f1", borderRadius: 6 }] },
+    options: { indexAxis: "y", plugins: { legend: { display: false } } }
+  });
+
+  mk("chartType", {
+    type: "bar",
+    data: { labels: labels(a.by_type),
+      datasets: [{ data: values(a.by_type),
+        backgroundColor: "#22c55e", borderRadius: 6 }] },
+    options: { indexAxis: "y", plugins: { legend: { display: false } } }
+  });
+}
+
+// Перехват fetch: рисуем графики автоматически после выгрузки
+(function () {
+  var orig = window.fetch;
+  window.fetch = function () {
+    var args = arguments;
+    return orig.apply(this, args).then(function (resp) {
+      try {
+        var url = (typeof args[0] === "string") ? args[0] : ((args[0] && args[0].url) || "");
+        if (url.indexOf("/api/cds/export") !== -1) {
+          resp.clone().json().then(function (d) {
+            if (d && d.success && d.analytics) renderCdsCharts(d.analytics);
+          }).catch(function () {});
+        }
+      } catch (e) {}
+      return resp;
+    });
+  };
+})();
+
+// Перехват XHR — на случай, если страница использует XMLHttpRequest
+(function () {
+  var origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    if (url && String(url).indexOf("/api/cds/export") !== -1) {
+      this.addEventListener("load", function () {
+        try {
+          var d = JSON.parse(this.responseText);
+                    if (d && d.success && d.analytics) renderCdsCharts(d.analytics);
+        } catch (e) {}
+      });
+    }
+    return origOpen.apply(this, arguments);
+  };
+})();
+</script>
+<!-- ============ /CDS CHARTS ============ -->
+
+<script>
+/* ===== CDS PERSIST: восстановление графиков после перезагрузки ===== */
+(function () {
+  // 1. Оборачиваем renderCdsCharts: при каждой отрисовке сохраняем данные
+  var origRender = window.renderCdsCharts;
+  window.renderCdsCharts = function (a) {
+    try {
+      localStorage.setItem("cds_last_analytics", JSON.stringify({
+        ts: Date.now(),
+        data: a
+      }));
+      // Через 700мс (когда обработчик выгрузки уже заполнил счётчики)
+      // дописываем их значения в ту же запись
+      setTimeout(function () {
+        try {
+          var raw = localStorage.getItem("cds_last_analytics");
+          if (!raw) return;
+          var saved = JSON.parse(raw);
+          var ids = ["cdsCountTotal", "cdsCountNew", "cdsCountInWork", "cdsCountDone"];
+          var vals = {};
+          var ok = false;
+          ids.forEach(function (id) {
+            var el = document.getElementById(id);
+            vals[id] = el ? el.textContent : "—";
+            if (vals[id] && vals[id] !== "—") ok = true;
+          });
+          if (ok) {
+            saved.counters = vals;
+            localStorage.setItem("cds_last_analytics", JSON.stringify(saved));
+          }
+        } catch (e) {}
+      }, 700);
+    } catch (e) {}
+    return origRender(a);
+  };
+
+  // 2. При загрузке страницы — восстанавливаем, если данные не старше 24ч
+  function computeCountersFromData(d) {
+    try {
+      // Ищем объект вида {"Завершено": N, "Новое": M, ...} среди полей данных
+      var statuses = null;
+      ["by_status", "statuses", "status_counts", "status"].some(function (k) {
+        if (d && d[k] && typeof d[k] === "object") { statuses = d[k]; return true; }
+        return false;
+      });
+      if (!statuses) return null;
+
+      var entries = statuses;
+      // Поддержка формата {labels: [...], values: [...]}
+      if (Array.isArray(statuses.labels) && Array.isArray(statuses.values)) {
+        entries = {};
+        statuses.labels.forEach(function (lbl, i) { entries[lbl] = statuses.values[i]; });
+      }
+
+      var total = 0, fresh = 0, inwork = 0, done = 0;
+      Object.keys(entries).forEach(function (lbl) {
+        var v = Number(entries[lbl]) || 0;
+        total += v;
+        var L = lbl.toLowerCase();
+        if (L.indexOf("нов") === 0) fresh += v;
+        else if (L.indexOf("в работе") !== -1) inwork += v;
+        else if (L.indexOf("заверш") !== -1) done += v;
+      });
+      if (!total) return null;
+      return {
+        cdsCountTotal: String(total),
+        cdsCountNew: String(fresh),
+        cdsCountInWork: String(inwork),
+        cdsCountDone: String(done)
+      };
+    } catch (e) { return null; }
+  }
+
+  function restore() {
+    try {
+      var raw = localStorage.getItem("cds_last_analytics");
+      if (!raw) return;
+      var saved = JSON.parse(raw);
+      if (!saved || !saved.data) return;
+      if (Date.now() - saved.ts > 24 * 60 * 60 * 1000) return;
+
+      window.renderCdsCharts(saved.data);
+
+      // Восстанавливаем карточки счётчиков
+      var counters = saved.counters;
+      if (!counters) {
+        // Фолбэк для старых записей: пробуем вычислить из данных "По статусам"
+        counters = computeCountersFromData(saved.data);
+      }
+      if (counters) {
+        Object.keys(counters).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el && counters[id] && counters[id] !== "—") {
+            el.textContent = counters[id];
+          }
+        });
+        var box2 = document.getElementById("cdsCounters");
+        if (box2) box2.style.display = "";
+      }
+
+      // Подпись, что это данные прошлой выгрузки
+      var box = document.getElementById("cds-charts");
+      if (box && !document.getElementById("cds-restored-note")) {
+        var note = document.createElement("div");
+        note.id = "cds-restored-note";
+        note.style.cssText = "font-size:13px;color:#6b7280;margin:0 0 10px;";
+        var d = new Date(saved.ts);
+        note.textContent = "📦 Данные последней выгрузки от " +
+          d.toLocaleDateString("ru-RU") + " " +
+          d.toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});
+        box.insertBefore(note, box.firstChild);
+      }
+    } catch (e) { console.warn("CDS restore failed:", e); }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(restore, 300);
+    });
+  } else {
+    setTimeout(restore, 300);
+  }
+})();
+</script>
+<!-- ===== /CDS PERSIST ===== -->
+
+
+
+<script>
+/* ===== CDS UI TWEAKS: убрать "По типам заявок", дни недели на оси ===== */
+(function () {
+  var orig = window.renderCdsCharts;
+  window.renderCdsCharts = function (a) {
+    var r = orig(a);
+    setTimeout(tweak, 150);
+    return r;
+  };
+
+  function tweak() {
+    // --- 1. Удаляем карточку "По типам заявок" ---
+    var all = document.querySelectorAll("*");
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.children.length === 0 &&
+          el.textContent && el.textContent.indexOf("По типам заявок") !== -1) {
+        // Поднимаемся до карточки, внутри которой есть canvas
+        var node = el.parentElement;
+        while (node && node !== document.body) {
+          if (node.querySelector("canvas")) { node.remove(); break; }
+          node = node.parentElement;
+        }
+        break;
+      }
+    }
+
+    // --- 2. Дни недели в подписях "Динамика по дням" ---
+    if (!window.Chart || !Chart.instances) return;
+    var days = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+    var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    Object.values(Chart.instances).forEach(function (ch) {
+      var labels = ch.data && ch.data.labels;
+      if (!labels || !labels.length) return;
+      // Только график, где ВСЕ подписи — даты YYYY-MM-DD (защита от повторного применения)
+      var allDates = labels.every(function (l) {
+        return typeof l === "string" && dateRe.test(l);
+      });
+      if (!allDates) return;
+      ch.data.labels = labels.map(function (l) {
+        var d = new Date(l + "T00:00:00");
+        return l + " (" + days[d.getDay()] + ")";
+      });
+      ch.update();
+    });
+  }
+})();
+</script>
+<!-- ===== /CDS UI TWEAKS ===== -->
+
 </body>
 </html>

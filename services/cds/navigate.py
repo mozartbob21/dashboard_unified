@@ -9,7 +9,39 @@ async def go_to_obrasheniya(page) -> bool:
     Возвращает True если таблица обращений загрузилась.
     """
     print("[CDS] Навигация: АДС...")
-    await page.click('#themesCell_theme_4')
+    # Устойчивый клик по разделу АДС: сначала по тексту, потом по ID
+    clicked = False
+    # 1С показывает разные стартовые экраны:
+    #  - плитки тем  -> #themesCell_theme_4 (текст "АДС")
+    #  - боковое меню -> "Аварийно диспетчерская служба" (полное название)
+    # Опрашиваем все варианты по кругу, до 90 сек суммарно.
+    selectors = [
+        '#themesCell_theme_4',
+        'text=Аварийно-диспетчерская',
+        'text=Аварийно диспетчерская',
+        'text=Аварийно',
+        'text=АДС',
+    ]
+    for _round in range(45):  # 45 * 2 сек = 90 сек
+        for sel in selectors:
+            try:
+                loc = page.locator(sel).first
+                if await loc.is_visible():
+                    await loc.click(timeout=10000)
+                    clicked = True
+                    print(f"[CDS] АДС кликнут через селектор: {sel}")
+                    break
+            except Exception:
+                pass
+        if clicked:
+            break
+        await page.wait_for_timeout(2000)
+    if not clicked:
+        await page.screenshot(path="cds_ads_not_found.png")
+        raise RuntimeError(
+            "Не удалось найти раздел АДС ни одним селектором "
+            "(скриншот: cds_ads_not_found.png)"
+        )
     await page.wait_for_timeout(3000)
 
     # Клик по "Обращения" в панели функций
