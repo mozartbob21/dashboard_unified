@@ -333,6 +333,10 @@
                     v2.4 (Бета - 1) 
                 </button>
 
+                <button id="helpButton" class="theme-toggle secondary-button" type="button" aria-label="Помощь и обратная связь">
+                <span class="theme-toggle-icon">💬</span>
+                <span class="theme-toggle-text">Помощь</span>
+            </button>
                 <button id="themeToggle" class="theme-toggle secondary-button" type="button" aria-label="Переключить тему">
                     <span class="theme-toggle-icon">☀️</span>
                     <span class="theme-toggle-text">Тема</span>
@@ -1516,5 +1520,122 @@
     })();
     </script>
     {% endif %}
+
+<!-- Модальное окно "Помощь и обратная связь" -->
+<div id="helpModal" class="whats-new-modal" aria-hidden="true">
+    <div class="whats-new-backdrop" data-help-close></div>
+    <section class="whats-new-dialog" style="max-width: 560px;" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+        <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-help-close>×</button>
+        <div class="whats-new-kicker">Поддержка</div>
+        <h2 id="helpModalTitle" class="whats-new-title">Помощь и обратная связь</h2>
+        <p class="whats-new-lead">Опишите проблему, идею или вопрос. Сообщение будет отправлено команде разработки.</p>
+
+        <form id="helpForm" style="display:flex; flex-direction:column; gap:14px; margin-top:8px;">
+            <div>
+                <label for="helpTopic" style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Тип обращения</label>
+                <select id="helpTopic" name="topic" required
+                    style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border-color,#cbd5e1); background:var(--bg-card,#fff); color:var(--text-color,#1e293b); font-size:14px;">
+                    <option value="bug">🐞 Сообщить об ошибке</option>
+                    <option value="idea">💡 Предложение / идея</option>
+                    <option value="question">❓ Вопрос по работе</option>
+                    <option value="other">📝 Другое</option>
+                </select>
+            </div>
+            <div>
+                <label for="helpSubject" style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Тема</label>
+                <input type="text" id="helpSubject" name="subject" required maxlength="120" placeholder="Кратко опишите суть"
+                    style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border-color,#cbd5e1); background:var(--bg-card,#fff); color:var(--text-color,#1e293b); font-size:14px;">
+            </div>
+            <div>
+                <label for="helpMessage" style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Сообщение</label>
+                <textarea id="helpMessage" name="message" required rows="6" maxlength="3000"
+                    placeholder="Опишите подробно: что произошло, какие шаги привели к проблеме, что ожидали увидеть..."
+                    style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border-color,#cbd5e1); background:var(--bg-card,#fff); color:var(--text-color,#1e293b); font-size:14px; resize:vertical; font-family:inherit;"></textarea>
+            </div>
+            <div>
+                <label for="helpContact" style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Контакт для ответа (необязательно)</label>
+                <input type="text" id="helpContact" name="contact" maxlength="200" placeholder="Email или телефон"
+                    style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border-color,#cbd5e1); background:var(--bg-card,#fff); color:var(--text-color,#1e293b); font-size:14px;">
+            </div>
+            <div id="helpFormStatus" style="display:none; padding:10px 14px; border-radius:10px; font-size:13px;"></div>
+            <div class="whats-new-footer" style="display:flex; gap:10px; justify-content:flex-end; margin-top:4px;">
+                <button type="button" class="secondary-button" data-help-close>Отмена</button>
+                <button type="submit" id="helpSubmitBtn" class="module-link">Отправить</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<script>
+(function () {
+    const helpButton = document.getElementById("helpButton");
+    const modal = document.getElementById("helpModal");
+    const form = document.getElementById("helpForm");
+    const statusBox = document.getElementById("helpFormStatus");
+    const submitBtn = document.getElementById("helpSubmitBtn");
+    if (!helpButton || !modal || !form) return;
+
+    function openModal() {
+        modal.classList.add("is-open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("modal-open");
+        statusBox.style.display = "none";
+    }
+    function closeModal() {
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+    }
+    function showStatus(type, text) {
+        statusBox.style.display = "block";
+        statusBox.textContent = text;
+        const colors = {
+            success: ["rgba(16,185,129,0.12)", "#10b981", "rgba(16,185,129,0.3)"],
+            error:   ["rgba(239,68,68,0.12)", "#ef4444", "rgba(239,68,68,0.3)"],
+            info:    ["rgba(59,130,246,0.12)", "#3b82f6", "rgba(59,130,246,0.3)"]
+        }[type] || ["rgba(59,130,246,0.12)", "#3b82f6", "rgba(59,130,246,0.3)"];
+        statusBox.style.background = colors[0];
+        statusBox.style.color = colors[1];
+        statusBox.style.border = "1px solid " + colors[2];
+    }
+
+    helpButton.addEventListener("click", openModal);
+    modal.querySelectorAll("[data-help-close]").forEach(el => el.addEventListener("click", closeModal));
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape" && modal.classList.contains("is-open")) closeModal();
+    });
+
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        submitBtn.disabled = true;
+        showStatus("info", "⏳ Отправляю сообщение...");
+        const payload = {
+            topic: document.getElementById("helpTopic").value,
+            subject: document.getElementById("helpSubject").value.trim(),
+            message: document.getElementById("helpMessage").value.trim(),
+            contact: document.getElementById("helpContact").value.trim(),
+            page_url: window.location.href,
+            user_agent: navigator.userAgent
+        };
+        try {
+            const r = await fetch("/api/feedback/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(data.message || data.detail || "Ошибка отправки");
+            showStatus("success", "✓ Сообщение успешно отправлено!");
+            form.reset();
+            setTimeout(closeModal, 2500);
+        } catch (err) {
+            showStatus("error", "× Не удалось отправить: " + (err.message || "проверьте соединение"));
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+})();
+</script>
+
 </body>
 </html>

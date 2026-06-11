@@ -1864,6 +1864,51 @@ async def cds_page(request: Request):
         },
     )
 
+
+def build_cds_analytics(rows):
+    from collections import Counter
+
+    def g(r, *keys):
+        for k in keys:
+            v = r.get(k)
+            if v:
+                return str(v).strip()
+        return ""
+
+    by_status = Counter()
+    by_type = Counter()
+    by_municipality = Counter()
+    by_day = Counter()
+
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+
+        by_status[g(r, "status", "Статус") or "Не указан"] += 1
+        by_type[g(r, "type", "Тип заявки", "Тип") or "Не указан"] += 1
+
+        address = g(r, "address", "Адрес")
+        m = re.search(r"г\.?\s*о\.?\s*([А-ЯЁа-яё\- ]+?)(?:,|$)", address)
+        if not m:
+            m = re.search(r"\bг\.?\s*([А-ЯЁ][А-ЯЁа-яё\-]+)", address)
+        by_municipality[m.group(1).strip() if m else "Не определён"] += 1
+
+        d = g(r, "date", "Дата", "created_at", "Дата создания")
+        dm = re.match(r"(\d{2})\.(\d{2})\.(\d{4})", d)
+        if dm:
+            by_day[dm.group(3) + "-" + dm.group(2) + "-" + dm.group(1)] += 1
+
+    def top(counter, n=12):
+        return [{"label": k, "value": v} for k, v in counter.most_common(n)]
+
+    return {
+        "by_status": top(by_status, 10),
+        "by_type": top(by_type, 10),
+        "by_municipality": top(by_municipality, 12),
+        "by_day": [{"label": k, "value": v} for k, v in sorted(by_day.items())],
+    }
+
+
 @app.post("/api/cds/export")
 async def api_cds_export(payload: dict):
     if run_status["cds"]["running"]:
@@ -1931,6 +1976,7 @@ async def api_cds_export(payload: dict):
             "count_new": count_by_status(("нов", "открыт")),
             "count_in_work": count_by_status(("в работе", "выполня", "назнач")),
             "count_done": count_by_status(("заверш", "закрыт", "выполнено")),
+            "analytics": build_cds_analytics(rows),
             "rows": rows[:200],
             "download_url": "/data/cds/appeals.xlsx",
         }
@@ -2249,3 +2295,13 @@ async def delete_appeal(request_id: str):
         elif hasattr(storage, "appeals"): storage.appeals = [a for a in storage.appeals if (a.get("request_id") if isinstance(a, dict) else getattr(a, "request_id", None)) != request_id]
     except: pass
     return RedirectResponse(url="/appeals", status_code=303)
+
+
+# ===============================
+# FEEDBACK / ПОМОЩЬ И ОБРАТНАЯ СВЯЗЬ
+# ===============================
+try:
+    from services.feedback import router as feedback_router
+    app.include_router(feedback_router)
+except Exception as e:
+    print(f"[feedback] router init error: {e}")
