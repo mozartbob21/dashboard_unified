@@ -2,28 +2,31 @@
 Модуль истории запусков проверок.
 
 Хранит записи о всех запусках модулей (ЭДО, просрочки, камеры и т.д.)
-в JSON-файле data/run_history.json.
+в SQLite-таблице run_history (через utils/db.py).
 
 Используется в app.py: запись стартует в run_subprocess_worker()
 при старте процесса и обновляется по завершению.
+
+Миграция: при первом импорте, если существует старый data/run_history.json,
+данные переносятся в БД, а файл переименовывается в .json.bak
 """
 
 from __future__ import annotations
 
 import json
-import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
+
+from utils.db import get_db_connection
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 HISTORY_FILE = BASE_DIR / "data" / "run_history.json"
-MAX_RECORDS = 200  # храним последние 200 запусков
+MAX_RECORDS = 500  # в БД можно хранить больше, чем в JSON
 
-_lock = threading.Lock()
+# ─── Человекочитаемые названия модулей для UI ──────────────────────
 
-# Человекочитаемые названия модулей для UI
 MODULE_LABELS = {
     "edo": "ЭДО",
     "overdue": "Просроченные задачи",
@@ -43,51 +46,97 @@ MODULE_ICONS = {
 }
 
 
-def _load() -> list[dict]:
+# ─── Миграция JSON → SQLite (один раз) ─────────────────────────────
+
+def _migrate_json_if_exists() -> None:
+    """
+    Если существует старый run_history.json — переносим все записи в БД,
+    затем переименовываем файл в .json.bak чтобы не мигрировать повторно.
+    """
     if not HISTORY_FILE.exists():
-        return []
+        return
+
     try:
-        data = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
+        raw = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+        if not isinstance(raw, list) or len(raw) == 0:
+            # Пустой или битый файл — просто переименовываем
+            HISTORY_FILE.rename(HISTORY_FILE.with_suffix(".json.bak"))
+            return
     except Exception as e:
-        print(f"[run_history] Ошибка чтения {HISTORY_FILE}: {e}")
-        return []
+        print(f"[run_history] Ошибка чтения JSON для миграции: {e}")
+        return
+
+    migrated = 0
+    with get_db_connection() as conn:
+        for rec in raw:
+            run_id = rec.get("run_id")
+            if not run_id:
+                continue
+            # Проверяем, нет ли уже такой записи (идемпотентность)
+            exists = conn.execute(
+                "SELECT 1 FROM run_history WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            if exists:
+                continue
+
+            conn.execute(
+                """
+                INSERT INTO run_history
+                    (run_id, module_id, module_label, module_icon,
+                     user, started_at, finished_at,
+                     duration_seconds, status, error_message)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    rec.get("module_id", ""),
+                    rec.get("module_label", ""),
+                    rec.get("module_icon", "⚙️"),
+                    rec.get("user", "—"),
+                    rec.get("started_at", ""),
+                    rec.get("finished_at"),
+                    rec.get("duration_seconds"),
+                    rec.get("status", "success"),
+                    rec.get("error_message", ""),
+                ),
+            )
+            migrated += 1
+
+    # Переименовываем, чтобы больше не мигрировать
+    backup_path = HISTORY_FILE.with_suffix(".json.bak")
+    HISTORY_FILE.rename(backup_path)
+    print(f"[run_history] Мигрировано {migrated} записей из JSON → SQLite")
+    print(f"[run_history] Старый файл: {backup_path}")
 
 
-def _save(records: list[dict]) -> None:
-    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    # Обрезаем до MAX_RECORDS, оставляя самые свежие (в начале списка)
-    if len(records) > MAX_RECORDS:
-        records = records[:MAX_RECORDS]
-    HISTORY_FILE.write_text(
-        json.dumps(records, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+# Выполняем миграцию при импорте модуля (один раз за процесс)
+_migrate_json_if_exists()
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
+# ─── Публичный API (сигнатуры НЕ изменились) ───────────────────────
 
 def record_start(module_id: str, user: str = "—") -> str:
     """Записывает старт запуска. Возвращает run_id."""
     run_id = str(uuid.uuid4())
-    record = {
-        "run_id": run_id,
-        "module_id": module_id,
-        "module_label": MODULE_LABELS.get(module_id, module_id),
-        "module_icon": MODULE_ICONS.get(module_id, "⚙️"),
-        "user": user or "—",
-        "started_at": _now_iso(),
-        "finished_at": None,
-        "duration_seconds": None,
-        "status": "running",  # running | success | error
-        "error_message": "",
-    }
-    with _lock:
-        records = _load()
-        records.insert(0, record)  # самые свежие — в начало
-        _save(records)
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO run_history
+                (run_id, module_id, module_label, module_icon,
+                 user, started_at, status, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, 'running', '')
+            """,
+            (
+                run_id,
+                module_id,
+                MODULE_LABELS.get(module_id, module_id),
+                MODULE_ICONS.get(module_id, "⚙️"),
+                user or "—",
+                now,
+            ),
+        )
     return run_id
 
 
@@ -100,38 +149,78 @@ def record_finish(
     if status not in ("success", "error"):
         status = "success"
 
-    with _lock:
-        records = _load()
-        for rec in records:
-            if rec.get("run_id") == run_id:
-                finished_at = datetime.now(timezone.utc)
-                rec["finished_at"] = finished_at.isoformat()
-                rec["status"] = status
-                rec["error_message"] = (error_message or "")[:500]
+    finished_at = datetime.now(timezone.utc)
 
-                started_str = rec.get("started_at")
-                if started_str:
-                    try:
-                        started_at = datetime.fromisoformat(started_str)
-                        rec["duration_seconds"] = round(
-                            (finished_at - started_at).total_seconds(), 1
-                        )
-                    except Exception:
-                        pass
-                break
-        _save(records)
+    with get_db_connection() as conn:
+        # Читаем started_at для вычисления duration
+        row = conn.execute(
+            "SELECT started_at FROM run_history WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+
+        duration = None
+        if row and row["started_at"]:
+            try:
+                started = datetime.fromisoformat(row["started_at"])
+                duration = round((finished_at - started).total_seconds(), 1)
+            except Exception:
+                pass
+
+        conn.execute(
+            """
+            UPDATE run_history
+               SET finished_at = ?,
+                   duration_seconds = ?,
+                   status = ?,
+                   error_message = ?
+             WHERE run_id = ?
+            """,
+            (
+                finished_at.isoformat(),
+                duration,
+                status,
+                (error_message or "")[:500],
+                run_id,
+            ),
+        )
 
 
 def get_recent(limit: int = 5) -> list[dict]:
     """Возвращает последние N запусков с человекочитаемыми полями."""
-    records = _load()[:limit]
-    return [_enrich(r) for r in records]
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM run_history ORDER BY started_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [_enrich(_row_to_dict(r)) for r in rows]
 
 
 def get_all(limit: int = MAX_RECORDS) -> list[dict]:
     """Все записи (с ограничением)."""
-    records = _load()[:limit]
-    return [_enrich(r) for r in records]
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM run_history ORDER BY started_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [_enrich(_row_to_dict(r)) for r in rows]
+
+
+# ─── Внутренние helpers ─────────────────────────────────────────────
+
+def _row_to_dict(row) -> dict:
+    """sqlite3.Row → dict с теми же ключами, что были в JSON."""
+    return {
+        "run_id": row["run_id"],
+        "module_id": row["module_id"],
+        "module_label": row["module_label"] or "",
+        "module_icon": row["module_icon"] or "⚙️",
+        "user": row["user"] or "—",
+        "started_at": row["started_at"],
+        "finished_at": row["finished_at"],
+        "duration_seconds": row["duration_seconds"],
+        "status": row["status"] or "success",
+        "error_message": row["error_message"] or "",
+    }
 
 
 def _enrich(rec: dict) -> dict:
