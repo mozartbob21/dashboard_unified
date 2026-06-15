@@ -156,3 +156,12 @@ data/auth/users.json
 *.before_*
 *.bak
 *.backup
+
+# Игнорируем саму базу данных
+*.sqlite
+*.db
+# Игнорируем ключи
+*.key
+# Игнорируем кэш браузера и скриншоты
+data/overdue/browser-profile/
+data/edo/screenshots/
