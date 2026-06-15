@@ -131,8 +131,14 @@ def _decode_password(encoded: str) -> str:
 
 
 # ===========================
-# ЛОКАЛЬНОЕ ХРАНИЛИЩЕ ПОЛЬЗОВАТЕЛЕЙ
+# ЛОКАЛЬНОЕ ХРАНИЛИЩЕ ПОЛЬЗОВАТЕЛЕЙ (SQLite)
 # ===========================
+# Пользователи хранятся в таблице users в data/dashboard.db.
+# Старый файл data/auth/users.json больше не используется
+# (оставлен на диске только для архивных целей).
+
+from utils.db import get_db_connection
+
 
 DEFAULT_USERS = [
     {
@@ -168,52 +174,116 @@ DEFAULT_USERS = [
 ]
 
 
-def _create_default_users_file() -> None:
-    users = []
-    for user in DEFAULT_USERS:
-        users.append({
-            "username": user["username"],
-            "password_hash": hash_password(user["password"]),
-            "role": user["role"],
-            "modules": user["modules"],
-            "is_active": True,
-        })
+def _row_to_user(row) -> dict[str, Any]:
+    """
+    Превращает sqlite3.Row в словарь в том же формате,
+    в котором раньше пользователи лежали в users.json.
+    """
+    modules_raw = row["modules"] or "[]"
+    try:
+        modules = json.loads(modules_raw)
+    except Exception:
+        modules = []
 
-    USERS_FILE.write_text(
-        json.dumps(users, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    print("[auth] Создан users.json с дефолтными пользователями:", str(USERS_FILE))
-    print("[auth] Логины пользователей по умолчанию:")
-    for user in DEFAULT_USERS:
-        print(f"  - {user['username']}  ({user['role']})")
+    return {
+        "username": row["username"],
+        "password_hash": row["password_hash"],
+        "role": row["role"],
+        "modules": modules,
+        "is_active": bool(row["is_active"]),
+    }
+
+
+def _ensure_default_users() -> None:
+    """
+    Если таблица users пуста — заполняет ее дефолтными пользователями.
+    Вызывается при первом обращении.
+    """
+    with get_db_connection() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        if count > 0:
+            return
+
+        for user in DEFAULT_USERS:
+            conn.execute(
+                """
+                INSERT INTO users (username, password_hash, role, modules, is_active)
+                VALUES (?, ?, ?, ?, 1)
+                """,
+                (
+                    user["username"],
+                    hash_password(user["password"]),
+                    user["role"],
+                    json.dumps(user["modules"], ensure_ascii=False),
+                ),
+            )
+
+        print("[auth] Таблица users была пустой - созданы дефолтные пользователи:")
+        for user in DEFAULT_USERS:
+            print(f"  - {user['username']}  ({user['role']})")
 
 
 def load_users() -> list[dict[str, Any]]:
-    if not USERS_FILE.exists():
-        _create_default_users_file()
+    """Загружает всех пользователей из БД."""
+    _ensure_default_users()
     try:
-        return json.loads(USERS_FILE.read_text(encoding="utf-8"))
+        with get_db_connection() as conn:
+            rows = conn.execute(
+                "SELECT username, password_hash, role, modules, is_active FROM users"
+            ).fetchall()
+            return [_row_to_user(row) for row in rows]
     except Exception as e:
-        print("[auth] Ошибка чтения users.json:", repr(e))
+        print("[auth] Ошибка чтения users из БД:", repr(e))
         return []
 
 
 def save_users(users: list[dict[str, Any]]) -> None:
-    USERS_FILE.write_text(
-        json.dumps(users, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    """
+    Сохраняет список пользователей в БД (UPSERT по username).
+    Используется существующим кодом, которому проще передать весь список.
+    """
+    with get_db_connection() as conn:
+        for user in users:
+            conn.execute(
+                """
+                INSERT INTO users (username, password_hash, role, modules, is_active)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    password_hash = excluded.password_hash,
+                    role          = excluded.role,
+                    modules       = excluded.modules,
+                    is_active     = excluded.is_active
+                """,
+                (
+                    user.get("username", "").strip().lower(),
+                    user.get("password_hash", ""),
+                    user.get("role", ""),
+                    json.dumps(user.get("modules", []), ensure_ascii=False),
+                    1 if user.get("is_active", True) else 0,
+                ),
+            )
 
 
 def find_user_by_username(username: str) -> dict[str, Any] | None:
+    """Ищет одного пользователя по username (без учета регистра)."""
     if not username:
         return None
+    _ensure_default_users()
     username = username.strip().lower()
-    for user in load_users():
-        if user.get("username", "").lower() == username:
-            return user
-    return None
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT username, password_hash, role, modules, is_active
+                FROM users
+                WHERE LOWER(username) = ?
+                """,
+                (username,),
+            ).fetchone()
+            return _row_to_user(row) if row else None
+    except Exception as e:
+        print("[auth] Ошибка поиска пользователя в БД:", repr(e))
+        return None
 
 
 def authenticate_user(username: str, password: str) -> dict[str, Any] | None:
