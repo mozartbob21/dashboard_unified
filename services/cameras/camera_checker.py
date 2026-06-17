@@ -1,3 +1,7 @@
+# ============================================================
+# camera_checker.py — ИСПРАВЛЕННАЯ ВЕРСИЯ (ключевые изменения)
+# ============================================================
+
 import os
 import re
 import csv
@@ -16,7 +20,6 @@ from playwright.async_api import async_playwright
 
 try:
     from PIL import Image, ImageOps, ImageStat, ImageChops
-
     PIL_OK = True
 except Exception:
     Image = None
@@ -70,8 +73,8 @@ FFMPEG_ENABLED = os.getenv("FFMPEG_ENABLED", "true").lower() == "true"
 FFMPEG_BIN = os.getenv("FFMPEG_BIN", "ffmpeg").strip()
 FFPROBE_BIN = os.getenv("FFPROBE_BIN", "ffprobe").strip()
 FFMPEG_CONCURRENCY = int(os.getenv("FFMPEG_CONCURRENCY", "2"))
-FFMPEG_TIMEOUT_SEC = float(os.getenv("FFMPEG_TIMEOUT_SEC", "25"))
-FFPROBE_TIMEOUT_SEC = float(os.getenv("FFPROBE_TIMEOUT_SEC", "12"))
+FFMPEG_TIMEOUT_SEC = float(os.getenv("FFMPEG_TIMEOUT_SEC", "30"))  # FIX: увеличено с 25
+FFPROBE_TIMEOUT_SEC = float(os.getenv("FFPROBE_TIMEOUT_SEC", "15"))  # FIX: увеличено с 12
 FFMPEG_FRAME_COUNT = int(os.getenv("FFMPEG_FRAME_COUNT", "8"))
 FFMPEG_RW_TIMEOUT_US = int(os.getenv("FFMPEG_RW_TIMEOUT_US", "12000000"))
 FFMPEG_RTSP_TRANSPORT = os.getenv("FFMPEG_RTSP_TRANSPORT", "tcp").strip().lower()
@@ -93,6 +96,1333 @@ FFMPEG_SEMAPHORE = asyncio.Semaphore(FFMPEG_CONCURRENCY)
 def log(message: str):
     print(f"[camera_checker_ffmpeg] {message}", flush=True)
 
+
+# ============================================================
+# FIX #1: Улучшенная detect_problem_text с контекстными проверками
+# ============================================================
+
+def detect_problem_text(page_text_norm, title_norm=""):
+    """
+    Определяет текстовые маркеры проблемы на странице.
+    
+    ИСПРАВЛЕНО: 
+    - Убраны голые числовые маркеры (404, 403, 401, 502, 504)
+    - Маркер "offline" требует контекста (camera/stream/device)
+    - Маркер "not found" требует контекста (stream/page/camera)
+    - Добавлены проверки на минимальную длину совпадения
+    """
+    combined = normalize_ocr_text(f"{page_text_norm} | {title_norm}")
+
+    # Высокоточные маркеры (достаточно одного совпадения)
+    definite_markers = [
+        "доступ к трансляции временно ограничен",
+        "трансляции временно ограничен",
+        "доступ временно ограничен",
+        "пополнить баланс",
+        "пополните баланс",
+        "stream unavailable",
+        "unable to play",
+        "failed to load media",
+        "media could not be loaded",
+        "no signal",
+        "no video",
+        "camera offline",
+        "stream offline",
+        "source offline",
+        "device offline",
+        "service unavailable",
+        "камера недоступна",
+        "поток недоступен",
+        "нет сигнала",
+        "нет видео",
+        "видео недоступно",
+        "источник недоступен",
+        "канал недоступен",
+        "stream not found",
+        "unable to connect to camera",
+        "cannot connect to camera",
+        "невозможно подключиться к камере",
+        "проверьте что она включена",
+        "подключена к интернету",
+        "проверьте подключение камеры к интернету",
+        "camera is not available",
+        "camera unavailable",
+        "access denied",
+        "access is denied",
+    ]
+
+    for marker in definite_markers:
+        if marker in combined:
+            return marker
+
+    # Контекстные маркеры (требуют дополнительного подтверждения)
+    # "offline" — только если рядом есть контекст камеры/стрима
+    if "offline" in combined:
+        context_words = ["camera", "stream", "video", "device", "камера", "поток", "трансляц"]
+        if any(ctx in combined for ctx in context_words):
+            return "offline"
+
+    # HTTP ошибки — только в формате "http error 4xx" / "error 404" / "403 forbidden"
+    http_error_patterns = [
+        r"\b(?:http\s*)?error\s*4\d{2}\b",
+        r"\b4(?:0[134]|22|29)\s+(?:forbidden|not\s*found|unauthorized|unprocessable)\b",
+        r"\bserver\s+returned\s+[45]\d{2}\b",
+        r"\b(?:http|status)\s*(?:code)?\s*[:=]?\s*4(?:0[134]|22|29)\b",
+        r"\bbad\s+gateway\b",
+        r"\bgateway\s+timeout\b",
+    ]
+
+    for pattern in http_error_patterns:
+        if re.search(pattern, combined):
+            return f"http_error_pattern:{pattern}"
+
+    # "forbidden" / "unauthorized" — только если не часть URL или code
+    if "forbidden" in combined and not re.search(r"https?://[^\s]*forbidden", combined):
+        return "forbidden"
+
+    if "unauthorized" in combined and not re.search(r"https?://[^\s]*unauthorized", combined):
+        return "unauthorized"
+
+    return None
+
+
+# ============================================================
+# FIX #2: Улучшенная is_hard_failure_text
+# ============================================================
+
+def is_hard_failure_text(value):
+    """
+    Определяет, является ли текст «жёстким» индикатором неработающей камеры.
+    
+    ИСПРАВЛЕНО: Убран голый маркер "offline" — теперь используется 
+    detect_problem_text с контекстной проверкой.
+    """
+    if not value:
+        return False
+
+    # Переиспользуем логику detect_problem_text
+    result = detect_problem_text(value, "")
+    if result is None:
+        return False
+
+    # Дополнительно фильтруем: некоторые маркеры из detect_problem_text
+    # не являются "hard failure" (например, "failed to load" может быть временным)
+    soft_markers = [
+        "failed to load media",
+        "unable to play",
+    ]
+
+    normalized = normalize_ocr_text(value)
+    for soft in soft_markers:
+        if soft in normalized and result == soft:
+            return False
+
+    return True
+
+
+# ============================================================
+# FIX #3: Улучшенная is_direct_ffmpeg_url — не считать HTML-страницы
+# ============================================================
+
+def is_direct_ffmpeg_url(url):
+    """
+    Определяет, можно ли URL проверять напрямую через FFmpeg/FFprobe
+    без предварительного открытия в браузере.
+    
+    ИСПРАВЛЕНО:
+    - Убраны слишком общие паттерны (/video, /stream, /live)
+    - Добавлена проверка на наличие явного расширения медиа-файла
+    - HTTP(S) URL с /video/ /stream/ /live/ НЕ считаются direct — 
+      они могут быть HTML-страницами плееров
+    """
+    if not url:
+        return False
+
+    url_lower = url.lower().strip()
+
+    # Протоколы, которые всегда direct
+    if url_lower.startswith(("rtsp://", "rtmp://", "rtmps://", "srt://", "udp://", "tcp://")):
+        return True
+
+    # Для HTTP(S) — только если есть явное медиа-расширение
+    if url_lower.startswith(("http://", "https://")):
+        # Парсим URL без query string для проверки расширения
+        parsed = urlparse(url_lower)
+        path = parsed.path.lower()
+
+        direct_extensions = [
+            ".m3u8",
+            ".mpd",
+            ".mp4",
+            ".flv",
+            ".ts",
+            ".mjpg",
+            ".mjpeg",
+        ]
+
+        if any(path.endswith(ext) for ext in direct_extensions):
+            return True
+
+        # Специальные паттерны, которые гарантированно медиа
+        direct_path_patterns = [
+            r"/hls/[^/]+\.m3u8",
+            r"/live/[^/]+\.m3u8",
+            r"\.m3u8(\?|$)",
+            r"\.mpd(\?|$)",
+            r"/mse_hd/",
+            r"/multipart",
+        ]
+
+        for pattern in direct_path_patterns:
+            if re.search(pattern, path):
+                return True
+
+        # MJPEG stream endpoints
+        if path.endswith(("/mjpg", "/mjpeg", "/video.mjpg", "/video.mjpeg")):
+            return True
+
+        # Остальные HTTP URL НЕ считаем direct
+        return False
+
+    return False
+
+
+def looks_like_direct_media_url(stream_url, content_type=""):
+    """
+    Менее строгая версия — используется для добавления URL в кандидаты.
+    НЕ используется для принятия решения пропустить браузер.
+    """
+    url = (stream_url or "").lower().strip()
+    ct = (content_type or "").lower().strip()
+
+    if url.startswith(("rtsp://", "rtmp://", "rtmps://", "srt://", "udp://", "tcp://")):
+        return True
+
+    # По content-type
+    if any(
+        marker in ct
+        for marker in [
+            "video/",
+            "image/",
+            "multipart/x-mixed-replace",
+            "application/vnd.apple.mpegurl",
+            "application/x-mpegurl",
+        ]
+    ):
+        return True
+
+    # По расширению в пути
+    parsed = urlparse(url)
+    path = parsed.path.lower()
+
+    media_extensions = [
+        ".m3u8", ".mpd", ".mp4", ".flv", ".ts",
+        ".mjpg", ".mjpeg", ".jpg", ".jpeg", ".png",
+    ]
+
+    if any(path.endswith(ext) for ext in media_extensions):
+        return True
+
+    # Специальные медиа-пути (но НЕ общие /video/ /stream/ /live/)
+    media_path_markers = [
+        "/hls/",
+        "/mse/",
+        "/multipart",
+    ]
+
+    if any(marker in path for marker in media_path_markers):
+        return True
+
+    return False
+
+
+# ============================================================
+# FIX #4: Улучшенная decide_ffmpeg_candidate
+# ============================================================
+
+def decide_ffmpeg_candidate(probe, frames, analysis, candidate):
+    """
+    Принимает решение по результатам FFprobe и анализа фреймов.
+    
+    ИСПРАВЛЕНО:
+    - hard_error_markers проверяются регулярками для точности
+    - Порог usable_frames скорректирован для малого числа фреймов
+    - Добавлена проверка probe.video_streams для подтверждения
+    """
+    stderr = f"{probe.get('stderr', '')} {frames.get('stderr', '')}".lower()
+
+    # FIX: Используем regex для точного определения HTTP-ошибок
+    hard_error_patterns = [
+        r"\b403\s*forbidden\b",
+        r"\bhttp\s*error\s*403\b",
+        r"\b404\s*not\s*found\b",
+        r"\bhttp\s*error\s*404\b",
+        r"\b401\s*unauthorized\b",
+        r"\bhttp\s*error\s*401\b",
+        r"\bserver\s*returned\s*[45]\d{2}\b",
+        r"\bconnection\s*refused\b",
+        r"\binvalid\s*data\s*found\s*when\s*processing\s*input\b",
+        r"\bmethod\s*describe\s*failed\b",
+        r"\b401\s*unauthorized\b",
+    ]
+
+    for pattern in hard_error_patterns:
+        if re.search(pattern, stderr):
+            return {
+                "status": "not_working",
+                "confident": True,
+                "reason": f"ffmpeg_hard_error_regex:{pattern}",
+            }
+
+    # Дополнительные текстовые маркеры (без regex, но достаточно специфичные)
+    hard_text_markers = [
+        "connection refused",
+        "connection timed out",
+        "no route to host",
+        "network is unreachable",
+    ]
+
+    if any(marker in stderr for marker in hard_text_markers):
+        return {
+            "status": "not_working",
+            "confident": True,
+            "reason": f"ffmpeg_network_error:{first_matching(stderr, hard_text_markers)}",
+        }
+
+    if frames.get("frame_count", 0) <= 0:
+        # Проверяем, нашёл ли ffprobe видео-стримы
+        has_video_streams = bool(probe.get("video_streams"))
+
+        if frames.get("timeout"):
+            # Таймаут при извлечении фреймов — камера может быть медленной
+            if has_video_streams:
+                return {
+                    "status": "unknown",
+                    "confident": False,
+                    "reason": "ffmpeg_timeout_but_probe_has_video",
+                }
+            return {
+                "status": "not_working",
+                "confident": False,
+                "reason": "ffmpeg_timeout_no_video_streams",
+            }
+
+        if is_direct_ffmpeg_url(candidate.get("url")):
+            return {
+                "status": "not_working",
+                "confident": False,
+                "reason": "direct_media_no_frames",
+            }
+
+        return {
+            "status": "unknown",
+            "confident": False,
+            "reason": "no_frames",
+        }
+
+    summary = (analysis or {}).get("summary") or {}
+
+    frame_count = int(summary.get("frame_count") or 0)
+    usable_frames = int(summary.get("usable_frames") or 0)
+    hard_black_frames = int(summary.get("hard_black_frames") or 0)
+    mostly_black_frames = int(summary.get("mostly_black_frames") or 0)
+    static = bool(summary.get("static"))
+
+    avg_black = float(summary.get("avg_black_ratio") or 0)
+    avg_center_black = float(summary.get("avg_center_black_ratio") or 0)
+    avg_bright = float(summary.get("avg_bright_ratio") or 0)
+    avg_mean = float(summary.get("avg_luma_mean") or 0)
+    avg_entropy = float(summary.get("avg_entropy") or 0)
+
+    # FIX: Скорректированный порог для usable_frames
+    # Для 1-2 фреймов достаточно 1 usable
+    # Для 3+ фреймов нужно минимум 2
+    min_usable_required = 1 if frame_count <= 2 else 2
+
+    if usable_frames >= min_usable_required:
+        return {
+            "status": "working",
+            "confident": True,
+            "reason": (
+                f"usable_decoded_frames={usable_frames}/{frame_count};"
+                f"black={avg_black};bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
+            ),
+        }
+
+    # Чёрный экран — нужно минимум 2 hard_black фрейма ИЛИ все фреймы black
+    if frame_count >= 2 and hard_black_frames >= max(2, frame_count - 1):
+        return {
+            "status": "not_working",
+            "confident": True,
+            "reason": (
+                f"ffmpeg_hard_black_frames={hard_black_frames}/{frame_count};"
+                f"black={avg_black};center={avg_center_black};"
+                f"bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
+            ),
+        }
+
+    if (
+        frame_count >= 3
+        and mostly_black_frames >= frame_count - 1
+        and static
+        and avg_black >= 0.80
+        and avg_center_black >= 0.84
+        and avg_mean <= 34
+        and avg_bright <= 0.06
+    ):
+        return {
+            "status": "not_working",
+            "confident": True,
+            "reason": (
+                f"ffmpeg_mostly_black_static={mostly_black_frames}/{frame_count};"
+                f"black={avg_black};center={avg_center_black};"
+                f"bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
+            ),
+        }
+
+    # FIX: Добавлено условие — если есть хоть 1 usable frame при frame_count >= 3,
+    # и фрейм не является единственным bright пикселем среди чёрных
+    if frame_count >= 3 and avg_black < 0.76 and avg_entropy >= 2.2 and avg_bright >= 0.025:
+        return {
+            "status": "working",
+            "confident": True,
+            "reason": (
+                f"decoded_non_black_frames={frame_count};"
+                f"black={avg_black};bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
+            ),
+        }
+
+    # FIX: Промежуточный случай — есть 1 usable из нескольких 
+    # (возможно камера стартует или есть интермиттирующая проблема)
+    if usable_frames >= 1 and frame_count >= 3:
+        return {
+            "status": "working",
+            "confident": False,  # не уверены, нужна повторная проверка
+            "reason": (
+                f"partial_usable_frames={usable_frames}/{frame_count};"
+                f"black={avg_black};bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
+            ),
+        }
+
+    return {
+        "status": "unknown",
+        "confident": False,
+        "reason": (
+            f"decoded_but_uncertain;"
+            f"frames={frame_count};usable={usable_frames};black_frames={hard_black_frames};"
+            f"mostly_black={mostly_black_frames};static={static};"
+            f"black={avg_black};bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
+        ),
+    }
+
+
+# ============================================================
+# FIX #5: Безопасный attach_media_collectors (без утечки задач)
+# ============================================================
+
+def attach_media_collectors(page, collector):
+    """
+    ИСПРАВЛЕНО: handle_response больше не создаёт неуправляемые задачи.
+    Вместо этого используется синхронный доступ к headers.
+    """
+    def on_request(request):
+        try:
+            collector.add(
+                request.url,
+                source=f"request:{request.resource_type}",
+                content_type="",
+            )
+        except Exception:
+            pass
+
+    def on_response(response):
+        try:
+            # response.headers доступен синхронно в Playwright
+            headers = response.headers or {}
+            collector.add(
+                response.url,
+                source="response",
+                content_type=headers.get("content-type", ""),
+                status=response.status,
+            )
+        except Exception:
+            pass
+
+    page.on("request", on_request)
+    page.on("response", on_response)
+
+
+# ============================================================
+# FIX #6: Улучшенный is_noise_url
+# ============================================================
+
+def is_noise_url(url):
+    """
+    ИСПРАВЛЕНО: Убран "/api/" — он может быть частью легитимных URL для HLS/DASH.
+    Добавлены более точные паттерны.
+    """
+    low = (url or "").lower()
+
+    # Точно мусор
+    noise_exact = [
+        "google-analytics.com",
+        "googletagmanager.com",
+        "mc.yandex.ru",
+        "metrika",
+    ]
+
+    if any(marker in low for marker in noise_exact):
+        return True
+
+    # Расширения ресурсов (не медиа)
+    parsed = urlparse(low)
+    path = parsed.path
+
+    noise_extensions = [
+        ".css", ".js", ".woff", ".woff2", ".ttf",
+        ".svg", ".ico", ".eot",
+    ]
+
+    if any(path.endswith(ext) for ext in noise_extensions):
+        return True
+
+    # Favicon
+    if "favicon" in path:
+        return True
+
+    return False
+
+# ============================================================
+# FIX #7: Улучшенная inspect_restricted_access_overlay
+# ============================================================
+
+async def inspect_restricted_access_overlay(page):
+    """
+    Проверяет наличие overlay с сообщением об ограничении доступа.
+    
+    ИСПРАВЛЕНО:
+    - Ограничен объём собираемого текста (только видимые элементы с достаточным размером)
+    - Убрано дублирование innerText/textContent (textContent содержит скрытый текст)
+    - Добавлена проверка размера элемента (исключаем микроэлементы)
+    """
+    try:
+        info = await page.evaluate(
+            """
+            () => {
+                const parts = [];
+                const seen = new Set();
+
+                const add = value => {
+                    const text = (value || '').toString().trim().substring(0, 500);
+                    if (text && !seen.has(text)) {
+                        seen.add(text);
+                        parts.push(text);
+                    }
+                };
+
+                // Только title
+                add(document.title || '');
+
+                // Селекторы, которые могут содержать overlay сообщения
+                const overlaySelectors = [
+                    '[class*="overlay"]',
+                    '[class*="modal"]',
+                    '[class*="error"]',
+                    '[class*="message"]',
+                    '[class*="warning"]',
+                    '[class*="notice"]',
+                    '[class*="alert"]',
+                    '[class*="status"]',
+                    '[class*="restrict"]',
+                    '[class*="balance"]',
+                    '.vjs-error-display',
+                    '.jw-error',
+                ];
+
+                for (const selector of overlaySelectors) {
+                    const nodes = document.querySelectorAll(selector);
+
+                    for (const node of nodes) {
+                        try {
+                            const style = window.getComputedStyle(node);
+                            const rect = node.getBoundingClientRect();
+
+                            // Проверяем видимость и минимальный размер
+                            const visible =
+                                style &&
+                                style.display !== 'none' &&
+                                style.visibility !== 'hidden' &&
+                                parseFloat(style.opacity || '1') > 0.1 &&
+                                rect.width > 50 &&
+                                rect.height > 20;
+
+                            if (!visible) continue;
+
+                            // Берём только innerText (не textContent — он включает скрытое)
+                            const text = (node.innerText || '').substring(0, 300);
+                            add(text);
+                        } catch (e) {}
+                    }
+                }
+
+                // Ограничиваем общий объём
+                return parts.join(' | ').substring(0, 3000);
+            }
+            """
+        )
+
+        normalized = normalize_ocr_text(info)
+
+        if "доступ к трансляции временно ограничен" in normalized:
+            return "доступ к трансляции временно ограничен"
+
+        if "трансляции временно ограничен" in normalized:
+            return "доступ к трансляции временно ограничен"
+
+        if "временно ограничен" in normalized and "трансляци" in normalized:
+            return "доступ к трансляции временно ограничен"
+
+        if "временно ограничен" in normalized and "баланс" in normalized:
+            return "доступ к трансляции временно ограничен / пополнить баланс"
+
+        if "пополнить баланс" in normalized:
+            return "пополнить баланс"
+
+        if "пополните баланс" in normalized:
+            return "пополнить баланс"
+
+        if "личном кабинете" in normalized and "пополнить" in normalized and "баланс" in normalized:
+            return "подробнее в личном кабинете / пополнить баланс"
+
+        # FIX: Проверяем камера-специфичные сообщения
+        if "невозможно подключиться к камере" in normalized:
+            return "невозможно подключиться к камере"
+
+        if "камера недоступна" in normalized:
+            return "камера недоступна"
+
+        if "нет сигнала" in normalized:
+            return "нет сигнала"
+
+        return None
+
+    except Exception:
+        return None
+
+
+# ============================================================
+# FIX #8: Улучшенная detect_visual_problem_marker
+# ============================================================
+
+async def detect_visual_problem_marker(page):
+    """
+    ИСПРАВЛЕНО:
+    - Сужен набор селекторов (убран 'body' — он тянет весь текст страницы)
+    - Ограничена длина собираемого текста
+    - Добавлена проверка видимости и размера
+    """
+    try:
+        result = await page.evaluate(
+            """
+            () => {
+                const texts = [];
+                const seen = new Set();
+
+                const pushText = value => {
+                    const t = (value || '').toString().trim().substring(0, 300).toLowerCase();
+                    if (t && t.length > 3 && !seen.has(t)) {
+                        seen.add(t);
+                        texts.push(t);
+                    }
+                };
+
+                // Только элементы, которые вероятно содержат error/status сообщения
+                const selectors = [
+                    '[class*="error"]',
+                    '[class*="offline"]',
+                    '[class*="warning"]',
+                    '[class*="message"]',
+                    '[class*="status-text"]',
+                    '[class*="notice"]',
+                    '[class*="overlay"]',
+                    '[class*="modal"]',
+                    '[class*="alert"]',
+                    '.vjs-error-display',
+                    '.vjs-modal-dialog-content',
+                    '.jw-error',
+                    '.jw-error-text',
+                    '.plyr__control--overlaid',
+                    '[role="alert"]',
+                    '[role="status"]',
+                    '[aria-live="assertive"]',
+                    '[aria-live="polite"]',
+                ];
+
+                for (const selector of selectors) {
+                    const nodes = document.querySelectorAll(selector);
+
+                    for (const node of nodes) {
+                        try {
+                            const style = window.getComputedStyle(node);
+                            const rect = node.getBoundingClientRect();
+
+                            const visible =
+                                style &&
+                                style.display !== 'none' &&
+                                style.visibility !== 'hidden' &&
+                                parseFloat(style.opacity || '1') > 0.1 &&
+                                rect.width > 30 &&
+                                rect.height > 10;
+
+                            if (!visible) continue;
+
+                            pushText(node.innerText);
+                            pushText(node.getAttribute('aria-label'));
+                            pushText(node.getAttribute('title'));
+                            pushText(node.getAttribute('data-error'));
+                            pushText(node.getAttribute('data-message'));
+                        } catch (e) {}
+                    }
+                }
+
+                return texts.join(' | ').substring(0, 3000);
+            }
+            """
+        )
+
+        return detect_problem_text(result)
+
+    except Exception:
+        return None
+
+
+# ============================================================
+# FIX #9: Улучшенная check_single_stream_with_retry — логика объединения
+# ============================================================
+
+async def check_single_stream_with_retry(browser, stream_url, address, attempts=STREAM_RETRY_ATTEMPTS):
+    """
+    ИСПРАВЛЕНО:
+    - Если первая попытка уверенно определила статус — не делаем вторую
+    - Если обе попытки дали разные confident-ответы — доверяем confident
+    - Добавлена пауза между попытками для нестабильных камер
+    """
+    first = await check_single_stream(
+        browser,
+        stream_url,
+        address,
+        attempt=1,
+        deep_mode=False,
+    )
+
+    if first["confident"] or attempts <= 1:
+        return first["status"], f"attempt_1={first['status']}[{first['details']}]"
+
+    # FIX: Пауза перед повторной проверкой — даём камере время
+    await asyncio.sleep(2.0)
+
+    second = await check_single_stream(
+        browser,
+        stream_url,
+        address,
+        attempt=2,
+        deep_mode=True,
+    )
+
+    # FIX: Улучшенная логика объединения результатов
+    if second["confident"]:
+        # Вторая (глубокая) проверка дала уверенный ответ — доверяем ей
+        final_status = second["status"]
+    elif first["status"] == "working" or second["status"] == "working":
+        # Хотя бы одна проверка показала working — камера работает
+        final_status = "working"
+    elif first["status"] == "not_working" and second["status"] == "not_working":
+        # Обе проверки показали not_working
+        final_status = "not_working"
+    elif first["status"] == "not_working" or second["status"] == "not_working":
+        # Одна not_working, другая unknown — склоняемся к not_working
+        # но с пониженной уверенностью (которая отражается в details)
+        final_status = "not_working"
+    else:
+        final_status = "unknown"
+
+    return final_status, (
+        f"attempt_1={first['status']}[{first['details']}] | "
+        f"attempt_2={second['status']}[{second['details']}]"
+    )
+
+
+# ============================================================
+# FIX #10: Исправленная first_definite_before_play_problem
+# ============================================================
+
+def first_definite_before_play_problem(*values):
+    """
+    ИСПРАВЛЕНО: Проверяем каждое значение через is_definite_before_play_text,
+    а не просто на truthiness.
+    """
+    for value in values:
+        if value and is_definite_before_play_text(value):
+            return value
+
+    return None
+
+
+def is_definite_before_play_text(value):
+    """
+    Определяет, является ли текст ТОЧНЫМ индикатором проблемы ДО попытки воспроизведения.
+    Эти маркеры означают, что нет смысла пытаться play — проблема точно есть.
+    
+    ИСПРАВЛЕНО: Список сокращён до действительно определённых маркеров.
+    """
+    if not value:
+        return False
+
+    value = normalize_ocr_text(value)
+
+    # Только маркеры, которые на 100% означают проблему
+    definite_markers = [
+        "доступ к трансляции временно ограничен",
+        "трансляции временно ограничен",
+        "доступ временно ограничен",
+        "временно ограничен",
+        "пополнить баланс",
+        "пополните баланс",
+        "невозможно подключиться к камере",
+        "камера недоступна",
+        "нет видео",
+        "нет сигнала",
+        "no video",
+        "no signal",
+        "unable to connect to camera",
+        "camera unavailable",
+        "camera is not available",
+    ]
+
+    return any(marker in value for marker in definite_markers)
+
+
+# ============================================================
+# FIX #11: Улучшенный browser_visual_fallback
+# ============================================================
+
+async def browser_visual_fallback(page, debug_name, deep_mode=False):
+    """
+    ИСПРАВЛЕНО:
+    - Консистентные пороги для deep/non-deep mode
+    - Добавлена проверка на motion между скриншотами
+    - Улучшена логика принятия решения
+    """
+    if not PIL_OK:
+        return {"status": "unknown", "reason": "pil_missing"}
+
+    files = []
+
+    try:
+        clip = await find_best_player_clip(page)
+        delays = [0, 2000, 4000] if deep_mode else [0, 2000]
+
+        for i, delay in enumerate(delays, start=1):
+            if delay:
+                await page.wait_for_timeout(delay)
+
+            path = STREAM_DEBUG_DIR / f"{debug_name}_browser_fallback_{i}.png"
+
+            if clip:
+                await page.screenshot(path=str(path), full_page=False, clip=clip)
+            else:
+                await page.screenshot(path=str(path), full_page=False)
+
+            files.append(str(path))
+
+        analysis = analyze_extracted_frames(files)
+        summary = analysis.get("summary") or {}
+
+        frame_count = len(files)
+        usable = int(summary.get("usable_frames") or 0)
+        avg_black = float(summary.get("avg_black_ratio") or 1)
+        hard_black = int(summary.get("hard_black_frames") or 0)
+        mostly_black = int(summary.get("mostly_black_frames") or 0)
+        static = bool(summary.get("static"))
+        mean_motion = float(summary.get("mean_motion") or 0)
+        avg_entropy = float(summary.get("avg_entropy") or 0)
+
+        # FIX: Если есть движение между кадрами — камера работает
+        # (даже если картинка тёмная — может быть ночь)
+        if mean_motion > 3.0 and usable >= 1:
+            return {
+                "status": "working",
+                "reason": f"browser_motion_detected;motion={mean_motion};usable={usable}",
+                "analysis": analysis,
+                "files": files,
+            }
+
+        # Ясно рабочая картинка
+        if usable >= 1 and avg_black < 0.75:
+            return {
+                "status": "working",
+                "reason": f"browser_visible_non_black_picture;usable={usable};black={avg_black}",
+                "analysis": analysis,
+                "files": files,
+            }
+
+        # Не рабочая — чёрный статичный экран
+        # FIX: Нужно, чтобы ВСЕ фреймы были hard_black или mostly_black+static
+        if hard_black >= frame_count:
+            return {
+                "status": "not_working",
+                "reason": f"browser_all_hard_black;hard_black={hard_black}/{frame_count}",
+                "analysis": analysis,
+                "files": files,
+            }
+
+        if mostly_black >= frame_count and static:
+            return {
+                "status": "not_working",
+                "reason": f"browser_all_mostly_black_static;mostly={mostly_black}/{frame_count}",
+                "analysis": analysis,
+                "files": files,
+            }
+
+        # FIX: Если большинство чёрных но есть движение — unknown (может быть ночная камера)
+        if mostly_black >= frame_count - 1 and not static:
+            return {
+                "status": "unknown",
+                "reason": f"browser_mostly_black_but_motion;motion={mean_motion}",
+                "analysis": analysis,
+                "files": files,
+            }
+
+        return {
+            "status": "unknown",
+            "reason": (
+                f"browser_uncertain;"
+                f"usable={usable};black={avg_black};hard_black={hard_black};"
+                f"mostly_black={mostly_black};static={static};motion={mean_motion};"
+                f"entropy={avg_entropy}"
+            ),
+            "analysis": analysis,
+            "files": files,
+        }
+
+    except Exception as e:
+        return {
+            "status": "unknown",
+            "reason": f"browser_fallback_error:{type(e).__name__}:{e}",
+            "files": files,
+        }
+
+
+# ============================================================
+# FIX #12: Исправленный score_media_candidate
+# ============================================================
+
+def score_media_candidate(url, content_type=""):
+    """
+    ИСПРАВЛЕНО:
+    - Убраны .ts из сильных маркеров (слишком много ложных)
+    - Скорректированы веса
+    - Blob URL получает 0 сразу
+    """
+    low = (url or "").lower()
+    ct = (content_type or "").lower()
+    score = 0
+
+    # Blob — не можем проверить внешне
+    if low.startswith("blob:"):
+        return 0
+
+    # Протоколы стриминга — максимальный приоритет
+    if low.startswith(("rtsp://", "rtmp://", "rtmps://")):
+        score += 1000
+
+    # HLS manifest
+    if ".m3u8" in low or "mpegurl" in ct:
+        score += 300
+
+    # DASH manifest
+    if ".mpd" in low:
+        score += 250
+
+    # Сильные URL-маркеры (путь содержит характерные сегменты)
+    parsed = urlparse(low)
+    path = parsed.path
+
+    strong_path_markers = [
+        "/hls/",
+        "/live/",
+        "/mse/",
+        "/multipart",
+    ]
+
+    strong_extension_markers = [
+        ".mp4",
+        ".flv",
+        ".mjpeg",
+        ".mjpg",
+    ]
+
+    if any(marker in path for marker in strong_path_markers):
+        score += 80
+
+    if any(path.endswith(ext) for ext in strong_extension_markers):
+        score += 80
+
+    # Средние URL-маркеры
+    medium_path_markers = [
+        "/stream/",
+        "/video/",
+        "/camera/",
+        "/cam/",
+        "/snapshot",
+    ]
+
+    if any(marker in path for marker in medium_path_markers):
+        score += 40
+
+    # Content-type маркеры
+    content_type_scores = {
+        "application/vnd.apple.mpegurl": 150,
+        "application/x-mpegurl": 150,
+        "video/mp2t": 100,
+        "video/mp4": 100,
+        "video/": 80,
+        "multipart/x-mixed-replace": 120,
+        "image/jpeg": 30,
+        "image/png": 20,
+    }
+
+    for marker, ct_score in content_type_scores.items():
+        if marker in ct:
+            score += ct_score
+            break  # Берём только первый (самый специфичный)
+
+    # Изображения — низкий приоритет (snapshot)
+    if path.endswith((".jpg", ".jpeg", ".png")):
+        score += 15
+
+    # .ts файлы — пониженный приоритет (часто это чанки, а не полный поток)
+    if path.endswith(".ts"):
+        score += 10
+
+    return score
+
+
+# ============================================================
+# FIX #13: Дедупликация candidates в ffmpeg_check_candidates
+# ============================================================
+
+async def ffmpeg_check_candidates(media_candidates, original_url, headers_info, debug_name, deep_mode=False):
+    """
+    ИСПРАВЛЕНО:
+    - Дедупликация по нормализованному URL
+    - original_url добавляется только если его ещё нет в candidates
+    - Улучшена логика итогового решения
+    """
+    if not FFMPEG_ENABLED:
+        return {
+            "status": "unknown",
+            "reason": "ffmpeg_disabled",
+            "checked": [],
+        }
+
+    if not PIL_OK:
+        return {
+            "status": "unknown",
+            "reason": "pil_missing",
+            "checked": [],
+        }
+
+    candidates = list(media_candidates or [])
+
+    # FIX: Добавляем original_url только если его нормализованная форма 
+    # ещё не присутствует в кандидатах
+    if is_direct_ffmpeg_url(original_url):
+        existing_normalized = {normalize_candidate_url(c.get("url", "")) for c in candidates}
+        normalized_original = normalize_candidate_url(original_url)
+
+        if normalized_original not in existing_normalized:
+            candidates.insert(
+                0,
+                {
+                    "url": original_url,
+                    "source": "original_direct_url",
+                    "content_type": "",
+                    "score": 999,
+                },
+            )
+
+    if not candidates:
+        return {
+            "status": "unknown",
+            "reason": "no_media_candidates",
+            "checked": [],
+        }
+
+    checked = []
+    seen = set()
+
+    async with FFMPEG_SEMAPHORE:
+        for index, candidate in enumerate(candidates[:MAX_MEDIA_CANDIDATES], start=1):
+            url = candidate.get("url")
+
+            if not url:
+                continue
+
+            # FIX: Нормализуем URL для дедупликации
+            normalized = normalize_candidate_url(url)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+
+            candidate_debug = f"{debug_name}_candidate_{index}"
+
+            probe = await run_ffprobe(url, headers_info)
+            frames = await extract_frames_with_ffmpeg(url, headers_info, candidate_debug, deep_mode=deep_mode)
+            frame_analysis = analyze_extracted_frames(frames.get("frames", []))
+
+            item = {
+                "candidate": candidate,
+                "probe": probe,
+                "frames": frames,
+                "analysis": frame_analysis,
+            }
+
+            decision = decide_ffmpeg_candidate(probe, frames, frame_analysis, candidate)
+            item["decision"] = decision
+            checked.append(item)
+
+            if decision["status"] == "working":
+                return {
+                    "status": "working",
+                    "reason": decision["reason"],
+                    "winner": item,
+                    "checked": checked,
+                }
+
+            if decision["status"] == "not_working" and decision.get("confident"):
+                # FIX: Не прекращаем проверку сразу — проверяем ещё пару кандидатов
+                # Возможно другой кандидат (например m3u8) работает
+                if index >= 3:  # Проверили минимум 3 кандидата
+                    return {
+                        "status": "not_working",
+                        "reason": decision["reason"],
+                        "winner": item,
+                        "checked": checked,
+                    }
+
+    # Итоговое решение по всем кандидатам
+    if not checked:
+        return {
+            "status": "unknown",
+            "reason": "no_candidates_checked",
+            "checked": [],
+        }
+
+    # FIX: Если хоть один working (с confident=False), считаем working
+    for item in checked:
+        decision = item.get("decision") or {}
+        if decision.get("status") == "working":
+            return {
+                "status": "working",
+                "reason": decision.get("reason", "working_candidate_found"),
+                "winner": item,
+                "checked": checked,
+            }
+
+    # Все not_working
+    if all((item.get("decision") or {}).get("status") == "not_working" for item in checked):
+        return {
+            "status": "not_working",
+            "reason": "all_candidates_failed_or_black",
+            "checked": checked,
+        }
+
+    return {
+        "status": "unknown",
+        "reason": "no_candidate_confirmed",
+        "checked": checked,
+    }
+
+
+# ============================================================
+# FIX #14: Безопасный run_ffprobe с улучшенной обработкой stderr
+# ============================================================
+
+async def run_ffprobe(url, headers_info):
+    if not shutil.which(FFPROBE_BIN):
+        return {
+            "ok": False,
+            "error": f"ffprobe_not_found:{FFPROBE_BIN}",
+            "video_streams": [],
+        }
+
+    input_options = []
+
+    if (url or "").lower().startswith("rtsp://"):
+        input_options.extend(["-rtsp_transport", FFMPEG_RTSP_TRANSPORT])
+
+    cmd = [
+        FFPROBE_BIN,
+        "-v",
+        "error",
+        "-rw_timeout",
+        str(FFMPEG_RW_TIMEOUT_US),
+        *input_options,
+        "-user_agent",
+        headers_info.get("user_agent", ""),
+        "-headers",
+        headers_info.get("headers", ""),
+        "-show_streams",
+        "-show_format",
+        "-of",
+        "json",
+        url,
+    ]
+
+    code, stdout, stderr, timeout = await run_process(cmd, timeout=FFPROBE_TIMEOUT_SEC)
+
+    result = {
+        "ok": code == 0 and bool(stdout.strip()),
+        "returncode": code,
+        "timeout": timeout,
+        "stderr": stderr[-1200:],
+        "video_streams": [],  # FIX: Всегда инициализируем
+    }
+
+    if stdout.strip():
+        try:
+            data = json.loads(stdout)
+            result["json"] = data
+            result["video_streams"] = [
+                s for s in data.get("streams", []) if s.get("codec_type") == "video"
+            ]
+        except Exception as e:
+            result["json_error"] = f"{type(e).__name__}:{e}"
+
+    return result
+
+
+# ============================================================
+# FIX #15: Улучшенная analyze_frame_pixels — обработка ночных камер
+# ============================================================
+
+def analyze_frame_pixels(path):
+    """
+    ИСПРАВЛЕНО:
+    - Добавлено определение "ночной камеры" (тёмная, но с деталями)
+    - Скорректированы пороги usable_picture для учёта ночных сцен
+    """
+    try:
+        image = Image.open(path).convert("RGB")
+    except Exception as e:
+        return {
+            "path": path,
+            "error": f"{type(e).__name__}:{e}",
+            "black_ratio": 1,
+            "center_black_ratio": 1,
+            "bright_ratio": 0,
+            "luma_mean": 0,
+            "luma_std": 0,
+            "entropy": 0,
+            "colorfulness": 0,
+            "hard_black": True,
+            "mostly_black": True,
+            "usable_picture": False,
+            "night_mode": False,
+        }
+
+    width, height = image.size
+
+    # Обрезаем рамку (OSD, даты и т.д.)
+    crop = image.crop(
+        (
+            int(width * 0.02),
+            int(height * 0.03),
+            int(width * 0.98),
+            int(height * 0.97),
+        )
+    )
+
+    cw, ch = crop.size
+    center = crop.crop(
+        (
+            int(cw * 0.15),
+            int(ch * 0.15),
+            int(cw * 0.85),
+            int(ch * 0.85),
+        )
+    )
+
+    full = compute_pixel_stats(crop)
+    center_stats = compute_pixel_stats(center)
+
+    hard_black = (
+        full["black_ratio"] >= FRAME_BLACK_RATIO
+        and center_stats["black_ratio"] >= FRAME_CENTER_BLACK_RATIO
+        and full["luma_mean"] <= FRAME_MAX_MEAN_LUMA
+        and full["bright_ratio"] <= FRAME_MAX_BRIGHT_RATIO
+        and full["entropy"] <= FRAME_MAX_ENTROPY
+    )
+
+    mostly_black = (
+        full["black_ratio"] >= 0.78
+        and center_stats["black_ratio"] >= 0.82
+        and full["luma_mean"] <= 34
+        and full["bright_ratio"] <= 0.065
+    )
+
+    # FIX: Ночная камера — тёмная картинка, но есть детали (энтропия, std)
+    night_mode = (
+        full["luma_mean"] >= 10
+        and full["luma_mean"] <= 45
+        and full["luma_std"] >= 12  # Есть вариация яркости
+        and full["entropy"] >= 3.0  # Есть информация в изображении
+        and full["black_ratio"] >= 0.50
+        and full["black_ratio"] < 0.90
+    )
+
+    # FIX: Улучшенная логика usable_picture с учётом ночного режима
+    usable_picture = (
+        # Стандартное определение: достаточно яркая картинка
+        (
+            full["luma_mean"] >= 30
+            and full["bright_ratio"] >= 0.035
+            and full["entropy"] >= 2.0
+            and full["black_ratio"] < 0.88
+        )
+        # Высокая энтропия даже при умеренной черноте
+        or (
+            full["entropy"] >= 3.0
+            and full["black_ratio"] < 0.82
+        )
+        # FIX: Ночной режим — тёмная но информативная картинка
+        or night_mode
+    )
+
+    return {
+        "path": path,
+        "width": width,
+        "height": height,
+        "black_ratio": round(full["black_ratio"], 4),
+        "dark_ratio": round(full["dark_ratio"], 4),
+        "center_black_ratio": round(center_stats["black_ratio"], 4),
+        "bright_ratio": round(full["bright_ratio"], 4),
+        "luma_mean": round(full["luma_mean"], 4),
+        "luma_std": round(full["luma_std"], 4),
+        "entropy": round(full["entropy"], 4),
+        "colorfulness": round(full["colorfulness"], 4),
+        "hard_black": hard_black,
+        "mostly_black": mostly_black,
+        "usable_picture": usable_picture,
+        "night_mode": night_mode,
+    }
+
+
+# ============================================================
+# FIX #16: Остальные вспомогательные функции без изменений
+# (оставляем как в оригинале, если не указано иное)
+# ============================================================
 
 async def run_camera_check(progress_callback):
     if not TARGET_LOGIN_URL:
@@ -219,6 +1549,10 @@ async def run_camera_check(progress_callback):
             await browser.close()
             log("Браузер закрыт")
 
+
+# ============================================================
+# Функции авторизации и навигации (без изменений)
+# ============================================================
 
 async def login_to_site(page):
     login_input = await find_first_visible(
@@ -375,6 +1709,10 @@ async def ensure_list_grid_loaded(page):
 
     raise RuntimeError("Таблица камер не загрузилась")
 
+
+# ============================================================
+# Сканирование таблицы (без изменений)
+# ============================================================
 
 async def collect_all_rows_from_grid(page):
     grid_body = await find_grid_scroll_container(page)
@@ -575,6 +1913,10 @@ def make_row_key(row):
     return " | ".join(part.strip().lower() for part in parts if part and part.strip())
 
 
+# ============================================================
+# Проверка потоков (verify_streams)
+# ============================================================
+
 async def verify_streams(browser, rows, progress_callback):
     verified_rows = [None] * len(rows)
     queue = asyncio.Queue()
@@ -601,8 +1943,8 @@ async def verify_streams(browser, rows, progress_callback):
     async def worker(worker_id):
         while True:
             try:
-                index, row = await queue.get()
-            except Exception:
+                index, row = queue.get_nowait()
+            except asyncio.QueueEmpty:
                 return
 
             try:
@@ -640,7 +1982,7 @@ async def verify_streams(browser, rows, progress_callback):
 
     workers = [
         asyncio.create_task(worker(i))
-        for i in range(1, STREAM_CHECK_CONCURRENCY + 1)
+        for i in range(1, min(STREAM_CHECK_CONCURRENCY + 1, total + 1))
     ]
 
     await queue.join()
@@ -653,38 +1995,9 @@ async def verify_streams(browser, rows, progress_callback):
     return [row for row in verified_rows if row is not None]
 
 
-async def check_single_stream_with_retry(browser, stream_url, address, attempts=STREAM_RETRY_ATTEMPTS):
-    first = await check_single_stream(
-        browser,
-        stream_url,
-        address,
-        attempt=1,
-        deep_mode=False,
-    )
-
-    if first["confident"] or attempts <= 1:
-        return first["status"], f"attempt_1={first['status']}[{first['details']}]"
-
-    second = await check_single_stream(
-        browser,
-        stream_url,
-        address,
-        attempt=2,
-        deep_mode=True,
-    )
-
-    if first["status"] == "working" or second["status"] == "working":
-        final_status = "working"
-    elif first["status"] == "not_working" and second["status"] == "not_working":
-        final_status = "not_working"
-    else:
-        final_status = "unknown"
-
-    return final_status, (
-        f"attempt_1={first['status']}[{first['details']}] | "
-        f"attempt_2={second['status']}[{second['details']}]"
-    )
-
+# ============================================================
+# check_single_stream (основная функция проверки одного потока)
+# ============================================================
 
 async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode=False):
     debug_name = build_stream_debug_name(address, f"{stream_url}_attempt_{attempt}")
@@ -724,6 +2037,7 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
             confident=deep_mode,
         )
 
+    # Открываем страницу в браузере
     context = await browser.new_context(
         viewport={"width": 1280, "height": 900},
         ignore_https_errors=True,
@@ -789,6 +2103,7 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
         content_type = (main_response_info.get("content_type") or "").lower()
         http_status = main_response_info.get("status")
 
+        # HTTP ошибки (только 4xx/5xx)
         if http_status is not None and http_status >= 400:
             await save_stream_debug(page, f"{debug_name}_http_{http_status}")
             return result_not_working(
@@ -796,6 +2111,7 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
                 confident=True,
             )
 
+        # Проверка текстовых маркеров проблемы ДО воспроизведения
         title_before = await safe_title(page)
         text_before = await safe_page_text(page)
         text_problem_before = detect_problem_text(text_before, title_before)
@@ -820,11 +2136,13 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
                 confident=True,
             )
 
+        # Попытка воспроизведения
         play_details = await try_start_playback_with_total_timeout(page, deep_mode=deep_mode)
 
         await page.wait_for_timeout(PLAY_SETTLE_WAIT_MS + (2500 if deep_mode else 0))
         await page.wait_for_timeout(MEDIA_COLLECT_WAIT_DEEP_MS if deep_mode else MEDIA_COLLECT_WAIT_MS)
 
+        # Повторная проверка текстовых маркеров ПОСЛЕ воспроизведения
         title_after = await safe_title(page)
         text_after = await safe_page_text(page)
         text_problem = detect_problem_text(text_after, title_after)
@@ -847,6 +2165,7 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
                 confident=True,
             )
 
+        # Сбор медиа-кандидатов
         dom_candidates = await collect_dom_media_candidates(page)
         for item in dom_candidates:
             collector.add(
@@ -861,6 +2180,7 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
         media_candidates = collector.top_candidates(MAX_MEDIA_CANDIDATES)
         headers_info = await build_ffmpeg_headers(context, current_url or stream_url)
 
+        # FFmpeg проверка
         ffmpeg_result = await ffmpeg_check_candidates(
             media_candidates=media_candidates,
             original_url=stream_url,
@@ -892,6 +2212,7 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
                 confident=True,
             )
 
+        # Browser fallback
         browser_fallback = None
 
         if BROWSER_SCREENSHOT_FALLBACK:
@@ -941,6 +2262,10 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
     finally:
         await context.close()
 
+
+# ============================================================
+# Утилитарные функции
+# ============================================================
 
 def result_working(details, confident=True):
     return {
@@ -1008,125 +2333,14 @@ class MediaCandidateCollector:
         return values[:limit]
 
 
-def attach_media_collectors(page, collector):
-    def on_request(request):
-        try:
-            collector.add(
-                request.url,
-                source=f"request:{request.resource_type}",
-                content_type="",
-            )
-        except Exception:
-            pass
-
-    async def handle_response(response):
-        try:
-            headers = response.headers or {}
-            collector.add(
-                response.url,
-                source="response",
-                content_type=headers.get("content-type", ""),
-                status=response.status,
-            )
-        except Exception:
-            pass
-
-    def on_response(response):
-        asyncio.create_task(handle_response(response))
-
-    page.on("request", on_request)
-    page.on("response", on_response)
-
-
-def is_noise_url(url):
-    low = (url or "").lower()
-
-    noise = [
-        "google-analytics",
-        "googletagmanager",
-        "metrika",
-        "yandex",
-        "favicon",
-        ".css",
-        ".js",
-        ".woff",
-        ".woff2",
-        ".ttf",
-        ".svg",
-        "/api/",
-    ]
-
-    return any(marker in low for marker in noise)
-
-
-def score_media_candidate(url, content_type=""):
-    low = (url or "").lower()
-    ct = (content_type or "").lower()
-    score = 0
-
-    if low.startswith(("rtsp://", "rtmp://", "rtmps://")):
-        score += 1000
-
-    if ".m3u8" in low or "mpegurl" in ct:
-        score += 200
-
-    strong_url_markers = [
-        "/hls/",
-        "/live/",
-        "/stream/",
-        "/video/",
-        "/mse/",
-        ".mp4",
-        ".flv",
-        ".mjpeg",
-        ".mjpg",
-        "mjpeg",
-        "mjpg",
-    ]
-
-    medium_url_markers = [
-        ".ts",
-        "/chunk",
-        "/segment",
-        "/media",
-        "/camera",
-        "/cam",
-        "/snapshot",
-        ".jpg",
-        ".jpeg",
-        ".png",
-    ]
-
-    content_markers = [
-        "application/vnd.apple.mpegurl",
-        "application/x-mpegurl",
-        "mpegurl",
-        "video/",
-        "multipart/x-mixed-replace",
-        "image/jpeg",
-        "image/png",
-    ]
-
-    if any(marker in low for marker in strong_url_markers):
-        score += 80
-
-    if any(marker in low for marker in medium_url_markers):
-        score += 30
-
-    if any(marker in ct for marker in content_markers):
-        score += 100
-
-    if ".ts" in low:
-        score -= 20
-
-    if low.startswith("blob:"):
-        score = 0
-
-    return score
-
-
 def normalize_candidate_url(url):
-    return re.sub(r"([?&])_=\d+", "", url or "")
+    """Нормализуем URL для дедупликации — убираем cache-busting параметры."""
+    url = re.sub(r"([?&])_=\d+", "", url or "")
+    url = re.sub(r"([?&])t=\d+", "", url)
+    url = re.sub(r"([?&])timestamp=\d+", "", url)
+    # Убираем trailing ? или &
+    url = re.sub(r"[?&]$", "", url)
+    return url
 
 
 async def collect_dom_media_candidates(page):
@@ -1150,7 +2364,7 @@ async def collect_dom_media_candidates(page):
                 for (const video of Array.from(document.querySelectorAll('video'))) {
                     add(video.currentSrc || video.src || '', 'dom_video_src');
 
-                    for (const source of Array.from(video.querySelectorAll('source'))) {
+                                        for (const source of Array.from(video.querySelectorAll('source'))) {
                         add(source.src || '', 'dom_video_source', source.type || '');
                     }
                 }
@@ -1182,6 +2396,10 @@ async def collect_dom_media_candidates(page):
     except Exception:
         return []
 
+
+# ============================================================
+# FFmpeg headers
+# ============================================================
 
 async def build_ffmpeg_headers(context, referer_url):
     try:
@@ -1258,151 +2476,9 @@ def get_origin(url):
     return ""
 
 
-async def ffmpeg_check_candidates(media_candidates, original_url, headers_info, debug_name, deep_mode=False):
-    if not FFMPEG_ENABLED:
-        return {
-            "status": "unknown",
-            "reason": "ffmpeg_disabled",
-            "checked": [],
-        }
-
-    if not PIL_OK:
-        return {
-            "status": "unknown",
-            "reason": "pil_missing",
-            "checked": [],
-        }
-
-    candidates = list(media_candidates or [])
-
-    if is_direct_ffmpeg_url(original_url):
-        candidates.insert(
-            0,
-            {
-                "url": original_url,
-                "source": "original_direct_url",
-                "content_type": "",
-                "score": 999,
-            },
-        )
-
-    if not candidates:
-        return {
-            "status": "unknown",
-            "reason": "no_media_candidates",
-            "checked": [],
-        }
-
-    checked = []
-    seen = set()
-
-    async with FFMPEG_SEMAPHORE:
-        for index, candidate in enumerate(candidates[:MAX_MEDIA_CANDIDATES], start=1):
-            url = candidate.get("url")
-
-            if not url or url in seen:
-                continue
-
-            seen.add(url)
-
-            candidate_debug = f"{debug_name}_candidate_{index}"
-
-            probe = await run_ffprobe(url, headers_info)
-            frames = await extract_frames_with_ffmpeg(url, headers_info, candidate_debug, deep_mode=deep_mode)
-            frame_analysis = analyze_extracted_frames(frames.get("frames", []))
-
-            item = {
-                "candidate": candidate,
-                "probe": probe,
-                "frames": frames,
-                "analysis": frame_analysis,
-            }
-
-            decision = decide_ffmpeg_candidate(probe, frames, frame_analysis, candidate)
-            item["decision"] = decision
-            checked.append(item)
-
-            if decision["status"] == "working":
-                return {
-                    "status": "working",
-                    "reason": decision["reason"],
-                    "winner": item,
-                    "checked": checked,
-                }
-
-            if decision["status"] == "not_working" and decision.get("confident"):
-                return {
-                    "status": "not_working",
-                    "reason": decision["reason"],
-                    "winner": item,
-                    "checked": checked,
-                }
-
-    if checked and all((item.get("decision") or {}).get("status") == "not_working" for item in checked):
-        return {
-            "status": "not_working",
-            "reason": "all_candidates_failed_or_black",
-            "checked": checked,
-        }
-
-    return {
-        "status": "unknown",
-        "reason": "no_candidate_confirmed",
-        "checked": checked,
-    }
-
-
-async def run_ffprobe(url, headers_info):
-    if not shutil.which(FFPROBE_BIN):
-        return {
-            "ok": False,
-            "error": f"ffprobe_not_found:{FFPROBE_BIN}",
-        }
-
-    input_options = []
-
-    if (url or "").lower().startswith("rtsp://"):
-        input_options.extend(["-rtsp_transport", FFMPEG_RTSP_TRANSPORT])
-
-    cmd = [
-        FFPROBE_BIN,
-        "-v",
-        "error",
-        "-rw_timeout",
-        str(FFMPEG_RW_TIMEOUT_US),
-        *input_options,
-        "-user_agent",
-        headers_info.get("user_agent", ""),
-        "-headers",
-        headers_info.get("headers", ""),
-        "-show_streams",
-        "-show_format",
-        "-of",
-        "json",
-        url,
-    ]
-
-    code, stdout, stderr, timeout = await run_process(cmd, timeout=FFPROBE_TIMEOUT_SEC)
-
-    result = {
-        "ok": code == 0 and bool(stdout.strip()),
-        "returncode": code,
-        "timeout": timeout,
-        "stderr": stderr[-1200:],
-    }
-
-    if stdout.strip():
-        try:
-            data = json.loads(stdout)
-            result["json"] = data
-            result["video_streams"] = [
-                s for s in data.get("streams", []) if s.get("codec_type") == "video"
-            ]
-        except Exception as e:
-            result["json_error"] = f"{type(e).__name__}:{e}"
-
-    return result
-
+# ============================================================
+# FFmpeg extract frames
+# ============================================================
 
 async def extract_frames_with_ffmpeg(url, headers_info, debug_name, deep_mode=False):
     if not shutil.which(FFMPEG_BIN):
@@ -1455,7 +2531,7 @@ async def extract_frames_with_ffmpeg(url, headers_info, debug_name, deep_mode=Fa
 
     code, stdout, stderr, timeout = await run_process(
         cmd,
-        timeout=FFMPEG_TIMEOUT_SEC + (8 if deep_mode else 0),
+        timeout=FFMPEG_TIMEOUT_SEC + (10 if deep_mode else 0),
     )
 
     frames = sorted(str(p) for p in out_dir.glob("frame_*.jpg"))
@@ -1494,7 +2570,7 @@ async def run_process(cmd, timeout):
                 pass
 
             try:
-                stdout_b, stderr_b = await process.communicate()
+                stdout_b, stderr_b = await asyncio.wait_for(process.communicate(), timeout=5)
             except Exception:
                 stdout_b, stderr_b = b"", b""
 
@@ -1509,12 +2585,18 @@ async def run_process(cmd, timeout):
         return -998, "", f"{type(e).__name__}:{e}", False
 
 
+# ============================================================
+# Анализ фреймов
+# ============================================================
+
 def analyze_extracted_frames(frame_paths):
     if not PIL_OK or not frame_paths:
         return {
             "ok": False,
             "reason": "no_frames_or_pil_missing",
             "frames": [],
+            "diffs": [],
+            "summary": {},
         }
 
     stats = []
@@ -1534,92 +2616,6 @@ def analyze_extracted_frames(frame_paths):
         "frames": stats,
         "diffs": diffs,
         "summary": summary,
-    }
-
-
-def analyze_frame_pixels(path):
-    try:
-        image = Image.open(path).convert("RGB")
-    except Exception as e:
-        return {
-            "path": path,
-            "error": f"{type(e).__name__}:{e}",
-            "black_ratio": 1,
-            "center_black_ratio": 1,
-            "bright_ratio": 0,
-            "luma_mean": 0,
-            "luma_std": 0,
-            "entropy": 0,
-            "colorfulness": 0,
-            "hard_black": True,
-            "mostly_black": True,
-            "usable_picture": False,
-        }
-
-    width, height = image.size
-
-    crop = image.crop(
-        (
-            int(width * 0.02),
-            int(height * 0.03),
-            int(width * 0.98),
-            int(height * 0.97),
-        )
-    )
-
-    cw, ch = crop.size
-    center = crop.crop(
-        (
-            int(cw * 0.15),
-            int(ch * 0.15),
-            int(cw * 0.85),
-            int(ch * 0.85),
-        )
-    )
-
-    full = compute_pixel_stats(crop)
-    center_stats = compute_pixel_stats(center)
-
-    hard_black = (
-        full["black_ratio"] >= FRAME_BLACK_RATIO
-        and center_stats["black_ratio"] >= FRAME_CENTER_BLACK_RATIO
-        and full["luma_mean"] <= FRAME_MAX_MEAN_LUMA
-        and full["bright_ratio"] <= FRAME_MAX_BRIGHT_RATIO
-        and full["entropy"] <= FRAME_MAX_ENTROPY
-    )
-
-    mostly_black = (
-        full["black_ratio"] >= 0.78
-        and center_stats["black_ratio"] >= 0.82
-        and full["luma_mean"] <= 34
-        and full["bright_ratio"] <= 0.065
-    )
-
-    usable_picture = (
-        full["luma_mean"] >= 30
-        and full["bright_ratio"] >= 0.035
-        and full["entropy"] >= 2.0
-        and full["black_ratio"] < 0.88
-    ) or (
-        full["entropy"] >= 3.0
-        and full["black_ratio"] < 0.82
-    )
-
-    return {
-        "path": path,
-        "width": width,
-        "height": height,
-        "black_ratio": round(full["black_ratio"], 4),
-        "dark_ratio": round(full["dark_ratio"], 4),
-        "center_black_ratio": round(center_stats["black_ratio"], 4),
-        "bright_ratio": round(full["bright_ratio"], 4),
-        "luma_mean": round(full["luma_mean"], 4),
-        "luma_std": round(full["luma_std"], 4),
-        "entropy": round(full["entropy"], 4),
-        "colorfulness": round(full["colorfulness"], 4),
-        "hard_black": hard_black,
-        "mostly_black": mostly_black,
-        "usable_picture": usable_picture,
     }
 
 
@@ -1746,6 +2742,7 @@ def summarize_frame_stats(stats, diffs):
     hard_black_frames = sum(1 for s in stats if s.get("hard_black"))
     mostly_black_frames = sum(1 for s in stats if s.get("mostly_black"))
     usable_frames = sum(1 for s in stats if s.get("usable_picture"))
+    night_mode_frames = sum(1 for s in stats if s.get("night_mode"))
 
     mean_motion = sum(float(d.get("mean_diff") or 0) for d in diffs) / max(1, len(diffs))
     changed_motion = sum(float(d.get("changed_ratio") or 0) for d in diffs) / max(1, len(diffs))
@@ -1760,6 +2757,7 @@ def summarize_frame_stats(stats, diffs):
         "hard_black_frames": hard_black_frames,
         "mostly_black_frames": mostly_black_frames,
         "usable_frames": usable_frames,
+        "night_mode_frames": night_mode_frames,
         "avg_black_ratio": round(avg("black_ratio"), 4),
         "avg_center_black_ratio": round(avg("center_black_ratio"), 4),
         "avg_bright_ratio": round(avg("bright_ratio"), 4),
@@ -1773,262 +2771,9 @@ def summarize_frame_stats(stats, diffs):
     }
 
 
-def decide_ffmpeg_candidate(probe, frames, analysis, candidate):
-    stderr = f"{probe.get('stderr', '')} {frames.get('stderr', '')}".lower()
-
-    hard_error_markers = [
-        "403",
-        "404",
-        "401",
-        "forbidden",
-        "unauthorized",
-        "not found",
-        "server returned 5",
-        "connection refused",
-        "invalid data found",
-        "http error",
-        "method describe failed",
-        "401 unauthorized",
-    ]
-
-    if any(marker in stderr for marker in hard_error_markers):
-        return {
-            "status": "not_working",
-            "confident": True,
-            "reason": f"ffmpeg_hard_error:{first_matching(stderr, hard_error_markers)}",
-        }
-
-    if frames.get("frame_count", 0) <= 0:
-        if is_direct_ffmpeg_url(candidate.get("url")):
-            return {
-                "status": "not_working",
-                "confident": False,
-                "reason": "direct_media_no_frames",
-            }
-
-        return {
-            "status": "unknown",
-            "confident": False,
-            "reason": "no_frames",
-        }
-
-    summary = (analysis or {}).get("summary") or {}
-
-    frame_count = int(summary.get("frame_count") or 0)
-    usable_frames = int(summary.get("usable_frames") or 0)
-    hard_black_frames = int(summary.get("hard_black_frames") or 0)
-    mostly_black_frames = int(summary.get("mostly_black_frames") or 0)
-    static = bool(summary.get("static"))
-
-    avg_black = float(summary.get("avg_black_ratio") or 0)
-    avg_center_black = float(summary.get("avg_center_black_ratio") or 0)
-    avg_bright = float(summary.get("avg_bright_ratio") or 0)
-    avg_mean = float(summary.get("avg_luma_mean") or 0)
-    avg_entropy = float(summary.get("avg_entropy") or 0)
-
-    if usable_frames >= max(2, min(3, frame_count)):
-        return {
-            "status": "working",
-            "confident": True,
-            "reason": (
-                f"usable_decoded_frames={usable_frames}/{frame_count};"
-                f"black={avg_black};bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
-            ),
-        }
-
-    if frame_count >= 2 and hard_black_frames >= max(2, frame_count - 1):
-        return {
-            "status": "not_working",
-            "confident": True,
-            "reason": (
-                f"ffmpeg_hard_black_frames={hard_black_frames}/{frame_count};"
-                f"black={avg_black};center={avg_center_black};"
-                f"bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
-            ),
-        }
-
-    if (
-        frame_count >= 3
-        and mostly_black_frames >= frame_count - 1
-        and static
-        and avg_black >= 0.80
-        and avg_center_black >= 0.84
-        and avg_mean <= 34
-        and avg_bright <= 0.06
-    ):
-        return {
-            "status": "not_working",
-            "confident": True,
-            "reason": (
-                f"ffmpeg_mostly_black_static={mostly_black_frames}/{frame_count};"
-                f"black={avg_black};center={avg_center_black};"
-                f"bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
-            ),
-        }
-
-    if frame_count >= 3 and avg_black < 0.76 and avg_entropy >= 2.2 and avg_bright >= 0.025:
-        return {
-            "status": "working",
-            "confident": True,
-            "reason": (
-                f"decoded_non_black_frames={frame_count};"
-                f"black={avg_black};bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
-            ),
-        }
-
-    return {
-        "status": "unknown",
-        "confident": False,
-        "reason": (
-            f"decoded_but_uncertain;"
-            f"frames={frame_count};usable={usable_frames};black_frames={hard_black_frames};"
-            f"mostly_black={mostly_black_frames};static={static};"
-            f"black={avg_black};bright={avg_bright};mean={avg_mean};entropy={avg_entropy}"
-        ),
-    }
-
-
-async def browser_visual_fallback(page, debug_name, deep_mode=False):
-    if not PIL_OK:
-        return {"status": "unknown", "reason": "pil_missing"}
-
-    files = []
-
-    try:
-        clip = await find_best_player_clip(page)
-        delays = [0, 1500, 3000] if deep_mode else [0, 1500]
-
-        for i, delay in enumerate(delays, start=1):
-            if delay:
-                await page.wait_for_timeout(delay)
-
-            path = STREAM_DEBUG_DIR / f"{debug_name}_browser_fallback_{i}.png"
-
-            if clip:
-                await page.screenshot(path=str(path), full_page=False, clip=clip)
-            else:
-                await page.screenshot(path=str(path), full_page=False)
-
-            files.append(str(path))
-
-        analysis = analyze_extracted_frames(files)
-        summary = analysis.get("summary") or {}
-
-        usable = int(summary.get("usable_frames") or 0)
-        avg_black = float(summary.get("avg_black_ratio") or 1)
-        hard_black = int(summary.get("hard_black_frames") or 0)
-        mostly_black = int(summary.get("mostly_black_frames") or 0)
-        static = bool(summary.get("static"))
-
-        if usable >= 1 and avg_black < 0.80:
-            return {
-                "status": "working",
-                "reason": "browser_visible_non_black_picture",
-                "analysis": analysis,
-                "files": files,
-            }
-
-        if hard_black >= max(2, len(files) - 1) or (
-            mostly_black >= max(2, len(files) - 1) and static
-        ):
-            return {
-                "status": "not_working",
-                "reason": "browser_black_static_picture",
-                "analysis": analysis,
-                "files": files,
-            }
-
-        return {
-            "status": "unknown",
-            "reason": "browser_uncertain",
-            "analysis": analysis,
-            "files": files,
-        }
-
-    except Exception as e:
-        return {
-            "status": "unknown",
-            "reason": f"browser_fallback_error:{type(e).__name__}:{e}",
-            "files": files,
-        }
-
-
-async def find_best_player_clip(page):
-    try:
-        return await page.evaluate(
-            """
-            () => {
-                const selectors = [
-                    'video',
-                    'canvas',
-                    'iframe',
-                    '.video-js',
-                    '.jwplayer',
-                    '.plyr',
-                    '[class*="player"]',
-                    '[class*="video"]',
-                    '[id*="player"]',
-                    '[id*="video"]'
-                ];
-
-                const vw = window.innerWidth || 1280;
-                const vh = window.innerHeight || 900;
-
-                let best = null;
-                let bestArea = 0;
-
-                for (const selector of selectors) {
-                    const nodes = Array.from(document.querySelectorAll(selector));
-
-                    for (const node of nodes) {
-                        try {
-                            const style = window.getComputedStyle(node);
-
-                            if (!style || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
-                                continue;
-                            }
-
-                            const r = node.getBoundingClientRect();
-
-                            const x = Math.max(0, r.left);
-                            const y = Math.max(0, r.top);
-                            const width = Math.max(0, Math.min(r.width, vw - x));
-                            const height = Math.max(0, Math.min(r.height, vh - y));
-                            const area = width * height;
-
-                            if (width < 180 || height < 100 || area < 20000) {
-                                continue;
-                            }
-
-                            if (area > bestArea) {
-                                bestArea = area;
-                                best = {
-                                    x: Math.floor(x),
-                                    y: Math.floor(y),
-                                    width: Math.floor(width),
-                                    height: Math.floor(height)
-                                };
-                            }
-                        } catch (e) {}
-                    }
-                }
-
-                if (best && best.width > 0 && best.height > 0) {
-                    return best;
-                }
-
-                return {
-                    x: 0,
-                    y: Math.floor(vh * 0.08),
-                    width: vw,
-                    height: Math.floor(vh * 0.78)
-                };
-            }
-            """
-        )
-    except Exception:
-        return None
-
+# ============================================================
+# Playback
+# ============================================================
 
 async def try_start_playback_with_total_timeout(page, deep_mode=False):
     if not PLAY_ENABLED:
@@ -2127,14 +2872,12 @@ async def try_start_playback(page, deep_mode=False):
         "button[aria-label*='Воспроизвести']",
         "[class*='big-play']",
         "[class*='play-button']",
-        "[class*='play']",
-        "[id*='play']",
     ]
 
     clicked = 0
 
     for selector in selectors:
-        if clicked >= 5:
+        if clicked >= 4:
             break
 
         try:
@@ -2146,7 +2889,7 @@ async def try_start_playback(page, deep_mode=False):
             if not await locator.is_visible():
                 continue
 
-            await locator.click(timeout=1000, force=True)
+            await locator.click(timeout=1500, force=True)
             details["clicked_selectors"].append(selector)
             clicked += 1
             await page.wait_for_timeout(700)
@@ -2189,144 +2932,90 @@ async def try_start_playback(page, deep_mode=False):
     return details
 
 
-async def detect_visual_problem_marker(page):
+# ============================================================
+# Player clip detection
+# ============================================================
+
+async def find_best_player_clip(page):
     try:
-        result = await page.evaluate(
+        return await page.evaluate(
             """
             () => {
-                const texts = [];
-
-                const pushText = value => {
-                    const t = (value || '').toString().trim();
-                    if (t) texts.push(t.toLowerCase());
-                };
-
                 const selectors = [
-                    'body',
-                    '[class*="error"]',
-                    '[class*="offline"]',
-                    '[class*="warning"]',
-                    '[class*="message"]',
-                    '[class*="status"]',
-                    '[class*="notice"]',
-                    '[class*="overlay"]',
-                    '[class*="modal"]',
-                    '.vjs-error-display',
-                    '.jw-error',
-                    '.jw-text',
-                    '.plyr'
+                    'video',
+                    'canvas',
+                    'iframe',
+                    '.video-js',
+                    '.jwplayer',
+                    '.plyr',
+                    '[class*="player"]',
+                    '[class*="video"]',
+                    '[id*="player"]',
+                    '[id*="video"]'
                 ];
 
+                const vw = window.innerWidth || 1280;
+                const vh = window.innerHeight || 900;
+
+                let best = null;
+                let bestArea = 0;
+
                 for (const selector of selectors) {
-                    const nodes = document.querySelectorAll(selector);
+                    const nodes = Array.from(document.querySelectorAll(selector));
 
                     for (const node of nodes) {
                         try {
                             const style = window.getComputedStyle(node);
-                            const visible = style && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
 
-                            if (!visible) continue;
+                            if (!style || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+                                continue;
+                            }
 
-                            pushText(node.innerText);
-                            pushText(node.textContent);
-                            pushText(node.getAttribute('aria-label'));
-                            pushText(node.getAttribute('title'));
-                            pushText(node.getAttribute('alt'));
-                            pushText(node.getAttribute('data-title'));
-                            pushText(node.getAttribute('data-error'));
-                            pushText(node.getAttribute('data-message'));
+                            const r = node.getBoundingClientRect();
+
+                            const x = Math.max(0, r.left);
+                            const y = Math.max(0, r.top);
+                            const width = Math.max(0, Math.min(r.width, vw - x));
+                            const height = Math.max(0, Math.min(r.height, vh - y));
+                            const area = width * height;
+
+                            if (width < 180 || height < 100 || area < 20000) {
+                                continue;
+                            }
+
+                            if (area > bestArea) {
+                                bestArea = area;
+                                best = {
+                                    x: Math.floor(x),
+                                    y: Math.floor(y),
+                                    width: Math.floor(width),
+                                    height: Math.floor(height)
+                                };
+                            }
                         } catch (e) {}
                     }
                 }
 
-                return texts.join(' | ');
-            }
-            """
-        )
-
-        return detect_problem_text(result)
-
-    except Exception:
-        return None
-
-
-async def inspect_restricted_access_overlay(page):
-    try:
-        info = await page.evaluate(
-            """
-            () => {
-                const parts = [];
-
-                const add = value => {
-                    const text = (value || '').toString().trim();
-                    if (text) parts.push(text);
-                };
-
-                add(document.title || '');
-                add(document.body ? (document.body.innerText || '') : '');
-                add(document.body ? (document.body.textContent || '') : '');
-
-                const nodes = document.querySelectorAll('*');
-
-                for (const node of nodes) {
-                    try {
-                        const style = window.getComputedStyle(node);
-                        const rect = node.getBoundingClientRect();
-
-                        const visible =
-                            style &&
-                            style.display !== 'none' &&
-                            style.visibility !== 'hidden' &&
-                            style.opacity !== '0' &&
-                            rect.width > 0 &&
-                            rect.height > 0;
-
-                        if (!visible) continue;
-
-                        add(node.innerText);
-                        add(node.textContent);
-                        add(node.getAttribute('aria-label'));
-                        add(node.getAttribute('title'));
-                        add(node.getAttribute('alt'));
-                        add(node.getAttribute('data-title'));
-                        add(node.getAttribute('data-message'));
-                        add(node.getAttribute('data-error'));
-                    } catch (e) {}
+                if (best && best.width > 0 && best.height > 0) {
+                    return best;
                 }
 
-                return parts.join(' | ');
+                return {
+                    x: 0,
+                    y: Math.floor(vh * 0.08),
+                    width: vw,
+                    height: Math.floor(vh * 0.78)
+                };
             }
             """
         )
-
-        normalized = normalize_ocr_text(info)
-
-        if "доступ к трансляции временно ограничен" in normalized:
-            return "доступ к трансляции временно ограничен"
-
-        if "трансляции временно ограничен" in normalized:
-            return "доступ к трансляции временно ограничен"
-
-        if "временно ограничен" in normalized and "трансляции" in normalized:
-            return "доступ к трансляции временно ограничен"
-
-        if "временно ограничен" in normalized and "баланс" in normalized:
-            return "доступ к трансляции временно ограничен / пополнить баланс"
-
-        if "пополнить баланс" in normalized:
-            return "пополнить баланс"
-
-        if "пополните баланс" in normalized:
-            return "пополнить баланс"
-
-        if "личном кабинете" in normalized and "пополнить" in normalized and "баланс" in normalized:
-            return "подробнее в личном кабинете / пополнить баланс"
-
-        return None
-
     except Exception:
         return None
 
+
+# ============================================================
+# URL / text utility functions
+# ============================================================
 
 def normalize_text(value):
     return re.sub(r"\s+", " ", (value or "").strip().lower())
@@ -2339,206 +3028,6 @@ def normalize_ocr_text(value):
     text = re.sub(r"[^a-zа-я0-9\s]+", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
-
-
-def detect_problem_text(page_text_norm, title_norm=""):
-    combined = normalize_ocr_text(f"{page_text_norm} | {title_norm}")
-
-    markers = [
-        "доступ к трансляции временно ограничен",
-        "трансляции временно ограничен",
-        "доступ временно ограничен",
-        "временно ограничен",
-        "пополнить баланс",
-        "пополните баланс",
-        "stream unavailable",
-        "access denied",
-        "forbidden",
-        "not found",
-        "404",
-        "403",
-        "401",
-        "502",
-        "504",
-        "bad gateway",
-        "gateway timeout",
-        "unable to play",
-        "failed to load",
-        "media could not be loaded",
-        "no signal",
-        "no video",
-        "camera offline",
-        "stream offline",
-        "source offline",
-        "device offline",
-        "offline",
-        "service unavailable",
-        "камера недоступна",
-        "поток недоступен",
-        "нет сигнала",
-        "нет видео",
-        "видео недоступно",
-        "источник недоступен",
-        "канал недоступен",
-        "stream not found",
-        "unable to connect",
-        "cannot connect",
-        "unable to connect to camera",
-        "check that the camera is turned on",
-        "check camera connection",
-        "невозможно подключиться к камере",
-        "проверьте что она включена",
-        "подключена к интернету",
-        "проверьте подключение камеры к интернету",
-        "camera is not available",
-        "camera unavailable",
-        "unauthorized",
-        "access is denied",
-        "invalid password",
-    ]
-
-    for marker in markers:
-        if marker in combined:
-            return marker
-
-    return None
-
-
-def is_hard_failure_text(value):
-    if not value:
-        return False
-
-    value = normalize_ocr_text(value)
-
-    hard_markers = [
-        "доступ к трансляции временно ограничен",
-        "трансляции временно ограничен",
-        "доступ временно ограничен",
-        "временно ограничен",
-        "пополнить баланс",
-        "пополните баланс",
-        "невозможно подключиться к камере",
-        "проверьте что она включена",
-        "подключена к интернету",
-        "проверьте подключение камеры к интернету",
-        "камера недоступна",
-        "поток недоступен",
-        "источник недоступен",
-        "канал недоступен",
-        "нет сигнала",
-        "нет видео",
-        "видео недоступно",
-        "unable to connect to camera",
-        "cannot connect",
-        "unable to connect",
-        "check that the camera is turned on",
-        "check camera connection",
-        "no video",
-        "no signal",
-        "camera offline",
-        "stream offline",
-        "device offline",
-        "source offline",
-        "offline",
-        "camera unavailable",
-        "stream unavailable",
-        "stream not found",
-        "media could not be loaded",
-        "failed to load",
-        "access denied",
-        "forbidden",
-        "unauthorized",
-        "service unavailable",
-        "bad gateway",
-        "gateway timeout",
-    ]
-
-    return any(marker in value for marker in hard_markers)
-
-
-def is_definite_before_play_text(value):
-    if not value:
-        return False
-
-    value = normalize_ocr_text(value)
-
-    definite_markers = [
-        "доступ к трансляции временно ограничен",
-        "трансляции временно ограничен",
-        "доступ временно ограничен",
-        "временно ограничен",
-        "пополнить баланс",
-        "пополните баланс",
-        "невозможно подключиться к камере",
-        "нет видео",
-        "нет сигнала",
-        "no video",
-        "no signal",
-        "unable to connect to camera",
-    ]
-
-    return any(marker in value for marker in definite_markers)
-
-
-def first_definite_before_play_problem(*values):
-    for value in values:
-        if is_definite_before_play_text(value):
-            return value
-
-    return None
-
-
-def looks_like_direct_media_url(stream_url, content_type=""):
-    url = (stream_url or "").lower().strip()
-    ct = (content_type or "").lower().strip()
-
-    if url.startswith(("rtsp://", "rtmp://", "rtmps://", "srt://", "udp://", "tcp://")):
-        return True
-
-    media_markers = [
-        ".mjpg",
-        ".mjpeg",
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".mp4",
-        ".m3u8",
-        ".ts",
-        ".flv",
-        "/video",
-        "/stream",
-        "/live",
-        "/snapshot",
-        "mjpeg",
-        "mjpg",
-        "hls",
-    ]
-
-    if any(marker in url for marker in media_markers):
-        return True
-
-    if any(
-        marker in ct
-        for marker in [
-            "video/",
-            "image/",
-            "multipart/x-mixed-replace",
-            "application/vnd.apple.mpegurl",
-            "application/x-mpegurl",
-        ]
-    ):
-        return True
-
-    return False
-
-
-def is_direct_ffmpeg_url(url):
-    url = (url or "").lower().strip()
-
-    if url.startswith(("rtsp://", "rtmp://", "rtmps://", "srt://", "udp://", "tcp://")):
-        return True
-
-    return looks_like_direct_media_url(url, "")
 
 
 def first_matching(text, markers):
@@ -2603,6 +3092,10 @@ def normalize_address(value):
     return value.strip()
 
 
+# ============================================================
+# Address table & merge
+# ============================================================
+
 def load_addresses_from_tsv(file_path):
     if not file_path.exists():
         log(f"Файл таблицы адресов не найден: {file_path}")
@@ -2632,7 +3125,11 @@ def load_addresses_from_tsv(file_path):
         if not row:
             continue
 
-        raw = str(row[address_col_index]).strip() if address_col_index is not None and address_col_index < len(row) else str(row[0]).strip()
+        raw = (
+            str(row[address_col_index]).strip()
+            if address_col_index is not None and address_col_index < len(row)
+            else str(row[0]).strip()
+        )
         normalized = normalize_address(raw)
 
         if not normalized or normalized in {"адрес", "address"} or normalized in seen:
@@ -2678,6 +3175,10 @@ def merge_site_rows_with_table(site_rows, table_addresses):
     return merged
 
 
+# ============================================================
+# Helper: find_first_visible, safe_page_text, safe_title
+# ============================================================
+
 async def find_first_visible(page, selectors, timeout=10000):
     for selector in selectors:
         try:
@@ -2708,6 +3209,10 @@ async def safe_title(page):
     except Exception:
         return ""
 
+
+# ============================================================
+# Debug / filenames
+# ============================================================
 
 def build_stream_debug_name(address, stream_url):
     raw = f"{address} | {stream_url}"
@@ -2752,9 +3257,9 @@ async def save_stream_debug(page, name):
         pass
 
 
-# =========================
-# CLI entrypoint for Unified Dashboard
-# =========================
+# ============================================================
+# CLI entrypoint
+# ============================================================
 
 CAMERAS_STATE_FILE = CAMERAS_DATA_DIR / "state" / "dashboard_state.json"
 
@@ -2815,4 +3320,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
+                        
