@@ -2285,16 +2285,21 @@ async def favicon():
 
 @app.post("/appeals/{request_id}/delete")
 async def delete_appeal(request_id: str):
-    global appeals
-    for var in ["appeals", "appeals_list", "db_appeals"]:
-        if var in globals():
-            globals()[var] = [a for a in globals()[var] if (a.get("request_id") if isinstance(a, dict) else getattr(a, "request_id", None)) != request_id]
-    try:
-        import storage
-        if hasattr(storage, "delete_appeal"): storage.delete_appeal(request_id)
-        elif hasattr(storage, "appeals"): storage.appeals = [a for a in storage.appeals if (a.get("request_id") if isinstance(a, dict) else getattr(a, "request_id", None)) != request_id]
-    except: pass
-    return RedirectResponse(url="/appeals", status_code=303)
+    from services.appeals.storage import get_appeal, delete_appeal as delete_appeal_storage
+
+    item = get_appeal(request_id)
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    delete_appeal_storage(request_id)
+
+    return RedirectResponse(
+        url="/appeals?message=Обращение удалено",
+        status_code=303,
+    )
 
 
 # ===============================

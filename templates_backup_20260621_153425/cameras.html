@@ -715,9 +715,6 @@ groupBy: "{{ group_by }}"
             } else if (themeMode === "light") {
                 if (icon) icon.textContent = "☀️";
                 if (text) text.textContent = "Светлая тема";
-            } else if (themeMode === "kreml") {
-                if (icon) icon.textContent = "🏛️";
-                if (text) text.textContent = "Московская";
             } else {
                 const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
                 if (icon) icon.textContent = currentStatusIcon;
@@ -739,9 +736,7 @@ groupBy: "{{ group_by }}"
                     nextMode = "light";
                 } else if (currentMode === "light") {
                     nextMode = "dark";
-                } else if (currentMode === "dark") {
-                        nextMode = "kreml";
-                    } else {
+                } else {
                     nextMode = "auto-moscow";
                 }
                 localStorage.setItem("neurona-theme-mode", nextMode);
@@ -805,9 +800,6 @@ groupBy: "{{ group_by }}"
             } else if (themeMode === "light") {
                 if (icon) icon.textContent = "☀️";
                 if (text) text.textContent = "Светлая тема";
-            } else if (themeMode === "kreml") {
-                if (icon) icon.textContent = "🏛️";
-                if (text) text.textContent = "Московская";
             } else {
                 const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
                 if (icon) icon.textContent = currentStatusIcon;
@@ -827,9 +819,7 @@ groupBy: "{{ group_by }}"
                     nextMode = "light";
                 } else if (currentMode === "light") {
                     nextMode = "dark";
-                } else if (currentMode === "dark") {
-                        nextMode = "kreml";
-                    } else {
+                } else {
                     nextMode = "auto-moscow";
                 }
                 localStorage.setItem("neurona-theme-mode", nextMode);

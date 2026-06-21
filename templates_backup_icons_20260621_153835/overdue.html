@@ -29,9 +29,37 @@
             document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — Повышение качества водоснабжения</title>
+    <title>Нейрона ИИ — Overdue</title>
 
     
 
@@ -62,7 +90,14 @@
                     <span class="theme-toggle-text">Тёмная тема</span>
                 </button>
 
-                <div class="badge">Контроль воды</div>
+                <a
+                    href="https://mgkh.rm.mosreg.ru/login?back_url=https%3A%2F%2Fmgkh.rm.mosreg.ru%2Fissues%3Fquery_id%3D48"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="topbar-redmine-btn"
+                >
+                    Redmine
+                </a>
             </div>
         </header>
 
@@ -71,14 +106,12 @@
                 <div class="eyebrow">ЛОКАЛЬНОЕ AI-РЕШЕНИЕ ДЛЯ МОНИТОРИНГА</div>
 
                 <h1>
-                    Автоматический контроль заполненности карточек повышения качества водоснабжения
-                    и формирование уведомлений
+                    Автоматический контроль просроченных задач и формирование служебных уведомлений
                 </h1>
 
                 <p class="subtext">
-                    Система локально анализирует данные «Повышение качества водоснабжения»,
-                    выявляет незаполненные обязательные поля, формирует сводку для общего
-                    информирования и подготавливает персональные уведомления.
+                    Система в локальном контуре открывает панель мониторинга, снимает текущее состояние,
+                    анализирует проблемные позиции и формирует готовую управленческую сводку.
                 </p>
             </div>
 
@@ -86,13 +119,13 @@
                 <div class="hero-chip">Без облака</div>
                 <div class="hero-chip">Локальная логика</div>
                 <div class="hero-chip">Скриншоты + анализ</div>
-                <div class="hero-chip">Контроль качества воды</div>
+                <div class="hero-chip">Overdue</div>
             </div>
         </section>
 
         <section class="metrics-grid">
             <div class="metric-card">
-                <div class="metric-label">Всего записей</div>
+                <div class="metric-label">Всего территорий</div>
                 <div class="metric-value">{{ metrics.total }}</div>
             </div>
 
@@ -117,11 +150,15 @@
                 <h2>Управление проверкой</h2>
 
                 <p class="subtext">
-                    Запустите автоматическую проверку данных контроля воды.
+                    Запустите автоматическую проверку или откройте информацию о проекте.
                 </p>
             </div>
 
             <div class="action-panel">
+                <button id="aboutProjectBtn" class="secondary-button" type="button">
+                    О проекте
+                </button>
+
                 <button id="runCheckBtn" class="primary-button" type="button">
                     Запустить проверку
                 </button>
@@ -176,18 +213,6 @@
             </div>
 
             <div class="card">
-                <h2>Служебная сводка</h2>
-                <pre>{{ result.summary_message }}</pre>
-            </div>
-
-            {% if result.extraction_note %}
-                <div class="card">
-                    <h2>Комментарий по доступу к источнику</h2>
-                    <pre>{{ result.extraction_note }}</pre>
-                </div>
-            {% endif %}
-
-            <div class="card">
                 <button type="button" class="collapse-toggle expanded" data-target="publicChatBlock">
                     <h2>Общая информация в чат</h2>
                     <span class="collapse-icon">▾</span>
@@ -204,58 +229,50 @@
 
             <div class="card">
                 <button type="button" class="collapse-toggle expanded" data-target="issuesBlock">
-                    <h2>Проблемные позиции</h2>
+                    <h2>Проблемные строки</h2>
                     <span class="collapse-icon">▾</span>
                 </button>
 
                 <div id="issuesBlock" class="collapsible-content">
-                    {% if result.rows %}
-                        {% for row in result.rows %}
-                            {% if row.status != "ok" %}
-                                <div class="message-block">
-                                    <div class="message-head">
-                                        <div class="message-head-badges">
-                                            <strong>{{ row.organization or row.address or "Без названия" }}</strong>
-
-                                            <span class="pill pill-{{ row.status }}">
-                                                {% if row.status == "critical" %}
-                                                    Критично
-                                                {% elif row.status == "risk" %}
-                                                    Риск
-                                                {% else %}
-                                                    Норма
-                                                {% endif %}
-                                            </span>
-                                        </div>
+                    {% if result.missing_data_issues %}
+                        {% for item in result.missing_data_issues %}
+                            <div class="message-block">
+                                <div class="message-head">
+                                    <div class="message-head-badges">
+                                        <strong>{{ item.organization }}</strong>
+                                        <span class="pill pill-risk">Требует внимания</span>
                                     </div>
+                                </div>
 
-                                    <div class="message-meta">
-                                        {{ row.municipality }}
-                                        {% if row.task_id %}
-                                            / Задача {{ row.task_id }}
-                                        {% endif %}
-                                    </div>
-
-                                    <pre>{{ row.reason }}</pre>
-
-                                    {% if row.missing_fields %}
-                                        <div class="inline-fields">
-                                            {% for field in row.missing_fields %}
-                                                <span class="field-chip">{{ field }}</span>
-                                            {% endfor %}
-                                        </div>
+                                <div class="message-meta">
+                                    {{ item.municipality }} / {{ item.responsible_name }}
+                                    {% if item.responsible_phone %}
+                                        / {{ item.responsible_phone }}
                                     {% endif %}
                                 </div>
-                            {% endif %}
+
+                                <pre>{{ item.message }}</pre>
+                            </div>
                         {% endfor %}
                     {% else %}
-                        <p>Проблемные позиции отсутствуют.</p>
+                        <p>Дополнительных замечаний не обнаружено.</p>
                     {% endif %}
                 </div>
             </div>
 
             <div class="card">
-                <h2>Скриншоты панели мониторинга</h2>
+                <div class="section-title-row">
+                    <h2 class="section-title">Скриншоты панели мониторинга</h2>
+
+                    <a
+                        href="https://mgkh.rm.mosreg.ru/login?back_url=https%3A%2F%2Fmgkh.rm.mosreg.ru%2Fissues%3Fquery_id%3D48"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="topbar-redmine-btn"
+                    >
+                        Redmine
+                    </a>
+                </div>
 
                 {% if result.screenshot_paths %}
                     <div class="screenshots-grid">
@@ -304,16 +321,16 @@
                         >
                             <div class="message-head">
                                 <div class="message-head-badges">
-                                    <strong>{{ item.organization or item.responsible_name or "Уведомление" }}</strong>
+                                    <strong>{{ item.responsible_name }}</strong>
 
                                     {% if item.is_edited %}
                                         <span class="pill pill-edited">Исправлено</span>
                                     {% endif %}
 
-                                    <span class="pill pill-{{ item.status or 'risk' }}">
-                                        {% if (item.status or 'risk') == "critical" %}
+                                    <span class="pill pill-{{ item.status }}">
+                                        {% if item.status == "critical" %}
                                             Критично
-                                        {% elif (item.status or 'risk') == "risk" %}
+                                        {% elif item.status == "risk" %}
                                             Риск
                                         {% else %}
                                             Норма
@@ -355,11 +372,12 @@
                         <thead>
                             <tr>
                                 <th>Муниципалитет</th>
-                                <th>Объект / адрес</th>
-                                <th>ID задачи</th>
+                                <th>Организация</th>
+                                <th>Просроченные задачи</th>
+                                <th>Ответственный</th>
+                                <th>Телефон</th>
                                 <th>Статус</th>
                                 <th>Причина</th>
-                                <th>Незаполненные поля</th>
                             </tr>
                         </thead>
 
@@ -367,8 +385,10 @@
                             {% for row in result.rows %}
                                 <tr class="status-{{ row.status }}">
                                     <td>{{ row.municipality }}</td>
-                                    <td>{{ row.organization or row.address }}</td>
-                                    <td>{{ row.task_id or "" }}</td>
+                                    <td>{{ row.organization }}</td>
+                                    <td>{{ row.overdue_count }}</td>
+                                    <td>{{ row.responsible_name }}</td>
+                                    <td>{{ row.responsible_phone or "" }}</td>
 
                                     <td>
                                         <span class="pill pill-{{ row.status }}">
@@ -383,18 +403,6 @@
                                     </td>
 
                                     <td>{{ row.reason }}</td>
-
-                                    <td>
-                                        {% if row.missing_fields %}
-                                            <ul class="missing-fields-list">
-                                                {% for field in row.missing_fields %}
-                                                    <li>{{ field }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% else %}
-                                            —
-                                        {% endif %}
-                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -454,10 +462,52 @@
         </div>
     </div>
 
+    <div id="aboutProjectModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-eyebrow">ИНФОРМАЦИЯ</div>
+                    <h3>Подмосковная Нейрона Роботовна</h3>
+                </div>
+
+                <button type="button" id="closeAboutProjectBtn" class="modal-close-btn">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <pre>Это ИИ-сотрудник для мониторинга просроченных задач по муниципалитетам.
+
+Использует:
+- Playwright для открытия дашборда
+- локальную обработку данных
+- подготовку скриншотов и сообщений
+
+Технологический стек:
+- Python
+- Playwright
+- FastAPI
+- Jinja2
+- HTML
+- CSS
+- JavaScript
+
+Контур работы:
+- локальный
+- без использования облачных сервисов</pre>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="closeAboutProjectFooterBtn" class="primary-button">
+                    Понятно
+                </button>
+            </div>
+        </div>
+    </div>
+
     
 
     <script>
         const runCheckBtn = document.getElementById("runCheckBtn");
+        const aboutProjectBtn = document.getElementById("aboutProjectBtn");
         const loaderBlock = document.getElementById("loaderBlock");
         const statusMessage = document.getElementById("statusMessage");
         const systemStateBadge = document.getElementById("systemStateBadge");
@@ -471,6 +521,10 @@
         const saveModalBtn = document.getElementById("saveModalBtn");
         const improveWithLlmBtn = document.getElementById("improveWithLlmBtn");
         const llmHint = document.getElementById("llmHint");
+
+        const aboutProjectModal = document.getElementById("aboutProjectModal");
+        const closeAboutProjectBtn = document.getElementById("closeAboutProjectBtn");
+        const closeAboutProjectFooterBtn = document.getElementById("closeAboutProjectFooterBtn");
 
         let currentEditablePre = null;
         let currentMessageBlock = null;
@@ -530,6 +584,16 @@
             currentMessageBlock = null;
         }
 
+        function openAboutProjectModal() {
+            aboutProjectModal.classList.remove("hidden");
+            document.body.classList.add("modal-open");
+        }
+
+        function closeAboutProjectModal() {
+            aboutProjectModal.classList.add("hidden");
+            document.body.classList.remove("modal-open");
+        }
+
         function improveMessageDemo(text) {
             let improved = (text || "").trim();
 
@@ -537,8 +601,8 @@
                 return improved;
             }
 
-            if (!improved.includes("Просим актуализировать сведения в WaterControl в возможно короткий срок.")) {
-                improved += "\n\nПросим актуализировать сведения в WaterControl в возможно короткий срок.";
+            if (!improved.includes("Буду признателен за оперативную актуализацию сведений.")) {
+                improved += "\n\nБуду признателен за оперативную актуализацию сведений.";
             }
 
             return improved;
@@ -557,7 +621,7 @@
 
         async function pollStatus() {
             try {
-                const response = await fetch("/watercontrol/run-status");
+                const response = await fetch("/overdue/run-status");
                 const data = await response.json();
 
                 currentStage.textContent = data.stage || "Ожидание";
@@ -567,12 +631,22 @@
                     loaderBlock.classList.remove("hidden");
                     setSystemRunning();
                     runCheckBtn.disabled = true;
+
+                    if (aboutProjectBtn) {
+                        aboutProjectBtn.disabled = true;
+                    }
+
                     runCheckBtn.textContent = "Проверка выполняется...";
 
                     setTimeout(pollStatus, 1000);
                 } else {
                     setSystemReady();
                     runCheckBtn.disabled = false;
+
+                    if (aboutProjectBtn) {
+                        aboutProjectBtn.disabled = false;
+                    }
+
                     runCheckBtn.textContent = "Запустить проверку";
 
                     if (data.stage === "Готово") {
@@ -589,6 +663,11 @@
             } catch (error) {
                 loaderBlock.classList.add("hidden");
                 runCheckBtn.disabled = false;
+
+                if (aboutProjectBtn) {
+                    aboutProjectBtn.disabled = false;
+                }
+
                 runCheckBtn.textContent = "Запустить проверку";
                 setSystemReady();
                 showToast("Ошибка при получении статуса выполнения", "error", true);
@@ -598,6 +677,11 @@
         if (runCheckBtn) {
             runCheckBtn.addEventListener("click", async function () {
                 runCheckBtn.disabled = true;
+
+                if (aboutProjectBtn) {
+                    aboutProjectBtn.disabled = true;
+                }
+
                 loaderBlock.classList.remove("hidden");
                 statusMessage.className = "status-message hidden";
                 statusMessage.textContent = "";
@@ -605,7 +689,7 @@
                 scrollToTopSmooth();
 
                 try {
-                    const response = await fetch("/watercontrol/run-check", {
+                    const response = await fetch("/overdue/run-check", {
                         method: "POST"
                     });
 
@@ -619,11 +703,20 @@
                 } catch (error) {
                     loaderBlock.classList.add("hidden");
                     runCheckBtn.disabled = false;
+
+                    if (aboutProjectBtn) {
+                        aboutProjectBtn.disabled = false;
+                    }
+
                     runCheckBtn.textContent = "Запустить проверку";
                     setSystemReady();
                     showToast(error.message || "Не удалось выполнить проверку", "error", true);
                 }
             });
+        }
+
+        if (aboutProjectBtn) {
+            aboutProjectBtn.addEventListener("click", openAboutProjectModal);
         }
 
         document.querySelectorAll(".js-send-demo").forEach(function (button) {
@@ -698,7 +791,7 @@
                 saveModalBtn.textContent = "Сохранение...";
 
                 try {
-                    const response = await fetch("/watercontrol/save-personal-message", {
+                    const response = await fetch("/overdue/save-personal-message", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -745,6 +838,14 @@
             });
         }
 
+        if (closeAboutProjectBtn) {
+            closeAboutProjectBtn.addEventListener("click", closeAboutProjectModal);
+        }
+
+        if (closeAboutProjectFooterBtn) {
+            closeAboutProjectFooterBtn.addEventListener("click", closeAboutProjectModal);
+        }
+
         if (editModal) {
             editModal.addEventListener("click", function (event) {
                 if (event.target === editModal) {
@@ -753,9 +854,23 @@
             });
         }
 
+        if (aboutProjectModal) {
+            aboutProjectModal.addEventListener("click", function (event) {
+                if (event.target === aboutProjectModal) {
+                    closeAboutProjectModal();
+                }
+            });
+        }
+
         document.addEventListener("keydown", function (event) {
-            if (event.key === "Escape" && editModal && !editModal.classList.contains("hidden")) {
-                closeEditModal();
+            if (event.key === "Escape") {
+                if (editModal && !editModal.classList.contains("hidden")) {
+                    closeEditModal();
+                }
+
+                if (aboutProjectModal && !aboutProjectModal.classList.contains("hidden")) {
+                    closeAboutProjectModal();
+                }
             }
         });
     </script>
@@ -803,9 +918,6 @@
             } else if (themeMode === "light") {
                 if (icon) icon.textContent = "☀️";
                 if (text) text.textContent = "Светлая тема";
-            } else if (themeMode === "kreml") {
-                if (icon) icon.textContent = "🏛️";
-                if (text) text.textContent = "Московская";
             } else {
                 const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
                 if (icon) icon.textContent = currentStatusIcon;
@@ -821,6 +933,91 @@
             // Удаляем старый обработчик, если он был задан атрибутом
             toggle.onclick = null;
             toggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
+                } else if (currentMode === "dark") {
+                        nextMode = "kreml";
+                    } else {
+                    nextMode = "auto-moscow";
+                }
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(() => {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
+    </script>
+    <script>
+    (function () {
+        const root = document.documentElement;
+        const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
+
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H;
+            if (cosH >= 1) H = 0;
+            else if (cosH <= -1) H = Math.PI;
+            else H = Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
+
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                const isDay = isDaytimeInMoscow();
+                activeTheme = isDay ? "light" : "dark";
+            }
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+            if (!themeToggle) return;
+            const icon = themeToggle.querySelector(".theme-toggle-icon");
+            const text = themeToggle.querySelector(".theme-toggle-text");
+            
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+            }
+        }
+
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
+
+        if (themeToggle) {
+            themeToggle.onclick = null;
+            themeToggle.addEventListener("click", function () {
                 const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
                 let nextMode;
                 if (currentMode === "auto-moscow") {
