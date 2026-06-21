@@ -68,8 +68,13 @@ async def login_to_cds(headless: bool = True):
         ) from _last_err
 
     await page.wait_for_timeout(5000)
-    await page.screenshot(path=str(SCREENSHOT_DIR / "after_goto.png"))
-
+    try:
+        await page.screenshot(
+            path=str(SCREENSHOT_DIR / "after_goto.png"),
+            timeout=10000,
+        )
+    except Exception as e:
+        print(f"[CDS] ⚠️ Скриншот after_goto не удался (не критично): {type(e).__name__}")
     current_url = page.url
     print(f"[CDS] URL после goto: {current_url}")
 
@@ -143,7 +148,25 @@ async def login_to_cds(headless: bool = True):
         print("[CDS] Форма логина 1С не найдена — NTLM прошёл, уже внутри")
         await page.wait_for_timeout(3000)
 
-    await page.screenshot(path=str(SCREENSHOT_DIR / "after_login.png"))
+    # Даём 1С дорисоваться после входа
+
+    await page.wait_for_timeout(5000)
+
+    # Отладочный скриншот — НЕ должен ронять логин при таймауте
+
+    try:
+
+        await page.screenshot(
+
+            path=str(SCREENSHOT_DIR / "after_login.png"),
+
+            timeout=10000,
+
+        )
+
+    except Exception as e:
+
+        print(f"[CDS] ⚠️ Скриншот after_login не удался (не критично): {type(e).__name__}")
     print(f"[CDS] ✅ Авторизация завершена. URL: {page.url}")
 
     return pw, browser, context, page
