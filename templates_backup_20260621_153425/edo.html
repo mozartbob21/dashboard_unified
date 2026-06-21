@@ -29,9 +29,37 @@
             document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — Повышение качества водоснабжения</title>
+    <title>Нейрона ИИ — EDO</title>
 
     
 
@@ -39,6 +67,7 @@
 </head>
 
 <body class="compact-module-page">
+    
     <div class="page-glow page-glow-one"></div>
     <div class="page-glow page-glow-two"></div>
     <div class="page-glow page-glow-three"></div>
@@ -62,7 +91,7 @@
                     <span class="theme-toggle-text">Тёмная тема</span>
                 </button>
 
-                <div class="badge">Контроль воды</div>
+                <div class="badge">EDO</div>
             </div>
         </header>
 
@@ -71,14 +100,12 @@
                 <div class="eyebrow">ЛОКАЛЬНОЕ AI-РЕШЕНИЕ ДЛЯ МОНИТОРИНГА</div>
 
                 <h1>
-                    Автоматический контроль заполненности карточек повышения качества водоснабжения
-                    и формирование уведомлений
+                    Автоматический контроль заполненности данных и формирование служебных уведомлений
                 </h1>
 
                 <p class="subtext">
-                    Система локально анализирует данные «Повышение качества водоснабжения»,
-                    выявляет незаполненные обязательные поля, формирует сводку для общего
-                    информирования и подготавливает персональные уведомления.
+                    Система в локальном контуре открывает панель мониторинга, снимает текущее состояние,
+                    анализирует проблемные позиции и формирует готовую управленческую сводку.
                 </p>
             </div>
 
@@ -86,7 +113,7 @@
                 <div class="hero-chip">Без облака</div>
                 <div class="hero-chip">Локальная логика</div>
                 <div class="hero-chip">Скриншоты + анализ</div>
-                <div class="hero-chip">Контроль качества воды</div>
+                <div class="hero-chip">EDO</div>
             </div>
         </section>
 
@@ -117,7 +144,7 @@
                 <h2>Управление проверкой</h2>
 
                 <p class="subtext">
-                    Запустите автоматическую проверку данных контроля воды.
+                    Запустите автоматическую проверку заполненности данных.
                 </p>
             </div>
 
@@ -204,52 +231,33 @@
 
             <div class="card">
                 <button type="button" class="collapse-toggle expanded" data-target="issuesBlock">
-                    <h2>Проблемные позиции</h2>
+                    <h2>Проблемные строки с незаполненными данными</h2>
                     <span class="collapse-icon">▾</span>
                 </button>
 
                 <div id="issuesBlock" class="collapsible-content">
-                    {% if result.rows %}
-                        {% for row in result.rows %}
-                            {% if row.status != "ok" %}
-                                <div class="message-block">
-                                    <div class="message-head">
-                                        <div class="message-head-badges">
-                                            <strong>{{ row.organization or row.address or "Без названия" }}</strong>
-
-                                            <span class="pill pill-{{ row.status }}">
-                                                {% if row.status == "critical" %}
-                                                    Критично
-                                                {% elif row.status == "risk" %}
-                                                    Риск
-                                                {% else %}
-                                                    Норма
-                                                {% endif %}
-                                            </span>
-                                        </div>
+                    {% if result.missing_data_issues %}
+                        {% for item in result.missing_data_issues %}
+                            <div class="message-block">
+                                <div class="message-head">
+                                    <div class="message-head-badges">
+                                        <strong>{{ item.organization }}</strong>
+                                        <span class="pill pill-risk">Требует внимания</span>
                                     </div>
+                                </div>
 
-                                    <div class="message-meta">
-                                        {{ row.municipality }}
-                                        {% if row.task_id %}
-                                            / Задача {{ row.task_id }}
-                                        {% endif %}
-                                    </div>
-
-                                    <pre>{{ row.reason }}</pre>
-
-                                    {% if row.missing_fields %}
-                                        <div class="inline-fields">
-                                            {% for field in row.missing_fields %}
-                                                <span class="field-chip">{{ field }}</span>
-                                            {% endfor %}
-                                        </div>
+                                <div class="message-meta">
+                                    {{ item.municipality }} / {{ item.responsible_name }}
+                                    {% if item.responsible_phone %}
+                                        / {{ item.responsible_phone }}
                                     {% endif %}
                                 </div>
-                            {% endif %}
+
+                                <pre>{{ item.message }}</pre>
+                            </div>
                         {% endfor %}
                     {% else %}
-                        <p>Проблемные позиции отсутствуют.</p>
+                        <p>Незаполненных данных не обнаружено.</p>
                     {% endif %}
                 </div>
             </div>
@@ -304,16 +312,16 @@
                         >
                             <div class="message-head">
                                 <div class="message-head-badges">
-                                    <strong>{{ item.organization or item.responsible_name or "Уведомление" }}</strong>
+                                    <strong>{{ item.responsible_name }}</strong>
 
                                     {% if item.is_edited %}
                                         <span class="pill pill-edited">Исправлено</span>
                                     {% endif %}
 
-                                    <span class="pill pill-{{ item.status or 'risk' }}">
-                                        {% if (item.status or 'risk') == "critical" %}
+                                    <span class="pill pill-{{ item.status }}">
+                                        {% if item.status == "critical" %}
                                             Критично
-                                        {% elif (item.status or 'risk') == "risk" %}
+                                        {% elif item.status == "risk" %}
                                             Риск
                                         {% else %}
                                             Норма
@@ -327,6 +335,17 @@
                                 {% if item.responsible_phone %}
                                     / {{ item.responsible_phone }}
                                 {% endif %}
+                            </div>
+
+                            <div class="message-link-row">
+                                <a
+                                    href="{{ result.redmine_url or '#' }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="redmine-link-btn"
+                                >
+                                    Ссылка на Google-таблицу
+                                </a>
                             </div>
 
                             <pre class="editable-message">{{ item.message }}</pre>
@@ -355,11 +374,17 @@
                         <thead>
                             <tr>
                                 <th>Муниципалитет</th>
-                                <th>Объект / адрес</th>
-                                <th>ID задачи</th>
+                                <th>Организация</th>
+                                <th>Общее кол-во документов в обороте (вн)</th>
+                                <th>Кол-во документов в эл виде (вн)</th>
+                                <th>Общее кол-во документов в обороте (вх)</th>
+                                <th>Кол-во документов в эл виде (вх)</th>
+                                <th>Общее кол-во документов в обороте (исх)</th>
+                                <th>Кол-во документов в эл виде (исх)</th>
+                                <th>Ответственный</th>
+                                <th>Телефон</th>
                                 <th>Статус</th>
                                 <th>Причина</th>
-                                <th>Незаполненные поля</th>
                             </tr>
                         </thead>
 
@@ -367,8 +392,15 @@
                             {% for row in result.rows %}
                                 <tr class="status-{{ row.status }}">
                                     <td>{{ row.municipality }}</td>
-                                    <td>{{ row.organization or row.address }}</td>
-                                    <td>{{ row.task_id or "" }}</td>
+                                    <td>{{ row.organization }}</td>
+                                    <td>{{ row.total_docs_vn }}</td>
+                                    <td>{{ row.electronic_docs_vn }}</td>
+                                    <td>{{ row.total_docs_vh }}</td>
+                                    <td>{{ row.electronic_docs_vh }}</td>
+                                    <td>{{ row.total_docs_ish }}</td>
+                                    <td>{{ row.electronic_docs_ish }}</td>
+                                    <td>{{ row.responsible_name }}</td>
+                                    <td>{{ row.responsible_phone or "" }}</td>
 
                                     <td>
                                         <span class="pill pill-{{ row.status }}">
@@ -383,18 +415,6 @@
                                     </td>
 
                                     <td>{{ row.reason }}</td>
-
-                                    <td>
-                                        {% if row.missing_fields %}
-                                            <ul class="missing-fields-list">
-                                                {% for field in row.missing_fields %}
-                                                    <li>{{ field }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% else %}
-                                            —
-                                        {% endif %}
-                                    </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
@@ -537,8 +557,8 @@
                 return improved;
             }
 
-            if (!improved.includes("Просим актуализировать сведения в WaterControl в возможно короткий срок.")) {
-                improved += "\n\nПросим актуализировать сведения в WaterControl в возможно короткий срок.";
+            if (!improved.includes("Буду признателен за оперативную актуализацию сведений.")) {
+                improved += "\n\nБуду признателен за оперативную актуализацию сведений.";
             }
 
             return improved;
@@ -557,7 +577,7 @@
 
         async function pollStatus() {
             try {
-                const response = await fetch("/watercontrol/run-status");
+                const response = await fetch("/edo/run-status");
                 const data = await response.json();
 
                 currentStage.textContent = data.stage || "Ожидание";
@@ -605,7 +625,7 @@
                 scrollToTopSmooth();
 
                 try {
-                    const response = await fetch("/watercontrol/run-check", {
+                    const response = await fetch("/edo/run-check", {
                         method: "POST"
                     });
 
@@ -698,7 +718,7 @@
                 saveModalBtn.textContent = "Сохранение...";
 
                 try {
-                    const response = await fetch("/watercontrol/save-personal-message", {
+                    const response = await fetch("/edo/save-personal-message", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -803,9 +823,6 @@
             } else if (themeMode === "light") {
                 if (icon) icon.textContent = "☀️";
                 if (text) text.textContent = "Светлая тема";
-            } else if (themeMode === "kreml") {
-                if (icon) icon.textContent = "🏛️";
-                if (text) text.textContent = "Московская";
             } else {
                 const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
                 if (icon) icon.textContent = currentStatusIcon;
@@ -827,9 +844,90 @@
                     nextMode = "light";
                 } else if (currentMode === "light") {
                     nextMode = "dark";
-                } else if (currentMode === "dark") {
-                        nextMode = "kreml";
-                    } else {
+                } else {
+                    nextMode = "auto-moscow";
+                }
+                localStorage.setItem("neurona-theme-mode", nextMode);
+                applyTheme(nextMode);
+            });
+        }
+
+        setInterval(() => {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (currentMode === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
+    </script>
+    <script>
+    (function () {
+        const root = document.documentElement;
+        const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+
+        const MOSCOW_LAT = 55.7558;
+        const MOSCOW_LON = 37.6173;
+        const MOSCOW_TZ = 3;
+
+        function isDaytimeInMoscow() {
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H;
+            if (cosH >= 1) H = 0;
+            else if (cosH <= -1) H = Math.PI;
+            else H = Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+        }
+
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                const isDay = isDaytimeInMoscow();
+                activeTheme = isDay ? "light" : "dark";
+            }
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+            if (!themeToggle) return;
+            const icon = themeToggle.querySelector(".theme-toggle-icon");
+            const text = themeToggle.querySelector(".theme-toggle-text");
+            
+            if (themeMode === "dark") {
+                if (icon) icon.textContent = "🌙";
+                if (text) text.textContent = "Тёмная тема";
+            } else if (themeMode === "light") {
+                if (icon) icon.textContent = "☀️";
+                if (text) text.textContent = "Светлая тема";
+            } else {
+                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
+                if (icon) icon.textContent = currentStatusIcon;
+                if (text) text.textContent = "Подмосковное солнце";
+            }
+        }
+
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedThemeMode);
+
+        if (themeToggle) {
+            themeToggle.onclick = null;
+            themeToggle.addEventListener("click", function () {
+                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+                let nextMode;
+                if (currentMode === "auto-moscow") {
+                    nextMode = "light";
+                } else if (currentMode === "light") {
+                    nextMode = "dark";
+                } else {
                     nextMode = "auto-moscow";
                 }
                 localStorage.setItem("neurona-theme-mode", nextMode);

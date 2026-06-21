@@ -182,3 +182,12 @@ def calculate_stats():
         "rejected": len([x for x in all_items if x.get("status") == "rejected"]),
         "sent": len([x for x in all_items if x.get("status") == "sent"]),
     }
+
+def delete_appeal(request_id):
+    """Удаляет обращение по request_id. Возвращает True, если что-то удалили."""
+    items = load_appeals()
+    new_items = [a for a in items if a.get("request_id") != request_id]
+    if len(new_items) == len(items):
+        return False
+    save_appeals(new_items)
+    return True

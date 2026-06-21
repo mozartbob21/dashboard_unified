@@ -330,7 +330,7 @@
 
             <div class="top-actions">
                 <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
-                    v2.4 (Пред-релиз) 
+                    v2.4 (Бета - 1) 
                 </button>
 
                 <button id="helpButton" class="theme-toggle secondary-button" type="button" aria-label="Помощь и обратная связь">
