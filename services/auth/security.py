@@ -145,7 +145,7 @@ DEFAULT_USERS = [
         "username": "admin",
         "password": _decode_password("FAoEDwdUVh4="),
         "role": "Администратор",
-        "modules": ["edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals", "municipality-report"],
+        "modules": ["edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals", "municipality-report","cds"],
     },
     {
         "username": "data",
