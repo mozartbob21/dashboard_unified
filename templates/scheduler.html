@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<script>
+    (function() {
+        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        let activeTheme = savedThemeMode;
+        if (savedThemeMode === "auto-moscow") {
+            const MOSCOW_LAT = 55.7558;
+            const MOSCOW_LON = 37.6173;
+            const MOSCOW_TZ = 3;
+            const now = new Date();
+            const start = new Date(now.getFullYear(), 0, 0);
+            const diff = now - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+            const latRad = MOSCOW_LAT * Math.PI / 180;
+            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+            let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+            const currentHour = now.getHours() + now.getMinutes() / 60;
+            activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+        }
+        document.documentElement.setAttribute("data-theme", activeTheme);
+    })();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Планировщик — Нейрона ИИ</title>
+<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=scheduler_v1">
+<style>
+:root {
+    --sch-bg: #f8fafc;
+    --sch-card: #ffffff;
+    --sch-text: #1e293b;
+    --sch-muted: #64748b;
+    --sch-border: #e2e8f0;
+    --sch-accent: #6366f1;
+    --sch-accent-hover: #4f46e5;
+    --sch-success: #10b981;
+    --sch-danger: #ef4444;
+    --sch-radius: 12px;
+    --sch-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+}
+
+[data-theme="dark"] {
+    --sch-bg: #0f172a;
+    --sch-card: #1e293b;
+    --sch-text: #f1f5f9;
+    --sch-muted: #94a3b8;
+    --sch-border: #334155;
+    --sch-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+
+.scheduler-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+}
+
+/* Page header */
+.sch-page-header {
+    margin-bottom: 28px;
+}
+
+.sch-page-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--sch-text);
+}
+
+.sch-page-header p {
+    color: var(--sch-muted);
+    font-size: 0.95rem;
+}
+
+/* Status bar */
+.sch-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--sch-card);
+    border: 1px solid var(--sch-border);
+    border-radius: var(--sch-radius);
+    padding: 14px 20px;
+    margin-bottom: 24px;
+    box-shadow: var(--sch-shadow);
+}
+
+.sch-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--sch-success);
+    animation: sch-pulse 2s infinite;
+    flex-shrink: 0;
+}
+
+.sch-status-dot.stopped {
+    background: var(--sch-danger);
+    animation: none;
+}
+
+@keyframes sch-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+}
+
+.sch-status-meta {
+    margin-left: auto;
+    font-size: 0.82rem;
+    color: var(--sch-muted);
+}
+
+/* Grid */
+.sch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+/* Card */
+.sch-card {
+    background: var(--sch-card);
+    border: 1px solid var(--sch-border);
+    border-radius: var(--sch-radius);
+    padding: 20px;
+    box-shadow: var(--sch-shadow);
+    transition: border-color .2s;
+}
+
+.sch-card:hover {
+    border-color: var(--sch-accent);
+}
+
+.sch-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.sch-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--sch-text);
+}
+
+.sch-card-icon {
+    font-size: 1.3rem;
+}
+
+/* Toggle */
+.sch-toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.sch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.sch-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--sch-border);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: .3s;
+}
+
+.sch-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: .3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+
+.sch-toggle input:checked + .sch-toggle-slider {
+    background: var(--sch-success);
+}
+
+.sch-toggle input:checked + .sch-toggle-slider::before {
+    transform: translateX(20px);
+}
+
+/* Details grid */
+.sch-details {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 14px;
+    font-size: 0.82rem;
+    color: var(--sch-muted);
+    margin-bottom: 14px;
+}
+
+.sch-detail-label {
+    font-weight: 600;
+    color: var(--sch-text);
+}
+
+/* Interval */
+.sch-interval {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.sch-interval-label {
+    font-size: 0.82rem;
+    color: var(--sch-muted);
+}
+
+.sch-interval-select {
+    padding: 6px 10px;
+    border: 1px solid var(--sch-border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: var(--sch-bg);
+    color: var(--sch-text);
+    cursor: pointer;
+}
+
+.sch-interval-select:focus {
+    outline: none;
+    border-color: var(--sch-accent);
+}
+
+/* Status badge */
+.sch-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.sch-badge-running { background: #dbeafe; color: #1d4ed8; }
+.sch-badge-success { background: #d1fae5; color: #065f46; }
+.sch-badge-error   { background: #fee2e2; color: #991b1b; }
+.sch-badge-skipped { background: #fef3c7; color: #92400e; }
+.sch-badge-idle    { background: var(--sch-border); color: var(--sch-muted); }
+
+[data-theme="dark"] .sch-badge-running { background: #1e3a5f; color: #93c5fd; }
+[data-theme="dark"] .sch-badge-success { background: #064e3b; color: #6ee7b7; }
+[data-theme="dark"] .sch-badge-error   { background: #450a0a; color: #fca5a5; }
+[data-theme="dark"] .sch-badge-skipped { background: #451a03; color: #fcd34d; }
+[data-theme="dark"] .sch-badge-idle    { background: #334155; color: #94a3b8; }
+
+/* Error text */
+.sch-error-text {
+    font-size: 0.78rem;
+    color: var(--sch-danger);
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    background: rgba(239, 68, 68, 0.06);
+    border-radius: 6px;
+}
+
+/* Actions */
+.sch-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.sch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.sch-btn-primary {
+    background: var(--sch-accent);
+    color: white;
+}
+
+.sch-btn-primary:hover {
+    background: var(--sch-accent-hover);
+    transform: translateY(-1px);
+}
+
+.sch-btn-save {
+    background: var(--sch-card);
+    color: var(--sch-text);
+    border: 1px solid var(--sch-border);
+}
+
+.sch-btn-save:hover {
+    background: var(--sch-border);
+}
+
+/* Toast */
+.sch-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    background: var(--sch-card);
+    border: 1px solid var(--sch-border);
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    font-size: 0.85rem;
+    color: var(--sch-text);
+    z-index: 9999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all .3s;
+}
+
+.sch-toast.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+@media (max-width: 700px) {
+    .sch-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body class="compact-module-page">
+<div class="container">
+    <header class="topbar">
+        <div class="brand">
+            <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+            <div>
+                <div class="brand-title">Нейрона ИИ</div>
+                <div class="brand-subtitle">Планировщик автозапуска</div>
+            </div>
+        </div>
+
+        <div class="top-actions">
+            <button id="themeToggle" class="theme-toggle secondary-button" type="button" aria-label="Переключить тему">
+                <span class="theme-toggle-icon">☀️</span>
+                <span class="theme-toggle-text">Тема</span>
+            </button>
+
+            <a href="/" class="secondary-button" style="text-decoration:none;">← Главная</a>
+
+            {% if user_username %}
+            <div class="badge"
+                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                👤 {{ user_username }}
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="scheduler-page">
+        <div class="sch-page-header">
+            <h1>⏰ Планировщик задач</h1>
+            <p>Автоматический запуск модулей по расписанию. Включайте/выключайте и настраивайте интервал.</p>
+        </div>
+
+        <div class="sch-status-bar" id="statusBar">
+            <span class="sch-status-dot" id="statusDot"></span>
+            <span id="statusText">Загрузка...</span>
+            <span class="sch-status-meta" id="statusMeta"></span>
+        </div>
+
+        <div class="sch-grid" id="jobsGrid"></div>
+    </div>
+</div>
+
+<div class="sch-toast" id="toast"></div>
+
+<script>
+// ─── Theme (та же логика что в home.html) ───
+(function () {
+    const root = document.documentElement;
+    const themeToggle = document.getElementById("themeToggle");
+
+    const MOSCOW_LAT = 55.7558;
+    const MOSCOW_LON = 37.6173;
+    const MOSCOW_TZ = 3;
+
+    function isDaytimeInMoscow() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 0);
+        const diff = now - start;
+        const oneDay = 1000 * 60 * 60 * 24;
+        const dayOfYear = Math.floor(diff / oneDay);
+        const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+        const latRad = MOSCOW_LAT * Math.PI / 180;
+        const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+        let H;
+        if (cosH >= 1) H = 0;
+        else if (cosH <= -1) H = Math.PI;
+        else H = Math.acos(cosH);
+        const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+        const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+        const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+        const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+        const currentHour = now.getHours() + now.getMinutes() / 60;
+        return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+    }
+
+    function applyTheme(themeMode) {
+        let activeTheme = themeMode;
+        if (themeMode === "auto-moscow") {
+            activeTheme = isDaytimeInMoscow() ? "light" : "dark";
+        }
+        root.setAttribute("data-theme", activeTheme);
+        if (!themeToggle) return;
+        const icon = themeToggle.querySelector(".theme-toggle-icon");
+        const text = themeToggle.querySelector(".theme-toggle-text");
+        if (themeMode === "dark") {
+            if (icon) icon.textContent = "🌙";
+            if (text) text.textContent = "Тёмная";
+        } else if (themeMode === "light") {
+            if (icon) icon.textContent = "☀️";
+            if (text) text.textContent = "Светлая";
+        } else {
+            const ico = isDaytimeInMoscow() ? "🛰️" : "🌙";
+            if (icon) icon.textContent = ico;
+            if (text) text.textContent = "Авто";
+        }
+    }
+
+    const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+    applyTheme(savedThemeMode);
+
+    if (themeToggle) {
+        themeToggle.addEventListener("click", function () {
+            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let nextMode;
+            if (currentMode === "auto-moscow") nextMode = "light";
+            else if (currentMode === "light") nextMode = "dark";
+            else nextMode = "auto-moscow";
+            localStorage.setItem("neurona-theme-mode", nextMode);
+            applyTheme(nextMode);
+        });
+    }
+
+    setInterval(() => {
+        const m = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        if (m === "auto-moscow") applyTheme("auto-moscow");
+    }, 60000);
+})();
+
+// ─── Scheduler Logic ───
+(function() {
+    const API = '/api/scheduler';
+    let jobs = [];
+
+    // Интервалы для выбора (минуты → человекочитаемый текст)
+    const INTERVAL_OPTIONS = [
+        { value: 5,    label: "5 мин" },
+        { value: 10,   label: "10 мин" },
+        { value: 15,   label: "15 мин" },
+        { value: 20,   label: "20 мин" },
+        { value: 30,   label: "30 мин" },
+        { value: 45,   label: "45 мин" },
+        { value: 60,   label: "1 ч" },
+        { value: 90,   label: "1.5 ч" },
+        { value: 120,  label: "2 ч" },
+        { value: 180,  label: "3 ч" },
+        { value: 240,  label: "4 ч" },
+        { value: 360,  label: "6 ч" },
+        { value: 480,  label: "8 ч" },
+        { value: 720,  label: "12 ч" },
+        { value: 1440, label: "24 ч" },
+    ];
+
+    function formatInterval(minutes) {
+        if (minutes < 60) return minutes + " мин";
+        const h = minutes / 60;
+        if (h === Math.floor(h)) return h + " ч";
+        return h.toFixed(1) + " ч";
+    }
+
+    // Toast
+    function showToast(msg, duration) {
+        duration = duration || 3000;
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), duration);
+    }
+
+    // API
+    async function apiGet(url) {
+        const r = await fetch(url);
+        return r.json();
+    }
+
+    async function apiPost(url, body) {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body || {})
+        });
+        return r.json();
+    }
+
+    // Formatting
+    function formatTime(iso) {
+        if (!iso) return '—';
+        try {
+            const d = new Date(iso);
+            return d.toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+        } catch(e) { return iso; }
+    }
+
+    function statusBadge(status) {
+        if (!status) return '<span class="sch-badge sch-badge-idle">ожидание</span>';
+        const cls = status === 'running' ? 'running' :
+                    status === 'success' ? 'success' :
+                    status === 'error' ? 'error' :
+                    status === 'skipped' ? 'skipped' : 'idle';
+        const labels = {running:'Работает', success:'Успешно', error:'Ошибка', skipped:'Пропущен'};
+        return '<span class="sch-badge sch-badge-' + cls + '">' + (labels[status] || status) + '</span>';
+    }
+
+    function buildIntervalSelect(moduleId, currentValue) {
+        let options = INTERVAL_OPTIONS.map(opt => {
+            const selected = opt.value === currentValue ? ' selected' : '';
+            return '<option value="' + opt.value + '"' + selected + '>' + opt.label + '</option>';
+        }).join('');
+
+        // Если текущее значение нестандартное — добавляем его
+        const isCustom = !INTERVAL_OPTIONS.find(o => o.value === currentValue);
+        if (isCustom && currentValue) {
+            options = '<option value="' + currentValue + '" selected>' + formatInterval(currentValue) + '</option>' + options;
+        }
+
+        return '<select class="sch-interval-select" id="interval-' + moduleId + '" data-module="' + moduleId + '">' + options + '</select>';
+    }
+
+    // Render
+    function renderJobs() {
+        const grid = document.getElementById('jobsGrid');
+        grid.innerHTML = jobs.map(function(job) {
+            return '<div class="sch-card" id="card-' + job.module_id + '">' +
+                '<div class="sch-card-header">' +
+                    '<div class="sch-card-title">' +
+                        '<span class="sch-card-icon">' + job.module_icon + '</span>' +
+                        job.module_label +
+                    '</div>' +
+                    '<label class="sch-toggle">' +
+                        '<input type="checkbox" ' + (job.enabled ? 'checked' : '') +
+                            ' onchange="window._schToggle(\'' + job.module_id + '\', this.checked)">' +
+                        '<span class="sch-toggle-slider"></span>' +
+                    '</label>' +
+                '</div>' +
+                '<div class="sch-details">' +
+                    '<div class="sch-detail-label">Статус:</div>' +
+                    '<div>' + statusBadge(job.last_status) + '</div>' +
+                    '<div class="sch-detail-label">Последний запуск:</div>' +
+                    '<div>' + formatTime(job.last_run_at) + '</div>' +
+                    '<div class="sch-detail-label">Следующий запуск:</div>' +
+                    '<div>' + formatTime(job.next_run_at) + '</div>' +
+                '</div>' +
+                (job.last_error ? '<div class="sch-error-text">⚠️ ' + job.last_error + '</div>' : '') +
+                '<div class="sch-interval">' +
+                    '<span class="sch-interval-label">Интервал:</span>' +
+                    buildIntervalSelect(job.module_id, job.interval_minutes) +
+                    '<button class="sch-btn sch-btn-save" onclick="window._schSetInterval(\'' + job.module_id + '\')">💾</button>' +
+                '</div>' +
+                '<div class="sch-actions">' +
+                    '<button class="sch-btn sch-btn-primary" onclick="window._schRunNow(\'' + job.module_id + '\')">▶ Запустить</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    // Load
+    async function loadJobs() {
+        try {
+            const data = await apiGet(API + '/jobs');
+            jobs = data.jobs || [];
+
+            const dot = document.getElementById('statusDot');
+            const txt = document.getElementById('statusText');
+            const meta = document.getElementById('statusMeta');
+
+            if (data.scheduler_running) {
+                dot.classList.remove('stopped');
+                txt.textContent = 'Планировщик работает';
+            } else {
+                dot.classList.add('stopped');
+                txt.textContent = 'Планировщик остановлен';
+            }
+
+            const enabled = jobs.filter(function(j) { return j.enabled; }).length;
+            meta.textContent = enabled + ' из ' + jobs.length + ' модулей активны';
+
+            renderJobs();
+        } catch (e) {
+            document.getElementById('statusText').textContent = 'Ошибка загрузки';
+            document.getElementById('statusDot').classList.add('stopped');
+        }
+    }
+
+    // Actions (global)
+    window._schToggle = async function(moduleId, enabled) {
+        const action = enabled ? 'enable' : 'disable';
+        const data = await apiPost(API + '/jobs/' + moduleId + '/' + action);
+        showToast(data.message || (enabled ? 'Включён' : 'Выключен'));
+        loadJobs();
+    };
+
+    window._schSetInterval = async function(moduleId) {
+        const sel = document.getElementById('interval-' + moduleId);
+        const val = parseInt(sel.value);
+        if (isNaN(val) || val < 5 || val > 1440) {
+            showToast('Интервал: от 5 мин до 24 ч');
+            return;
+        }
+        const data = await apiPost(API + '/jobs/' + moduleId + '/interval', {interval_minutes: val});
+        showToast(data.message || 'Интервал обновлён');
+        loadJobs();
+    };
+
+    window._schRunNow = async function(moduleId) {
+        const data = await apiPost(API + '/jobs/' + moduleId + '/run-now');
+        showToast(data.message || 'Запущен');
+        setTimeout(loadJobs, 1000);
+    };
+
+    // Init
+    loadJobs();
+    setInterval(loadJobs, 15000);
+})();
+</script>
+</body>
+</html>
