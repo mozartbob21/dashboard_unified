@@ -165,3 +165,17 @@ data/auth/users.json
 # Игнорируем кэш браузера и скриншоты
 data/overdue/browser-profile/
 data/edo/screenshots/
+
+# Дополнительные временные/битые файлы
+*.broken*
+*.broken_*
+*.CLEAN_*
+*.GOOD_*
+*.bak5_*
+*.bak6_*
+*.bak8_*
+*.bak9_*
+*.bak3b_*
+*.bak4_*
+*.bak2
+*.bak3

@@ -146,6 +146,24 @@ CREATE TABLE IF NOT EXISTS report_screenshots (
     FOREIGN KEY (report_id) REFERENCES reports(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ss_report ON report_screenshots(report_id);
+
+-- Планировщик автозапуска модулей
+CREATE TABLE IF NOT EXISTS scheduler_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    module_id TEXT UNIQUE NOT NULL,
+    module_label TEXT,
+    module_icon TEXT,
+    command TEXT,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    interval_minutes INTEGER NOT NULL DEFAULT 120,
+    last_run_at TEXT,
+    next_run_at TEXT,
+    last_status TEXT,
+    last_error TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_scheduler_enabled ON scheduler_jobs(enabled);
 """
 
 

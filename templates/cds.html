@@ -1,751 +1,741 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
+<html lang="ru" data-theme="dark"><head>
     <script>
         (function() {
-            const saved = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            let t = saved;
-            if (saved === "auto-moscow") {
-                const now = new Date(), lat = 55.7558 * Math.PI / 180;
-                const day = Math.floor((now - new Date(now.getFullYear(),0,0)) / 864e5);
-                const decl = 0.409 * Math.sin(2 * Math.PI * (day - 80) / 365);
-                const cosH = (Math.sin(-0.83*Math.PI/180) - Math.sin(lat)*Math.sin(decl)) / (Math.cos(lat)*Math.cos(decl));
-                const H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-                const sr = (12 - H*12/Math.PI - 37.6173/15 + 3 + 24) % 24;
-                const ss = (12 + H*12/Math.PI - 37.6173/15 + 3 + 24) % 24;
-                const h = now.getHours() + now.getMinutes()/60;
-                t = (h >= sr && h < ss) ? "light" : "dark";
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
             }
-            document.documentElement.setAttribute("data-theme", t);
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — Диспетчерская ЖКХ</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=cds_20260610">
-
+    <title>Мониторинг заявок 1С</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
     <style>
-        .cds-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
-        .cds-hero-main { flex: 1; min-width: 280px; }
-        .cds-hero-side { display: flex; flex-direction: column; gap: 12px; min-width: 220px; }
-        .cds-actions-panel { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
-        .cds-btn-run {
-            display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px;
-            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white;
-            border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer;
-            transition: all 0.2s ease; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.3);
-        }
-        .cds-btn-run:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4); }
-        .cds-btn-run:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
-        .cds-btn-run .spinner {
-            display: none; width: 16px; height: 16px;
-            border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
-            border-radius: 50%; animation: spin 0.8s linear infinite;
-        }
-        .cds-btn-run.loading .spinner { display: inline-block; }
-        .cds-btn-run.loading .btn-text { display: none; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .cds-status-card {
-            display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px;
-            border-radius: 12px; margin-top: 20px; border: 1px solid; transition: all 0.3s ease;
-        }
-        .cds-status-card.status-idle { background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.2); }
-        .cds-status-card.status-running { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.2); }
-        .cds-status-card.status-success { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
-        .cds-status-card.status-error { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); }
-        .cds-status-icon { font-size: 24px; flex-shrink: 0; }
-        .cds-status-content { flex: 1; }
-        .cds-status-title { font-weight: 600; font-size: 15px; color: var(--text-color, #1e293b); margin-bottom: 4px; }
-        .cds-status-text { font-size: 13px; color: var(--muted-color, #64748b); line-height: 1.5; }
-        [data-theme="dark"] .cds-status-title { color: #e2e8f0; }
-        [data-theme="dark"] .cds-status-text { color: #94a3b8; }
-        .cds-results-section { margin-top: 24px; }
-        .cds-results-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid rgba(0,0,0,0.08); margin-top: 16px; }
-        [data-theme="dark"] .cds-results-table-wrap { border-color: rgba(255,255,255,0.1); }
-        .cds-results-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .cds-results-table th {
-            background: rgba(0,0,0,0.03); padding: 10px 14px; text-align: left; font-weight: 600;
-            font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px;
-            color: var(--muted-color, #64748b); border-bottom: 1px solid rgba(0,0,0,0.08); white-space: nowrap;
-        }
-        [data-theme="dark"] .cds-results-table th { background: rgba(255,255,255,0.04); color: #94a3b8; border-bottom-color: rgba(255,255,255,0.08); }
-        .cds-results-table td { padding: 10px 14px; border-bottom: 1px solid rgba(0,0,0,0.04); color: var(--text-color, #1e293b); }
-        [data-theme="dark"] .cds-results-table td { border-bottom-color: rgba(255,255,255,0.05); color: #e2e8f0; }
-        .cds-results-table tr:last-child td { border-bottom: none; }
-        .cds-results-table tr:hover td { background: rgba(139,92,246,0.04); }
-        .cds-counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
-        .cds-counter-card {
-            padding: 16px; border-radius: 12px; background: rgba(0,0,0,0.02);
-            border: 1px solid rgba(0,0,0,0.06); text-align: center;
-        }
-        [data-theme="dark"] .cds-counter-card { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); }
-        .cds-counter-value { font-size: 28px; font-weight: 700; color: #8b5cf6; font-variant-numeric: tabular-nums; }
-        .cds-counter-label { font-size: 12px; color: var(--muted-color, #64748b); margin-top: 4px; font-weight: 500; }
-        [data-theme="dark"] .cds-counter-label { color: #94a3b8; }
-        .cds-log {
-            margin-top: 16px; background: #1e293b; border-radius: 12px; padding: 16px 20px;
-            max-height: 300px; overflow-y: auto;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7; color: #e2e8f0;
-        }
-        .cds-log-line { margin: 0; white-space: pre-wrap; word-break: break-all; }
-        .cds-log-line.log-info { color: #94a3b8; }
-        .cds-log-line.log-success { color: #10b981; }
-        .cds-log-line.log-error { color: #f87171; }
-        .cds-log-line.log-step { color: #60a5fa; }
-        .cds-period-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-        .cds-period-input {
-            padding: 8px 14px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px;
-            font-size: 14px; background: var(--card-bg, white); color: var(--text-color, #1e293b); width: 150px;
-        }
-        [data-theme="dark"] .cds-period-input { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); color: #e2e8f0; }
-        .cds-period-label { font-size: 13px; color: var(--muted-color, #64748b); font-weight: 500; }
-        [data-theme="dark"] .cds-period-label { color: #94a3b8; }
-        .cds-btn-download {
-            display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
-            background: rgba(16,185,129,0.1); color: #059669; border: 1px solid rgba(16,185,129,0.3);
-            border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: none;
-        }
-        .cds-btn-download:hover { background: rgba(16,185,129,0.18); }
-        [data-theme="dark"] .cds-btn-download { color: #34d399; border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.1); }
-        @media (max-width: 768px) {
-            .cds-hero { flex-direction: column; }
-            .cds-counters { grid-template-columns: repeat(2, 1fr); }
-            .cds-period-row { flex-direction: column; align-items: flex-start; }
-            .cds-period-input { width: 100%; }
-        }
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:10px 20px 20px;line-height:1.5;}
+        .container{max-width:1400px;margin:0 auto;background:var(--card-strong);border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,.1);overflow:hidden;}
+        .header{padding:20px;background:var(--bg-soft);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;}
+        .header h1{margin:0;font-size:1.25rem;}
+        .header-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+        .period-input{padding:9px 10px;border:1px solid var(--border);border-radius:6px;font-size:14px;}
+        .btn{color:#fff;padding:10px 20px;border-radius:6px;border:none;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .2s;}
+        .btn:disabled{opacity:.6;cursor:not-allowed;}
+        .btn-upload{background:var(--success,#16a36a);}.btn-upload:hover{background:var(--success-hover,#128053);}
+        .btn-download{background:var(--primary,#3867ff);}.btn-download:hover{background:var(--primary-hover,#2a4fcc);}
+        .btn-excel{background:var(--ok,#16a36a);}.btn-excel:hover{filter:brightness(1.08);}
+        .tabs{display:flex;flex-wrap:wrap;background:var(--bg-soft);border-bottom:1px solid var(--border);padding:0 10px;gap:4px;}
+        .tab-button{padding:12px 16px;border:none;background:none;cursor:pointer;font-size:14px;font-weight:500;color:var(--muted);border-bottom:3px solid transparent;transition:.2s;}
+        .tab-button:hover{color:var(--primary);background:var(--border);}
+        .tab-button.active{color:var(--primary);border-bottom-color:var(--primary);background:var(--card-strong);font-weight:600;}
+        .tab-button.overdue-tab{color:var(--danger);}
+        .tab-button.overdue-tab.active{color:var(--danger);border-bottom-color:var(--danger);}
+        .tab-content{display:none;padding:24px;animation:fadeIn .3s ease-in-out;}
+        .tab-content.active{display:block;}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+        h2{margin-top:0;font-size:1.25rem;border-bottom:2px solid var(--border);padding-bottom:10px;margin-bottom:15px;}
+        .info-badge{display:inline-block;background:var(--info-soft);color:var(--info);padding:6px 14px;border-radius:9999px;font-size:.875rem;font-weight:600;margin-bottom:15px;}
+        .disclaimer{background:var(--warning-bg);border-left:4px solid var(--danger);padding:12px 16px;margin-bottom:20px;border-radius:4px;font-size:.9rem;color:var(--danger);}
+        .filter-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:20px;}
+        .filter-label{font-weight:600;font-size:.9rem;}
+        .filter-select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--card-strong);cursor:pointer;min-width:220px;}
+        .filter-hint{font-size:.85rem;color:var(--muted);font-style:italic;}
+        .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:25px;}
+        @media(max-width:900px){.charts-grid{grid-template-columns:1fr;}}
+        .chart-card{background:var(--bg-soft);border:1px solid var(--border);border-radius:8px;padding:16px;}
+        .chart-card h3{margin:0 0 12px 0;font-size:1rem;color:var(--muted);}
+        .chart-container{position:relative;height:280px;}
+        .table-wrapper{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
+        table{width:100%;border-collapse:collapse;font-size:14px;min-width:800px;}
+        th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--border);}
+        th{background:var(--bg-soft);font-weight:600;color:var(--muted);position:sticky;top:0;z-index:10;user-select:none;}
+        th.sortable{cursor:pointer;transition:.2s;}
+        th.sortable:hover{background:var(--border);}
+        th .sort-icon{margin-left:6px;opacity:.3;font-size:12px;}
+        th.sort-asc .sort-icon,th.sort-desc .sort-icon{opacity:1;color:var(--primary);}
+        tr:hover{background:var(--bg-soft);}
+        .btn-open{background:var(--primary);color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;}
+        .btn-open:hover{background:var(--primary-hover);}
+        .overdue-text{color:var(--danger);font-weight:700;}
+        .overdue-row{background:var(--danger-soft);}
+        .modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.5);backdrop-filter:blur(3px);}
+        .modal-content{background:var(--card-strong);margin:6% auto;padding:28px;border-radius:12px;width:90%;max-width:640px;max-height:84vh;overflow-y:auto;box-shadow:0 20px 25px -5px rgba(0,0,0,.15);position:relative;animation:slideDown .3s ease-out;}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-30px);}to{opacity:1;transform:translateY(0);}}
+        .close{color:var(--muted);position:absolute;right:24px;top:20px;font-size:28px;font-weight:bold;cursor:pointer;line-height:1;}
+        .close:hover{color:var(--text);}
+        .modal-derived{background:var(--bg-soft);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
+        .modal-derived-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+        .modal-derived .modal-field{margin-bottom:0;}
+        .modal-section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--primary);margin:4px 0 14px;padding-bottom:6px;border-bottom:2px solid var(--border);}
+        #modalAllFields{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;}
+        #modalAllFields .modal-field{margin-bottom:4px;}
+        @media(max-width:520px){ #modalAllFields,.modal-derived-grid{grid-template-columns:1fr;}}
+        .modal-field{margin-bottom:18px;}
+        .modal-label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin-bottom:6px;}
+        .modal-value{font-size:15px;color:var(--text);word-wrap:break-word;line-height:1.5;}
+        .status-badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:13px;font-weight:600;background:var(--border);color:var(--text);}
+        .status-new{background:var(--ok-soft);color:var(--ok);}
+        .status-work{background:var(--info-soft);color:var(--info);}
+        .status-postponed{background:var(--risk-soft);color:var(--risk);}
+        .status-returned{background:var(--danger-soft);color:var(--danger);}
+        .status-chronic{background:var(--violet-soft);color:var(--violet);}
+        .empty-state{text-align:center;padding:40px;color:var(--muted);}
+        .overdue-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;margin-bottom:15px;}
+        .loader{display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;}
     </style>
 </head>
+<body>
 
-<body class="compact-module-page">
-    <div class="container">
-        <header class="topbar">
-            <div class="brand">
+<div class="page-glow page-glow-one"></div>
+<div class="page-glow page-glow-two"></div>
+<div class="page-glow page-glow-three"></div>
+
+<div class="container">
+    <header class="topbar">
+        <div class="brand">
+            <a href="/" class="brand-link">
                 <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
-                <div>
+                <div class="brand-text">
                     <div class="brand-title">Нейрона ИИ</div>
                     <div class="brand-subtitle">Подмосковная Нейрона Роботовна</div>
                 </div>
-            </div>
-
-            <div class="top-actions">
-                <button id="themeToggle" class="theme-toggle secondary-button" type="button" aria-label="Переключить тему">
-                    <span class="theme-toggle-icon">☀️</span>
-                    <span class="theme-toggle-text">Тема</span>
-                </button>
-
-                <div class="badge">Локально</div>
-
-                {% if user_username %}
-                <div class="badge"
-                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;"
-                     title="{{ user_role or '' }}">
-                    👤 {{ user_username }}
-                </div>
-                {% endif %}
-
-                <a href="/logout"
-                   class="badge"
-                   style="text-decoration: none; cursor: pointer; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;">
-                   Выйти
-                </a>
-            </div>
-        </header>
-
-        <nav style="margin-bottom: 16px;">
-            <a href="/" style="color: var(--muted-color, #64748b); text-decoration: none; font-size: 13px;">
-                ← Вернуться на главную
             </a>
-        </nav>
-
-        <section class="card">
-            <div class="cds-hero">
-                <div class="cds-hero-main">
-                    <div class="head-pills" style="margin-bottom: 12px;">
-                        <span class="pill primary">Диспетчерская</span>
-                        <span class="pill primary">ЖКХ</span>
-                        <span class="pill primary">1С</span>
-                    </div>
-
-                    <h1 class="module-title" style="font-size: 24px; margin-bottom: 8px;">
-                        Диспетчерская ЖКХ — Обращения
-                    </h1>
-
-                    <p class="module-description">
-                        Автоматический экспорт обращений из системы «Диспетчерская ЖКХ» (1С).
-                        Модуль авторизуется, переходит в раздел «Обращения», устанавливает период,
-                        выгружает список и формирует структурированную таблицу для анализа.
-                    </p>
-
-                    <div class="cds-period-row">
-                        <span class="cds-period-label">Период:</span>
-                        <input type="date" id="cdsDateFrom" class="cds-period-input" title="Дата начала">
-                        <span class="cds-period-label">—</span>
-                        <input type="date" id="cdsDateTo" class="cds-period-input" title="Дата конца">
-                    </div>
-
-                    <div class="cds-actions-panel">
-                        <button id="cdsRunBtn" class="cds-btn-run" type="button">
-                            <span class="spinner"></span>
-                            <span class="btn-text">🚀 Запустить выгрузку</span>
-                        </button>
-
-                        <a href="http://176.100.216.181:63871/CDS/ru/"
-                           target="_blank" rel="noopener noreferrer"
-                           class="secondary-button">
-                            Открыть источник ↗
-                        </a>
-
-                        <a id="cdsDownloadLink" href="#" class="cds-btn-download" style="display: none;">
-                            📥 Скачать Excel
-                        </a>
-                    </div>
-                </div>
-
-                <div class="cds-hero-side">
-                    <div class="soft-card">
-                        <div class="soft-card-title">ИСТОЧНИК</div>
-                        <div class="soft-card-text">
-                            Диспетчерская ЖКХ<br>
-                            Редакция 3.0<br>
-                            1С:Предприятие (Web)
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <div id="cdsStatusCard" class="cds-status-card status-idle">
-            <div class="cds-status-icon">💤</div>
-            <div class="cds-status-content">
-                <div class="cds-status-title">Готов к запуску</div>
-                <div class="cds-status-text">
-                    Выберите период и нажмите «Запустить выгрузку». Система авторизуется в 1С,
-                    откроет раздел обращений и экспортирует данные за указанный период.
-                </div>
-            </div>
         </div>
-
-        <div id="cdsCounters" class="cds-counters" style="display: none;">
-            <div class="cds-counter-card">
-                <div class="cds-counter-value" id="cdsCountTotal">—</div>
-                <div class="cds-counter-label">Всего обращений</div>
-            </div>
-            <div class="cds-counter-card">
-                <div class="cds-counter-value" id="cdsCountNew">—</div>
-                <div class="cds-counter-label">Новых</div>
-            </div>
-            <div class="cds-counter-card">
-                <div class="cds-counter-value" id="cdsCountInWork">—</div>
-                <div class="cds-counter-label">В работе</div>
-            </div>
-            <div class="cds-counter-card">
-                <div class="cds-counter-value" id="cdsCountDone">—</div>
-                <div class="cds-counter-label">Завершено</div>
-            </div>
+        <div class="topbar-right">
+            <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="theme">
+                <span class="theme-toggle-icon">🌙</span>
+                <span class="theme-toggle-text">Тёмная тема</span>
+            </button>
+            <div class="badge">Мониторинг 1С</div>
         </div>
+    </header>
 
-        <section id="cdsResultsSection" class="card cds-results-section" style="display: none;">
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                <div>
-                    <div class="eyebrow">РЕЗУЛЬТАТ</div>
-                    <h2 class="section-title">Выгруженные обращения</h2>
-                </div>
-                <a id="cdsDownloadLink2" href="#" class="cds-btn-download" style="display: none;">
-                    📥 Скачать Excel
-                </a>
-            </div>
-
-            <div class="cds-results-table-wrap">
-                <table class="cds-results-table">
-                    <thead>
-                        <tr>
-                            <th>№</th>
-                            <th>Дата</th>
-                            <th>Номер</th>
-                            <th>Статус</th>
-                            <th>Адрес</th>
-                            <th>Тип</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cdsResultsBody"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="card" style="margin-top: 20px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <div>
-                    <div class="eyebrow">ЖУРНАЛ</div>
-                    <h2 class="section-title">Лог выполнения</h2>
-                </div>
-                <button id="cdsClearLogBtn" class="secondary-button" type="button" style="font-size: 12px; padding: 6px 12px;">
-                    Очистить
-                </button>
-            </div>
-            <div class="cds-log" id="cdsLog">
-                <p class="cds-log-line log-info">[система] Ожидание запуска...</p>
-            </div>
-        </section>
+    <div class="header">
+        <h1>📊 Мониторинг нерешённых заявок 1С</h1>
+        <div class="header-actions">
+            <input type="date" id="dateFrom" class="period-input" title="Дата начала">
+            <input type="date" id="dateTo" class="period-input" title="Дата конца">
+            <button class="btn btn-upload" id="btnExport" onclick="runExport()">
+                ⬆️ Запустить выгрузку
+            </button>
+            <button class="btn btn-excel" onclick="downloadOverdueToExcel()">
+                ⬇️ Скачать просрочку
+            </button>
+        </div>
     </div>
 
-    <script>
-    (function () {
-        const root = document.documentElement;
-        const themeToggle = document.getElementById("themeToggle");
-        function applyTheme(mode) {
-            root.setAttribute("data-theme", mode === "auto-moscow" ? root.getAttribute("data-theme") : mode);
-        }
-        if (themeToggle) {
-            themeToggle.addEventListener("click", function () {
-                const cur = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-                const next = cur === "auto-moscow" ? "light" : cur === "light" ? "dark" : "auto-moscow";
-                localStorage.setItem("neurona-theme-mode", next);
-                if (next !== "auto-moscow") root.setAttribute("data-theme", next);
-                else location.reload();
-            });
-        }
-    })();
-    </script>
-
-    <script>
-    (function () {
-        const runBtn = document.getElementById("cdsRunBtn");
-        const statusCard = document.getElementById("cdsStatusCard");
-        const logEl = document.getElementById("cdsLog");
-        const clearLogBtn = document.getElementById("cdsClearLogBtn");
-        const counters = document.getElementById("cdsCounters");
-        const resultsSection = document.getElementById("cdsResultsSection");
-        const resultsBody = document.getElementById("cdsResultsBody");
-        const downloadLink = document.getElementById("cdsDownloadLink");
-        const downloadLink2 = document.getElementById("cdsDownloadLink2");
-        const dateFrom = document.getElementById("cdsDateFrom");
-        const dateTo = document.getElementById("cdsDateTo");
-
-        // Период по умолчанию: 1-е число прошлого месяца → сегодня
-        const today = new Date();
-        const firstOfPrev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        dateTo.value = today.toISOString().slice(0, 10);
-        dateFrom.value = firstOfPrev.toISOString().slice(0, 10);
-
-        function logLine(text, type) {
-            const p = document.createElement("p");
-            p.className = "cds-log-line log-" + (type || "info");
-            p.textContent = "[" + new Date().toLocaleTimeString("ru-RU") + "] " + text;
-            logEl.appendChild(p);
-            logEl.scrollTop = logEl.scrollHeight;
-        }
-
-        function setStatus(type, icon, title, text) {
-            statusCard.className = "cds-status-card status-" + type;
-            statusCard.innerHTML =
-                '<div class="cds-status-icon">' + icon + '</div>' +
-                '<div class="cds-status-content">' +
-                '<div class="cds-status-title">' + title + '</div>' +
-                '<div class="cds-status-text">' + text + '</div></div>';
-        }
-
-        function escapeHtml(str) {
-            if (str === undefined || str === null || str === "") return "—";
-            return String(str)
-                .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-        }
-
-        if (clearLogBtn) {
-            clearLogBtn.addEventListener("click", function () {
-                logEl.innerHTML = '<p class="cds-log-line log-info">[система] Лог очищен</p>';
-            });
-        }
-
-        runBtn.addEventListener("click", async function () {
-            const from = dateFrom.value;
-            const to = dateTo.value;
-
-            if (!from || !to) {
-                setStatus("error", "⚠️", "Укажите период", "Заполните оба поля даты перед запуском.");
-                return;
-            }
-
-            runBtn.classList.add("loading");
-            runBtn.disabled = true;
-            setStatus("running", "⏳", "Выгрузка выполняется...",
-                "Авторизация в 1С, установка периода, экспорт списка. Обычно занимает 1–3 минуты — не закрывайте страницу.");
-            logLine("Запуск выгрузки: " + from + " → " + to, "step");
-
-            try {
-                const resp = await fetch("/api/cds/export", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ date_from: from, date_to: to })
-                });
-
-                const data = await resp.json();
-
-                if (!resp.ok || !data.success) {
-                    throw new Error(data.error || data.detail || ("Ошибка сервера " + resp.status));
-                }
-
-                setStatus("success", "✅", "Выгрузка завершена",
-                    "Получено " + (data.total || 0) + " обращений за период " + from + " — " + to + ".");
-                logLine("✓ Выгрузка завершена. Записей: " + (data.total || 0), "success");
-
-                counters.style.display = "grid";
-                document.getElementById("cdsCountTotal").textContent = data.total || 0;
-                document.getElementById("cdsCountNew").textContent = data.count_new || 0;
-                document.getElementById("cdsCountInWork").textContent = data.count_in_work || 0;
-                document.getElementById("cdsCountDone").textContent = data.count_done || 0;
-
-                const rows = data.rows || [];
-                if (rows.length > 0) {
-                    resultsSection.style.display = "block";
-                    resultsBody.innerHTML = rows.slice(0, 100).map(function (row, idx) {
-                        return "<tr>" +
-                            "<td>" + (idx + 1) + "</td>" +
-                            "<td>" + escapeHtml(row.date || row["Дата"]) + "</td>" +
-                            "<td>" + escapeHtml(row.number || row["Номер"]) + "</td>" +
-                            "<td>" + escapeHtml(row.status || row["Состояние обращения"]) + "</td>" +
-                            "<td>" + escapeHtml(row.address || row["Адрес обращения"]) + "</td>" +
-                            "<td>" + escapeHtml(row.type || row["Тип обращения"]) + "</td>" +
-                            "</tr>";
-                    }).join("");
-
-                    if (rows.length > 100) {
-                        logLine("Показаны первые 100 из " + data.total + " записей", "info");
-                    }
-                }
-
-                if (data.download_url) {
-                    downloadLink.href = data.download_url;
-                    downloadLink.style.display = "inline-flex";
-                    downloadLink2.href = data.download_url;
-                    downloadLink2.style.display = "inline-flex";
-                    logLine("Файл доступен: " + data.download_url, "success");
-                }
-
-            } catch (err) {
-                setStatus("error", "❌", "Ошибка выгрузки", escapeHtml(err.message));
-                logLine("✗ Ошибка: " + err.message, "error");
-                console.error("[CDS Export]", err);
-            } finally {
-                runBtn.classList.remove("loading");
-                runBtn.disabled = false;
-            }
-        });
-
-        logLine("Модуль CDS готов. Период по умолчанию: " + dateFrom.value + " → " + dateTo.value, "info");
-    })();
-    </script>
-
-
-<!-- ============ CDS CHARTS (auto-patch) ============ -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<style>
-#cds-charts .charts-row { display:grid; gap:20px; margin-bottom:20px; }
-#cds-charts .row-1 { grid-template-columns: 1fr 1.4fr; }
-#cds-charts .row-2 { grid-template-columns: 1fr 1fr; }
-#cds-charts .chart-card { background:#fff; border-radius:16px; padding:20px;
-  box-shadow:0 2px 12px rgba(99,102,241,.10); }
-#cds-charts .chart-card h3 { margin:0 0 12px; font-size:15px; color:#4b5563; }
-#cds-charts canvas { max-height:300px; }
-@media (max-width: 900px) {
-  #cds-charts .row-1, #cds-charts .row-2 { grid-template-columns: 1fr; }
-}
-</style>
-
-<div id="cds-charts" style="display:none; margin:24px 0;">
-  <div class="charts-row row-1">
-    <div class="chart-card"><h3>📊 По статусам</h3><canvas id="chartStatus"></canvas></div>
-    <div class="chart-card"><h3>📈 Динамика по дням</h3><canvas id="chartDays"></canvas></div>
-  </div>
-  <div class="charts-row row-2">
-    <div class="chart-card"><h3>🏘 По муниципалитетам (топ-12)</h3><canvas id="chartMun"></canvas></div>
-    <div class="chart-card"><h3>🛠 По типам заявок</h3><canvas id="chartType"></canvas></div>
-  </div>
+    <div class="tabs" id="tabsContainer"></div>
+    <div id="contentContainer">
+        <div id="loader" class="loader"></div>
+        <div id="emptyHint" class="empty-state">Выберите период и нажмите «Запустить выгрузку», чтобы загрузить данные из 1С.</div>
+    </div>
 </div>
 
+<div id="requestModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">×</span>
+        <h2 id="modalTitle" style="border:none;margin-bottom:12px;">Заявка</h2>
+        <div id="modalDerived" class="modal-derived"></div>
+        <div class="modal-section-title">Данные из файла</div>
+        <div id="modalAllFields"></div>
+    </div>
+</div>
+
+{% raw %}
 <script>
-var CDS_PALETTE = ["#6366f1","#22c55e","#f59e0b","#ef4444","#06b6d4",
-  "#a855f7","#84cc16","#f97316","#14b8a6","#e879f9","#64748b","#facc15"];
-var cdsCharts = [];
+    const SLA_DAYS = 3;
+    const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 
-function renderCdsCharts(a) {
-  if (!a || typeof Chart === "undefined") return;
-  var box = document.getElementById("cds-charts");
-  if (!box) return;
+    let appData = {};                       // { "Подразделение": [заявки...] }
+    let sortState = { column: null, direction: 'asc' };
+    let chartPie = null, chartBar = null;
+    let summaryStatusFilter = '';
+    let modalRegistry = [];
+    const OVERDUE_FILTER = '__overdue__';
+    const STATUS_PALETTE = ['#3b82f6','#f97316','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#6366f1','#14b8a6','#a855f7'];
 
-  // Переносим блок над заголовком "Выгруженные обращения", если он есть
-  try {
-    var heads = document.querySelectorAll("h1,h2,h3");
-    for (var i = 0; i < heads.length; i++) {
-      if (heads[i].textContent.indexOf("Выгруженные обращения") !== -1) {
-        var target = heads[i].closest("section") || heads[i].parentElement;
-        if (target && target.parentElement && target !== box) {
-          target.parentElement.insertBefore(box, target);
+    // ===== Период по умолчанию: прошлый месяц =====
+    (function initPeriod(){
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth()-1, 1);
+        const end   = new Date(now.getFullYear(), now.getMonth()+1, 0);
+        const fmt = d => d.toISOString().slice(0,10);
+        document.getElementById('dateFrom').value = fmt(start);
+        document.getElementById('dateTo').value   = fmt(end);
+    })();
+
+    // ===== Запуск выгрузки через бэкенд =====
+    async function runExport(){
+        const btn = document.getElementById('btnExport');
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo   = document.getElementById('dateTo').value;
+        if(!dateFrom || !dateTo){ alert('Укажите период'); return; }
+
+        btn.disabled = true; btn.textContent = '⏳ Выгрузка...';
+        document.getElementById('emptyHint').style.display = 'none';
+        const loader = document.getElementById('loader');
+        loader.style.display = 'block';
+        loader.textContent = 'Выполняется выгрузка из 1С... Это может занять несколько минут.';
+        document.getElementById('tabsContainer').innerHTML = '';
+
+        try{
+            const res = await fetch('/api/cds/export', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                credentials:'same-origin',
+                body: JSON.stringify({ date_from: dateFrom, date_to: dateTo })
+            });
+            const data = await res.json();
+            if(!data.success) throw new Error(data.error || 'Ошибка выгрузки');
+
+            appData = rowsToAppData(data.rows || []);
+            sortState = { column:null, direction:'asc' };
+            renderAll();
+        }catch(e){
+            document.getElementById('contentContainer').innerHTML =
+                `<div class="empty-state">❌ ${escapeHtml(e.message)}</div>`;
+        }finally{
+            btn.disabled = false; btn.textContent = '⬆️ Запустить выгрузку';
+            loader.style.display = 'none';
         }
-        break;
-      }
     }
-  } catch (e) {}
 
-  box.style.display = "block";
-  cdsCharts.forEach(function (c) { c.destroy(); });
-  cdsCharts = [];
+    // ===== Конвертация плоского массива бэка в структуру по подразделениям =====
+    const RESOLVED = new Set(["завершено","закрыто","выполнено","отменено"]);
+    function isOpen(r){ return !RESOLVED.has((r.status||"").trim().toLowerCase()); }
 
-  function labels(arr) { return (arr || []).map(function (x) { return x.label; }); }
-  function values(arr) { return (arr || []).map(function (x) { return x.value; }); }
-  function mk(id, cfg) {
-    var el = document.getElementById(id);
-    if (el) cdsCharts.push(new Chart(el, cfg));
-  }
-
-  mk("chartStatus", {
-    type: "doughnut",
-    data: { labels: labels(a.by_status),
-      datasets: [{ data: values(a.by_status), backgroundColor: CDS_PALETTE, borderWidth: 2 }] },
-    options: { cutout: "62%", plugins: { legend: { position: "bottom" } } }
-  });
-
-  mk("chartDays", {
-    type: "line",
-    data: { labels: labels(a.by_day),
-      datasets: [{ label: "Обращений", data: values(a.by_day),
-        borderColor: "#6366f1", backgroundColor: "rgba(99,102,241,.15)",
-        fill: true, tension: 0.35, pointRadius: 2 }] },
-    options: { plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } } }
-  });
-
-  mk("chartMun", {
-    type: "bar",
-    data: { labels: labels(a.by_municipality),
-      datasets: [{ data: values(a.by_municipality),
-        backgroundColor: "#6366f1", borderRadius: 6 }] },
-    options: { indexAxis: "y", plugins: { legend: { display: false } } }
-  });
-
-  mk("chartType", {
-    type: "bar",
-    data: { labels: labels(a.by_type),
-      datasets: [{ data: values(a.by_type),
-        backgroundColor: "#22c55e", borderRadius: 6 }] },
-    options: { indexAxis: "y", plugins: { legend: { display: false } } }
-  });
-}
-
-// Перехват fetch: рисуем графики автоматически после выгрузки
-(function () {
-  var orig = window.fetch;
-  window.fetch = function () {
-    var args = arguments;
-    return orig.apply(this, args).then(function (resp) {
-      try {
-        var url = (typeof args[0] === "string") ? args[0] : ((args[0] && args[0].url) || "");
-        if (url.indexOf("/api/cds/export") !== -1) {
-          resp.clone().json().then(function (d) {
-            if (d && d.success && d.analytics) renderCdsCharts(d.analytics);
-          }).catch(function () {});
-        }
-      } catch (e) {}
-      return resp;
-    });
-  };
-})();
-
-// Перехват XHR — на случай, если страница использует XMLHttpRequest
-(function () {
-  var origOpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function (method, url) {
-    if (url && String(url).indexOf("/api/cds/export") !== -1) {
-      this.addEventListener("load", function () {
-        try {
-          var d = JSON.parse(this.responseText);
-                    if (d && d.success && d.analytics) renderCdsCharts(d.analytics);
-        } catch (e) {}
-      });
-    }
-    return origOpen.apply(this, arguments);
-  };
-})();
-</script>
-<!-- ============ /CDS CHARTS ============ -->
-
-<script>
-/* ===== CDS PERSIST: восстановление графиков после перезагрузки ===== */
-(function () {
-  // 1. Оборачиваем renderCdsCharts: при каждой отрисовке сохраняем данные
-  var origRender = window.renderCdsCharts;
-  window.renderCdsCharts = function (a) {
-    try {
-      localStorage.setItem("cds_last_analytics", JSON.stringify({
-        ts: Date.now(),
-        data: a
-      }));
-      // Через 700мс (когда обработчик выгрузки уже заполнил счётчики)
-      // дописываем их значения в ту же запись
-      setTimeout(function () {
-        try {
-          var raw = localStorage.getItem("cds_last_analytics");
-          if (!raw) return;
-          var saved = JSON.parse(raw);
-          var ids = ["cdsCountTotal", "cdsCountNew", "cdsCountInWork", "cdsCountDone"];
-          var vals = {};
-          var ok = false;
-          ids.forEach(function (id) {
-            var el = document.getElementById(id);
-            vals[id] = el ? el.textContent : "—";
-            if (vals[id] && vals[id] !== "—") ok = true;
-          });
-          if (ok) {
-            saved.counters = vals;
-            localStorage.setItem("cds_last_analytics", JSON.stringify(saved));
-          }
-        } catch (e) {}
-      }, 700);
-    } catch (e) {}
-    return origRender(a);
-  };
-
-  // 2. При загрузке страницы — восстанавливаем, если данные не старше 24ч
-  function computeCountersFromData(d) {
-    try {
-      // Ищем объект вида {"Завершено": N, "Новое": M, ...} среди полей данных
-      var statuses = null;
-      ["by_status", "statuses", "status_counts", "status"].some(function (k) {
-        if (d && d[k] && typeof d[k] === "object") { statuses = d[k]; return true; }
-        return false;
-      });
-      if (!statuses) return null;
-
-      var entries = statuses;
-      // Поддержка формата {labels: [...], values: [...]}
-      if (Array.isArray(statuses.labels) && Array.isArray(statuses.values)) {
-        entries = {};
-        statuses.labels.forEach(function (lbl, i) { entries[lbl] = statuses.values[i]; });
-      }
-
-      var total = 0, fresh = 0, inwork = 0, done = 0;
-      Object.keys(entries).forEach(function (lbl) {
-        var v = Number(entries[lbl]) || 0;
-        total += v;
-        var L = lbl.toLowerCase();
-        if (L.indexOf("нов") === 0) fresh += v;
-        else if (L.indexOf("в работе") !== -1) inwork += v;
-        else if (L.indexOf("заверш") !== -1) done += v;
-      });
-      if (!total) return null;
-      return {
-        cdsCountTotal: String(total),
-        cdsCountNew: String(fresh),
-        cdsCountInWork: String(inwork),
-        cdsCountDone: String(done)
-      };
-    } catch (e) { return null; }
-  }
-
-  function restore() {
-    try {
-      var raw = localStorage.getItem("cds_last_analytics");
-      if (!raw) return;
-      var saved = JSON.parse(raw);
-      if (!saved || !saved.data) return;
-      if (Date.now() - saved.ts > 24 * 60 * 60 * 1000) return;
-
-      window.renderCdsCharts(saved.data);
-
-      // Восстанавливаем карточки счётчиков
-      var counters = saved.counters;
-      if (!counters) {
-        // Фолбэк для старых записей: пробуем вычислить из данных "По статусам"
-        counters = computeCountersFromData(saved.data);
-      }
-      if (counters) {
-        Object.keys(counters).forEach(function (id) {
-          var el = document.getElementById(id);
-          if (el && counters[id] && counters[id] !== "—") {
-            el.textContent = counters[id];
-          }
+    function rowsToAppData(rows){
+        const out = {};
+        rows.filter(isOpen).forEach(r => {
+            const dept = (r.department || '').trim() || '(не указано)';
+            const fields = [
+                {label:'Дата', value:r.date},
+                {label:'Подразделение', value:r.department},
+                {label:'Номер', value:r.number},
+                {label:'Состояние обращения', value:r.status},
+                {label:'Адрес обращения', value:r.address},
+                {label:'Тип обращения', value:r.type},
+                {label:'Срок исполнения', value:r.deadline},
+                {label:'Тип заявки', value:r.request_type},
+                {label:'Источник поступления', value:r.source},
+                {label:'Заявитель', value:r.applicant},
+                {label:'Исполнитель', value:r.executor},
+                {label:'Причина обращения', value:r.reason},
+            ];
+            const req = {
+                date: r.date || '',
+                department: dept,
+                number: r.number || '',
+                status: r.status || '',
+                address: r.address || '',
+                reason: r.reason || '',
+                deadline: r.deadline || '',
+                fields
+            };
+            (out[dept] = out[dept] || []).push(req);
         });
-        var box2 = document.getElementById("cdsCounters");
-        if (box2) box2.style.display = "";
-      }
-
-      // Подпись, что это данные прошлой выгрузки
-      var box = document.getElementById("cds-charts");
-      if (box && !document.getElementById("cds-restored-note")) {
-        var note = document.createElement("div");
-        note.id = "cds-restored-note";
-        note.style.cssText = "font-size:13px;color:#6b7280;margin:0 0 10px;";
-        var d = new Date(saved.ts);
-        note.textContent = "📦 Данные последней выгрузки от " +
-          d.toLocaleDateString("ru-RU") + " " +
-          d.toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"});
-        box.insertBefore(note, box.firstChild);
-      }
-    } catch (e) { console.warn("CDS restore failed:", e); }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-      setTimeout(restore, 300);
-    });
-  } else {
-    setTimeout(restore, 300);
-  }
-})();
-</script>
-<!-- ===== /CDS PERSIST ===== -->
-
-
-
-<script>
-/* ===== CDS UI TWEAKS: убрать "По типам заявок", дни недели на оси ===== */
-(function () {
-  var orig = window.renderCdsCharts;
-  window.renderCdsCharts = function (a) {
-    var r = orig(a);
-    setTimeout(tweak, 150);
-    return r;
-  };
-
-  function tweak() {
-    // --- 1. Удаляем карточку "По типам заявок" ---
-    var all = document.querySelectorAll("*");
-    for (var i = 0; i < all.length; i++) {
-      var el = all[i];
-      if (el.children.length === 0 &&
-          el.textContent && el.textContent.indexOf("По типам заявок") !== -1) {
-        // Поднимаемся до карточки, внутри которой есть canvas
-        var node = el.parentElement;
-        while (node && node !== document.body) {
-          if (node.querySelector("canvas")) { node.remove(); break; }
-          node = node.parentElement;
-        }
-        break;
-      }
+        return out;
     }
 
-    // --- 2. Дни недели в подписях "Динамика по дням" ---
-    if (!window.Chart || !Chart.instances) return;
-    var days = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
-    var dateRe = /^\d{4}-\d{2}-\d{2}$/;
-    Object.values(Chart.instances).forEach(function (ch) {
-      var labels = ch.data && ch.data.labels;
-      if (!labels || !labels.length) return;
-      // Только график, где ВСЕ подписи — даты YYYY-MM-DD (защита от повторного применения)
-      var allDates = labels.every(function (l) {
-        return typeof l === "string" && dateRe.test(l);
-      });
-      if (!allDates) return;
-      ch.data.labels = labels.map(function (l) {
-        var d = new Date(l + "T00:00:00");
-        return l + " (" + days[d.getDay()] + ")";
-      });
-      ch.update();
-    });
-  }
+    // ===== Даты / просрочка =====
+    function parseExcelDate(value){
+        if(!value && value!==0) return "";
+        return String(value).trim();
+    }
+    function getDaysSince(dateStr){
+        if(!dateStr) return 0;
+        const p = parseExcelDate(dateStr);
+        if(/^\d{1,2}:\d{2}$/.test(String(p).trim())) return 0;
+        const m = String(p).match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        if(m){ const d=new Date(m[3],m[2]-1,m[1]); return Math.ceil(Math.abs(TODAY-d)/(86400000)); }
+        return 0;
+    }
+    function parseDateTime(value){
+        if(!value) return null;
+        const m = String(value).match(/(\d{2})\.(\d{2})\.(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+        if(!m) return null;
+        return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0));
+    }
+    function getDeadlineStr(req){
+        if(!req) return '';
+        if(req.deadline) return req.deadline;
+        if(Array.isArray(req.fields)){
+            const f = req.fields.find(x=>(x.label||'').toLowerCase().includes('срок исполнения'));
+            if(f) return f.value||'';
+        }
+        return '';
+    }
+    function hasDeadline(req){ return !!parseDateTime(getDeadlineStr(req)); }
+    function getOverdueDays(reqOrDate){
+        const req = (reqOrDate && typeof reqOrDate==='object') ? reqOrDate : {date:reqOrDate};
+        const dl = parseDateTime(getDeadlineStr(req));
+        if(dl){ const d=new Date(dl); d.setHours(0,0,0,0); const diff=Math.round((TODAY-d)/86400000); return diff>0?diff:0; }
+        return Math.max(0, getDaysSince(req.date)-SLA_DAYS);
+    }
+    function getDateValue(dateStr){
+        const m = String(dateStr).match(/(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+        if(m) return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0)).getTime();
+        return TODAY.getTime();
+    }
+    function getStatusClass(status){
+        if(!status) return "";
+        if(status.includes("Новое")) return "status-new";
+        if(status.includes("В работе")) return "status-work";
+        if(status.includes("Перенос")) return "status-postponed";
+        if(status.includes("Возвращено")) return "status-returned";
+        if(status.includes("Хроническая")) return "status-chronic";
+        return "";
+    }
+    function escapeHtml(s){
+        return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function registerReq(req){ modalRegistry.push(req); return modalRegistry.length-1; }
+    function openModalByIndex(i){ openModal(modalRegistry[i]); }
+
+    function getAllStatuses(){
+        const counts = new Map();
+        for(const reqs of Object.values(appData)) reqs.forEach(r=>{const s=(r.status||'').trim(); if(s) counts.set(s,(counts.get(s)||0)+1);});
+        return [...counts.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ru')).map(e=>e[0]);
+    }
+    function getActiveReqs(){
+        if(!summaryStatusFilter) return appData;
+        const out = {};
+        for(const [dept,reqs] of Object.entries(appData)){
+            out[dept] = summaryStatusFilter===OVERDUE_FILTER
+                ? reqs.filter(r=>getOverdueDays(r)>0)
+                : reqs.filter(r=>(r.status||'').trim()===summaryStatusFilter);
+        }
+        return out;
+    }
+    function getStatusList(){
+        const counts = new Map();
+        for(const reqs of Object.values(getActiveReqs())) reqs.forEach(r=>{const s=(r.status||'').trim(); if(s) counts.set(s,(counts.get(s)||0)+1);});
+        return [...counts.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ru')).map(e=>e[0]);
+    }
+
+    function calculateSummary(){
+        const statuses = getStatusList();
+        const activeData = getActiveReqs();
+        const summary = { __statuses: statuses };
+        const totals = { dept:"ИТОГО", total:0, timeOnly:0, overdueCount:0, isTotal:true, statusCounts:{} };
+        statuses.forEach(s=>totals.statusCounts[s]=0);
+        for(const [dept,reqs] of Object.entries(activeData)){
+            const row = { dept, total:reqs.length, timeOnly:0, overdueCount:0, statusCounts:{} };
+            statuses.forEach(s=>row.statusCounts[s]=0);
+            reqs.forEach(req=>{
+                const s=(req.status||'').trim();
+                if(s && row.statusCounts[s]!==undefined) row.statusCounts[s]++;
+                if(/^\d{1,2}:\d{2}$/.test(parseExcelDate(req.date).trim())) row.timeOnly++;
+                if(getOverdueDays(req)>0) row.overdueCount++;
+            });
+            summary[dept]=row;
+            statuses.forEach(s=>totals.statusCounts[s]+=row.statusCounts[s]);
+            totals.total+=row.total; totals.timeOnly+=row.timeOnly; totals.overdueCount+=row.overdueCount;
+        }
+        summary["ИТОГО"]=totals;
+        return summary;
+    }
+
+    function applyStatusFilter(val){
+        summaryStatusFilter = val||'';
+        const summaryData = calculateSummary();
+        const el = document.getElementById('tab-summary');
+        if(el){ el.innerHTML = renderSummaryTable(summaryData); setTimeout(()=>renderCharts(summaryData),50); }
+    }
+    function getAllOverdueRequests(){
+        const overdue = [];
+        for(const [dept,reqs] of Object.entries(appData)){
+            reqs.forEach(req=>{
+                const days = getDaysSince(req.date);
+                const od = getOverdueDays(req);
+                if(od>0){
+                    overdue.push({ ...req, dept, daysSince: days, overdueDays: od });
+                }
+            });
+        }
+        overdue.sort((a,b)=>b.overdueDays-a.overdueDays);
+        return overdue;
+    }
+
+    // ===== Рендер всего интерфейса =====
+    function renderAll(){
+        modalRegistry = [];
+        renderTabs();
+        const summaryData = calculateSummary();
+        const content = document.getElementById('contentContainer');
+        content.innerHTML = '';
+
+        // Вкладка "Сводка"
+        const summaryTab = document.createElement('div');
+        summaryTab.id = 'tab-summary';
+        summaryTab.className = 'tab-content active';
+        summaryTab.innerHTML = renderSummaryTable(summaryData);
+        content.appendChild(summaryTab);
+
+        // Вкладка "Просрочено"
+        const overdueTab = document.createElement('div');
+        overdueTab.id = 'tab-overdue';
+        overdueTab.className = 'tab-content';
+        overdueTab.innerHTML = renderOverdueTable();
+        content.appendChild(overdueTab);
+
+        // Вкладки по подразделениям
+        Object.keys(appData).forEach((dept, idx)=>{
+            const tab = document.createElement('div');
+            tab.id = 'tab-dept-' + idx;
+            tab.className = 'tab-content';
+            tab.innerHTML = renderDeptTable(dept);
+            content.appendChild(tab);
+        });
+
+        setTimeout(()=>renderCharts(summaryData), 50);
+    }
+
+    function renderTabs(){
+        const overdueCount = getAllOverdueRequests().length;
+        const tabs = document.getElementById('tabsContainer');
+        let html = `<button class="tab-button active" onclick="switchTab(this,'tab-summary')">📊 Сводка</button>`;
+        html += `<button class="tab-button overdue-tab" onclick="switchTab(this,'tab-overdue')">⚠️ Просрочено (${overdueCount})</button>`;
+        Object.keys(appData).forEach((dept, idx)=>{
+            html += `<button class="tab-button" onclick="switchTab(this,'tab-dept-${idx}')">${escapeHtml(dept)}</button>`;
+        });
+        tabs.innerHTML = html;
+    }
+
+    function switchTab(btn, tabId){
+        document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        btn.classList.add('active');
+        const el = document.getElementById(tabId);
+        if(el) el.classList.add('active');
+    }
+
+    // ===== Сводная таблица + графики =====
+    function renderSummaryTable(summary){
+        const statuses = summary.__statuses || [];
+        const depts = Object.keys(summary).filter(k=>k!=='ИТОГО' && k!=='__statuses');
+
+        const statusOptions = getAllStatuses().map(s=>
+            `<option value="${escapeHtml(s)}" ${summaryStatusFilter===s?'selected':''}>${escapeHtml(s)}</option>`
+        ).join('');
+
+        let html = `
+        <h2>Сводка: Нерешённые заявки по подразделениям</h2>
+        <div class="disclaimer">
+            ⚠️ Просрочка определяется по <b>сроку исполнения</b> заявки: если срок ещё не наступил — заявка не считается просроченной.
+            Если срок не задан — расчёт по дате создания и нормативу <b>${SLA_DAYS} дня</b>.
+        </div>
+        <div class="filter-bar">
+            <span class="filter-label">Фильтр по статусу:</span>
+            <select class="filter-select" onchange="applyStatusFilter(this.value)">
+                <option value="">Все статусы</option>
+                <option value="${OVERDUE_FILTER}" ${summaryStatusFilter===OVERDUE_FILTER?'selected':''}>🔴 Только просроченные</option>
+                ${statusOptions}
+            </select>
+        </div>
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>📈 Распределение по статусам</h3>
+                <div class="chart-container"><canvas id="chartPie"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <h3>📊 Заявки по подразделениям</h3>
+                <div class="chart-container"><canvas id="chartBar"></canvas></div>
+            </div>
+        </div>
+        <div class="table-wrapper"><table><thead><tr>
+            <th>Подразделение</th>`;
+
+        statuses.forEach(s=>{ html += `<th>${escapeHtml(s)}</th>`; });
+        html += `<th>Итого</th><th class="overdue-text">Просрочено</th></tr></thead><tbody>`;
+
+        depts.forEach(dept=>{
+            const row = summary[dept];
+            html += `<tr><td><b>${escapeHtml(dept)}</b></td>`;
+            statuses.forEach(s=>{ html += `<td>${row.statusCounts[s]||0}</td>`; });
+            html += `<td><b>${row.total}</b></td>`;
+            html += `<td class="${row.overdueCount>0?'overdue-text':''}">${row.overdueCount}</td></tr>`;
+        });
+
+        const t = summary['ИТОГО'];
+        if(t){
+            html += `<tr style="background:var(--bg-soft);font-weight:700;"><td>ИТОГО</td>`;
+            statuses.forEach(s=>{ html += `<td>${t.statusCounts[s]||0}</td>`; });
+            html += `<td>${t.total}</td><td class="overdue-text">${t.overdueCount}</td></tr>`;
+        }
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    function renderCharts(summary){
+        const statuses = summary.__statuses || [];
+        const depts = Object.keys(summary).filter(k=>k!=='ИТОГО' && k!=='__statuses');
+        const t = summary['ИТОГО'] || {statusCounts:{}};
+        window.__cdsLastSummary = summary;
+
+        const pieEl = document.getElementById('chartPie');
+        const barEl = document.getElementById('chartBar');
+        if(!pieEl || !barEl) return;
+
+        if(chartPie) chartPie.destroy();
+        if(chartBar) chartBar.destroy();
+
+        const css = getComputedStyle(document.documentElement);
+        const cText   = css.getPropertyValue('--text').trim()   || '#1e293b';
+        const cMuted  = css.getPropertyValue('--muted').trim()  || '#64748b';
+        const cBorder = css.getPropertyValue('--border').trim() || 'rgba(0,0,0,.1)';
+
+        const pieLabels = statuses.filter(s=>(t.statusCounts[s]||0)>0);
+        const pieData = pieLabels.map(s=>t.statusCounts[s]||0);
+
+        chartPie = new Chart(pieEl, {
+            type:'doughnut',
+            data:{ labels:pieLabels, datasets:[{ data:pieData, backgroundColor:STATUS_PALETTE }] },
+            options:{ responsive:true, maintainAspectRatio:false,
+                plugins:{ legend:{ position:'bottom', labels:{ color:cText } } } }
+        });
+
+        chartBar = new Chart(barEl, {
+            type:'bar',
+            data:{ labels:depts, datasets:[
+                { label:'Всего заявок', data:depts.map(d=>summary[d].total), backgroundColor:'#3b82f6' },
+                { label:'Просрочено',   data:depts.map(d=>summary[d].overdueCount), backgroundColor:'#ef4444' }
+            ]},
+            options:{ responsive:true, maintainAspectRatio:false,
+                scales:{
+                    y:{ beginAtZero:true, ticks:{ precision:0, color:cMuted }, grid:{ color:cBorder } },
+                    x:{ ticks:{ color:cMuted }, grid:{ color:cBorder } }
+                },
+                plugins:{ legend:{ position:'bottom', labels:{ color:cText } } } }
+        });
+    }
+
+    // ===== Таблица просрочки =====
+    function renderOverdueTable(){
+        const overdue = getAllOverdueRequests();
+        if(overdue.length===0){
+            return `<h2>⚠️ Просроченные заявки</h2><div class="empty-state">Просроченных заявок нет 🎉</div>`;
+        }
+        let html = `
+        <div class="overdue-header">
+            <h2 style="border:none;margin:0;">⚠️ Просроченные заявки (${overdue.length})</h2>
+            <button class="btn btn-excel" onclick="downloadOverdueToExcel()">⬇️ Скачать в Excel</button>
+        </div>
+        <div class="table-wrapper"><table><thead><tr>
+            <th>Подразделение</th><th>Номер</th><th>Дата</th><th>Срок исполнения</th>
+            <th>Статус</th><th>Адрес</th><th>Просрочка (дней)</th><th></th>
+        </tr></thead><tbody>`;
+
+        overdue.forEach(req=>{
+            const idx = registerReq(req);
+            html += `<tr class="overdue-row">
+                <td>${escapeHtml(req.dept)}</td>
+                <td>${escapeHtml(req.number)}</td>
+                <td>${escapeHtml(req.date)}</td>
+                <td>${escapeHtml(getDeadlineStr(req)||'—')}</td>
+                <td><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
+                <td>${escapeHtml(req.address)}</td>
+                <td class="overdue-text">${req.overdueDays}</td>
+                <td><button class="btn-open" onclick="openModalByIndex(${idx})">Открыть</button></td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    // ===== Таблица по подразделению (с сортировкой) =====
+    function renderDeptTable(dept){
+        let reqs = (appData[dept]||[]).slice();
+        const col = sortState.deptColumn;
+        if(col){
+            const dir = sortState.deptDirection==='asc'?1:-1;
+            reqs.sort((a,b)=>{
+                let av, bv;
+                if(col==='date'){ av=getDateValue(a.date); bv=getDateValue(b.date); return (av-bv)*dir; }
+                if(col==='overdue'){ av=getOverdueDays(a); bv=getOverdueDays(b); return (av-bv)*dir; }
+                av=(a[col]||'').toString(); bv=(b[col]||'').toString();
+                return av.localeCompare(bv,'ru')*dir;
+            });
+        }
+
+        const ico = c => sortState.deptColumn===c ? (sortState.deptDirection==='asc'?'▲':'▼') : '⇅';
+
+        let html = `
+        <h2>${escapeHtml(dept)}</h2>
+        <span class="info-badge">Всего заявок: ${reqs.length}</span>
+        <div class="table-wrapper"><table><thead><tr>
+            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','number')">Номер <span class="sort-icon">${ico('number')}</span></th>
+            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','date')">Дата <span class="sort-icon">${ico('date')}</span></th>
+            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','status')">Статус <span class="sort-icon">${ico('status')}</span></th>
+            <th>Адрес</th>
+            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','overdue')">Просрочка <span class="sort-icon">${ico('overdue')}</span></th>
+            <th></th>
+        </tr></thead><tbody>`;
+
+        reqs.forEach(req=>{
+            const idx = registerReq(req);
+            const od = getOverdueDays(req);
+            html += `<tr class="${od>0?'overdue-row':''}">
+                <td>${escapeHtml(req.number)}</td>
+                <td>${escapeHtml(req.date)}</td>
+                <td><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
+                <td>${escapeHtml(req.address)}</td>
+                <td class="${od>0?'overdue-text':''}">${od>0?od:'—'}</td>
+                <td><button class="btn-open" onclick="openModalByIndex(${idx})">Открыть</button></td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    function sortDept(dept, col){
+        if(sortState.deptColumn===col){
+            sortState.deptDirection = sortState.deptDirection==='asc'?'desc':'asc';
+        } else {
+            sortState.deptColumn = col; sortState.deptDirection = 'asc';
+        }
+        const idx = Object.keys(appData).indexOf(dept);
+        const el = document.getElementById('tab-dept-'+idx);
+        if(el) el.innerHTML = renderDeptTable(dept);
+    }
+
+    // ===== Модалка =====
+    function openModal(req){
+        if(!req) return;
+        document.getElementById('modalTitle').textContent = 'Заявка № ' + (req.number||'—');
+
+        const od = getOverdueDays(req);
+        const dl = getDeadlineStr(req) || '—';
+        document.getElementById('modalDerived').innerHTML = `
+            <div class="modal-derived-grid">
+                <div class="modal-field"><div class="modal-label">Подразделение</div><div class="modal-value">${escapeHtml(req.dept||req.department||'—')}</div></div>
+                <div class="modal-field"><div class="modal-label">Статус</div><div class="modal-value"><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status||'—')}</span></div></div>
+                <div class="modal-field"><div class="modal-label">Срок исполнения</div><div class="modal-value">${escapeHtml(dl)}</div></div>
+                <div class="modal-field"><div class="modal-label">Просрочка</div><div class="modal-value ${od>0?'overdue-text':''}">${od>0?(od+' дн.'):'нет'}</div></div>
+            </div>`;
+
+        const fields = Array.isArray(req.fields)?req.fields:[];
+        document.getElementById('modalAllFields').innerHTML = fields.map(f=>`
+            <div class="modal-field">
+                <div class="modal-label">${escapeHtml(f.label)}</div>
+                <div class="modal-value">${escapeHtml(f.value||'—')}</div>
+            </div>`).join('') || '<div class="modal-value">Нет данных</div>';
+
+        document.getElementById('requestModal').style.display = 'block';
+    }
+    function closeModal(){ document.getElementById('requestModal').style.display='none'; }
+    window.onclick = e => { if(e.target.id==='requestModal') closeModal(); };
+    document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+    // ===== Выгрузка просрочки в Excel =====
+    function downloadOverdueToExcel(){
+        const overdue = getAllOverdueRequests();
+        if(overdue.length===0){ alert('Просроченных заявок нет'); return; }
+        const rows = overdue.map(r=>({
+            'Подразделение': r.dept,
+            'Номер': r.number,
+            'Дата': r.date,
+            'Срок исполнения': getDeadlineStr(r),
+            'Статус': r.status,
+            'Адрес': r.address,
+            'Причина': r.reason,
+            'Просрочка (дней)': r.overdueDays
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Просрочено');
+        const d = new Date().toISOString().slice(0,10);
+        XLSX.writeFile(wb, `просрочка_${d}.xlsx`);
+    }
+
+    // Перерисовка графиков при смене темы (data-theme на <html>)
+    (function(){
+        let _themeTimer = null;
+        const _obs = new MutationObserver(muts=>{
+            for(const m of muts){
+                if(m.attributeName === 'data-theme'){
+                    clearTimeout(_themeTimer);
+                    _themeTimer = setTimeout(()=>{
+                        if(window.__cdsLastSummary) renderCharts(window.__cdsLastSummary);
+                    }, 60);
+                    break;
+                }
+            }
+        });
+        _obs.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
+    })();
+</script>
+{% endraw %}
+
+<script>
+(function () {
+    var root = document.documentElement;
+    var MOSCOW_LAT = 55.7558, MOSCOW_LON = 37.6173, MOSCOW_TZ = 3;
+    function isDaytimeInMoscow() {
+        var now = new Date();
+        var start = new Date(now.getFullYear(), 0, 0);
+        var dayOfYear = Math.floor((now - start) / 86400000);
+        var decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+        var latRad = MOSCOW_LAT * Math.PI / 180;
+        var cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+        var H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+        var sunriseLocal = ((12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15)) + MOSCOW_TZ + 24) % 24;
+        var sunsetLocal = ((12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15)) + MOSCOW_TZ + 24) % 24;
+        var currentHour = now.getHours() + now.getMinutes() / 60;
+        return currentHour >= sunriseLocal && currentHour < sunsetLocal;
+    }
+    function applyTheme(themeMode) {
+        var activeTheme = themeMode;
+        if (themeMode === "auto-moscow") activeTheme = isDaytimeInMoscow() ? "light" : "dark";
+        root.setAttribute("data-theme", activeTheme);
+        root.dataset.theme = activeTheme;
+        var toggle = document.getElementById("themeToggleBtn");
+        if (!toggle) return;
+        var icon = toggle.querySelector(".theme-toggle-icon");
+        var text = toggle.querySelector(".theme-toggle-text");
+        if (themeMode === "dark") { if (icon) icon.textContent = "\u{1F319}"; if (text) text.textContent = "Тёмная тема"; }
+        else if (themeMode === "light") { if (icon) icon.textContent = "\u2600\uFE0F"; if (text) text.textContent = "Светлая тема"; }
+        else if (themeMode === "kreml") { if (icon) icon.textContent = "\u{1F3DB}\uFE0F"; if (text) text.textContent = "Московская"; }
+        else { if (icon) icon.textContent = isDaytimeInMoscow() ? "\u{1F6F0}\u2600\uFE0F" : "\u{1F6F0}\u{1F319}"; if (text) text.textContent = "Подмосковное солнце"; }
+    }
+    applyTheme(localStorage.getItem("neurona-theme-mode") || "auto-moscow");
+    var toggle = document.getElementById("themeToggleBtn");
+    if (toggle) {
+        toggle.onclick = null;
+        toggle.addEventListener("click", function () {
+            var cur = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            var next = cur === "auto-moscow" ? "light" : cur === "light" ? "dark" : cur === "dark" ? "kreml" : "auto-moscow";
+            localStorage.setItem("neurona-theme-mode", next);
+            applyTheme(next);
+        });
+    }
+    setInterval(function () {
+        var cur = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        if (cur === "auto-moscow") applyTheme("auto-moscow");
+    }, 60000);
 })();
 </script>
-<!-- ===== /CDS UI TWEAKS ===== -->
-
-</body>
-</html>
+</body></html>

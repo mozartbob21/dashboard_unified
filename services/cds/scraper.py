@@ -1,9 +1,14 @@
 """
-CDS Scraper v8 — период + "Вывести список" → Сохранить как → xlsx → pandas.
+CDS Scraper v9 — период + "Вывести список" → Сохранить как → xlsx → pandas.
+Fixes:
+  - Meta+a → кроссплатформенный SELECT_ALL (Mac/Win/Linux)
+  - "Еще"/"Ещё" — поддержка обоих вариантов
+  - Улучшена обработка ошибок
 """
 import asyncio
 import calendar
 import json
+import platform
 import re
 import traceback
 from datetime import date, datetime
@@ -21,16 +26,24 @@ XLSX_PATH = RESULT_DIR / "appeals.xlsx"
 
 DEBUG = False
 
+# Mac = Cmd+A, Windows/Linux = Ctrl+A
+SELECT_ALL = "Meta+a" if platform.system() == "Darwin" else "Control+a"
+
 # Кнопка ОК: 1С где-то рисует кириллицу "ОК", где-то латиницу "OK".
 OK_PATTERN = re.compile(r"^\s*[ОO][КK]\s*$")
 
 
 # ──────────────────────────── ХЕЛПЕРЫ ────────────────────────────
 
+
 async def click_visible(page, text, exact: bool = False):
     """Кликает по ВИДИМОМУ элементу с текстом (1С дублирует пункты меню в DOM).
     text может быть строкой или re.Pattern."""
-    items = page.get_by_text(text, exact=exact) if isinstance(text, str) else page.get_by_text(text)
+    items = (
+        page.get_by_text(text, exact=exact)
+        if isinstance(text, str)
+        else page.get_by_text(text)
+    )
     count = await items.count()
     for i in range(count - 1, -1, -1):
         el = items.nth(i)
@@ -50,7 +63,7 @@ async def click_ok(page):
 
 async def find_input_by_value(page, *needles: str):
     """Ищет видимый input, чьё ЖИВОЕ значение содержит подстроку."""
-    inputs = page.locator('input:visible')
+    inputs = page.locator("input:visible")
     for i in range(await inputs.count()):
         el = inputs.nth(i)
         try:
@@ -64,6 +77,7 @@ async def find_input_by_value(page, *needles: str):
 
 # ──────────────────────────── ПЕРИОД ────────────────────────────
 
+
 def get_default_period() -> tuple[str, str]:
     today = date.today()
     if today.month == 1:
@@ -76,6 +90,17 @@ def get_default_period() -> tuple[str, str]:
 
 
 async def open_more_menu(page):
+    """Открывает меню 'Ещё'/'Еще' — поддержка обоих вариантов написания."""
+    for text in ("Ещё", "Еще", "Ещe"):
+        loc = page.locator(f'text="{text}"').last
+        try:
+            if await loc.is_visible(timeout=2000):
+                await loc.click()
+                await page.wait_for_timeout(800)
+                return
+        except Exception:
+            continue
+    # Последний fallback — без проверки видимости
     await page.locator('text="Еще"').last.click()
     await page.wait_for_timeout(800)
 
@@ -89,18 +114,18 @@ async def set_period(page, date_from: str, date_to: str) -> bool:
 
     inputs = page.locator('input[id*="ериод"]:visible')
     if await inputs.count() < 2:
-        inputs = page.locator('input:visible')
+        inputs = page.locator("input:visible")
         n = await inputs.count()
         first_input, second_input = inputs.nth(n - 2), inputs.nth(n - 1)
     else:
         first_input, second_input = inputs.nth(0), inputs.nth(1)
 
     await first_input.click()
-    await page.keyboard.press("Meta+a")
+    await page.keyboard.press(SELECT_ALL)
     await page.keyboard.type(date_from, delay=60)
 
     await second_input.click()
-    await page.keyboard.press("Meta+a")
+    await page.keyboard.press(SELECT_ALL)
     await page.keyboard.type(date_to, delay=60)
 
     await click_visible(page, "Выбрать", exact=True)
@@ -111,23 +136,24 @@ async def set_period(page, date_from: str, date_to: str) -> bool:
 
 # ──────────────────────────── ЭКСПОРТ ────────────────────────────
 
+
 async def export_to_excel(page) -> Path:
-    """Еще → Вывести список → ОК → Меню(⋮) → Файл → Сохранить как → xlsx → OK."""
+    """Ещё → Вывести список → ОК → Меню(⋮) → Файл → Сохранить как → xlsx → OK."""
     print("[CDS] Вывести список...")
     await open_more_menu(page)
     await click_visible(page, "Вывести список")
     await page.wait_for_timeout(1500)
     await click_ok(page)
 
-    # Документ формируется с задержкой. Критерий готовности — не "кнопка
-    # меню существует" (она есть и в основном интерфейсе!), а "меню реально
+    # Документ формируется с задержкой. Критерий готовности — "меню реально
     # открылось и в нём виден пункт 'Файл'". Пробуем циклом до 180 сек.
     print("[CDS] Ждём документ и открываем меню (до 180 сек)...")
-    await page.wait_for_timeout(5000)  # минимальная пауза на старт рендера
+    await page.wait_for_timeout(5000)
 
     menu_selectors = [
         '[title*="Меню"]:visible',
         '[title*="Ещё"]:visible',
+        '[title*="Еще"]:visible',
         'button:has-text("Меню"):visible',
     ]
 
@@ -143,9 +169,7 @@ async def export_to_excel(page) -> Path:
         return False
 
     menu_opened = False
-    for attempt in range(35):  # ~35 * 5 сек = 175 сек
-        # Собираем всех кандидатов и пробуем кликать с конца
-        # (кнопка документа обычно последняя в DOM)
+    for attempt in range(35):
         candidates = []
         for sel in menu_selectors:
             try:
@@ -165,14 +189,12 @@ async def export_to_excel(page) -> Path:
                 menu_opened = True
                 print(f"[CDS] Меню документа открыто (попытка {attempt + 1})")
                 break
-            # Открылось не то меню — закрываем и пробуем следующего кандидата
             await page.keyboard.press("Escape")
             await page.wait_for_timeout(400)
 
         if menu_opened:
             break
 
-        # Кликами не вышло — пробуем хоткей Alt+Minus
         try:
             await page.keyboard.press("Alt+Minus")
             await page.wait_for_timeout(800)
@@ -187,10 +209,11 @@ async def export_to_excel(page) -> Path:
         await page.wait_for_timeout(4000)
 
     if not menu_opened:
-        await page.screenshot(path="cds_menu_not_found.png")
+        screenshot_path = str(SCREENSHOT_DIR / "cds_menu_not_found.png")
+        await page.screenshot(path=screenshot_path)
         raise RuntimeError(
             "Не удалось открыть меню документа за 180 сек "
-            "(скриншот: cds_menu_not_found.png)"
+            f"(скриншот: {screenshot_path})"
         )
 
     await click_visible(page, "Файл")
@@ -198,11 +221,11 @@ async def export_to_excel(page) -> Path:
     await click_visible(page, "Сохранить как")
     await page.wait_for_timeout(1200)
 
-    # 2. Поле "Тип" → F4 → Лист Excel2007
+    # Поле "Тип" → F4 → Лист Excel2007
     print("[CDS] Выбираем формат xlsx...")
     type_input = await find_input_by_value(page, ".mxl", "абличный")
     if type_input is None:
-        vis = page.locator('input:visible')
+        vis = page.locator("input:visible")
         type_input = vis.nth(await vis.count() - 1)
 
     await type_input.click()
@@ -213,9 +236,12 @@ async def export_to_excel(page) -> Path:
     opt = page.get_by_text("Лист Excel2007", exact=False)
     opt_visible = False
     for i in range(await opt.count()):
-        if await opt.nth(i).is_visible():
-            opt_visible = True
-            break
+        try:
+            if await opt.nth(i).is_visible():
+                opt_visible = True
+                break
+        except Exception:
+            pass
     if not opt_visible:
         await page.keyboard.press("Alt+ArrowDown")
         await page.wait_for_timeout(900)
@@ -224,7 +250,7 @@ async def export_to_excel(page) -> Path:
     await page.wait_for_timeout(800)
     await page.screenshot(path=str(SCREENSHOT_DIR / "save_dialog_xlsx.png"))
 
-    # 3. OK (кириллица ИЛИ латиница!) → скачивание
+    # OK (кириллица ИЛИ латиница!) → скачивание
     print("[CDS] Жмём OK, ждём скачивание...")
     async with page.expect_download(timeout=90000) as dl_info:
         await click_ok(page)
@@ -237,6 +263,7 @@ async def export_to_excel(page) -> Path:
 
 
 # ──────────────────────────── ПАРСИНГ XLSX ────────────────────────────
+
 
 def parse_excel(path: Path) -> list[dict]:
     raw = pd.read_excel(path, header=None)
@@ -253,11 +280,18 @@ def parse_excel(path: Path) -> list[dict]:
     print(f"[CDS] Колонки: {list(df.columns)}")
 
     rename_map = {
-        "Дата": "date", "Подразделение": "department", "Номер": "number",
-        "Состояние обращения": "status", "Адрес обращения": "address",
-        "Тип обращения": "type", "Срок исполнения": "deadline",
-        "Тип заявки": "request_type", "Источник поступления": "source",
-        "Заявитель": "applicant", "Исполнитель": "executor",
+        "Дата": "date",
+        "Подразделение": "department",
+        "Номер": "number",
+        "Состояние обращения": "status",
+        "Адрес обращения": "address",
+        "Тип обращения": "type",
+        "Причина обращения": "reason",
+        "Срок исполнения": "deadline",
+        "Тип заявки": "request_type",
+        "Источник поступления": "source",
+        "Заявитель": "applicant",
+        "Исполнитель": "executor",
     }
     records = []
     for _, row in df.iterrows():
@@ -271,6 +305,7 @@ def parse_excel(path: Path) -> list[dict]:
 
 # ──────────────────────────── ОРКЕСТРАТОР ────────────────────────────
 
+
 async def scrape_cds_appeals(date_from="", date_to="", headless=True) -> dict:
     pw = browser = page = None
     try:
@@ -278,7 +313,7 @@ async def scrape_cds_appeals(date_from="", date_to="", headless=True) -> dict:
             date_from, date_to = get_default_period()
 
         print("=" * 60)
-        print(f"CDS SCRAPER v8 — EXPORT LIST | {date_from} — {date_to}")
+        print(f"CDS SCRAPER v9 — EXPORT LIST | {date_from} — {date_to}")
         print("=" * 60)
 
         pw, browser, context, page = await login_to_cds(headless=headless)
@@ -295,12 +330,16 @@ async def scrape_cds_appeals(date_from="", date_to="", headless=True) -> dict:
         appeals = parse_excel(xlsx)
 
         result = {
-            "success": True, "data": appeals, "count": len(appeals),
-            "date_from": date_from, "date_to": date_to,
+            "success": True,
+            "data": appeals,
+            "count": len(appeals),
+            "date_from": date_from,
+            "date_to": date_to,
             "timestamp": datetime.now().isoformat(timespec="seconds"),
         }
         (RESULT_DIR / "result.json").write_text(
-            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         print(f"\n[CDS] ✅ Готово! {len(appeals)} обращений")
         return result
 
@@ -322,13 +361,17 @@ async def scrape_cds_appeals(date_from="", date_to="", headless=True) -> dict:
 
 if __name__ == "__main__":
     import sys
+
     d_from = sys.argv[1] if len(sys.argv) > 1 else ""
     d_to = sys.argv[2] if len(sys.argv) > 2 else ""
     result = asyncio.run(scrape_cds_appeals(d_from, d_to, headless=False))
     if result["success"]:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"✅ УСПЕХ: {result['count']} обращений")
         for i, r in enumerate(result["data"][:10]):
-            print(f"  [{i+1}] {r.get('date','')} | {r.get('number','')} | {r.get('status','')}")
+            print(
+                f"  [{i + 1}] {r.get('date', '')} | "
+                f"{r.get('number', '')} | {r.get('status', '')}"
+            )
     else:
         print(f"\n❌ ОШИБКА: {result['error']}")

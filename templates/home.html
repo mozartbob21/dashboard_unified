@@ -330,7 +330,7 @@
 
             <div class="top-actions">
                 <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
-                    v2.4 (Пред-релиз) 
+                    v2.4 
                 </button>
 
                 <button id="helpButton" class="theme-toggle secondary-button" type="button" aria-label="Помощь и обратная связь">
@@ -351,6 +351,12 @@
                     👤 {{ user_username }}
                 </div>
                 {% endif %}
+
+                <a href="/scheduler"
+                   class="badge"
+                   style="text-decoration: none; cursor: pointer; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+                   ⚙️ Планировщик
+                </a>
 
                 <a href="/logout"
                    class="badge"
@@ -544,7 +550,7 @@
                         <span class="pill primary">Контроль воды</span>
                         <span class="pill primary">Мониторинг карточек</span>
                     </div>
-                    <span class="status-badge status-config">Требует настройки</span>
+                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Контроль воды</h2>
@@ -663,7 +669,7 @@
                     <div class="head-pills">
                         <span class="pill primary">ИИ Ответы</span>
                     </div>
-                    <span class="status-badge status-beta">Бета</span>
+                    <span class="status-badge status-beta">Бета 2</span>
                 </div>
 
                 <h2 class="module-title">Эмпатичные ответы</h2>
@@ -695,11 +701,12 @@
                     <div class="head-pills">
                         <span class="pill primary">Диспетчерская</span>
                         <span class="pill primary">ЖКХ</span>
+                        <span class="status-badge status-stable">Новое</span>
+            
                     </div>
-                    <span class="status-badge status-beta">Бета</span>
                 </div>
 
-                <h2 class="module-title">Обращения ЖКХ</h2>
+                <h2 class="module-title">Обращения 1С</h2>
 
                 <div class="module-description">
                     Модуль автоматического экспорта обращений из системы диспетчерской ЖКХ (1С).
@@ -868,7 +875,7 @@
             <div class="whats-new-kicker">Нейрона </div>
 
             <!-- ===== Что уже есть в 2.4 Бета (Apple-style) ===== -->
-            <div class="whats-new-kicker" style="margin-top: 28px;">Что уже есть в 2.4 Бета</div>
+            <div class="whats-new-kicker" style="margin-top: 28px;">Что есть в 2.4 </div>
             <h2 class="whats-new-title" style="font-size: 22px; margin: 8px 0 6px;">
                 Тихо. Мощно. Уже внутри.
             </h2>

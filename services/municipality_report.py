@@ -1,15 +1,66 @@
 
+from typing import List
+from urllib.parse import quote
 from pathlib import Path
 import csv
 import io
 import json
 import re
+from functools import lru_cache
 from datetime import datetime
 from html import escape
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
+
+EXCLUDED_MUNICIPALITY_REPORT_FILE_NAMES = {
+    "dashboard_state.json",
+    "final_result.json",
+    "summary.json",
+    "cache.json",
+    "state.json",
+}
+
+
+EXCLUDED_MUNICIPALITY_REPORT_PATH_PARTS = {
+    "debug",
+    "responses",
+    "state",
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+}
+
+
+MUNICIPALITY_FIELD_HINTS = [
+    "municipality",
+    "муниципалитет",
+    "муниципальное образование",
+    "городской округ",
+    "г.о.",
+    "го",
+    "territory",
+    "территория",
+    "okrug",
+    "district",
+    "район",
+]
+
+
+ADDRESS_FIELD_HINTS = [
+    "address",
+    "адрес",
+    "street",
+    "улица",
+    "ул",
+    "location",
+    "местоположение",
+]
+
+
 
 try:
     from openpyxl import load_workbook
@@ -45,13 +96,21 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-def normalize_text(value):
+@lru_cache(maxsize=200_000)
+def _normalize_text_cached(value):
     value = str(value or "")
     value = value.strip().lower()
     value = value.replace("ё", "е")
     value = re.sub(r"[^а-яa-z0-9]+", " ", value, flags=re.IGNORECASE)
     value = re.sub(r"\s+", " ", value)
     return value.strip()
+
+
+def normalize_text(value):
+    try:
+        return _normalize_text_cached(value)
+    except TypeError:
+        return _normalize_text_cached(str(value))
 
 
 def safe_str(value):
@@ -178,6 +237,27 @@ def read_records_from_file(path):
     return []
 
 
+MODULE_LABELS = {
+    "utnkr": "УТН и капитальный ремонт",
+    "watercontrol": "Водный контроль",
+    "auth": "Авторизация",
+    "cameras": "Камеры видеонаблюдения",
+    "cds": "ЦДС (диспетчерская служба)",
+    "edo": "Электронный документооборот",
+    "overdue": "Просроченные задачи",
+    "planfix": "Planfix",
+    "data": "Данные",
+}
+
+
+def humanize_module(module_name):
+    s = str(module_name).strip()
+    if s in MODULE_LABELS:
+        return MODULE_LABELS[s]
+    pretty = s.replace("_", " ").replace("-", " ").strip()
+    return pretty[:1].upper() + pretty[1:] if pretty else s
+
+
 def detect_module_name(path):
     try:
         rel = path.relative_to(BASE_DIR)
@@ -214,6 +294,11 @@ def collect_municipality_data(municipality_name):
             if path.name.startswith("~$"):
                 continue
 
+            # Пропускаем исходный .xlsx, если рядом есть обработанный result.json
+            # (это одни и те же данные: xlsx — выгрузка из 1С, json — её результат)
+            if path.suffix.lower() == ".xlsx" and (path.parent / "result.json").exists():
+                continue
+
             try:
                 records = read_records_from_file(path)
             except Exception as e:
@@ -230,7 +315,12 @@ def collect_municipality_data(municipality_name):
 
             if matched:
                 module_name = detect_module_name(path)
-                key = f"{module_name} / {path.name}"
+                base_key = humanize_module(module_name)
+                key = base_key
+                _suffix = 2
+                while key in groups:
+                    key = f"{base_key} ({_suffix})"
+                    _suffix += 1
 
                 groups[key] = {
                     "module": module_name,
@@ -250,12 +340,111 @@ def collect_municipality_data(municipality_name):
     }
 
 
+FIELD_LABELS = {
+    "id": "ID",
+    "name": "Наименование",
+    "title": "Название",
+    "address": "Адрес",
+    "status": "Статус",
+    "responsible_name": "Ответственный",
+    "responsible": "Ответственный",
+    "is_edited": "Изменено",
+    "edited": "Изменено",
+    "created_at": "Создано",
+    "updated_at": "Обновлено",
+    "date": "Дата",
+    "deadline": "Срок",
+    "comment": "Комментарий",
+    "description": "Описание",
+    "category": "Категория",
+    "type": "Тип",
+    "area": "Площадь",
+    "municipality": "Муниципалитет",
+    "district": "Район",
+    "result": "Результат",
+    "value": "Значение",
+    "count": "Количество",
+    "phone": "Телефон",
+    "email": "E-mail",
+    "url": "Ссылка",
+    "link": "Ссылка",
+    "priority": "Приоритет",
+    "risk": "Риск",
+    "score": "Оценка",
+    "note": "Примечание",
+    "annotation": "Аннотация",
+    "action": "Действие",
+    "task_id": "ID задачи",
+    "grbs": "ГРБС",
+    "situation": "Ситуация на объекте",
+    "raw_row_text": "Исходный текст",
+    "row_number": "№ строки",
+    "column": "Колонка",
+    "column_index": "Индекс колонки",
+    "applicant": "Заявитель",
+    "organization": "Организация",
+    "metric_name": "Наименование показателя",
+    "metric": "Показатель",
+    "current_value": "Текущее значение",
+    "target_value": "Целевое значение",
+    "delay_days": "Дней просрочки",
+    "responsible_phone": "Телефон ответственного",
+    "responsible_position": "Должность ответственного",
+    "period": "Период",
+    "unit": "Ед. изм.",
+    "fact": "Факт",
+    "plan": "План",
+    "percent": "Процент",
+}
+
+VALUE_LABELS = {
+    "True": "Да",
+    "False": "Нет",
+    "true": "Да",
+    "false": "Нет",
+    "None": "—",
+    "null": "—",
+    "": "—",
+    "nan": "—",
+    "risk": "Риск",
+    "ok": "Норма",
+    "done": "Выполнено",
+    "in_progress": "В работе",
+    "pending": "Ожидает",
+}
+
+
+def humanize_field(key):
+    s = str(key).strip()
+    if s in FIELD_LABELS:
+        return FIELD_LABELS[s]
+    norm = s.lower().replace(" ", "_").strip()
+    if norm in FIELD_LABELS:
+        return FIELD_LABELS[norm]
+    pretty = s.replace("_", " ").strip()
+    return pretty[:1].upper() + pretty[1:] if pretty else s
+
+
+def humanize_value(value):
+    s = str(value).strip()
+    return VALUE_LABELS.get(s, s)
+
+
+HIDDEN_COLUMNS = {
+    "raw_row_text",
+    "column_index",
+    "_sheet",
+}
+
+
 def get_all_columns(rows, max_columns=12):
     columns = []
 
     for row in rows:
         if isinstance(row, dict):
             for key in row.keys():
+                if key in HIDDEN_COLUMNS:
+                    continue
                 if key not in columns:
                     columns.append(key)
 
@@ -356,8 +545,7 @@ def build_pdf_bytes(report):
             if index > 1:
                 story.append(PageBreak())
 
-            story.append(Paragraph(f"{index}. {escape(group_name)}", h2_style))
-            story.append(Paragraph(f"Файл: {escape(group['file'])}", subtitle_style))
+            story.append(Paragraph(f"{index}. {escape(humanize_module(group.get('module', group_name)))}", h2_style))
             story.append(Paragraph(f"Найдено записей: {group['count']}", subtitle_style))
 
             rows = group["rows"]
@@ -369,12 +557,13 @@ def build_pdf_bytes(report):
                 continue
 
             table_data = []
-            table_data.append([Paragraph(escape(str(col)), cell_style) for col in columns])
+            table_data.append([Paragraph(escape(humanize_field(col)), cell_style) for col in columns])
 
             for row in preview_rows:
                 line = []
                 for col in columns:
                     value = safe_str(row.get(col, "")) if isinstance(row, dict) else safe_str(row)
+                    value = humanize_value(value)
                     value = value[:500]
                     line.append(Paragraph(escape(value), cell_style))
                 table_data.append(line)
@@ -561,12 +750,14 @@ def prepare_report_for_html(report):
 async def municipality_report_page(
     request: Request,
     name: str = Query("", description="Название муниципалитета"),
+    blocks: List[str] = Query(default=[], description="Фильтр по блокам"),
 ):
     report = None
+    selected_blocks = [b for b in blocks if b in VALID_BLOCK_KEYS]
 
     if name.strip():
         report = collect_municipality_data(name.strip())
-        report = prepare_report_for_html(report)
+        report = prepare_report_for_html(report, selected_blocks=selected_blocks)
 
     municipalities = list_available_municipalities()
 
@@ -578,6 +769,8 @@ async def municipality_report_page(
             "name": name.strip(),
             "report": report,
             "municipalities": municipalities,
+            "all_blocks": REPORT_BLOCKS,
+            "selected_blocks": selected_blocks,
         },
     )
 
@@ -597,9 +790,15 @@ async def municipality_report_pdf(
     safe_name = re.sub(r"[^а-яА-Яa-zA-Z0-9_-]+", "_", municipality).strip("_")
     filename = f"{safe_name}_svodnyy_otchet.pdf"
 
-    quoted_filename = filename.encode("utf-8")
+    # ASCII-имя для старых клиентов (кириллицу транслитерируем грубо в "_")
+    ascii_filename = re.sub(r"[^a-zA-Z0-9_.-]+", "_", filename).strip("_") or "report.pdf"
+    # RFC 5987: percent-encoded UTF-8 имя
+    utf8_filename = quote(filename)
     headers = {
-        "Content-Disposition": f"attachment; filename*=UTF-8''{quoted_filename.decode('utf-8')}"
+        "Content-Disposition": (
+            f"attachment; filename=\"{ascii_filename}\"; "
+            f"filename*=UTF-8''{utf8_filename}"
+        )
     }
 
     return Response(
@@ -728,67 +927,55 @@ def row_text_for_facts(row):
 def classify_fact_module(group_name, file_path):
     text = fact_norm(f"{group_name} {file_path}")
 
+    if any(x in text for x in ["1с", "1c", "obrasheniya_1c", "appeals_1c"]):
+        return {"key": "appeals_1c", "title": "Обращения 1С",
+                "subtitle": "Обращения из системы 1С", "icon": "🧾", "tone": "info"}
+
+    if any(x in text for x in ["эмпат", "empath", "empathy", "тон ответа", "вежлив"]):
+        return {"key": "empathy", "title": "Эмпатичные ответы",
+                "subtitle": "Качество и тональность ответов", "icon": "💬", "tone": "info"}
+
     if any(x in text for x in ["overdue", "просроч", "deadline", "срок"]):
-        return {
-            "key": "overdue",
-            "title": "Просроченные задачи",
-            "subtitle": "Контроль исполнения и нарушенных сроков",
-            "icon": "⏰",
-            "tone": "danger",
-        }
+        return {"key": "overdue", "title": "Просроченные задачи",
+                "subtitle": "Контроль исполнения и нарушенных сроков", "icon": "⏰", "tone": "danger"}
 
     if any(x in text for x in ["edo", "эдо", "заполн", "completeness"]):
-        return {
-            "key": "edo",
-            "title": "ЭДО / заполненность данных",
-            "subtitle": "Контроль полноты и корректности данных",
-            "icon": "▦",
-            "tone": "warning",
-        }
+        return {"key": "edo", "title": "Заполненность данных",
+                "subtitle": "Контроль полноты и корректности данных", "icon": "▦", "tone": "warning"}
 
     if any(x in text for x in ["water", "вод", "watercontrol", "контроль воды"]):
-        return {
-            "key": "water",
-            "title": "Контроль воды",
-            "subtitle": "Заполненность карточек и обязательных полей",
-            "icon": "💧",
-            "tone": "info",
-        }
+        return {"key": "water", "title": "Контроль воды",
+                "subtitle": "Заполненность карточек и обязательных полей", "icon": "💧", "tone": "info"}
 
     if any(x in text for x in ["camera", "камер", "video", "ffmpeg", "stream"]):
-        return {
-            "key": "cameras",
-            "title": "Камеры",
-            "subtitle": "Работоспособность камер и видеопотоков",
-            "icon": "📹",
-            "tone": "danger",
-        }
+        return {"key": "cameras", "title": "Проверка камер",
+                "subtitle": "Работоспособность камер и видеопотоков", "icon": "📹", "tone": "danger"}
 
     if any(x in text for x in ["utnkr", "утнкр", "технадзор", "tehnadzor"]):
-        return {
-            "key": "utnkr",
-            "title": "Технадзор УТНКР",
-            "subtitle": "Просрочки, статусы и проблематика объектов",
-            "icon": "🏗",
-            "tone": "warning",
-        }
+        return {"key": "utnkr", "title": "Технадзор УТНКР",
+                "subtitle": "Просрочки, статусы и проблематика объектов", "icon": "🏗", "tone": "warning"}
 
-    if any(x in text for x in ["appeal", "обращ", "ответ", "жалоб"]):
-        return {
-            "key": "appeals",
-            "title": "Обращения",
-            "subtitle": "Анализ обращений и подготовка ответов",
-            "icon": "✉️",
-            "tone": "info",
-        }
+    if any(x in text for x in ["appeal", "обращ", "ответ", "жалоб", "cds", "цдс", "диспетчер"]):
+        return {"key": "appeals", "title": "Обращения",
+                "subtitle": "Анализ обращений и подготовка ответов", "icon": "✉️", "tone": "info"}
 
-    return {
-        "key": "other",
-        "title": "Прочие данные",
-        "subtitle": "Дополнительные найденные сведения",
-        "icon": "📄",
-        "tone": "neutral",
-    }
+    return {"key": "other", "title": "Прочие данные",
+            "subtitle": "Дополнительные найденные сведения", "icon": "📄", "tone": "neutral"}
+
+
+REPORT_BLOCKS = [
+    {"key": "edo",        "title": "Заполненность данных", "icon": "▦"},
+    {"key": "overdue",    "title": "Просроченные задачи",  "icon": "⏰"},
+    {"key": "water",      "title": "Контроль воды",        "icon": "💧"},
+    {"key": "utnkr",      "title": "Технадзор УТНКР",      "icon": "🏗"},
+    {"key": "cameras",    "title": "Проверка камер",       "icon": "📹"},
+    {"key": "empathy",    "title": "Эмпатичные ответы",    "icon": "💬"},
+    {"key": "appeals_1c", "title": "Обращения 1С",         "icon": "🧾"},
+    {"key": "appeals",    "title": "Обращения",            "icon": "✉️"},
+    {"key": "other",      "title": "Прочие данные",        "icon": "📄"},
+]
+
+VALID_BLOCK_KEYS = {b["key"] for b in REPORT_BLOCKS}
 
 
 def detect_overdue_row(row):
@@ -1076,107 +1263,50 @@ def build_fact_card(module_info, group_name, group):
     }
 
 
-def prepare_report_for_html(report):
+def prepare_report_for_html(report, selected_blocks=None):
     if not report:
         return report
+
+    if selected_blocks:
+        selected_blocks = {b for b in selected_blocks if b in VALID_BLOCK_KEYS}
+    if not selected_blocks:
+        selected_blocks = None
 
     prepared = dict(report)
     module_cards = []
 
-    totals = {
-        "records": 0,
-        "overdue": 0,
-        "missing_rows": 0,
-        "camera_problems": 0,
-        "risks": 0,
-    }
+    totals = {"records": 0, "overdue": 0, "missing_rows": 0, "camera_problems": 0, "risks": 0}
 
     for group_name, group in report.get("groups", {}).items():
         module_info = classify_fact_module(group_name, group.get("file", ""))
+
+        if selected_blocks is not None and module_info["key"] not in selected_blocks:
+            continue
+
         card = build_fact_card(module_info, group_name, group)
-
         module_cards.append(card)
-
         totals["records"] += card["count"]
 
         for metric in card["metrics"]:
             label = metric["label"]
             value = int(metric["value"] or 0)
-
             if label == "Просрочки":
                 totals["overdue"] += value
-
             if label == "С незаполненными полями":
                 totals["missing_rows"] += value
-
             if label == "Проблемы камер":
                 totals["camera_problems"] += value
-
             if label == "Риски / нарушения":
                 totals["risks"] += value
 
-    tone_order = {
-        "danger": 0,
-        "warning": 1,
-        "info": 2,
-        "neutral": 3,
-        "success": 4,
-    }
-
+    tone_order = {"danger": 0, "warning": 1, "info": 2, "neutral": 3, "success": 4}
     module_cards.sort(key=lambda card: (tone_order.get(card.get("tone"), 9), -int(card.get("count", 0))))
 
     prepared["module_cards"] = module_cards
     prepared["fact_totals"] = totals
-
+    prepared["blocks"] = REPORT_BLOCKS
+    prepared["selected_blocks"] = sorted(selected_blocks) if selected_blocks else []
     return prepared
-
-
-# ============================================================
-# STRICT MUNICIPALITY MATCHING AND SERVICE FILE FILTERS
-# ============================================================
-
-EXCLUDED_MUNICIPALITY_REPORT_FILE_NAMES = {
-    "dashboard_state.json",
-    "final_result.json",
-    "summary.json",
-    "cache.json",
-    "state.json",
-}
-
-EXCLUDED_MUNICIPALITY_REPORT_PATH_PARTS = {
-    "debug",
-    "responses",
-    "state",
-    "__pycache__",
-    ".git",
-    ".venv",
-    "venv",
-    "node_modules",
-}
-
-MUNICIPALITY_FIELD_HINTS = [
-    "municipality",
-    "муниципалитет",
-    "муниципальное образование",
-    "городской округ",
-    "г.о.",
-    "го",
-    "territory",
-    "территория",
-    "okrug",
-    "district",
-    "район",
-]
-
-ADDRESS_FIELD_HINTS = [
-    "address",
-    "адрес",
-    "street",
-    "улица",
-    "ул",
-    "location",
-    "местоположение",
-]
 
 
 def should_skip_municipality_report_file(path):
@@ -1541,6 +1671,11 @@ def collect_municipality_data(municipality_name):
 
             if should_skip_municipality_report_file(path):
                 continue
+            # Пропускаем исходный .xlsx, если рядом есть обработанный result.json
+            # (одни и те же данные: xlsx — выгрузка из 1С, json — её результат)
+            if path.suffix.lower() == ".xlsx" and (path.parent / "result.json").exists():
+                continue
+
 
             try:
                 records = read_records_from_file(path)
@@ -1636,19 +1771,27 @@ def registry_words(value):
     return [part for part in registry_norm(value).split() if part]
 
 
-def get_registry_municipality_entry(municipality_name):
+@lru_cache(maxsize=1)
+def _registry_index():
+    """Строит индекс {registry_norm(name): (canonical_name, entry)} один раз."""
     registry = load_municipality_registry()
     municipalities = registry.get("municipalities", {}) or {}
-
-    target = registry_norm(municipality_name)
-
+    index = {}
     for canonical_name, entry in municipalities.items():
         names = [canonical_name]
         names.extend(entry.get("aliases", []) or [])
-
         for name in names:
-            if registry_norm(name) == target:
-                return canonical_name, entry
+            key = registry_norm(name)
+            if key and key not in index:
+                index[key] = (canonical_name, entry)
+    return index
+
+
+def get_registry_municipality_entry(municipality_name):
+    target = registry_norm(municipality_name)
+    found = _registry_index().get(target)
+    if found is not None:
+        return found
 
     # Если точного имени нет в справочнике — возвращаем пустую запись.
     return municipality_name, {

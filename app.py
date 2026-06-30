@@ -1060,6 +1060,22 @@ async def edo_page(request: Request):
         },
     )
 
+@app.get("/scheduler", response_class=HTMLResponse)
+async def scheduler_page(request: Request):
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+
+    return templates.TemplateResponse(
+        request,
+        "scheduler.html",
+        {
+            "request": request,
+            "user": user,
+            "user_role": user.get("role", ""),
+            "user_username": user.get("username", ""),
+        },
+    )
+
 
 @app.get("/overdue", response_class=HTMLResponse)
 async def overdue_page(request: Request):
@@ -1970,17 +1986,30 @@ async def api_cds_export(payload: dict):
             message=f"Выгружено {len(rows)} обращений.",
         )
 
+        norm_rows = []
+        for r in rows:
+            norm_rows.append({
+                "date":        r.get("date") or r.get("Дата") or "",
+                "department":  (r.get("department") or r.get("Подразделение") or "").strip() or "(не указано)",
+                "number":      r.get("number") or r.get("Номер") or "",
+                "status":      r.get("status") or r.get("Состояние обращения") or "",
+                "address":     r.get("address") or r.get("Адрес обращения") or "",
+                "reason":      r.get("reason") or r.get("Причина обращения") or r.get("type") or r.get("Тип обращения") or "",
+                # --- новые поля для вкладок/просрочки/модалки ---
+                "deadline":    r.get("deadline") or r.get("Срок исполнения") or "",
+                "type":        r.get("type") or r.get("Тип обращения") or "",
+                "request_type":r.get("request_type") or r.get("Тип заявки") or "",
+                "source":      r.get("source") or r.get("Источник поступления") or "",
+                "applicant":   r.get("applicant") or r.get("Заявитель") or "",
+                "executor":    r.get("executor") or r.get("Исполнитель") or "",
+            })
+
         return {
             "success": True,
-            "total": len(rows),
-            "count_new": count_by_status(("нов", "открыт")),
-            "count_in_work": count_by_status(("в работе", "выполня", "назнач")),
-            "count_done": count_by_status(("заверш", "закрыт", "выполнено")),
-            "analytics": build_cds_analytics(rows),
-            "rows": rows[:200],
+            "total": len(norm_rows),
+            "rows": norm_rows,
             "download_url": "/data/cds/appeals.xlsx",
         }
-
     except Exception as e:
         import traceback
         run_status["cds"].update(
@@ -2310,3 +2339,15 @@ try:
     app.include_router(feedback_router)
 except Exception as e:
     print(f"[feedback] router init error: {e}")
+
+
+# ===============================
+# SCHEDULER / АВТОЗАПУСК МОДУЛЕЙ
+# ===============================
+try:
+    from services.scheduler import router as scheduler_router, start as start_scheduler
+    app.include_router(scheduler_router)
+    start_scheduler()
+    print("[scheduler] router connected, loop started")
+except Exception as e:
+    print(f"[scheduler] init error: {e}")

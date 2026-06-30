@@ -705,6 +705,20 @@
             border-color: #334155;
         }
 
+
+        .block-filter { width: 100%; margin-top: 14px; }
+        .block-filter-title { font-weight: 900; font-size: 13px; color: var(--muted);
+            margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em; }
+        .block-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .block-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px;
+            border-radius: 999px; border: 1px solid var(--border); background: var(--card);
+            color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; user-select: none; }
+        .block-chip input { display: none; }
+        .block-chip.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+        .block-filter-hint { margin-top: 8px; font-size: 12px; color: var(--muted); }
+        html[data-theme="dark"] .block-chip { background: #0f172a; border-color: #334155; }
+        html[data-theme="dark"] .block-chip.active { background: var(--blue); border-color: var(--blue); color: #0f172a; }
+
 </style>
 </head>
 
@@ -738,15 +752,31 @@
 
     <section class="card search-card">
         <form class="search-form" method="get" action="/municipality-report">
-            <select name="name" class="municipality-select" required>
-                <option value="" {% if not name %}selected{% endif %} disabled>
-                    Выберите муниципалитет…
-                </option>
-                {% for m in municipalities %}
-                    <option value="{{ m }}" {% if name == m %}selected{% endif %}>{{ m }}</option>
-                {% endfor %}
-            </select>
-            <button class="btn" type="submit">Сформировать отчёт</button>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; width:100%;">
+                <select name="name" class="municipality-select" required>
+                    <option value="" {% if not name %}selected{% endif %} disabled>
+                        Выберите муниципалитет…
+                    </option>
+                    {% for m in municipalities %}
+                        <option value="{{ m }}" {% if name == m %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn" type="submit">Сформировать отчёт</button>
+            </div>
+
+            <div class="block-filter">
+                <div class="block-filter-title">Блоки отчёта:</div>
+                <div class="block-chips">
+                    {% for b in all_blocks %}
+                        <label class="block-chip {% if b.key in selected_blocks %}active{% endif %}">
+                            <input type="checkbox" name="blocks" value="{{ b.key }}"
+                                   {% if b.key in selected_blocks %}checked{% endif %}>
+                            <span>{{ b.icon }} {{ b.title }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+                <div class="block-filter-hint">Если ничего не выбрано — показываются все блоки.</div>
+            </div>
         </form>
 
         {% if report %}
@@ -1007,5 +1037,12 @@
         }, 60000);
     })();
     </script>
+<script>
+document.querySelectorAll('.block-chip input[type="checkbox"]').forEach(function(cb){
+    cb.addEventListener('change', function(){
+        this.closest('.block-chip').classList.toggle('active', this.checked);
+    });
+});
+</script>
 </body>
 </html>
