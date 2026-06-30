@@ -1,3 +1,4 @@
+from fastapi import Request
 """
 Локальный модуль безопасности.
 - bcrypt напрямую для хеширования паролей
@@ -320,7 +321,7 @@ def has_module_access(user: dict[str, Any] | None, module_id: str) -> bool:
 
 ADMIN_ROLES = {"admin", "администратор"}
 
-def require_admin_user(request) -> dict:
+def require_admin_user(request: Request) -> dict:
     """Возвращает админа из cookie access_token или кидает 403."""
     from fastapi import HTTPException
     token = request.cookies.get("access_token")

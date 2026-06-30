@@ -312,7 +312,47 @@
             .history-module-name { font-size: 13px; }
         }
         /* ===== /ВИДЖЕТ ИСТОРИИ ===== */
-    </style>
+    
+        /* ===== Меню профиля ===== */
+        .profile-menu { position: relative; display: inline-block; }
+        .profile-menu-trigger { user-select: none; }
+        .profile-menu-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 220px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            padding: 6px;
+            z-index: 1000;
+        }
+        .profile-menu-dropdown[hidden] { display: none; }
+        .profile-menu-header { padding: 8px 12px 4px; }
+        .profile-menu-name { font-weight: 600; font-size: 14px; color: #111827; }
+        .profile-menu-role { font-size: 12px; color: #6b7280; }
+        .profile-menu-divider { height: 1px; background: #f0f0f3; margin: 6px 4px; }
+        .profile-menu-info { padding: 4px 12px; font-size: 12px; color: #6b7280; }
+        .profile-menu-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            box-sizing: border-box;
+            padding: 9px 12px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #111827;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .profile-menu-item:hover { background: #f3f4f6; }
+        .profile-menu-logout { color: #b91c1c; }
+        .profile-menu-logout:hover { background: #fef2f2; }
+
+        </style>
 </head>
 
 <body class="compact-module-page">
@@ -329,42 +369,55 @@
             </div>
 
             <div class="top-actions">
-                <button id="whatsNewButton" class="version-label version-button" type="button" aria-label="Что нового в версии 2.3">
-                    v2.4 
-                </button>
-
-                <button id="helpButton" class="theme-toggle secondary-button" type="button" aria-label="Помощь и обратная связь">
-                <span class="theme-toggle-icon">💬</span>
-                <span class="theme-toggle-text">Помощь</span>
-            </button>
-                <button id="themeToggle" class="theme-toggle secondary-button" type="button" aria-label="Переключить тему">
-                    <span class="theme-toggle-icon">☀️</span>
-                    <span class="theme-toggle-text">Тема</span>
-                </button>
-
-                <div class="badge">Локально</div>
+                <div class="theme-dropdown">
+                    <button id="themeToggle" class="theme-toggle secondary-button" type="button"
+                            aria-haspopup="true" aria-expanded="false" aria-label="Выбрать тему">
+                        <span class="theme-toggle-icon">☀️</span>
+                        <span class="theme-toggle-text">Тема</span>
+                        <span class="theme-toggle-arrow" aria-hidden="true">▾</span>
+                    </button>
+                    <div id="themeMenu" class="theme-menu" role="menu" aria-label="Выбор темы" hidden>
+                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="light">
+                            <span class="theme-menu-icon">☀️</span><span class="theme-menu-label">Светлая</span><span class="theme-menu-check">✓</span>
+                        </button>
+                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="dark">
+                            <span class="theme-menu-icon">🌙</span><span class="theme-menu-label">Тёмная</span><span class="theme-menu-check">✓</span>
+                        </button>
+                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="kreml">
+                            <span class="theme-menu-icon">🏛️</span><span class="theme-menu-label">Московская</span><span class="theme-menu-check">✓</span>
+                        </button>
+                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="auto-moscow">
+                            <span class="theme-menu-icon">🛰️</span><span class="theme-menu-label">Подмосковное солнце</span><span class="theme-menu-check">✓</span>
+                        </button>
+                    </div>
+                </div>
 
                 {% if user_username %}
-                <div class="badge"
-                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;"
-                     title="{{ user_role or '' }}">
-                    👤 {{ user_username }}
+                <div class="profile-menu">
+                    <button id="profileMenuButton" class="badge profile-menu-trigger" type="button"
+                            aria-haspopup="true" aria-expanded="false"
+                            style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer;"
+                            title="{{ user_role or '' }}">
+                        👤 {{ user_username }} ▾
+                    </button>
+                    <div id="profileMenuDropdown" class="profile-menu-dropdown" hidden>
+                        <div class="profile-menu-header">
+                            <div class="profile-menu-name">{{ user_username }}</div>
+                            <div class="profile-menu-role">{{ user_role or '' }}</div>
+                        </div>
+                        <div class="profile-menu-divider"></div>
+                        {% if (user_role or "")|lower in ["admin", "администратор"] %}
+                        <a href="/scheduler" class="profile-menu-item">⚙️ Планировщик</a>
+                        {% endif %}
+                        <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.4)</button>
+                        <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
+                        <div class="profile-menu-divider"></div>
+                        <div class="profile-menu-info">Окружение: Локально</div>
+                        <div class="profile-menu-divider"></div>
+                        <a href="/logout" class="profile-menu-item profile-menu-logout">🚪 Выйти</a>
+                    </div>
                 </div>
                 {% endif %}
-
-{% if (user_role or "")|lower in ["admin", "администратор"] %}
-                <a href="/scheduler"
-                   class="badge"
-                   style="text-decoration: none; cursor: pointer; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
-                   ⚙️ Планировщик
-                </a>
-{% endif %}
-
-                <a href="/logout"
-                   class="badge"
-                   style="text-decoration: none; cursor: pointer; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;">
-                   Выйти
-                </a>
             </div>
         </header>
 
@@ -1332,6 +1385,8 @@
     (function () {
         const root = document.documentElement;
         const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
+        const dropdown = themeToggle ? themeToggle.closest(".theme-dropdown") : null;
+        const menu = dropdown ? dropdown.querySelector("#themeMenu, .theme-menu") : null;
 
         const MOSCOW_LAT = 55.7558;
         const MOSCOW_LON = 37.6173;
@@ -1366,6 +1421,7 @@
             }
             root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
+            if (typeof markActiveMenu === "function") markActiveMenu(themeMode);
             if (!themeToggle) return;
             const icon = themeToggle.querySelector(".theme-toggle-icon");
             const text = themeToggle.querySelector(".theme-toggle-text");
@@ -1388,22 +1444,60 @@
         const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
         applyTheme(savedThemeMode);
 
-        if (themeToggle) {
+        function markActiveMenu(mode) {
+            if (!menu) return;
+            menu.querySelectorAll(".theme-menu-item").forEach(function (btn) {
+                btn.classList.toggle("active", btn.dataset.themeMode === mode);
+                btn.setAttribute("aria-checked", btn.dataset.themeMode === mode ? "true" : "false");
+            });
+        }
+
+        function openMenu() {
+            if (!menu || !dropdown) return;
+            menu.hidden = false;
+            dropdown.classList.add("open");
+            if (themeToggle) themeToggle.setAttribute("aria-expanded", "true");
+        }
+        function closeMenu() {
+            if (!menu || !dropdown) return;
+            menu.hidden = true;
+            dropdown.classList.remove("open");
+            if (themeToggle) themeToggle.setAttribute("aria-expanded", "false");
+        }
+
+        markActiveMenu(savedThemeMode);
+
+        if (themeToggle && menu) {
             themeToggle.onclick = null;
-            themeToggle.addEventListener("click", function () {
-                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-                let nextMode;
-                if (currentMode === "auto-moscow") {
-                    nextMode = "light";
-                } else if (currentMode === "light") {
-                    nextMode = "dark";
-                } else if (currentMode === "dark") {
-                    nextMode = "kreml";
+            themeToggle.setAttribute("aria-haspopup", "true");
+            themeToggle.setAttribute("aria-expanded", "false");
+
+            themeToggle.addEventListener("click", function (e) {
+                e.stopPropagation();
+                if (dropdown.classList.contains("open")) {
+                    closeMenu();
                 } else {
-                    nextMode = "auto-moscow";
+                    openMenu();
                 }
-                localStorage.setItem("neurona-theme-mode", nextMode);
-                applyTheme(nextMode);
+            });
+
+            menu.querySelectorAll(".theme-menu-item").forEach(function (btn) {
+                btn.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    const mode = btn.dataset.themeMode;
+                    if (!mode) return;
+                    localStorage.setItem("neurona-theme-mode", mode);
+                    applyTheme(mode);
+                    markActiveMenu(mode);
+                    closeMenu();
+                });
+            });
+
+            document.addEventListener("click", function (e) {
+                if (!dropdown.contains(e.target)) closeMenu();
+            });
+            document.addEventListener("keydown", function (e) {
+                if (e.key === "Escape") closeMenu();
             });
         }
 
@@ -1651,5 +1745,39 @@
 })();
 </script>
 
-</body>
+
+    <script>
+    /* profile-menu-toggle */
+    (function () {
+        const btn = document.getElementById("profileMenuButton");
+        const dropdown = document.getElementById("profileMenuDropdown");
+        if (!btn || !dropdown) return;
+
+        function openMenu() {
+            dropdown.hidden = false;
+            btn.setAttribute("aria-expanded", "true");
+        }
+        function closeMenu() {
+            dropdown.hidden = true;
+            btn.setAttribute("aria-expanded", "false");
+        }
+        function toggleMenu(e) {
+            e.stopPropagation();
+            if (dropdown.hidden) openMenu(); else closeMenu();
+        }
+
+        btn.addEventListener("click", toggleMenu);
+
+        document.addEventListener("click", function (e) {
+            if (!dropdown.hidden && !dropdown.contains(e.target) && e.target !== btn) {
+                closeMenu();
+            }
+        });
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") closeMenu();
+        });
+    })();
+    </script>
+
+    </body>
 </html>

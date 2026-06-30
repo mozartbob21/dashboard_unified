@@ -4593,3 +4593,55 @@ html[data-theme="kreml"] body::before {
     background-size: 260px 160px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='160' viewBox='0 0 260 160'%3E%3Cg fill='none' stroke='%237e2f2c' stroke-width='3'%3E%3Crect x='40' y='80' width='180' height='60'/%3E%3Crect x='70' y='50' width='30' height='90'/%3E%3Crect x='160' y='50' width='30' height='90'/%3E%3Crect x='115' y='30' width='30' height='110'/%3E%3Cpath d='M85 50 L85 35 L92 28 L99 35 L99 50'/%3E%3Cpath d='M175 50 L175 35 L182 28 L189 35 L189 50'/%3E%3Cpath d='M130 30 L130 12 L130 30'/%3E%3C/g%3E%3Cg fill='%23c79a3a'%3E%3Ccircle cx='130' cy='8' r='5'/%3E%3Ccircle cx='92' cy='24' r='3'/%3E%3Ccircle cx='182' cy='24' r='3'/%3E%3C/g%3E%3C/svg%3E");
 }
+
+/* ===== Theme dropdown (выбор темы) ===== */
+.theme-dropdown { position: relative; display: inline-block; }
+.theme-toggle-arrow {
+    margin-left: 6px;
+    font-size: 0.7em;
+    opacity: 0.7;
+    transition: transform 0.18s ease;
+}
+.theme-dropdown.open .theme-toggle-arrow { transform: rotate(180deg); }
+.theme-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    padding: 6px;
+    background: var(--card-strong, var(--card, #ffffff));
+    color: var(--text, #1a1a1a);
+    border: 1px solid var(--border, rgba(0,0,0,0.1));
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.theme-menu[hidden] { display: none; }
+.theme-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: inherit;
+    font-size: 0.95rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.theme-menu-item:hover,
+.theme-menu-item:focus-visible {
+    background: var(--border-strong, rgba(0,0,0,0.06));
+    outline: none;
+}
+.theme-menu-icon { font-size: 1.1em; width: 1.3em; text-align: center; flex: none; }
+.theme-menu-label { flex: 1; }
+.theme-menu-check { opacity: 0; font-weight: 700; flex: none; }
+.theme-menu-item.active .theme-menu-check { opacity: 1; }
+.theme-menu-item.active { font-weight: 600; }
