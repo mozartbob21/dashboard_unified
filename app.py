@@ -18,6 +18,8 @@ from services.auth.security import (
     authenticate_user,
     create_access_token,
     get_user_from_token,
+    require_admin_user,
+    ADMIN_ROLES,
     has_module_access,
 )
 
@@ -1064,6 +1066,9 @@ async def edo_page(request: Request):
 async def scheduler_page(request: Request):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
+
+    if (user.get("role") or "").strip().lower() not in ADMIN_ROLES:
+        return RedirectResponse(url="/", status_code=303)
 
     return templates.TemplateResponse(
         request,
@@ -2346,8 +2351,9 @@ except Exception as e:
 # ===============================
 try:
     from services.scheduler import router as scheduler_router, start as start_scheduler
-    app.include_router(scheduler_router)
+    from fastapi import Depends
+    app.include_router(scheduler_router, dependencies=[Depends(require_admin_user)])
     start_scheduler()
-    print("[scheduler] router connected, loop started")
+    print("[scheduler] router connected (admin-only), loop started")
 except Exception as e:
     print(f"[scheduler] init error: {e}")

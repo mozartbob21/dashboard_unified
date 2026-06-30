@@ -352,11 +352,13 @@
                 </div>
                 {% endif %}
 
+{% if (user_role or "")|lower in ["admin", "администратор"] %}
                 <a href="/scheduler"
                    class="badge"
                    style="text-decoration: none; cursor: pointer; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
                    ⚙️ Планировщик
                 </a>
+{% endif %}
 
                 <a href="/logout"
                    class="badge"

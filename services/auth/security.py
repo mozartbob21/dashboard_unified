@@ -316,3 +316,16 @@ def has_module_access(user: dict[str, Any] | None, module_id: str) -> bool:
     if not user:
         return False
     return module_id in user.get("modules", [])
+
+
+ADMIN_ROLES = {"admin", "администратор"}
+
+def require_admin_user(request) -> dict:
+    """Возвращает админа из cookie access_token или кидает 403."""
+    from fastapi import HTTPException
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+    if (user.get("role") or "").strip().lower() not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Доступ только для администраторов")
+    return user
+
