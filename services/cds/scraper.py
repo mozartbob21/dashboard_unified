@@ -5,6 +5,7 @@ Fixes:
   - "Еще"/"Ещё" — поддержка обоих вариантов
   - Улучшена обработка ошибок
 """
+from services.cds.error_handler import handle_1c_error_dialog
 import asyncio
 import calendar
 import json
@@ -131,6 +132,7 @@ async def set_period(page, date_from: str, date_to: str) -> bool:
     await click_visible(page, "Выбрать", exact=True)
     print("[CDS] ✅ Период применён")
     await page.wait_for_timeout(5000)
+    await handle_1c_error_dialog(page)
     return True
 
 
@@ -149,6 +151,7 @@ async def export_to_excel(page) -> Path:
     # открылось и в нём виден пункт 'Файл'". Пробуем циклом до 180 сек.
     print("[CDS] Ждём документ и открываем меню (до 180 сек)...")
     await page.wait_for_timeout(5000)
+    await handle_1c_error_dialog(page)
 
     menu_selectors = [
         '[title*="Меню"]:visible',

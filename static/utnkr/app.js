@@ -11,6 +11,9 @@
     const systemStateBadge = document.getElementById("systemStateBadge");
     const statusText = document.getElementById("statusText");
     const currentStageMessage = document.getElementById("currentStageMessage");
+    const startedAtValue = document.getElementById("startedAtValue");
+    const finishedAtValue = document.getElementById("finishedAtValue");
+    const checkTimesBlock = document.getElementById("checkTimesBlock");
     const stateMetricValue = document.getElementById("stateMetricValue");
 
     const aboutProjectBtn = document.getElementById("aboutProjectBtn");
@@ -62,6 +65,22 @@
         if (currentStageMessage) {
             currentStageMessage.textContent = status.message || "Система готова к запуску проверки.";
         }
+
+        const startedAt = (status.check_state && status.check_state.started_at) || status.started_at || null;
+        const finishedAt = (status.check_state && status.check_state.finished_at) || status.finished_at || null;
+
+        if (startedAtValue) {
+            startedAtValue.textContent = startedAt || "—";
+        }
+
+        if (finishedAtValue) {
+            finishedAtValue.textContent = finishedAt || "—";
+        }
+
+        if (checkTimesBlock) {
+            if (startedAt || finishedAt || status.running) {
+                checkTimesBlock.classList.remove("hidden");
+            }
 
         if (stateMetricValue) {
             stateMetricValue.textContent = running ? "Проверка" : "Готово";

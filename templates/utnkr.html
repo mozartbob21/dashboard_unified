@@ -257,6 +257,21 @@
             </div>
         </div>
 
+        
+        <div id="checkTimesBlock" class="{% if not check_state.started_at and not check_state.finished_at and not check_state.is_running %}hidden{% endif %}">
+            <div class="grid two">
+                <div class="card">
+                    <h2>Начало проверки</h2>
+                    <p id="startedAtValue" class="big-time">{{ check_state.started_at or "—" }}</p>
+                </div>
+
+                <div class="card">
+                    <h2>Завершение проверки</h2>
+                    <p id="finishedAtValue" class="big-time">{{ check_state.finished_at or "—" }}</p>
+                </div>
+            </div>
+        </div>
+
         <div class="card status-card">
             <div class="system-status">
                 <div>

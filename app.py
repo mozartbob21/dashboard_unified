@@ -61,6 +61,7 @@ UTNKR_RESULT_FILE = UTNKR_DATA_DIR / "violators.json"
 
 CAMERAS_ADDRESSES_FILE = CAMERAS_DATA_DIR / "addresses.tsv"
 CAMERAS_STATE_FILE = CAMERAS_DATA_DIR / "state" / "dashboard_state.json"
+RUN_TIMES_FILE = DATA_DIR / "run_times.json"
 
 GENERATED_PRESCRIPTIONS_DIR = GENERATED_DIR / "prescriptions"
 
@@ -591,8 +592,27 @@ def set_status(service_name: str, **kwargs):
         run_status[service_name][key] = value
 
 
+def save_run_time(service_name: str):
+    times = load_json_file(RUN_TIMES_FILE, default={}) or {}
+    st = run_status.get(service_name, {})
+    times[service_name] = {
+        "started_at": st.get("started_at", ""),
+        "finished_at": st.get("finished_at", ""),
+    }
+    save_json_file(RUN_TIMES_FILE, times)
+
+
+def load_run_time(service_name: str) -> dict:
+    times = load_json_file(RUN_TIMES_FILE, default={}) or {}
+    return times.get(service_name, {})
+
+
 def make_check_state(service_name: str):
     status = run_status.get(service_name, {})
+    persisted = load_run_time(service_name)
+
+    started_at = status.get("started_at") or persisted.get("started_at", "")
+    finished_at = status.get("finished_at") or persisted.get("finished_at", "")
 
     return {
         "is_running": bool(status.get("running", False)),
@@ -600,6 +620,9 @@ def make_check_state(service_name: str):
         "stage": status.get("stage", "Ожидание запуска"),
         "message": status.get("message", ""),
         "last_error": status.get("last_error", ""),
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "updated_at": finished_at or started_at or "",
     }
 
 
@@ -623,6 +646,9 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
         run_id = run_history.record_start(service_name, user="—")
         status["running"] = True
         status["last_error"] = ""
+        status["started_at"] = datetime.now().isoformat(timespec="seconds")
+        status["finished_at"] = ""
+        save_run_time(service_name)
         status["stage"] = "Запуск"
         status["message"] = f"Запущена проверка: {service_name}."
 
@@ -709,6 +735,11 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
         status["last_error"] = str(e)
         if run_id:
             run_history.record_finish(run_id, "error", str(e))
+
+    finally:
+        status["running"] = False
+        status["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        save_run_time(service_name)
 
 
 def start_background_service(service_name: str, command: list[str]):
@@ -1529,7 +1560,14 @@ async def watercontrol_run_status():
 
 @app.get("/utnkr/run-status")
 async def utnkr_run_status():
-    return run_status["utnkr"]
+    check_state = make_check_state("utnkr")
+    current = run_status["utnkr"]
+    return {
+        **current,
+        "started_at": check_state.get("started_at"),
+        "finished_at": check_state.get("finished_at"),
+        "check_state": check_state,
+    }
 
 
 @app.get("/cameras/run-status")
