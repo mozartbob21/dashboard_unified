@@ -102,6 +102,7 @@
         .status-postponed{background:var(--risk-soft);color:var(--risk);}
         .status-returned{background:var(--danger-soft);color:var(--danger);}
         .status-chronic{background:var(--violet-soft);color:var(--violet);}
+        .status-deferred{background:var(--risk-soft);color:var(--risk);}
         .empty-state{text-align:center;padding:40px;color:var(--muted);}
         .overdue-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;margin-bottom:15px;}
         .loader{display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;}
@@ -169,8 +170,15 @@
     const SLA_DAYS = 3;
     const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 
+    // Допустимые статусы заявок (из фильтра 1С). Прочие игнорируются.
+    const ALLOWED_STATUSES = ['Новое', 'В работе', 'Перенос сроков', 'Отложено на следующий день'];
+    const ALLOWED_SET = new Set(ALLOWED_STATUSES.map(s => s.toLowerCase().replace(/\s+/g,' ').trim()));
+    function isAllowedStatus(status){
+        return ALLOWED_SET.has(String(status||'').toLowerCase().replace(/\s+/g,' ').trim());
+    }
+
     let appData = {};                       // { "Подразделение": [заявки...] }
-    let sortState = { column: null, direction: 'asc' };
+    let sortState = { column: null, direction: 'asc', deptColumn: null, deptDirection: 'asc' };
     let chartPie = null, chartBar = null;
     let summaryStatusFilter = '';
     let modalRegistry = [];
@@ -212,7 +220,8 @@
             if(!data.success) throw new Error(data.error || 'Ошибка выгрузки');
 
             appData = rowsToAppData(data.rows || []);
-            sortState = { column:null, direction:'asc' };
+            sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
+            summaryStatusFilter = '';
             renderAll();
         }catch(e){
             document.getElementById('contentContainer').innerHTML =
@@ -224,12 +233,10 @@
     }
 
     // ===== Конвертация плоского массива бэка в структуру по подразделениям =====
-    const RESOLVED = new Set(["завершено","закрыто","выполнено","отменено"]);
-    function isOpen(r){ return !RESOLVED.has((r.status||"").trim().toLowerCase()); }
-
+    // Учитываем только допустимые статусы (фильтр 1С).
     function rowsToAppData(rows){
         const out = {};
-        rows.filter(isOpen).forEach(r => {
+        rows.filter(r => isAllowedStatus(r.status)).forEach(r => {
             const dept = (r.department || '').trim() || '(не указано)';
             const fields = [
                 {label:'Дата', value:r.date},
@@ -261,10 +268,36 @@
     }
 
     // ===== Даты / просрочка =====
+    // Парсинг значения: строка, serial-число Excel или уже готовая дата.
     function parseExcelDate(value){
         if(!value && value!==0) return "";
-        return String(value).trim();
+        if(typeof value === 'string'){
+            const t = value.trim();
+            if(/^\d+\.?\d*$/.test(t)) return parseExcelSerialDate(parseFloat(t));
+            return t;
+        }
+        if(typeof value === 'number') return parseExcelSerialDate(value);
+        return String(value);
     }
+    function parseExcelSerialDate(serial){
+        if(serial < 1){
+            const totalMinutes = Math.round(serial*24*60);
+            const hours = Math.floor(totalMinutes/60);
+            const minutes = totalMinutes % 60;
+            return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`;
+        }
+        const excelEpoch = new Date(1899,11,31);
+        const date = new Date(excelEpoch.getTime() + serial*86400000);
+        if(serial <= 60) date.setDate(date.getDate()-1);
+        const d = String(date.getDate()).padStart(2,'0');
+        const m = String(date.getMonth()+1).padStart(2,'0');
+        const y = date.getFullYear();
+        const h = String(date.getHours()).padStart(2,'0');
+        const mi = String(date.getMinutes()).padStart(2,'0');
+        const s = String(date.getSeconds()).padStart(2,'0');
+        return `${d}.${m}.${y} ${h}:${mi}:${s}`;
+    }
+
     function getDaysSince(dateStr){
         if(!dateStr) return 0;
         const p = parseExcelDate(dateStr);
@@ -275,7 +308,8 @@
     }
     function parseDateTime(value){
         if(!value) return null;
-        const m = String(value).match(/(\d{2})\.(\d{2})\.(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+        const p = parseExcelDate(value);
+        const m = String(p).match(/(\d{2})\.(\d{2})\.(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
         if(!m) return null;
         return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0));
     }
@@ -289,14 +323,23 @@
         return '';
     }
     function hasDeadline(req){ return !!parseDateTime(getDeadlineStr(req)); }
+
+    // Просрочка: для «Перенос сроков» — по сроку исполнения; иначе — от даты создания + SLA_DAYS.
+    function usesDeadline(req){
+        return (req && (req.status||'').includes('Перенос')) && !!parseDateTime(getDeadlineStr(req));
+    }
     function getOverdueDays(reqOrDate){
         const req = (reqOrDate && typeof reqOrDate==='object') ? reqOrDate : {date:reqOrDate};
-        const dl = parseDateTime(getDeadlineStr(req));
-        if(dl){ const d=new Date(dl); d.setHours(0,0,0,0); const diff=Math.round((TODAY-d)/86400000); return diff>0?diff:0; }
+        if(usesDeadline(req)){
+            const dlDay = new Date(parseDateTime(getDeadlineStr(req))); dlDay.setHours(0,0,0,0);
+            const diff = Math.round((TODAY-dlDay)/86400000);
+            return diff>0?diff:0;
+        }
         return Math.max(0, getDaysSince(req.date)-SLA_DAYS);
     }
     function getDateValue(dateStr){
-        const m = String(dateStr).match(/(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+        const p = parseExcelDate(dateStr);
+        const m = String(p).match(/(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
         if(m) return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0),+(m[6]||0)).getTime();
         return TODAY.getTime();
     }
@@ -305,6 +348,7 @@
         if(status.includes("Новое")) return "status-new";
         if(status.includes("В работе")) return "status-work";
         if(status.includes("Перенос")) return "status-postponed";
+        if(status.includes("Отложено")) return "status-deferred";
         if(status.includes("Возвращено")) return "status-returned";
         if(status.includes("Хроническая")) return "status-chronic";
         return "";
@@ -357,6 +401,22 @@
         }
         summary["ИТОГО"]=totals;
         return summary;
+    }
+
+    // Сортировка строк сводной таблицы (в т.ч. по колонкам-статусам "st:...")
+    function getSortedSummaryDepts(summaryData){
+        const depts = Object.keys(summaryData).filter(k=>k!=='ИТОГО' && k!=='__statuses');
+        if(!sortState.column) return depts;
+        const col = sortState.column;
+        const dir = sortState.direction==='asc'?1:-1;
+        const getVal = d => col==='dept'
+            ? summaryData[d].dept
+            : (col.startsWith('st:') ? (summaryData[d].statusCounts[col.slice(3)]||0) : summaryData[d][col]);
+        return [...depts].sort((a,b)=>{
+            const va=getVal(a), vb=getVal(b);
+            if(typeof va==='string') return va.localeCompare(vb,'ru')*dir;
+            return (va-vb)*dir;
+        });
     }
 
     function applyStatusFilter(val){
@@ -436,17 +496,26 @@
     // ===== Сводная таблица + графики =====
     function renderSummaryTable(summary){
         const statuses = summary.__statuses || [];
-        const depts = Object.keys(summary).filter(k=>k!=='ИТОГО' && k!=='__statuses');
+        const sortedDepts = getSortedSummaryDepts(summary);
+
+        const dirIcon = col => sortState.column!==col ? '⇅' : (sortState.direction==='asc'?'↑':'↓');
+        const sortCls = col => sortState.column===col ? (sortState.direction==='asc'?'sort-asc':'sort-desc') : '';
 
         const statusOptions = getAllStatuses().map(s=>
             `<option value="${escapeHtml(s)}" ${summaryStatusFilter===s?'selected':''}>${escapeHtml(s)}</option>`
         ).join('');
 
+        let statusHeaders = '';
+        statuses.forEach(s=>{
+            const col = 'st:'+s;
+            statusHeaders += `<th class="sortable ${sortCls(col)}" data-col="${escapeHtml(col)}">${escapeHtml(s)} <span class="sort-icon">${dirIcon(col)}</span></th>`;
+        });
+
         let html = `
         <h2>Сводка: Нерешённые заявки по подразделениям</h2>
         <div class="disclaimer">
-            ⚠️ Просрочка определяется по <b>сроку исполнения</b> заявки: если срок ещё не наступил — заявка не считается просроченной.
-            Если срок не задан — расчёт по дате создания и нормативу <b>${SLA_DAYS} дня</b>.
+            ⚠️ Просрочка считается от <b>даты создания</b> с нормативом <b>${SLA_DAYS} дня</b>.
+            При статусе <b>«Перенос сроков»</b> расчёт ведётся по <b>дате исполнения</b> (сроку).
         </div>
         <div class="filter-bar">
             <span class="filter-label">Фильтр по статусу:</span>
@@ -467,16 +536,19 @@
             </div>
         </div>
         <div class="table-wrapper"><table><thead><tr>
-            <th>Подразделение</th>`;
+            <th class="sortable ${sortCls('dept')}" data-col="dept">Подразделение <span class="sort-icon">${dirIcon('dept')}</span></th>
+            ${statusHeaders}
+            <th class="sortable ${sortCls('total')}" data-col="total">Итого <span class="sort-icon">${dirIcon('total')}</span></th>
+            <th class="sortable ${sortCls('timeOnly')}" data-col="timeOnly">Заявки от сегодня <span class="sort-icon">${dirIcon('timeOnly')}</span></th>
+            <th class="sortable ${sortCls('overdueCount')} overdue-text" data-col="overdueCount">Просрочено <span class="sort-icon">${dirIcon('overdueCount')}</span></th>
+        </tr></thead><tbody>`;
 
-        statuses.forEach(s=>{ html += `<th>${escapeHtml(s)}</th>`; });
-        html += `<th>Итого</th><th class="overdue-text">Просрочено</th></tr></thead><tbody>`;
-
-        depts.forEach(dept=>{
+        sortedDepts.forEach(dept=>{
             const row = summary[dept];
             html += `<tr><td><b>${escapeHtml(dept)}</b></td>`;
             statuses.forEach(s=>{ html += `<td>${row.statusCounts[s]||0}</td>`; });
             html += `<td><b>${row.total}</b></td>`;
+            html += `<td>${row.timeOnly}</td>`;
             html += `<td class="${row.overdueCount>0?'overdue-text':''}">${row.overdueCount}</td></tr>`;
         });
 
@@ -484,7 +556,7 @@
         if(t){
             html += `<tr style="background:var(--bg-soft);font-weight:700;"><td>ИТОГО</td>`;
             statuses.forEach(s=>{ html += `<td>${t.statusCounts[s]||0}</td>`; });
-            html += `<td>${t.total}</td><td class="overdue-text">${t.overdueCount}</td></tr>`;
+            html += `<td>${t.total}</td><td>${t.timeOnly}</td><td class="overdue-text">${t.overdueCount}</td></tr>`;
         }
         html += `</tbody></table></div>`;
         return html;
@@ -515,7 +587,14 @@
             type:'doughnut',
             data:{ labels:pieLabels, datasets:[{ data:pieData, backgroundColor:STATUS_PALETTE }] },
             options:{ responsive:true, maintainAspectRatio:false,
-                plugins:{ legend:{ position:'bottom', labels:{ color:cText } } } }
+                plugins:{
+                    legend:{ position:'bottom', labels:{ color:cText } },
+                    tooltip:{ callbacks:{ label:function(ctx){
+                        const v=ctx.parsed||0, sum=ctx.dataset.data.reduce((a,b)=>a+b,0);
+                        const p=sum?((v/sum)*100).toFixed(1):0;
+                        return `${ctx.label||''}: ${v} (${p}%)`;
+                    }}}
+                } }
         });
 
         chartBar = new Chart(barEl, {
@@ -544,6 +623,10 @@
             <h2 style="border:none;margin:0;">⚠️ Просроченные заявки (${overdue.length})</h2>
             <button class="btn btn-excel" onclick="downloadOverdueToExcel()">⬇️ Скачать в Excel</button>
         </div>
+        <div class="disclaimer">
+            Просрочка: от даты создания даётся норматив <b>${SLA_DAYS} дня</b>.
+            При статусе <b>«Перенос сроков»</b> — по дате исполнения (сроку). Отсортированы по убыванию просрочки.
+        </div>
         <div class="table-wrapper"><table><thead><tr>
             <th>Подразделение</th><th>Номер</th><th>Дата</th><th>Срок исполнения</th>
             <th>Статус</th><th>Адрес</th><th>Просрочка (дней)</th><th></th>
@@ -554,7 +637,7 @@
             html += `<tr class="overdue-row">
                 <td>${escapeHtml(req.dept)}</td>
                 <td>${escapeHtml(req.number)}</td>
-                <td>${escapeHtml(req.date)}</td>
+                <td>${escapeHtml(parseExcelDate(req.date))}</td>
                 <td>${escapeHtml(getDeadlineStr(req)||'—')}</td>
                 <td><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
                 <td>${escapeHtml(req.address)}</td>
@@ -579,6 +662,8 @@
                 av=(a[col]||'').toString(); bv=(b[col]||'').toString();
                 return av.localeCompare(bv,'ru')*dir;
             });
+        } else {
+            reqs.sort((a,b)=>getDateValue(a.date)-getDateValue(b.date));
         }
 
         const ico = c => sortState.deptColumn===c ? (sortState.deptDirection==='asc'?'▲':'▼') : '⇅';
@@ -600,7 +685,7 @@
             const od = getOverdueDays(req);
             html += `<tr class="${od>0?'overdue-row':''}">
                 <td>${escapeHtml(req.number)}</td>
-                <td>${escapeHtml(req.date)}</td>
+                <td>${escapeHtml(parseExcelDate(req.date))}</td>
                 <td><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
                 <td>${escapeHtml(req.address)}</td>
                 <td class="${od>0?'overdue-text':''}">${od>0?od:'—'}</td>
@@ -627,28 +712,61 @@
         if(!req) return;
         document.getElementById('modalTitle').textContent = 'Заявка № ' + (req.number||'—');
 
+        const days = getDaysSince(req.date);
         const od = getOverdueDays(req);
+        const byDeadline = usesDeadline(req);
         const dl = getDeadlineStr(req) || '—';
+        const overdueLabel = byDeadline ? 'Просрочка (по сроку исполнения)' : `Просрочка (норматив ${SLA_DAYS} дня)`;
+        const overdueHtml = od > 0
+            ? `<span class="overdue-text">Просрочено на ${od} дн.</span>`
+            : `<span style="color:var(--ok,#16a36a);font-weight:600;">${byDeadline?'В пределах срока':'В пределах норматива'}</span>`;
+
         document.getElementById('modalDerived').innerHTML = `
             <div class="modal-derived-grid">
                 <div class="modal-field"><div class="modal-label">Подразделение</div><div class="modal-value">${escapeHtml(req.dept||req.department||'—')}</div></div>
                 <div class="modal-field"><div class="modal-label">Статус</div><div class="modal-value"><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status||'—')}</span></div></div>
+                <div class="modal-field"><div class="modal-label">Дней с момента создания</div><div class="modal-value">${days} дн.</div></div>
                 <div class="modal-field"><div class="modal-label">Срок исполнения</div><div class="modal-value">${escapeHtml(dl)}</div></div>
-                <div class="modal-field"><div class="modal-label">Просрочка</div><div class="modal-value ${od>0?'overdue-text':''}">${od>0?(od+' дн.'):'нет'}</div></div>
+                <div class="modal-field"><div class="modal-label">${overdueLabel}</div><div class="modal-value">${overdueHtml}</div></div>
             </div>`;
 
         const fields = Array.isArray(req.fields)?req.fields:[];
-        document.getElementById('modalAllFields').innerHTML = fields.map(f=>`
-            <div class="modal-field">
-                <div class="modal-label">${escapeHtml(f.label)}</div>
-                <div class="modal-value">${escapeHtml(f.value||'—')}</div>
-            </div>`).join('') || '<div class="modal-value">Нет данных</div>';
+        document.getElementById('modalAllFields').innerHTML = fields.map(f=>{
+            const label = f.label || '';
+            const raw = (f.value==null) ? '' : String(f.value).trim();
+            const val = raw==='' ? '—' : parseExcelDate(raw);
+            let valHtml;
+            if(label.toLowerCase().includes('состояние') && val!=='—'){
+                valHtml = `<span class="status-badge ${getStatusClass(val)}">${escapeHtml(val)}</span>`;
+            } else if(/^https?:\/\//i.test(val)){
+                valHtml = `<a href="${escapeHtml(val)}" target="_blank" rel="noopener">${escapeHtml(val)}</a>`;
+            } else {
+                valHtml = escapeHtml(val);
+            }
+            return `<div class="modal-field"><div class="modal-label">${escapeHtml(label)}</div><div class="modal-value">${valHtml}</div></div>`;
+        }).join('') || '<div class="modal-value">Нет данных</div>';
 
         document.getElementById('requestModal').style.display = 'block';
     }
     function closeModal(){ document.getElementById('requestModal').style.display='none'; }
     window.onclick = e => { if(e.target.id==='requestModal') closeModal(); };
     document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+    // ===== Сортировка сводной таблицы по клику на заголовок (делегирование) =====
+    document.addEventListener('click', function(e){
+        const th = e.target.closest('#tab-summary th.sortable');
+        if(!th) return;
+        const col = th.dataset.col;
+        if(!col) return;
+        if(sortState.column===col){
+            sortState.direction = sortState.direction==='asc'?'desc':'asc';
+        } else {
+            sortState.column = col; sortState.direction = 'asc';
+        }
+        const summaryData = calculateSummary();
+        const el = document.getElementById('tab-summary');
+        if(el){ el.innerHTML = renderSummaryTable(summaryData); setTimeout(()=>renderCharts(summaryData),50); }
+    });
 
     // ===== Выгрузка просрочки в Excel =====
     function downloadOverdueToExcel(){
@@ -657,14 +775,16 @@
         const rows = overdue.map(r=>({
             'Подразделение': r.dept,
             'Номер': r.number,
-            'Дата': r.date,
+            'Дата': parseExcelDate(r.date),
             'Срок исполнения': getDeadlineStr(r),
             'Статус': r.status,
             'Адрес': r.address,
             'Причина': r.reason,
+            'Дней с создания': r.daysSince,
             'Просрочка (дней)': r.overdueDays
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
+        ws['!cols'] = [{wch:15},{wch:15},{wch:20},{wch:20},{wch:18},{wch:50},{wch:30},{wch:16},{wch:16}];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Просрочено');
         const d = new Date().toISOString().slice(0,10);
