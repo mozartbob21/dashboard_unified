@@ -5,7 +5,7 @@ from services.cds.config import SCREENSHOT_DIR
 async def _debug_dump(page, prefix: str):
     """Скриншот + URL + title + видимый текст страницы в лог."""
     try:
-        await page.screenshot(path=f"{prefix}.png", full_page=True, timeout=10000)
+        await page.screenshot(path=str(SCREENSHOT_DIR / f"{prefix}.png"), full_page=True, timeout=10000)
     except Exception:
         pass
     try:
