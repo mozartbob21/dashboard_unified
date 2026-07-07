@@ -148,6 +148,8 @@
         </div>
     </div>
 
+    <div id="lastCheckBar" style="display:none;padding:10px 20px;background:var(--info-soft,#e0f2fe);color:var(--info,#0369a1);font-size:13px;font-weight:600;border-bottom:1px solid var(--border);"></div>
+
     <div class="tabs" id="tabsContainer"></div>
     <div id="contentContainer">
         <div id="loader" class="loader"></div>
@@ -223,6 +225,7 @@
             sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
             summaryStatusFilter = '';
             renderAll();
+            showLastCheck({ timestamp: new Date().toISOString(), date_from: dateFrom, date_to: dateTo });
         }catch(e){
             document.getElementById('contentContainer').innerHTML =
                 `<div class="empty-state">❌ ${escapeHtml(e.message)}</div>`;
@@ -807,6 +810,36 @@
         });
         _obs.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
     })();
+
+    // Формат времени последней проверки
+    function showLastCheck(info){
+        const bar = document.getElementById('lastCheckBar');
+        if(!bar) return;
+        if(!info || !info.timestamp){ bar.style.display='none'; return; }
+        let when = info.timestamp;
+        try {
+            const d = new Date(info.timestamp);
+            if(!isNaN(d)) when = d.toLocaleString('ru-RU', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+        } catch(e){}
+        const period = (info.date_from && info.date_to) ? (' \u2022 период: ' + info.date_from + ' \u2014 ' + info.date_to) : '';
+        bar.textContent = '\u{1F552} Последняя проверка: ' + when + period;
+        bar.style.display='block';
+    }
+
+    async function loadLastResult(){
+        try{
+            const res = await fetch('/api/cds/last-result', { credentials:'same-origin' });
+            const data = await res.json();
+            if(!data || !data.success || !Array.isArray(data.rows) || data.rows.length===0){ return; }
+            document.getElementById('emptyHint').style.display = 'none';
+            appData = rowsToAppData(data.rows);
+            sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
+            summaryStatusFilter = '';
+            renderAll();
+            showLastCheck(data);
+        }catch(e){ console.warn('[CDS] loadLastResult:', e); }
+    }
+    document.addEventListener('DOMContentLoaded', loadLastResult);
 </script>
 {% endraw %}
 
