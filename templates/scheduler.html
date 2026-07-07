@@ -360,7 +360,7 @@
 
         <div class="top-actions">
             <button id="themeToggle" class="theme-toggle secondary-button" type="button" aria-label="Переключить тему">
-                <span class="theme-toggle-icon">☀️</span>
+                <span class="theme-toggle-icon">🛰️</span>
                 <span class="theme-toggle-text">Тема</span>
             </button>
 
@@ -440,9 +440,8 @@
             if (icon) icon.textContent = "☀️";
             if (text) text.textContent = "Светлая";
         } else {
-            const ico = isDaytimeInMoscow() ? "🛰️" : "🌙";
-            if (icon) icon.textContent = ico;
-            if (text) text.textContent = "Авто";
+            if (icon) icon.textContent = "🛰️";
+            if (text) text.textContent = "Подмосковное солнце";
         }
     }
 
