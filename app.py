@@ -2065,6 +2065,45 @@ async def api_cds_export(payload: dict):
             content={"success": False, "error": str(e)},
         )
 
+@app.get("/api/cds/last-result")
+async def api_cds_last_result():
+    """Возвращает последнюю сохранённую выгрузку CDS (переживает перезагрузку страницы)."""
+    data = load_json_file(CDS_RESULT_FILE, default=None)
+
+    if not data or not isinstance(data, dict) or not data.get("success"):
+        return {"success": False, "rows": [], "timestamp": "", "date_from": "", "date_to": ""}
+
+    rows = data.get("data", []) or []
+
+    norm_rows = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        norm_rows.append({
+            "date":         r.get("date") or r.get("Дата") or "",
+            "department":   (r.get("department") or r.get("Подразделение") or "").strip() or "(не указано)",
+            "number":       r.get("number") or r.get("Номер") or "",
+            "status":       r.get("status") or r.get("Состояние обращения") or "",
+            "address":      r.get("address") or r.get("Адрес обращения") or "",
+            "reason":       r.get("reason") or r.get("Причина обращения") or r.get("type") or r.get("Тип обращения") or "",
+            "deadline":     r.get("deadline") or r.get("Срок исполнения") or "",
+            "type":         r.get("type") or r.get("Тип обращения") or "",
+            "request_type": r.get("request_type") or r.get("Тип заявки") or "",
+            "source":       r.get("source") or r.get("Источник поступления") or "",
+            "applicant":    r.get("applicant") or r.get("Заявитель") or "",
+            "executor":     r.get("executor") or r.get("Исполнитель") or "",
+        })
+
+    return {
+        "success": True,
+        "rows": norm_rows,
+        "total": len(norm_rows),
+        "timestamp": data.get("timestamp", ""),
+        "date_from": data.get("date_from", ""),
+        "date_to": data.get("date_to", ""),
+    }
+
+
 @app.get("/cds/run-status")
 async def cds_run_status():
     return run_status["cds"]
