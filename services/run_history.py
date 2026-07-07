@@ -30,10 +30,11 @@ MAX_RECORDS = 500  # в БД можно хранить больше, чем в J
 MODULE_LABELS = {
     "edo": "ЭДО",
     "overdue": "Просроченные задачи",
-    "watercontrol": "WaterControl",
+    "watercontrol": "Контроль воды",
     "utnkr": "УТНКР",
     "cameras": "Проверка камер",
     "camera_prescriptions": "Предписания по камерам",
+    "cds": "ЦДС",
 }
 
 MODULE_ICONS = {
@@ -43,6 +44,7 @@ MODULE_ICONS = {
     "utnkr": "🔍",
     "cameras": "📹",
     "camera_prescriptions": "📄",
+    "cds": "📞",
 }
 
 

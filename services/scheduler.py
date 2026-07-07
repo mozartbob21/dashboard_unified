@@ -34,6 +34,7 @@ MODULE_COMMANDS: dict[str, list[str]] = {
     "utnkr":                [sys.executable, "-m", "services.utnkr.scanner"],
     "cameras":              [sys.executable, "-m", "services.cameras.camera_checker"],
     "camera_prescriptions": [sys.executable, "-m", "services.cameras.prescription_generator"],
+    "cds":                  [sys.executable, "-m", "services.cds.runner"],
 }
 
 # Интервалы по умолчанию (минуты) для первичного заполнения
@@ -44,6 +45,7 @@ DEFAULT_INTERVALS: dict[str, int] = {
     "utnkr": 180,
     "cameras": 240,
     "camera_prescriptions": 360,
+    "cds": 1440,
 }
 
 # ─── Инициализация таблицы (seed) ───────────────────────────────────
@@ -67,11 +69,23 @@ def _seed_jobs() -> None:
 
         with get_db_connection() as conn:
             for module_id, command in MODULE_COMMANDS.items():
+                label = MODULE_LABELS.get(module_id, module_id)
+                icon = MODULE_ICONS.get(module_id, "⚙️")
+
                 exists = conn.execute(
                     "SELECT 1 FROM scheduler_jobs WHERE module_id = ?",
                     (module_id,),
                 ).fetchone()
                 if exists:
+                    # Синхронизируем название/иконку из кода (переименования)
+                    conn.execute(
+                        """
+                        UPDATE scheduler_jobs
+                           SET module_label = ?, module_icon = ?
+                         WHERE module_id = ?
+                        """,
+                        (label, icon, module_id),
+                    )
                     continue
 
                 conn.execute(
@@ -83,8 +97,8 @@ def _seed_jobs() -> None:
                     """,
                     (
                         module_id,
-                        MODULE_LABELS.get(module_id, module_id),
-                        MODULE_ICONS.get(module_id, "⚙️"),
+                        label,
+                        icon,
                         " ".join(command),
                         DEFAULT_INTERVALS.get(module_id, 120),
                     ),
