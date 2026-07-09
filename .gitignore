@@ -70,6 +70,7 @@ generated/prescriptions/*
 *.jpg
 *.jpeg
 *.png
+*.xlsx
 
 # But keep static images/icons if needed
 !static/logo.svg
@@ -179,3 +180,5 @@ data/edo/screenshots/
 *.bak4_*
 *.bak2
 *.bak3
+data/cds/appeals.xlsx
+
