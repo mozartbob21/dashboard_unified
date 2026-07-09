@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нейрона ИИ — ЖКХ Redmine</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
+</head>
+
+<body class="compact-module-page">
+    <div class="page-glow page-glow-one"></div>
+    <div class="page-glow page-glow-two"></div>
+    <div class="page-glow page-glow-three"></div>
+
+    <div class="container">
+        <header class="topbar">
+            <div class="brand">
+                <a href="/" class="brand-link">
+                    <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+                    <div class="brand-text">
+                        <div class="brand-title">Нейрона ИИ</div>
+                        <div class="brand-subtitle">Подмосковная Нейрона Роботовна</div>
+                    </div>
+                </a>
+            </div>
+
+            <div class="topbar-right">
+                <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="Переключить тему">
+                    <span class="theme-toggle-icon">🌙</span>
+                    <span class="theme-toggle-text">Тёмная тема</span>
+                </button>
+
+                <a
+                    href="{{ result.redmine_url if result and result.redmine_url else 'https://mgkh.rm.mosreg.ru' }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="topbar-redmine-btn"
+                >
+                    Redmine
+                </a>
+            </div>
+        </header>
+
+        <section class="hero card">
+            <div class="hero-copy">
+                <div class="eyebrow">ПРОВЕРКА ДАННЫХ В REDMINE</div>
+                <h1>Контроль корректности дат в задачах ЖКХ</h1>
+                <p class="subtext">
+                    Система забирает задачи по сохранённому фильтру Redmine и находит поля
+                    с «нулевыми» датами (0001-01-01) — стандартные и пользовательские.
+                </p>
+            </div>
+
+            <div class="hero-side">
+                <div class="hero-chip">Read-only</div>
+                <div class="hero-chip">Redmine API</div>
+                <div class="hero-chip">Проверка дат</div>
+                <div class="hero-chip">PHP-мост</div>
+            </div>
+        </section>
+
+        <section class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Всего задач</div>
+                <div class="metric-value">{{ metrics.total }}</div>
+            </div>
+            <div class="metric-card ok">
+                <div class="metric-label">На закрытие</div>
+                <div class="metric-value">{{ metrics.close }}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Продление</div>
+                <div class="metric-value">{{ metrics.extend }}</div>
+            </div>
+            <div class="metric-card critical">
+                <div class="metric-label">Возврат</div>
+                <div class="metric-value">{{ metrics.rework }}</div>
+            </div>
+        </section>
+
+        <div class="card action-card">
+            <div>
+                <h2>Управление проверкой</h2>
+                <p class="subtext">Запустите проверку дат в задачах Redmine.</p>
+            </div>
+            <div class="action-panel">
+                <button id="runCheckBtn" class="primary-button" type="button">
+                    Запустить проверку
+                </button>
+            </div>
+        </div>
+
+        <div class="card status-card">
+            <div class="system-status">
+                <div>
+                    <div class="status-title">Состояние системы</div>
+                    <div id="systemStateBadge" class="system-badge ready">Готова</div>
+                </div>
+                <div class="stage-block">
+                    <div class="stage-label">Текущий этап</div>
+                    <div id="currentStage" class="stage-value">Ожидание запуска</div>
+                    <div id="currentStageMessage" class="stage-message">
+                        Система готова к выполнению проверки.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loaderBlock" class="card loader-card hidden">
+            <div class="loader-wrap">
+                <div class="spinner"></div>
+                <div>
+                    <h2>Выполняется проверка</h2>
+                    <p class="subtext">Пожалуйста, дождитесь завершения обработки.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="statusMessage" class="status-message hidden"></div>
+
+        {% if result %}
+            <div class="grid two">
+                <div class="card">
+                    <h2>Последнее обновление</h2>
+                    <p class="big-time">{{ result.created_at }}</p>
+                </div>
+                <div class="card">
+                    <h2>Статус системы</h2>
+                    <p>Проверка выполнена, данные получены из Redmine.</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Возврат ({{ result.buckets.rework | length }})</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>#</th><th>Тема</th><th>Причина</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for r in result.buckets.rework %}
+                                <tr class="status-critical">
+                                    <td>{{ r.id }}</td>
+                                    <td>{{ r.subject }}</td>
+                                    <td>{{ r.comment }}</td>
+                                    <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="topbar-redmine-btn">Открыть</a></td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="4">Нет задач на возврат.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Продление ({{ result.buckets.extend | length }})</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>#</th><th>Тема</th><th>Комментарий</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for r in result.buckets.extend %}
+                                <tr>
+                                    <td>{{ r.id }}</td>
+                                    <td>{{ r.subject }}</td>
+                                    <td>{{ r.comment }}</td>
+                                    <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="topbar-redmine-btn">Открыть</a></td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="4">Нет задач на продление.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>На закрытие ({{ result.buckets.close | length }})</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>#</th><th>Тема</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for r in result.buckets.close %}
+                                <tr>
+                                    <td>{{ r.id }}</td>
+                                    <td>{{ r.subject }}</td>
+                                    <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="topbar-redmine-btn">Открыть</a></td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="3">Нет задач на закрытие.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <h2>Данные пока не сформированы</h2>
+                <p>
+                    Нажмите кнопку <strong>«Запустить проверку»</strong>,
+                    после чего результат появится на этой странице.
+                </p>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const runCheckBtn = document.getElementById("runCheckBtn");
+        const loaderBlock = document.getElementById("loaderBlock");
+        const statusMessage = document.getElementById("statusMessage");
+        const systemStateBadge = document.getElementById("systemStateBadge");
+        const currentStage = document.getElementById("currentStage");
+        const currentStageMessage = document.getElementById("currentStageMessage");
+
+        function setSystemReady() {
+            systemStateBadge.textContent = "Готова";
+            systemStateBadge.className = "system-badge ready";
+        }
+        function setSystemRunning() {
+            systemStateBadge.textContent = "Выполняется проверка";
+            systemStateBadge.className = "system-badge running";
+        }
+        function scrollToTopSmooth() {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+        function showToast(message, kind, scrollTop) {
+            kind = kind || "success";
+            statusMessage.textContent = message;
+            statusMessage.className = "status-message " + kind;
+            if (scrollTop) scrollToTopSmooth();
+            clearTimeout(window.__toastTimer);
+            window.__toastTimer = setTimeout(function () {
+                statusMessage.className = "status-message hidden";
+                statusMessage.textContent = "";
+            }, 2800);
+        }
+
+        async function pollStatus() {
+            try {
+                const response = await fetch("/mgkh-rm/run-status");
+                const data = await response.json();
+
+                currentStage.textContent = data.stage || "Ожидание";
+                currentStageMessage.textContent = data.message || "";
+
+                if (data.running) {
+                    loaderBlock.classList.remove("hidden");
+                    setSystemRunning();
+                    runCheckBtn.disabled = true;
+                    runCheckBtn.textContent = "Проверка выполняется...";
+                    setTimeout(pollStatus, 1000);
+                } else {
+                    setSystemReady();
+                    runCheckBtn.disabled = false;
+                    runCheckBtn.textContent = "Запустить проверку";
+
+                    if (data.stage === "Готово") {
+                        showToast("Проверка завершена. Обновление страницы...", "success", true);
+                        setTimeout(function () { window.location.reload(); }, 1200);
+                    } else if (data.stage === "Ошибка") {
+                        loaderBlock.classList.add("hidden");
+                        showToast(data.last_error || "Произошла ошибка", "error", true);
+                    }
+                }
+            } catch (error) {
+                loaderBlock.classList.add("hidden");
+                runCheckBtn.disabled = false;
+                runCheckBtn.textContent = "Запустить проверку";
+                showToast("Ошибка связи с сервером", "error", true);
+            }
+        }
+
+        runCheckBtn.addEventListener("click", async function () {
+            runCheckBtn.disabled = true;
+            runCheckBtn.textContent = "Запуск...";
+            loaderBlock.classList.remove("hidden");
+            setSystemRunning();
+
+            try {
+                const response = await fetch("/mgkh-rm/run-check", { method: "POST" });
+                const data = await response.json();
+
+                if (data && data.status === "started") {
+                    showToast("Проверка запущена", "success");
+                    setTimeout(pollStatus, 800);
+                } else {
+                    loaderBlock.classList.add("hidden");
+                    runCheckBtn.disabled = false;
+                    runCheckBtn.textContent = "Запустить проверку";
+                    showToast((data && data.message) || "Не удалось запустить проверку", "error", true);
+                }
+            } catch (error) {
+                loaderBlock.classList.add("hidden");
+                runCheckBtn.disabled = false;
+                runCheckBtn.textContent = "Запустить проверку";
+                showToast("Ошибка запуска проверки", "error", true);
+            }
+        });
+
+        // Тема
+        const themeToggleBtn = document.getElementById("themeToggleBtn");
+        function updateThemeButton() {
+            const theme = document.documentElement.getAttribute("data-theme");
+            const icon = themeToggleBtn.querySelector(".theme-toggle-icon");
+            const text = themeToggleBtn.querySelector(".theme-toggle-text");
+            if (theme === "dark") {
+                icon.textContent = "🌙";
+                text.textContent = "Тёмная тема";
+            } else {
+                icon.textContent = "☀️";
+                text.textContent = "Светлая тема";
+            }
+        }
+        themeToggleBtn.addEventListener("click", function () {
+            const current = document.documentElement.getAttribute("data-theme");
+            const next = current === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", next);
+            localStorage.setItem("neurona-theme-mode", next);
+            updateThemeButton();
+        });
+        updateThemeButton();
+
+        // Если проверка уже идёт при загрузке
+        {% if run_status and run_status.running %}
+            pollStatus();
+        {% endif %}
+    </script>
+</body>
+</html>

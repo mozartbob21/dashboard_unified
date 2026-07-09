@@ -789,6 +789,46 @@
             </article>
             {% endif %}
 
+            {% if 'mgkh_rm' in user_modules %}
+            <article class="card module-card">
+                <div class="module-head">
+                    <div class="head-pills">
+                        <span class="pill primary">ЖКХ Redmine</span>
+                        <span class="pill primary">Проверка дат</span>
+                    </div>
+                    <span class="status-badge status-stable">Новое</span>
+                </div>
+
+                <h2 class="module-title">ЖКХ Redmine</h2>
+
+                <div class="module-description">
+                    Модуль проверки корректности дат в задачах Redmine.
+                    Забирает задачи по сохранённому фильтру и находит поля
+                    с «нулевыми» датами (0001-01-01) — стандартные и пользовательские.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">Redmine API</span>
+                    <span class="tag">Проверка дат</span>
+                    <span class="tag">Read-only</span>
+                    <span class="tag">PHP-мост</span>
+                </div>
+
+                <div class="action-panel">
+                    <a href="/mgkh-rm" class="module-link">Открыть модуль →</a>
+
+                    <a href="https://mgkh.rm.mosreg.ru"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="secondary-button">
+                        Открыть источник ↗
+                    </a>
+                </div>
+            </article>
+            {% endif %}
+
+
+
 
             <!-- Сводный отчёт по муниципалитету (Выделен премиальным градиентным бордером, ленточка удалена) -->
             
@@ -1031,7 +1071,8 @@
                 { id: "watercontrol", name: "Контроль воды", path: "/watercontrol", icon: "💧" },
                 { id: "appeals", name: "Эмпатичные ответы", path: "/appeals", icon: "✍️" },
                 { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" },
-                { id: "cds", name: "Обращения ЖКХ", path: "/cds", icon: "🏠" }
+                { id: "cds", name: "Обращения ЖКХ", path: "/cds", icon: "🏠" },
+                { id: "mgkh_rm", name: "МГКХ Redmine", path: "/mgkh-rm", icon: "📅" }
             ];
 
             // Дефолтный выбор (если пользователь зашел первый раз)
@@ -1526,7 +1567,8 @@
             "watercontrol":         { name: "Контроль воды",          icon: "💧" },
             "appeals":              { name: "Эмпатичные ответы",      icon: "✍️" },
             "municipality-report":  { name: "Отчёт по округу",        icon: "📊" },
-            "cds":                  { name: "Обращения ЖКХ",          icon: "🏠" }
+            "cds":                  { name: "Обращения ЖКХ",          icon: "🏠" },
+            "mgkh_rm":              { name: "МГКХ Redmine",           icon: "📅" }
         };
         const STATUS_LABELS = {
             "running": "Выполняется", "success": "Успешно",

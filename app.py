@@ -56,6 +56,9 @@ CAMERAS_DATA_DIR = DATA_DIR / "cameras"
 
 EDO_RESULT_FILE = EDO_DATA_DIR / "result.json"
 OVERDUE_RESULT_FILE = OVERDUE_DATA_DIR / "final_result.json"
+
+MGKH_RM_DATA_DIR = DATA_DIR / "mgkh_rm"
+MGKH_RM_RESULT_FILE = MGKH_RM_DATA_DIR / "result.json"
 WATERCONTROL_RESULT_FILE = WATERCONTROL_DATA_DIR / "result.json"
 UTNKR_RESULT_FILE = UTNKR_DATA_DIR / "violators.json"
 
@@ -135,6 +138,12 @@ run_status = {
         "running": False,
         "stage": "Ожидание запуска",
         "message": "Система готова к формированию предписаний по камерам.",
+        "last_error": "",
+    },
+    "mgkh_rm": {
+        "running": False,
+        "stage": "Ожидание запуска",
+        "message": "Система готова к проверке дат в задачах Redmine.",
         "last_error": "",
     },
     "cds": {
@@ -276,6 +285,35 @@ def calculate_edo_metrics(result):
 
 def calculate_watercontrol_metrics(result):
     return calculate_standard_status_metrics(result)
+
+
+def calculate_mgkh_rm_metrics(result):
+    if not result or not isinstance(result, dict):
+        return {"total": 0, "close": 0, "extend": 0, "rework": 0}
+
+    b = result.get("buckets")
+    if isinstance(b, dict):
+        close = len(b.get("close", []) or [])
+        extend = len(b.get("extend", []) or [])
+        rework = len(b.get("rework", []) or [])
+        return {
+            "total": close + extend + rework,
+            "close": close,
+            "extend": extend,
+            "rework": rework,
+        }
+
+    m = result.get("metrics")
+    if isinstance(m, dict):
+        return {
+            "total": to_int(m.get("total")),
+            "close": to_int(m.get("close")),
+            "extend": to_int(m.get("extend")),
+            "rework": to_int(m.get("rework")),
+        }
+
+    return {"total": 0, "close": 0, "extend": 0, "rework": 0}
+
 
 
 def calculate_overdue_metrics(raw_result):
@@ -949,6 +987,7 @@ def has_local_git_changes():
 PATH_MODULE_MAP = {
     "/edo": "edo",
     "/overdue": "overdue",
+    "/mgkh-rm": "mgkh_rm",
     "/watercontrol": "watercontrol",
     "/utnkr": "utnkr",
     "/cameras": "cameras",
@@ -1098,6 +1137,36 @@ async def edo_page(request: Request):
             "run_status": run_status["edo"],
         },
     )
+
+@app.get("/mgkh-rm", response_class=HTMLResponse)
+async def mgkh_rm_page(request: Request):
+    result = load_json_file(MGKH_RM_RESULT_FILE)
+    metrics = calculate_mgkh_rm_metrics(result)
+
+    return templates.TemplateResponse(
+        request,
+        "mgkh_rm.html",
+        {
+            "request": request,
+            "result": result,
+            "metrics": metrics,
+            "status": run_status["mgkh_rm"],
+            "check_state": make_check_state("mgkh_rm"),
+            "run_status": run_status["mgkh_rm"],
+        },
+    )
+
+
+@app.get("/mgkh-rm/run-status")
+async def mgkh_rm_run_status():
+    return run_status["mgkh_rm"]
+
+
+@app.post("/mgkh-rm/run-check")
+async def mgkh_rm_run_check():
+    command = [sys.executable, "-m", "services.mgkh_php.runner"]
+    return start_background_service("mgkh_rm", command)
+
 
 @app.get("/scheduler", response_class=HTMLResponse)
 async def scheduler_page(request: Request):
