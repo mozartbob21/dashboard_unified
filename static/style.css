@@ -211,7 +211,7 @@ a {
    ------------------------- */
 
 .container {
-    width: min(1180px, calc(100% - 32px));
+    width: min(1600px, calc(100% - 32px));
     margin: 0 auto;
     padding: 28px 0 64px;
 }
@@ -4645,3 +4645,621 @@ html[data-theme="kreml"] body::before {
 .theme-menu-check { opacity: 0; font-weight: 700; flex: none; }
 .theme-menu-item.active .theme-menu-check { opacity: 1; }
 .theme-menu-item.active { font-weight: 600; }
+
+
+/* =========================================================
+   GLOBAL MOBILE RESPONSIVE — ВСЯ СИСТЕМА
+   Финальный адаптив для всех модулей проекта
+   ========================================================= */
+
+/* -------------------------------------------------
+   Планшеты и лэптопы: до 1200px
+   ------------------------------------------------- */
+@media (max-width: 1200px) {
+    .container,
+    .prescriptions-container {
+        width: min(100% - 24px, 1200px) !important;
+        padding: 20px 0 48px !important;
+    }
+
+    /* Модули на главной — 2 колонки */
+    .modules-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    /* Метрики — 3 в ряд */
+    .metrics-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    /* Hero немного компактнее */
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero,
+    .appeal-detail-hero {
+        padding: 30px !important;
+        min-height: auto !important;
+    }
+
+    h1 {
+        font-size: clamp(30px, 4.5vw, 52px) !important;
+    }
+}
+
+/* -------------------------------------------------
+   Планшеты вертикально: до 900px
+   ------------------------------------------------- */
+@media (max-width: 900px) {
+    /* Topbar в колонку */
+    .topbar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding: 10px 12px !important;
+        min-height: auto !important;
+        gap: 10px !important;
+    }
+    .topbar .brand,
+    .topbar .brand-link {
+        width: 100% !important;
+        justify-content: flex-start !important;
+    }
+    .topbar-right,
+    .top-actions {
+        width: 100% !important;
+        justify-content: flex-start !important;
+        flex-wrap: wrap !important;
+    }
+
+    /* Hero всех типов в одну колонку */
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero-grid,
+    .appeal-detail-hero-content,
+    body.appeal-detail-page .appeal-detail-hero-content {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+    .hero-side,
+    .prescriptions-hero-side,
+    .appeals-hero-panel,
+    .appeal-detail-hero-panel {
+        justify-content: flex-start !important;
+        max-width: 100% !important;
+    }
+
+    /* Метрики — 2 колонки */
+    .metrics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px !important;
+    }
+    .metric-value {
+        font-size: 34px !important;
+    }
+    .metric-value-text {
+        font-size: 17px !important;
+    }
+
+    /* Модули — 1 колонка */
+    .modules-grid,
+    .info-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Grid two — в колонку */
+    .grid.two {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Action-card, system-status — в колонку */
+    .action-card,
+    .system-status,
+    .prescriptions-action-card,
+    .prescriptions-download-card,
+    .git-update-head,
+    .premium-upload-header,
+    .violators-section-header,
+    .utnkr-filters-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    /* Формы фильтров */
+    .details-toolbar,
+    .prescriptions-filter-form,
+    .git-token-row,
+    .upload-form {
+        width: 100% !important;
+        flex-wrap: wrap !important;
+    }
+    .details-toolbar select,
+    .prescriptions-filter-form select,
+    .git-token-input {
+        flex: 1 1 200px !important;
+        min-width: 0 !important;
+    }
+
+    /* УТНКР фильтры */
+    .utnkr-filters-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+    .utnkr-reset-filters-btn {
+        width: 100% !important;
+    }
+
+    /* Premium upload */
+    .premium-upload-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    /* Screenshots в 2 колонки */
+    .screenshots-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px !important;
+    }
+
+    /* Таблицы: горизонтальный скролл */
+    .table-wrap,
+    .utnkr-table-wrap,
+    .prescriptions-table-wrap,
+    .table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    table {
+        min-width: 700px !important;
+        font-size: 13px !important;
+    }
+    th, td {
+        padding: 12px 10px !important;
+    }
+
+    /* Модалки */
+    .modal-card,
+    .modal-card-wide {
+        width: calc(100% - 20px) !important;
+        max-height: calc(100vh - 40px) !important;
+    }
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 18px !important;
+    }
+    .modal-tools {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    /* Appeals: заголовок и фильтры */
+    .appeals-table-title,
+    .appeal-detail-card-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .appeals-filter-row {
+        justify-content: flex-start !important;
+    }
+    .appeals-form-grid,
+    .appeal-grid,
+    .appeal-meta-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Analysis summary — 1 колонка */
+    .analysis-summary-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* What's new */
+    .whats-new-dialog {
+        padding: 28px 22px !important;
+        border-radius: 26px !important;
+    }
+    .whats-new-item {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Section titles */
+    .section-title-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+    }
+
+    /* Highlight premium card — во всю ширину */
+    .highlight-premium-card {
+        grid-column: 1 / -1 !important;
+    }
+
+    /* Quick actions */
+    .quick-actions-links {
+        flex-direction: column !important;
+    }
+    .quick-action-btn {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+}
+
+/* -------------------------------------------------
+   Телефоны: до 640px
+   ------------------------------------------------- */
+@media (max-width: 640px) {
+    .container,
+    .prescriptions-container {
+        width: min(100% - 16px, 1200px) !important;
+        padding: 12px 0 32px !important;
+    }
+
+    /* Topbar */
+    .topbar {
+        padding: 10px !important;
+        border-radius: 20px !important;
+        gap: 8px !important;
+    }
+    .brand-logo {
+        width: 44px !important;
+        height: 44px !important;
+        border-radius: 14px !important;
+    }
+    .brand-title {
+        font-size: 14px !important;
+    }
+    .brand-subtitle {
+        font-size: 11.5px !important;
+    }
+    .top-actions,
+    .topbar-right {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 6px !important;
+    }
+    .top-actions > *,
+    .topbar-right > * {
+        width: 100% !important;
+        justify-content: center !important;
+        font-size: 12px !important;
+        padding: 8px 10px !important;
+        min-height: 38px !important;
+    }
+    .theme-toggle .theme-toggle-text {
+        display: none !important;
+    }
+
+    /* Hero: очень компактно */
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero,
+    .appeal-detail-hero,
+    .card:not(.hero):not(.action-card):not(.status-card):not(.loader-card),
+    .action-card,
+    .status-card,
+    .loader-card {
+        padding: 18px !important;
+        border-radius: 22px !important;
+        margin-bottom: 16px !important;
+    }
+    h1 {
+        font-size: clamp(26px, 8vw, 38px) !important;
+        line-height: 1.05 !important;
+    }
+    h2,
+    .section-title,
+    .module-title {
+        font-size: 20px !important;
+    }
+    h3 {
+        font-size: 18px !important;
+    }
+    .hero .subtext,
+    .hero .lead,
+    .lead,
+    .subtext {
+        font-size: 14px !important;
+        margin-top: 14px !important;
+    }
+    .eyebrow,
+    .modal-eyebrow {
+        font-size: 11px !important;
+    }
+
+    /* Метрики: 1 колонка */
+    .metrics-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .metric-card {
+        padding: 18px !important;
+    }
+    .metric-value {
+        font-size: 32px !important;
+    }
+    .metric-value-text {
+        font-size: 16px !important;
+    }
+
+    /* Кнопки */
+    .primary-button,
+    .secondary-button,
+    .module-link,
+    .action-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        font-size: 13px !important;
+        padding: 10px 14px !important;
+    }
+    .action-panel,
+    .message-actions {
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    /* Screenshots — 1 колонка */
+    .screenshots-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Premium upload — 1 колонка */
+    .premium-upload-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Таблицы ещё мельче */
+    table {
+        font-size: 12px !important;
+        min-width: 560px !important;
+    }
+    th, td {
+        padding: 10px 8px !important;
+    }
+    th {
+        font-size: 11px !important;
+    }
+
+    /* УТНКР — оставляем min-width, чтобы скроллилась */
+    .utnkr-detail-table {
+        min-width: 1200px !important;
+    }
+
+    /* Модалка */
+    .modal-card,
+    .modal-card-wide {
+        width: calc(100% - 12px) !important;
+        border-radius: 22px !important;
+    }
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 14px !important;
+    }
+    .modal-footer {
+        flex-direction: column-reverse !important;
+        align-items: stretch !important;
+    }
+    .modal-close-btn {
+        width: 38px !important;
+        height: 38px !important;
+    }
+
+    /* Appeals — компактно */
+    .appeals-chips {
+        gap: 6px !important;
+    }
+    .appeals-chip {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .appeals-form-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .appeals-form-actions > * {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+
+    /* Appeal detail chips на всю ширину */
+    .appeal-detail-status-row,
+    .appeal-management-actions,
+    .appeal-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .appeal-detail-status,
+    .appeal-detail-id,
+    .appeal-detail-chip,
+    .appeal-management-actions > *,
+    .appeal-actions > * {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .appeal-detail-score-value {
+        font-size: 30px !important;
+    }
+    .analysis-detail-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+    .analysis-detail-row strong {
+        text-align: left !important;
+    }
+
+    /* Message block */
+    .message-block {
+        padding: 16px !important;
+        border-radius: 18px !important;
+    }
+    .message-head {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+    }
+
+    /* What's new — очень компактно */
+    .whats-new-dialog {
+        padding: 22px 18px !important;
+        border-radius: 24px !important;
+    }
+    .whats-new-title {
+        font-size: clamp(26px, 8vw, 36px) !important;
+    }
+    .whats-new-lead {
+        font-size: 15px !important;
+        margin: 14px 0 20px !important;
+    }
+    .whats-new-icon {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 18px !important;
+    }
+
+    /* Badges — мельче */
+    .badge,
+    .pill {
+        font-size: 11px !important;
+        padding: 5px 9px !important;
+    }
+
+    /* Pre / код */
+    pre {
+        font-size: 12px !important;
+        padding: 12px !important;
+        border-radius: 14px !important;
+    }
+
+    /* Collapse title */
+    .collapse-toggle h2 {
+        font-size: 18px !important;
+    }
+
+    /* Field chip */
+    .field-chip {
+        font-size: 12px !important;
+        padding: 6px 10px !important;
+    }
+
+    /* Grid rows */
+    .analysis-summary-item {
+        padding: 14px !important;
+    }
+    .analysis-summary-value {
+        font-size: 18px !important;
+    }
+
+    /* Update status card */
+    .update-status-card {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        padding: 16px !important;
+    }
+    .update-status-icon {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 20px !important;
+    }
+    .update-status-title {
+        font-size: 16px !important;
+    }
+
+    /* Prescriptions select */
+    .prescriptions-select {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    /* Version-label / бета в topbar */
+    .version-label,
+    .version-button {
+        font-size: 11px !important;
+    }
+
+    /* Quick actions panel */
+    .quick-actions-bar {
+        padding: 14px !important;
+    }
+    .quick-actions-title {
+        font-size: 15px !important;
+    }
+}
+
+/* -------------------------------------------------
+   Мелкие телефоны: до 400px
+   ------------------------------------------------- */
+@media (max-width: 400px) {
+    .top-actions,
+    .topbar-right {
+        grid-template-columns: 1fr !important;
+    }
+    h1 {
+        font-size: 26px !important;
+    }
+    h2,
+    .module-title {
+        font-size: 18px !important;
+    }
+    .metric-value {
+        font-size: 28px !important;
+    }
+    .brand-title {
+        font-size: 13px !important;
+    }
+    .brand-subtitle {
+        font-size: 11px !important;
+    }
+    .hero,
+    .prescriptions-hero,
+    .card:not(.hero):not(.action-card):not(.status-card):not(.loader-card) {
+        padding: 14px !important;
+        border-radius: 20px !important;
+    }
+    table {
+        min-width: 480px !important;
+        font-size: 11.5px !important;
+    }
+    th, td {
+        padding: 8px 6px !important;
+    }
+}
+
+/* -------------------------------------------------
+   Landscape phone: очень низкие экраны
+   ------------------------------------------------- */
+@media (max-height: 480px) and (orientation: landscape) {
+    .modal-card,
+    .modal-card-wide,
+    .whats-new-dialog {
+        max-height: calc(100vh - 20px) !important;
+    }
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero,
+    .appeal-detail-hero {
+        padding: 18px !important;
+        min-height: auto !important;
+    }
+    h1 {
+        font-size: 26px !important;
+    }
+}
+
+/* -------------------------------------------------
+   Touch-устройства: убираем :hover-эффекты
+   ------------------------------------------------- */
+@media (hover: none) and (pointer: coarse) {
+    .metric-card:hover,
+    .module-card:hover,
+    .message-block:hover,
+    .hero-chip:hover,
+    .brand-link:hover,
+    .primary-button:hover,
+    .secondary-button:hover,
+    .module-link:hover,
+    .action-btn:hover,
+    .quick-action-btn:hover,
+    tbody tr:hover {
+        transform: none !important;
+    }
+    tbody tr:hover {
+        background: transparent !important;
+    }
+}

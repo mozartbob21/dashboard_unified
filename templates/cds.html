@@ -36,8 +36,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
     <style>
-        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:10px 20px 20px;line-height:1.5;}
-        .container{max-width:1400px;margin:0 auto;background:var(--card-strong);border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,.1);overflow:hidden;}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:10px 12px 20px;line-height:1.5;}
+        .container{max-width:1800px;margin:0 auto;background:var(--card-strong);border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,.1);overflow:hidden;}
         .header{padding:20px;background:var(--bg-soft);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;}
         .header h1{margin:0;font-size:1.25rem;}
         .header-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
@@ -64,20 +64,25 @@
         .filter-select{padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;background:var(--card-strong);cursor:pointer;min-width:220px;}
         .filter-hint{font-size:.85rem;color:var(--muted);font-style:italic;}
         .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:25px;}
-        @media(max-width:900px){.charts-grid{grid-template-columns:1fr;}}
+        @media(max-width:1400px){.charts-grid{grid-template-columns:1fr;}}
         .chart-card{background:var(--bg-soft);border:1px solid var(--border);border-radius:8px;padding:16px;}
         .chart-card h3{margin:0 0 12px 0;font-size:1rem;color:var(--muted);}
         .chart-container{position:relative;height:280px;}
+        .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+        .kpi-tile{cursor:pointer;user-select:none;background:var(--card-strong);border:1px solid var(--border);border-left:5px solid var(--accent,#334155);border-radius:8px;padding:12px 14px;transition:box-shadow .15s,background .15s;} .kpi-tile.k-overdue{--accent:#dc2626;} .kpi-tile.k-today{--accent:#ea580c;} .kpi-tile.k-tomorrow{--accent:#d97706;} .kpi-tile.k-week{--accent:#0891b2;} .kpi-tile.k-month{--accent:#2563eb;} .kpi-tile.k-total{--accent:#334155;}
+        .kpi-tile.active{background:var(--info-soft);box-shadow:0 0 0 2px rgba(56,103,255,.35);}
+        .kpi-tile .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);}
+        .kpi-tile .kpi-value{font-size:28px;font-weight:800;line-height:1.1;margin-top:4px;color:var(--accent,#334155);}
         .table-wrapper{overflow-x:auto;border:1px solid var(--border);border-radius:8px;}
-        table{width:100%;border-collapse:collapse;font-size:14px;min-width:800px;}
-        th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--border);}
+        table{width:100%;border-collapse:collapse;font-size:14px;table-layout:auto;}
+        th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:middle;word-break:break-word;} td.num{font-family:ui-monospace,Consolas,monospace;font-weight:500;white-space:nowrap;} td.nowrap,th.nowrap{white-space:nowrap;} td:has(.btn-open){white-space:nowrap;width:1%;} td:has(.btn-open){white-space:nowrap;width:1%;vertical-align:middle;}
         th{background:var(--bg-soft);font-weight:600;color:var(--muted);position:sticky;top:0;z-index:10;user-select:none;}
         th.sortable{cursor:pointer;transition:.2s;}
         th.sortable:hover{background:var(--border);}
         th .sort-icon{margin-left:6px;opacity:.3;font-size:12px;}
         th.sort-asc .sort-icon,th.sort-desc .sort-icon{opacity:1;color:var(--primary);}
         tr:hover{background:var(--bg-soft);}
-        .btn-open{background:var(--primary);color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;}
+        .btn-open{background:var(--primary);color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;display:inline-block;line-height:1.2;}
         .btn-open:hover{background:var(--primary-hover);}
         .overdue-text{color:var(--danger);font-weight:700;}
         .overdue-row{background:var(--danger-soft);}
@@ -106,6 +111,7 @@
         .empty-state{text-align:center;padding:40px;color:var(--muted);}
         .overdue-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;margin-bottom:15px;}
         .loader{display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px;}
+        .muted-inline{color:var(--muted);font-size:12px;}
     </style>
 </head>
 <body>
@@ -172,19 +178,28 @@
     const SLA_DAYS = 3;
     const TODAY = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
 
-    // Допустимые статусы заявок (из фильтра 1С). Прочие игнорируются.
+    // Активные («в работе») статусы — попадают в отчёт как нерешённые.
+    // Остальные считаются закрытыми и учитываются в колонке «Всего закрыто».
     const ALLOWED_STATUSES = ['Новое', 'В работе', 'Перенос сроков', 'Отложено на следующий день'];
     const ALLOWED_SET = new Set(ALLOWED_STATUSES.map(s => s.toLowerCase().replace(/\s+/g,' ').trim()));
     function isAllowedStatus(status){
         return ALLOWED_SET.has(String(status||'').toLowerCase().replace(/\s+/g,' ').trim());
     }
 
-    let appData = {};                       // { "Подразделение": [заявки...] }
+    // Псевдо-подразделения — игнорируем в сводке
+    const EXCLUDED_DEPTS = new Set(['Лист_1', 'Лист1', 'Sheet1', 'Sheet']);
+
+    let appData = {};                       // { "Подразделение": [активные заявки...] }
+    let closedCounts = {};                  // { "Подразделение": число закрытых }
+    let statusTotals = {};                  // { "Статус": число (по всем — активные + закрытые) }
+
     let sortState = { column: null, direction: 'asc', deptColumn: null, deptDirection: 'asc' };
     let chartPie = null, chartBar = null;
     let summaryStatusFilter = '';
+    let summaryDueFilter = '';
     let modalRegistry = [];
     const OVERDUE_FILTER = '__overdue__';
+    const CLOSED_FILTER  = '__closed__';
     const STATUS_PALETTE = ['#3b82f6','#f97316','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#6366f1','#14b8a6','#a855f7'];
 
     // ===== Период по умолчанию: прошлый месяц =====
@@ -198,54 +213,69 @@
     })();
 
     // ===== Запуск выгрузки через бэкенд =====
-   async function runExport(){
-    const btn = document.getElementById('btnExport');
-    const dateFrom = document.getElementById('dateFrom').value;
-    const dateTo   = document.getElementById('dateTo').value;
-    if(!dateFrom || !dateTo){ alert('Укажите период'); return; }
+    async function runExport(){
+        const btn = document.getElementById('btnExport');
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo   = document.getElementById('dateTo').value;
+        if(!dateFrom || !dateTo){ alert('Укажите период'); return; }
 
-    btn.disabled = true; btn.textContent = '⏳ Выгрузка...';
+        btn.disabled = true; btn.textContent = '⏳ Выгрузка...';
 
-    const emptyHint = document.getElementById('emptyHint');
-    if (emptyHint) emptyHint.style.display = 'none';
+        const emptyHint = document.getElementById('emptyHint');
+        if (emptyHint) emptyHint.style.display = 'none';
 
-    const loader = document.getElementById('loader');
-    if (loader) {
-        loader.style.display = 'block';
-        loader.textContent = 'Выполняется выгрузка из 1С... Это может занять несколько минут.';
+        const loader = document.getElementById('loader');
+        if (loader) {
+            loader.style.display = 'block';
+            loader.textContent = 'Выполняется выгрузка из 1С... Это может занять несколько минут.';
+        }
+        const tabs = document.getElementById('tabsContainer');
+        if (tabs) tabs.innerHTML = '';
+
+        try{
+            const res = await fetch('/api/cds/export', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                credentials:'same-origin',
+                body: JSON.stringify({ date_from: dateFrom, date_to: dateTo })
+            });
+            const data = await res.json();
+            if(!data.success) throw new Error(data.error || 'Ошибка выгрузки');
+
+            applyRows(data.rows || []);
+            sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
+            summaryStatusFilter = '';
+            summaryDueFilter = '';
+            renderAll();
+            showLastCheck({ timestamp: new Date().toISOString(), date_from: dateFrom, date_to: dateTo });
+        }catch(e){
+            document.getElementById('contentContainer').innerHTML =
+                `<div class="empty-state">❌ ${escapeHtml(e.message)}</div>`;
+        }finally{
+            btn.disabled = false; btn.textContent = '⬆️ Запустить выгрузку';
+            if (loader) loader.style.display = 'none';
+        }
     }
-    const tabs = document.getElementById('tabsContainer');
-    if (tabs) tabs.innerHTML = '';
 
-    try{
-        const res = await fetch('/api/cds/export', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            credentials:'same-origin',
-            body: JSON.stringify({ date_from: dateFrom, date_to: dateTo })
-        });
-        const data = await res.json();
-        if(!data.success) throw new Error(data.error || 'Ошибка выгрузки');
-
-        appData = rowsToAppData(data.rows || []);
-        sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
-        summaryStatusFilter = '';
-        renderAll();
-        showLastCheck({ timestamp: new Date().toISOString(), date_from: dateFrom, date_to: dateTo });
-    }catch(e){
-        document.getElementById('contentContainer').innerHTML =
-            `<div class="empty-state">❌ ${escapeHtml(e.message)}</div>`;
-    }finally{
-        btn.disabled = false; btn.textContent = '⬆️ Запустить выгрузку';
-        if (loader) loader.style.display = 'none';
-    }
-}
-    // ===== Конвертация плоского массива бэка в структуру по подразделениям =====
-    // Учитываем только допустимые статусы (фильтр 1С).
-    function rowsToAppData(rows){
+    // ===== Конвертация плоского массива бэка =====
+    // Разделяем на активные (appData) и закрытые (closedCounts), считаем statusTotals.
+    function applyRows(rows){
         const out = {};
-        rows.filter(r => isAllowedStatus(r.status)).forEach(r => {
+        const closed = {};
+        const totals = {};
+        rows.forEach(r => {
             const dept = (r.department || '').trim() || '(не указано)';
+            if (EXCLUDED_DEPTS.has(dept)) return;
+
+            const status = (r.status || '').trim();
+            const statusKey = status || 'Без статуса';
+            totals[statusKey] = (totals[statusKey] || 0) + 1;
+
+            if (!isAllowedStatus(status)) {
+                closed[dept] = (closed[dept] || 0) + 1;
+                return;
+            }
+
             const fields = [
                 {label:'Дата', value:r.date},
                 {label:'Подразделение', value:r.department},
@@ -264,7 +294,7 @@
                 date: r.date || '',
                 department: dept,
                 number: r.number || '',
-                status: r.status || '',
+                status: status,
                 address: r.address || '',
                 reason: r.reason || '',
                 deadline: r.deadline || '',
@@ -272,11 +302,12 @@
             };
             (out[dept] = out[dept] || []).push(req);
         });
-        return out;
+        appData = out;
+        closedCounts = closed;
+        statusTotals = totals;
     }
 
     // ===== Даты / просрочка =====
-    // Парсинг значения: строка, serial-число Excel или уже готовая дата.
     function parseExcelDate(value){
         if(!value && value!==0) return "";
         if(typeof value === 'string'){
@@ -332,7 +363,6 @@
     }
     function hasDeadline(req){ return !!parseDateTime(getDeadlineStr(req)); }
 
-    // Просрочка: для «Перенос сроков» — по сроку исполнения; иначе — от даты создания + SLA_DAYS.
     function usesDeadline(req){
         return (req && (req.status||'').includes('Перенос')) && !!parseDateTime(getDeadlineStr(req));
     }
@@ -367,21 +397,88 @@
     function registerReq(req){ modalRegistry.push(req); return modalRegistry.length-1; }
     function openModalByIndex(i){ openModal(modalRegistry[i]); }
 
+    function pctOf(v, total){ return total > 0 ? Math.round(v/total*100) + '%' : '0%'; }
+
+    // ===== Эффективный срок «нужно закрыть» =====
+    function getDueDate(req){
+        if(usesDeadline(req)){
+            const dl = parseDateTime(getDeadlineStr(req));
+            if(dl){ dl.setHours(0,0,0,0); return dl; }
+        }
+        const c = parseDateTime(req && req.date);
+        const x = c ? new Date(c) : new Date(TODAY);
+        x.setHours(0,0,0,0);
+        x.setDate(x.getDate() + SLA_DAYS);
+        return x;
+    }
+
+    function getDateWindows(){
+        const today = new Date(TODAY); today.setHours(0,0,0,0);
+        const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+        const dow = today.getDay();
+        const endOfWeek = new Date(today); endOfWeek.setDate(today.getDate() + (dow===0 ? 0 : 7-dow));
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth()+1, 0);
+        return { today, tomorrow, endOfWeek, endOfMonth };
+    }
+
+    function matchesDueFilter(req, bucket){
+        const w = getDateWindows();
+        const d = getDueDate(req);
+        switch(bucket){
+            case 'overdue':  return d < w.today;
+            case 'today':    return +d === +w.today;
+            case 'tomorrow': return +d === +w.tomorrow;
+            case 'week':     return d >= w.today && d <= w.endOfWeek;
+            case 'month':    return d >= w.today && d <= w.endOfMonth;
+            default:         return true;
+        }
+    }
+
+    function calcDeadlineKPIs(){
+        const w = getDateWindows();
+        const k = { total:0, overdue:0, today:0, tomorrow:0, week:0, month:0 };
+        for(const reqs of Object.values(appData)){
+            for(const r of reqs){
+                k.total++;
+                const d = getDueDate(r);
+                if(d < w.today) k.overdue++;
+                else if(+d === +w.today) k.today++;
+                else if(+d === +w.tomorrow) k.tomorrow++;
+                if(d >= w.today && d <= w.endOfWeek) k.week++;
+                if(d >= w.today && d <= w.endOfMonth) k.month++;
+            }
+        }
+        return k;
+    }
+
+    // ===== Список подразделений =====
+    function getSummaryDepts(){
+        const set = new Set(Object.keys(appData));
+        for(const d in closedCounts) if(closedCounts[d] > 0) set.add(d);
+        return [...set].filter(d => !EXCLUDED_DEPTS.has(d));
+    }
+
     function getAllStatuses(){
         const counts = new Map();
         for(const reqs of Object.values(appData)) reqs.forEach(r=>{const s=(r.status||'').trim(); if(s) counts.set(s,(counts.get(s)||0)+1);});
         return [...counts.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ru')).map(e=>e[0]);
     }
+
     function getActiveReqs(){
-        if(!summaryStatusFilter) return appData;
+        if(!summaryStatusFilter && !summaryDueFilter) return appData;
         const out = {};
         for(const [dept,reqs] of Object.entries(appData)){
-            out[dept] = summaryStatusFilter===OVERDUE_FILTER
-                ? reqs.filter(r=>getOverdueDays(r)>0)
-                : reqs.filter(r=>(r.status||'').trim()===summaryStatusFilter);
+            let arr;
+            if(summaryStatusFilter === CLOSED_FILTER) arr = [];
+            else if(summaryStatusFilter === OVERDUE_FILTER) arr = reqs.filter(r=>getOverdueDays(r)>0);
+            else if(summaryStatusFilter) arr = reqs.filter(r=>(r.status||'').trim()===summaryStatusFilter);
+            else arr = reqs.slice();
+            if(summaryDueFilter) arr = arr.filter(r => matchesDueFilter(r, summaryDueFilter));
+            out[dept] = arr;
         }
         return out;
     }
+
     function getStatusList(){
         const counts = new Map();
         for(const reqs of Object.values(getActiveReqs())) reqs.forEach(r=>{const s=(r.status||'').trim(); if(s) counts.set(s,(counts.get(s)||0)+1);});
@@ -392,10 +489,13 @@
         const statuses = getStatusList();
         const activeData = getActiveReqs();
         const summary = { __statuses: statuses };
-        const totals = { dept:"ИТОГО", total:0, timeOnly:0, overdueCount:0, isTotal:true, statusCounts:{} };
+        const totals = { dept:"ИТОГО", total:0, closed:0, totalAll:0, timeOnly:0, overdueCount:0, isTotal:true, statusCounts:{} };
         statuses.forEach(s=>totals.statusCounts[s]=0);
-        for(const [dept,reqs] of Object.entries(activeData)){
-            const row = { dept, total:reqs.length, timeOnly:0, overdueCount:0, statusCounts:{} };
+
+        getSummaryDepts().forEach(dept=>{
+            const reqs = activeData[dept] || [];
+            const closed = closedCounts[dept] || 0;
+            const row = { dept, total:reqs.length, closed, totalAll:reqs.length+closed, timeOnly:0, overdueCount:0, statusCounts:{} };
             statuses.forEach(s=>row.statusCounts[s]=0);
             reqs.forEach(req=>{
                 const s=(req.status||'').trim();
@@ -405,15 +505,18 @@
             });
             summary[dept]=row;
             statuses.forEach(s=>totals.statusCounts[s]+=row.statusCounts[s]);
-            totals.total+=row.total; totals.timeOnly+=row.timeOnly; totals.overdueCount+=row.overdueCount;
-        }
+            totals.total+=row.total;
+            totals.closed+=row.closed;
+            totals.totalAll+=row.totalAll;
+            totals.timeOnly+=row.timeOnly;
+            totals.overdueCount+=row.overdueCount;
+        });
         summary["ИТОГО"]=totals;
         return summary;
     }
 
-    // Сортировка строк сводной таблицы (в т.ч. по колонкам-статусам "st:...")
     function getSortedSummaryDepts(summaryData){
-        const depts = Object.keys(summaryData).filter(k=>k!=='ИТОГО' && k!=='__statuses');
+        const depts = getSummaryDepts();
         if(!sortState.column) return depts;
         const col = sortState.column;
         const dir = sortState.direction==='asc'?1:-1;
@@ -433,6 +536,14 @@
         const el = document.getElementById('tab-summary');
         if(el){ el.innerHTML = renderSummaryTable(summaryData); setTimeout(()=>renderCharts(summaryData),50); }
     }
+
+    function applyDueFilter(bucket){
+        summaryDueFilter = (summaryDueFilter === bucket) ? '' : bucket;
+        const summaryData = calculateSummary();
+        const el = document.getElementById('tab-summary');
+        if(el){ el.innerHTML = renderSummaryTable(summaryData); setTimeout(()=>renderCharts(summaryData),50); }
+    }
+
     function getAllOverdueRequests(){
         const overdue = [];
         for(const [dept,reqs] of Object.entries(appData)){
@@ -456,21 +567,18 @@
         const content = document.getElementById('contentContainer');
         content.innerHTML = '';
 
-        // Вкладка "Сводка"
         const summaryTab = document.createElement('div');
         summaryTab.id = 'tab-summary';
         summaryTab.className = 'tab-content active';
         summaryTab.innerHTML = renderSummaryTable(summaryData);
         content.appendChild(summaryTab);
 
-        // Вкладка "Просрочено"
         const overdueTab = document.createElement('div');
         overdueTab.id = 'tab-overdue';
         overdueTab.className = 'tab-content';
         overdueTab.innerHTML = renderOverdueTable();
         content.appendChild(overdueTab);
 
-        // Вкладки по подразделениям
         Object.keys(appData).forEach((dept, idx)=>{
             const tab = document.createElement('div');
             tab.id = 'tab-dept-' + idx;
@@ -501,7 +609,7 @@
         if(el) el.classList.add('active');
     }
 
-    // ===== Сводная таблица + графики =====
+    // ===== Сводная таблица =====
     function renderSummaryTable(summary){
         const statuses = summary.__statuses || [];
         const sortedDepts = getSortedSummaryDepts(summary);
@@ -509,9 +617,19 @@
         const dirIcon = col => sortState.column!==col ? '⇅' : (sortState.direction==='asc'?'↑':'↓');
         const sortCls = col => sortState.column===col ? (sortState.direction==='asc'?'sort-asc':'sort-desc') : '';
 
-        const statusOptions = getAllStatuses().map(s=>
-            `<option value="${escapeHtml(s)}" ${summaryStatusFilter===s?'selected':''}>${escapeHtml(s)}</option>`
-        ).join('');
+        const allStatuses = getAllStatuses();
+        let statusOptions = `<option value=""${summaryStatusFilter===''?' selected':''}>Все статусы</option>`;
+        statusOptions += `<option value="${OVERDUE_FILTER}"${summaryStatusFilter===OVERDUE_FILTER?' selected':''}>⏱ Просроченные</option>`;
+        statusOptions += `<option value="${CLOSED_FILTER}"${summaryStatusFilter===CLOSED_FILTER?' selected':''}>✅ Закрыто</option>`;
+        allStatuses.forEach(s=>{
+            statusOptions += `<option value="${escapeHtml(s)}"${summaryStatusFilter===s?' selected':''}>${escapeHtml(s)}</option>`;
+        });
+
+        const filterHint = summaryStatusFilter === OVERDUE_FILTER
+            ? 'Показаны только просроченные заявки'
+            : summaryStatusFilter === CLOSED_FILTER
+                ? 'Показаны закрытые заявки (колонка «Всего закрыто»)'
+                : (summaryStatusFilter ? `Показаны только заявки со статусом «${escapeHtml(summaryStatusFilter)}»` : '');
 
         let statusHeaders = '';
         statuses.forEach(s=>{
@@ -519,23 +637,45 @@
             statusHeaders += `<th class="sortable ${sortCls(col)}" data-col="${escapeHtml(col)}">${escapeHtml(s)} <span class="sort-icon">${dirIcon(col)}</span></th>`;
         });
 
+        // KPI-плитки
+        const kpi = calcDeadlineKPIs();
+        const kpiTile = (label, val, bucket, colorKey) => {
+            const active = bucket && summaryDueFilter === bucket;
+            return `<div class="kpi-tile k-${colorKey} ${active?'active':''}" onclick="applyDueFilter('${bucket}')" title="Показать: ${escapeHtml(label)}">
+                <div class="kpi-label">${escapeHtml(label)}</div>
+                <div class="kpi-value">${val}</div>
+            </div>`;
+        };
+        const kpiTiles = `<div class="kpi-grid">
+            ${kpiTile('Просрочено', kpi.overdue, 'overdue', 'overdue')}
+            ${kpiTile('Сегодня', kpi.today, 'today', 'today')}
+            ${kpiTile('Завтра', kpi.tomorrow, 'tomorrow', 'tomorrow')}
+            ${kpiTile('До конца недели', kpi.week, 'week', 'week')}
+            ${kpiTile('До конца месяца', kpi.month, 'month', 'month')}
+            ${kpiTile('Всего в работе', kpi.total, '', 'total')}
+        </div>`;
+
         let html = `
         <h2>Сводка: Нерешённые заявки по подразделениям</h2>
         <div class="disclaimer">
-            ⚠️ Просрочка считается от <b>даты создания</b> с нормативом <b>${SLA_DAYS} дня</b>.
-            При статусе <b>«Перенос сроков»</b> расчёт ведётся по <b>дате исполнения</b> (сроку).
+            ⚠️ Просрочка считается от <b>даты создания</b> с нормативом <b>${SLA_DAYS} дня</b>. При статусе <b>«Перенос сроков»</b> расчёт ведётся по <b>дате исполнения</b> (сроку).<br>
+            <b>Итого активных</b> — заявки в работе. <b>Всего закрыто</b> — прочие статусы. <b>Итого задач</b> = активные + закрытые.
         </div>
+
         <div class="filter-bar">
-            <span class="filter-label">Фильтр по статусу:</span>
-            <select class="filter-select" onchange="applyStatusFilter(this.value)">
-                <option value="">Все статусы</option>
-                <option value="${OVERDUE_FILTER}" ${summaryStatusFilter===OVERDUE_FILTER?'selected':''}>🔴 Только просроченные</option>
-                ${statusOptions}
-            </select>
+            <label class="filter-label" for="statusFilter">Фильтр по статусу:</label>
+            <select id="statusFilter" class="filter-select" onchange="applyStatusFilter(this.value)">${statusOptions}</select>
+            ${filterHint ? `<span class="filter-hint">${filterHint}</span>` : ''}
         </div>
+
+        <div class="chart-card" style="margin-bottom:20px;">
+            <h3>🗓 Сроки исполнения (активные) — клик по плитке фильтрует сводку</h3>
+            ${kpiTiles}
+        </div>
+
         <div class="charts-grid">
             <div class="chart-card">
-                <h3>📈 Распределение по статусам</h3>
+                <h3>📈 Распределение по статусам (все)</h3>
                 <div class="chart-container"><canvas id="chartPie"></canvas></div>
             </div>
             <div class="chart-card">
@@ -543,19 +683,25 @@
                 <div class="chart-container"><canvas id="chartBar"></canvas></div>
             </div>
         </div>
+
         <div class="table-wrapper"><table><thead><tr>
             <th class="sortable ${sortCls('dept')}" data-col="dept">Подразделение <span class="sort-icon">${dirIcon('dept')}</span></th>
             ${statusHeaders}
-            <th class="sortable ${sortCls('total')}" data-col="total">Итого <span class="sort-icon">${dirIcon('total')}</span></th>
+            <th class="sortable ${sortCls('total')}" data-col="total">Итого активных <span class="sort-icon">${dirIcon('total')}</span></th>
+            <th class="sortable ${sortCls('closed')}" data-col="closed">Всего закрыто <span class="sort-icon">${dirIcon('closed')}</span></th>
+            <th class="sortable ${sortCls('totalAll')}" data-col="totalAll">Итого задач <span class="sort-icon">${dirIcon('totalAll')}</span></th>
             <th class="sortable ${sortCls('timeOnly')}" data-col="timeOnly">Заявки от сегодня <span class="sort-icon">${dirIcon('timeOnly')}</span></th>
             <th class="sortable ${sortCls('overdueCount')} overdue-text" data-col="overdueCount">Просрочено <span class="sort-icon">${dirIcon('overdueCount')}</span></th>
         </tr></thead><tbody>`;
 
         sortedDepts.forEach(dept=>{
             const row = summary[dept];
+            if(!row) return;
             html += `<tr><td><b>${escapeHtml(dept)}</b></td>`;
             statuses.forEach(s=>{ html += `<td>${row.statusCounts[s]||0}</td>`; });
-            html += `<td><b>${row.total}</b></td>`;
+            html += `<td>${row.total} <span class="muted-inline">(${pctOf(row.total, row.totalAll)})</span></td>`;
+            html += `<td>${row.closed} <span class="muted-inline">(${pctOf(row.closed, row.totalAll)})</span></td>`;
+            html += `<td><b>${row.totalAll}</b></td>`;
             html += `<td>${row.timeOnly}</td>`;
             html += `<td class="${row.overdueCount>0?'overdue-text':''}">${row.overdueCount}</td></tr>`;
         });
@@ -564,7 +710,9 @@
         if(t){
             html += `<tr style="background:var(--bg-soft);font-weight:700;"><td>ИТОГО</td>`;
             statuses.forEach(s=>{ html += `<td>${t.statusCounts[s]||0}</td>`; });
-            html += `<td>${t.total}</td><td>${t.timeOnly}</td><td class="overdue-text">${t.overdueCount}</td></tr>`;
+            html += `<td>${t.total} <span class="muted-inline">(${pctOf(t.total, t.totalAll)})</span></td>`;
+            html += `<td>${t.closed} <span class="muted-inline">(${pctOf(t.closed, t.totalAll)})</span></td>`;
+            html += `<td>${t.totalAll}</td><td>${t.timeOnly}</td><td class="overdue-text">${t.overdueCount}</td></tr>`;
         }
         html += `</tbody></table></div>`;
         return html;
@@ -572,8 +720,7 @@
 
     function renderCharts(summary){
         const statuses = summary.__statuses || [];
-        const depts = Object.keys(summary).filter(k=>k!=='ИТОГО' && k!=='__statuses');
-        const t = summary['ИТОГО'] || {statusCounts:{}};
+        const depts = getSummaryDepts();
         window.__cdsLastSummary = summary;
 
         const pieEl = document.getElementById('chartPie');
@@ -588,15 +735,24 @@
         const cMuted  = css.getPropertyValue('--muted').trim()  || '#64748b';
         const cBorder = css.getPropertyValue('--border').trim() || 'rgba(0,0,0,.1)';
 
-        const pieLabels = statuses.filter(s=>(t.statusCounts[s]||0)>0);
-        const pieData = pieLabels.map(s=>t.statusCounts[s]||0);
+        // Круговая — по всем статусам (statusTotals), нулевые убираем
+        let statusEntries = Object.entries(statusTotals)
+            .filter(([, v]) => v > 0)
+            .sort((a, b) => b[1] - a[1]);
+        if (statusEntries.length === 0) {
+            const t = summary['ИТОГО'] || {statusCounts:{}};
+            statusEntries = statuses.map(s => [s, t.statusCounts[s] || 0]).filter(([, v]) => v > 0);
+        }
+        const pieLabels = statusEntries.map(e => e[0]);
+        const pieData = statusEntries.map(e => e[1]);
+        const pieColors = statusEntries.map((_, i) => STATUS_PALETTE[i % STATUS_PALETTE.length]);
 
         chartPie = new Chart(pieEl, {
             type:'doughnut',
-            data:{ labels:pieLabels, datasets:[{ data:pieData, backgroundColor:STATUS_PALETTE }] },
+            data:{ labels:pieLabels, datasets:[{ data:pieData, backgroundColor:pieColors, borderWidth:2, borderColor:'#fff' }] },
             options:{ responsive:true, maintainAspectRatio:false,
                 plugins:{
-                    legend:{ position:'bottom', labels:{ color:cText } },
+                    legend:{ position:'bottom', labels:{ color:cText, font:{size:11}, boxWidth:12 } },
                     tooltip:{ callbacks:{ label:function(ctx){
                         const v=ctx.parsed||0, sum=ctx.dataset.data.reduce((a,b)=>a+b,0);
                         const p=sum?((v/sum)*100).toFixed(1):0;
@@ -605,11 +761,13 @@
                 } }
         });
 
+        // Столбчатая — сортировка по убыванию активных заявок
+        const barDepts = [...depts].sort((a,b)=>(summary[b].total||0)-(summary[a].total||0));
         chartBar = new Chart(barEl, {
             type:'bar',
-            data:{ labels:depts, datasets:[
-                { label:'Всего заявок', data:depts.map(d=>summary[d].total), backgroundColor:'#3b82f6' },
-                { label:'Просрочено',   data:depts.map(d=>summary[d].overdueCount), backgroundColor:'#ef4444' }
+            data:{ labels:barDepts, datasets:[
+                { label:'Всего заявок', data:barDepts.map(d=>summary[d].total), backgroundColor:'#3b82f6', borderRadius:4 },
+                { label:'Просрочено',   data:barDepts.map(d=>summary[d].overdueCount), backgroundColor:'#ef4444', borderRadius:4 }
             ]},
             options:{ responsive:true, maintainAspectRatio:false,
                 scales:{
@@ -636,20 +794,28 @@
             При статусе <b>«Перенос сроков»</b> — по дате исполнения (сроку). Отсортированы по убыванию просрочки.
         </div>
         <div class="table-wrapper"><table><thead><tr>
-            <th>Подразделение</th><th>Номер</th><th>Дата</th><th>Срок исполнения</th>
-            <th>Статус</th><th>Адрес</th><th>Просрочка (дней)</th><th></th>
+            <th class="nowrap">Подразделение</th>
+            <th class="nowrap">Дата создания</th>
+            <th class="nowrap">Дней</th>
+            <th class="nowrap">Просрочено</th>
+            <th>Адрес заявки</th>
+            <th class="nowrap">Номер заявки</th>
+            <th>Причина обращения</th>
+            <th class="nowrap">Состояние</th>
+            <th></th>
         </tr></thead><tbody>`;
 
         overdue.forEach(req=>{
             const idx = registerReq(req);
             html += `<tr class="overdue-row">
-                <td>${escapeHtml(req.dept)}</td>
-                <td>${escapeHtml(req.number)}</td>
-                <td>${escapeHtml(parseExcelDate(req.date))}</td>
-                <td>${escapeHtml(getDeadlineStr(req)||'—')}</td>
-                <td><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
+                <td><b>${escapeHtml(req.dept)}</b></td>
+                <td class="nowrap">${escapeHtml(parseExcelDate(req.date))}</td>
+                <td class="overdue-text nowrap">${req.daysSince}</td>
+                <td class="overdue-text nowrap">+${req.overdueDays} дн.</td>
                 <td>${escapeHtml(req.address)}</td>
-                <td class="overdue-text">${req.overdueDays}</td>
+                <td class="num">${escapeHtml(req.number)}</td>
+                <td>${escapeHtml(req.reason||'')}</td>
+                <td class="nowrap"><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
                 <td><button class="btn-open" onclick="openModalByIndex(${idx})">Открыть</button></td>
             </tr>`;
         });
@@ -657,7 +823,7 @@
         return html;
     }
 
-    // ===== Таблица по подразделению (с сортировкой) =====
+    // ===== Таблица по подразделению (с сортировкой + скачивание) =====
     function renderDeptTable(dept){
         let reqs = (appData[dept]||[]).slice();
         const col = sortState.deptColumn;
@@ -666,6 +832,7 @@
             reqs.sort((a,b)=>{
                 let av, bv;
                 if(col==='date'){ av=getDateValue(a.date); bv=getDateValue(b.date); return (av-bv)*dir; }
+                if(col==='days'){ av=getDaysSince(a.date); bv=getDaysSince(b.date); return (av-bv)*dir; }
                 if(col==='overdue'){ av=getOverdueDays(a); bv=getOverdueDays(b); return (av-bv)*dir; }
                 av=(a[col]||'').toString(); bv=(b[col]||'').toString();
                 return av.localeCompare(bv,'ru')*dir;
@@ -675,28 +842,37 @@
         }
 
         const ico = c => sortState.deptColumn===c ? (sortState.deptDirection==='asc'?'▲':'▼') : '⇅';
+        const closed = closedCounts[dept] || 0;
+        const overdueCount = reqs.filter(r=>getOverdueDays(r)>0).length;
+        const timeOnly = reqs.filter(r=>/^\d{1,2}:\d{2}$/.test(parseExcelDate(r.date).trim())).length;
 
         let html = `
-        <h2>${escapeHtml(dept)}</h2>
-        <span class="info-badge">Всего заявок: ${reqs.length}</span>
+        <div class="overdue-header">
+            <h2 style="border:none;margin:0;">${escapeHtml(dept)}</h2>
+            <button class="btn btn-excel" data-dept="${escapeHtml(dept)}" onclick="downloadDeptToExcel(this.dataset.dept)">⬇️ Скачать задачи</button>
+        </div>
+        <span class="info-badge">Активных: ${reqs.length} | Закрыто: ${closed} | Заявки от сегодня: ${timeOnly} | Просрочено: ${overdueCount}</span>
         <div class="table-wrapper"><table><thead><tr>
-            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','number')">Номер <span class="sort-icon">${ico('number')}</span></th>
-            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','date')">Дата <span class="sort-icon">${ico('date')}</span></th>
-            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','status')">Статус <span class="sort-icon">${ico('status')}</span></th>
-            <th>Адрес</th>
-            <th class="sortable" onclick="sortDept('${escapeHtml(dept)}','overdue')">Просрочка <span class="sort-icon">${ico('overdue')}</span></th>
-            <th></th>
+            <th class="sortable nowrap" onclick="sortDept('${escapeHtml(dept)}','date')">Дата создания <span class="sort-icon">${ico('date')}</span></th>
+            <th class="sortable nowrap" onclick="sortDept('${escapeHtml(dept)}','days')">Дней <span class="sort-icon">${ico('days')}</span></th>
+            <th>Адрес заявки</th>
+            <th class="sortable nowrap" onclick="sortDept('${escapeHtml(dept)}','number')">Номер заявки <span class="sort-icon">${ico('number')}</span></th>
+            <th>Причина обращения</th>
+            <th class="sortable nowrap" onclick="sortDept('${escapeHtml(dept)}','status')">Состояние <span class="sort-icon">${ico('status')}</span></th>
+            <th class="nowrap">Действие</th>
         </tr></thead><tbody>`;
 
         reqs.forEach(req=>{
             const idx = registerReq(req);
             const od = getOverdueDays(req);
+            const days = getDaysSince(req.date);
             html += `<tr class="${od>0?'overdue-row':''}">
-                <td>${escapeHtml(req.number)}</td>
-                <td>${escapeHtml(parseExcelDate(req.date))}</td>
-                <td><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
+                <td class="nowrap">${escapeHtml(parseExcelDate(req.date))}</td>
+                <td class="nowrap ${od>0?'overdue-text':''}">${days}${od>0?` (+${od})`:''}</td>
                 <td>${escapeHtml(req.address)}</td>
-                <td class="${od>0?'overdue-text':''}">${od>0?od:'—'}</td>
+                <td class="num">${escapeHtml(req.number)}</td>
+                <td>${escapeHtml(req.reason||'')}</td>
+                <td class="nowrap"><span class="status-badge ${getStatusClass(req.status)}">${escapeHtml(req.status)}</span></td>
                 <td><button class="btn-open" onclick="openModalByIndex(${idx})">Открыть</button></td>
             </tr>`;
         });
@@ -760,7 +936,7 @@
     window.onclick = e => { if(e.target.id==='requestModal') closeModal(); };
     document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
 
-    // ===== Сортировка сводной таблицы по клику на заголовок (делегирование) =====
+    // ===== Сортировка сводной таблицы (делегирование) =====
     document.addEventListener('click', function(e){
         const th = e.target.closest('#tab-summary th.sortable');
         if(!th) return;
@@ -799,7 +975,26 @@
         XLSX.writeFile(wb, `просрочка_${d}.xlsx`);
     }
 
-    // Перерисовка графиков при смене темы (data-theme на <html>)
+    // ===== Скачать задачи конкретного подразделения =====
+    function downloadDeptToExcel(deptName){
+        const reqs = appData[deptName] || [];
+        if(reqs.length === 0){ alert('Нет задач для скачивания.'); return; }
+        const labels = (reqs[0].fields || []).map(f => f.label);
+        const header = labels.length ? labels : ['Дата','Номер','Состояние','Адрес','Причина'];
+        const excelData = [header];
+        reqs.forEach(r => {
+            if(r.fields && r.fields.length) excelData.push(r.fields.map(f => f.value));
+            else excelData.push([parseExcelDate(r.date), r.number, r.status, r.address, r.reason]);
+        });
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(excelData);
+        const safeSheet = (deptName || 'Заявки').replace(/[:\\\/?*\[\]]/g,' ').slice(0,31);
+        XLSX.utils.book_append_sheet(wb, ws, safeSheet);
+        const dateStr = new Date().toISOString().slice(0,10);
+        XLSX.writeFile(wb, `задачи_${deptName}_${dateStr}.xlsx`);
+    }
+
+    // Перерисовка графиков при смене темы
     (function(){
         let _themeTimer = null;
         const _obs = new MutationObserver(muts=>{
@@ -816,7 +1011,7 @@
         _obs.observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
     })();
 
-    // Формат времени последней проверки
+    // Время последней проверки
     function showLastCheck(info){
         const bar = document.getElementById('lastCheckBar');
         if(!bar) return;
@@ -836,10 +1031,12 @@
             const res = await fetch('/api/cds/last-result', { credentials:'same-origin' });
             const data = await res.json();
             if(!data || !data.success || !Array.isArray(data.rows) || data.rows.length===0){ return; }
-            document.getElementById('emptyHint').style.display = 'none';
-            appData = rowsToAppData(data.rows);
+            const emptyHint = document.getElementById('emptyHint');
+            if(emptyHint) emptyHint.style.display = 'none';
+            applyRows(data.rows);
             sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
             summaryStatusFilter = '';
+            summaryDueFilter = '';
             renderAll();
             showLastCheck(data);
         }catch(e){ console.warn('[CDS] loadLastResult:', e); }
