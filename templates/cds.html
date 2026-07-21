@@ -198,43 +198,48 @@
     })();
 
     // ===== Запуск выгрузки через бэкенд =====
-    async function runExport(){
-        const btn = document.getElementById('btnExport');
-        const dateFrom = document.getElementById('dateFrom').value;
-        const dateTo   = document.getElementById('dateTo').value;
-        if(!dateFrom || !dateTo){ alert('Укажите период'); return; }
+   async function runExport(){
+    const btn = document.getElementById('btnExport');
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo   = document.getElementById('dateTo').value;
+    if(!dateFrom || !dateTo){ alert('Укажите период'); return; }
 
-        btn.disabled = true; btn.textContent = '⏳ Выгрузка...';
-        document.getElementById('emptyHint').style.display = 'none';
-        const loader = document.getElementById('loader');
+    btn.disabled = true; btn.textContent = '⏳ Выгрузка...';
+
+    const emptyHint = document.getElementById('emptyHint');
+    if (emptyHint) emptyHint.style.display = 'none';
+
+    const loader = document.getElementById('loader');
+    if (loader) {
         loader.style.display = 'block';
         loader.textContent = 'Выполняется выгрузка из 1С... Это может занять несколько минут.';
-        document.getElementById('tabsContainer').innerHTML = '';
-
-        try{
-            const res = await fetch('/api/cds/export', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                credentials:'same-origin',
-                body: JSON.stringify({ date_from: dateFrom, date_to: dateTo })
-            });
-            const data = await res.json();
-            if(!data.success) throw new Error(data.error || 'Ошибка выгрузки');
-
-            appData = rowsToAppData(data.rows || []);
-            sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
-            summaryStatusFilter = '';
-            renderAll();
-            showLastCheck({ timestamp: new Date().toISOString(), date_from: dateFrom, date_to: dateTo });
-        }catch(e){
-            document.getElementById('contentContainer').innerHTML =
-                `<div class="empty-state">❌ ${escapeHtml(e.message)}</div>`;
-        }finally{
-            btn.disabled = false; btn.textContent = '⬆️ Запустить выгрузку';
-            loader.style.display = 'none';
-        }
     }
+    const tabs = document.getElementById('tabsContainer');
+    if (tabs) tabs.innerHTML = '';
 
+    try{
+        const res = await fetch('/api/cds/export', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            credentials:'same-origin',
+            body: JSON.stringify({ date_from: dateFrom, date_to: dateTo })
+        });
+        const data = await res.json();
+        if(!data.success) throw new Error(data.error || 'Ошибка выгрузки');
+
+        appData = rowsToAppData(data.rows || []);
+        sortState = { column:null, direction:'asc', deptColumn:null, deptDirection:'asc' };
+        summaryStatusFilter = '';
+        renderAll();
+        showLastCheck({ timestamp: new Date().toISOString(), date_from: dateFrom, date_to: dateTo });
+    }catch(e){
+        document.getElementById('contentContainer').innerHTML =
+            `<div class="empty-state">❌ ${escapeHtml(e.message)}</div>`;
+    }finally{
+        btn.disabled = false; btn.textContent = '⬆️ Запустить выгрузку';
+        if (loader) loader.style.display = 'none';
+    }
+}
     // ===== Конвертация плоского массива бэка в структуру по подразделениям =====
     // Учитываем только допустимые статусы (фильтр 1С).
     function rowsToAppData(rows){
