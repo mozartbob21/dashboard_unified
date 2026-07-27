@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Контроль качества воды — Нейрона ИИ</title>
+<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+#pane-rm{--ink:#14505C;--steel:#2A7286;--water:#EAF4F6;--paper:#FFFFFF;--line:#CFE0E5;--close:#2E7D32;--ext:#9A6700;--rw:#A61B1B;--mut:#5B7A83;font:15px/1.5 "Segoe UI",system-ui,Arial,sans-serif;background:var(--water);color:#1c3138;padding-bottom:60px;border-radius:12px;overflow:hidden;margin-top:20px}
+#pane-rm *{box-sizing:border-box}
+#pane-rm header{background:var(--ink);color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+#pane-rm header h1{font:600 21px/1.2 Georgia,serif;margin:0}
+#pane-rm header .sub{font-size:12.5px;opacity:.75}
+#pane-rm header .today{font-size:13px;background:rgba(255,255,255,.12);padding:4px 12px;border-radius:20px}
+#pane-rm main{max-width:1100px;margin:26px auto;padding:0 20px}
+#pane-rm .runrow{margin:18px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#pane-rm button{font:600 14px/1 "Segoe UI",Arial,sans-serif;border:none;border-radius:8px;padding:12px 22px;cursor:pointer}
+#pane-rm .dlbtn{background:#2A7286;color:#fff;padding:12px 22px;border-radius:8px}
+#pane-rm .dlbtn.ext{background:#9A6700}
+#pane-rm .copybtn{background:#fff;border:1px solid var(--line);color:var(--ink);padding:6px 12px;font-size:12.5px;border-radius:6px}
+#pane-rm #err{color:var(--rw);font-size:13.5px;margin:10px 0;white-space:pre-wrap}
+#pane-rm .meter{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:6px 0 4px;border:1px solid var(--line)}
+#pane-rm .meter div{height:100%}
+#pane-rm .legend{display:flex;gap:16px;font-size:12.5px;color:var(--mut);flex-wrap:wrap}
+#pane-rm .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+#pane-rm .block{background:var(--paper);border:1px solid var(--line);border-radius:12px;margin-top:22px;overflow:hidden}
+#pane-rm .block>h2{font:600 16px Georgia,serif;color:var(--ink);padding:14px 20px;border-bottom:1px solid var(--line);background:linear-gradient(#FAFDFD,#F1F8F9);margin:0}
+#pane-rm .section{padding:14px 20px;border-bottom:1px solid #E7F0F2}
+#pane-rm .section:last-child{border-bottom:none}
+#pane-rm .section h4{font-size:13px;text-transform:uppercase;letter-spacing:.6px;margin:0 0 8px}
+#pane-rm .h-close{color:var(--close)}
+#pane-rm .h-ext{color:var(--ext)}
+#pane-rm .h-rw{color:var(--rw)}
+#pane-rm .idstrip{font:600 14px/1.7 Consolas,monospace;background:#0F2E36;color:#BFE8D2;padding:10px 14px;border-radius:8px;word-break:break-all;user-select:all}
+#pane-rm .idstrip.empty{background:#F3F7F8;color:var(--mut);font-family:inherit;font-weight:400}
+#pane-rm .striprow{display:flex;gap:10px;align-items:flex-start}
+#pane-rm .striprow .idstrip{flex:1}
+#pane-rm table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+#pane-rm th{background:var(--ink);color:#fff;padding:7px 9px;text-align:left;font-weight:600;position:sticky;top:0}
+#pane-rm td{padding:7px 9px;border-bottom:1px solid #E7F0F2;vertical-align:top}
+#pane-rm tr:nth-child(even) td{background:#F7FBFC}
+#pane-rm td.id{font:600 13px Consolas,monospace;white-space:nowrap}
+#pane-rm td.st{white-space:nowrap;font-weight:600}
+#pane-rm .st-ext{color:var(--ext)}
+#pane-rm .twrap{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:8px}
+#pane-rm .count{font-size:12px;color:var(--mut);font-weight:400;margin-left:6px}
+#pane-rm .note{font-size:12.5px;color:var(--mut);margin-top:6px}
+#pane-rm #results{display:none}
+#pane-rm .rmrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 4px}
+#pane-rm .rmrow input{flex:1;min-width:240px;max-width:380px;padding:11px 14px;border:1px solid var(--line);border-radius:8px;font:14px "Segoe UI",Arial,sans-serif;background:#fff}
+#pane-rm #rmBtn{background:var(--steel);color:#fff}
+#pane-rm #rmBtn:disabled{background:#9db8bf;cursor:not-allowed}
+#pane-rm #autoMin{width:86px;padding:11px 10px;border:1px solid var(--line);border-radius:8px;font:14px sans-serif;background:#fff;text-align:center}
+#pane-rm #autoBtn{background:#fff;border:1.5px solid var(--steel);color:var(--steel)}
+#pane-rm #autoBtn.on{background:var(--rw);border-color:var(--rw);color:#fff}
+#pane-rm #rmLog{display:none;background:#0F2E36;color:#BFE8D2;font:12.5px/1.6 Consolas,monospace;border-radius:8px;padding:12px 14px;margin-top:14px;max-height:320px;overflow:auto;white-space:pre-wrap}
+.back-link{display:inline-block;margin:20px 0;color:#2A7286;text-decoration:none;font-weight:500}
+.back-link:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="container">
+<a href="/" class="back-link">← На главную</a>
+<div class="pane active" id="pane-rm">
+<header>
+  <div>
+    <h1>💧 Проверка задач по качеству воды</h1>
+    <div class="sub">Резонансные обращения и системные адреса · приёмка «На проверке»</div>
+  </div>
+  <div class="today" id="todayLbl"></div>
+</header>
+<main>
+  <div class="note" id="compNote">📊 Статусы жалоб берутся из <a href="https://disk.yandex.ru/i/NQTPtLj_LVuymw" target="_blank">онлайн-таблицы на Яндекс.Диске</a>. <span id="fnComp"></span></div>
+  <div class="rmrow">
+    <input type="password" id="apiKey" placeholder="API-ключ Redmine" autocomplete="off">
+    <button id="rmBtn" disabled>⚡ Проверить из RM и применить</button>
+    <input type="number" id="autoMin" min="1" max="1440" value="30" title="Интервал автопроверки, минут">
+    <button id="autoBtn" disabled>🔁 Автопроверка</button>
+  </div>
+  <div class="note">«⚡» — задачи загружаются из выборки RM (query 23) и решения применяются в системе. «🔁 Автопроверка» — по таймеру без подтверждений.</div>
+  <div class="runrow">
+    <span id="dlRow" style="display:none;gap:12px;flex-wrap:wrap">
+      <button id="dlRw" class="dlbtn">⬇ На доработку (CSV)</button>
+      <button id="dlExt" class="dlbtn ext">⬇ Продление срока (CSV)</button>
+    </span>
+  </div>
+  <div id="err"></div>
+  <div id="rmLog"></div>
+  <div id="results">
+    <div class="block" style="padding:14px 20px">
+      <div class="legend" style="margin-bottom:4px"><b style="color:var(--ink)">Итог проверки</b></div>
+      <div class="meter" id="meter"></div>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--close)"></span>На закрытие: <b id="cClose">0</b></span>
+        <span><span class="dot" style="background:#E3B341"></span>Продление 30 дней: <b id="cExt">0</b></span>
+        <span><span class="dot" style="background:#D06A6A"></span>Возврат на доработку: <b id="cRw">0</b></span>
+      </div>
+    </div>
+    <div class="block" id="blkRez"></div>
+    <div class="block" id="blkSys"></div>
+  </div>
+</main>
+</div>
+</div>
+<script>
+let TODAY = new Date(); TODAY.setHours(0,0,0,0);
+function fmtD(d){ return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear(); }
+document.getElementById('todayLbl').textContent = 'Проверка на: ' + fmtD(TODAY);
+function refreshToday(){ TODAY = new Date(); TODAY.setHours(0,0,0,0); document.getElementById('todayLbl').textContent = 'Проверка на: ' + fmtD(TODAY); }
+function norm(t){ if(t===null||t===undefined) return ''; return String(t).replace(/[\r\n]/g,' ').replace(/\s+/g,' ').trim(); }
+function low(t){ return norm(t).toLowerCase(); }
+const OTP = new Set(['все решено','причин не выявлено','причин не выявленно','не требуется','нет','-','—','вода восстановлена','решено','отсутствует','нет проблемы','проблема отсутствует']);
+function isOtp(t){ const n=norm(t); if(!n) return true; if(OTP.has(n.toLowerCase().replace(/\.+$/,''))) return true; return n.replace(/ /g,'').length<5; }
+function pdate(s){
+  const m = norm(s).match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/); if(!m) return null;
+  let y=+m[3]; if(y<100) y+=2000;
+  const d=new Date(y, +m[2]-1, +m[1]); d.setHours(0,0,0,0);
+  if(d.getFullYear()!==y || d.getMonth()!==+m[2]-1 || d.getDate()!==+m[1]) return null;
+  return d;
+}
+function dlog(s){ const d=pdate(s); return d!==null && d.getFullYear()>=2026; }
+function sysok(s){ const p=norm(s).split(/[,;\s]+/).filter(Boolean); return p.length>0 && p.every(x=>/^\d{3,4}$/.test(x)); }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+
+function findCol(headers, tests){
+  for(const t of tests){
+    const hit = headers.find(h => typeof t==='string' ? low(h)===low(t) : t(low(h)));
+    if(hit!==undefined) return hit;
+  }
+  return null;
+}
+function mapTaskCols(headers){
+  const C={};
+  C.id=findCol(headers,['#',h=>h==='id'||h==='№'||h.includes('номер задачи')]);
+  C.type=findCol(headers,['тип проблемы',h=>h.includes('тип проблем')]);
+  C.cause=findCol(headers,['причина',h=>h==='причина']);
+  C.quick=findCol(headers,['быстрое решение',h=>h.includes('быстрое реш')]);
+  C.systemic=findCol(headers,['системное решение',h=>h.includes('системное реш')]);
+  C.deadline=findCol(headers,['срок решения',h=>h.includes('срок решени')]);
+  C.created=findCol(headers,['создано',h=>h.includes('создан')]);
+  C.tracker=findCol(headers,['трекер']);
+  C.project=findCol(headers,['проект']);
+  C.subject=findCol(headers,['тема']);
+  C.sensors=findCol(headers,[h=>h.includes('датчик')&&h.includes('мутност')]);
+  C.sysnum=findCol(headers,[h=>h.includes('sys')&&h.includes('zulugis')]);
+  C.fl_mkd=findCol(headers,[h=>h.includes('промывка мкд')]);
+  C.fl_reg=findCol(headers,[h=>h.includes('регистрация')&&h.includes('промывк')]);
+  C.fl_str=findCol(headers,[h=>h.includes('уличного трубопровода')&&h.includes('гидрант')&&!h.includes('цтп')]);
+  C.fl_ctp=findCol(headers,[h=>h.includes('уличного трубопровода')&&h.includes('цтп')]);
+  C.fl_gd=findCol(headers,[h=>h.includes('гидродинамическ')]);
+  const missing=['id','type','cause','quick','systemic','deadline','created','tracker','project','subject','sensors','sysnum'].filter(k=>!C[k]);
+  if(missing.length) throw new Error('Не найдены колонки: '+missing.join(', '));
+  return C;
+}
+function mapCompCols(headers){
+  const C={};
+  C.tids=findCol(headers,[h=>h.includes('номера задач')||h.includes('№ задач')||h.includes('номер задач')]);
+  C.status=findCol(headers,['статус',h=>h.includes('статус')]);
+  C.last=findCol(headers,[h=>h.includes('дата')&&h.includes('жалоб')]);
+  C.addr=findCol(headers,['адрес',h=>h.includes('адрес')]);
+  if(!C.tids||!C.status||!C.last) throw new Error('В таблице жалоб не найдены нужные колонки');
+  return C;
+}
+
+const ADDR_STOP=new Set(['московская','область','обл','россия','город','гор','мкр','мкрн','микрорайон','ул','улица','пр-кт','проспект','пер','переулок','б-р','бульвар','ш','шоссе','проезд','пр-д','наб','набережная','пл','площадь','дом','корп','корпус','стр','строение','кв','квартира','рп','дп','поселок','посёлок','пос','село','деревня','дер','снт','тер','территория','городской','округ','го']);
+function addrKey(s){
+  let t=low(s).replace(/ё/g,'е'); if(!t) return null;
+  let house='';
+  let m=t.match(/(?:^|[\s,.(])(?:д|дом)\s*\.?\s*№?\s*(\d+\s*[а-я]?(?:[\/-]\d+)?)/);
+  if(m) house=m[1].replace(/\s+/g,'');
+  else { m=t.match(/,\s*(\d+[а-я]?(?:[\/-]\d+)?)\s*(?:,|$)/); if(m) house=m[1]; }
+  const tokens=t.replace(/[^а-яa-z0-9\s-]/g,' ').split(/\s+/).filter(w=>w&&w.length>=3&&!ADDR_STOP.has(w)&&!/^\d+[а-я]?([\/-]\d+)?$/.test(w));
+  if(!tokens.length) return null;
+  return {house, street:tokens[tokens.length-1], rest:tokens.slice(0,-1)};
+}
+function compRowsFor(id, subject, comp){
+  const byId=comp.byId.get(id)||[];
+  const k=addrKey(subject);
+  const exact=[], street=[];
+  if(k){
+    for(const rec of comp.list){
+      if(!rec.key||rec.key.street!==k.street) continue;
+      const restOk=!rec.key.rest.length||!k.rest.length||rec.key.rest.some(t=>k.rest.includes(t));
+      if(!restOk) continue;
+      if(k.house&&rec.key.house&&rec.key.house===k.house) exact.push(rec);
+      else street.push(rec);
+    }
+  }
+  const rows=byId.concat(exact.filter(x=>!byId.includes(x)));
+  return rows.length?rows:street;
+}
+
+const SENSOR_EXEMPT=/датчик.{0,25}(не требу|не предусмотр|не нужн|не устанавл)|(не требу|не предусмотр|не нужн|не устанавл).{0,25}датчик/;
+const ACTIONS=['разъясн','оповещ','уведом','информир','проинформир','довед','обзвон','опрош','опрос ','сообщен','связал'];
+const RES_NEAR1=/(жител|заявител|потребител|абонент|населени).{0,60}(рекоменд|разъясн|уведом|информир|оповещ|довед|сообщ|направлен ответ|дан ответ)/;
+const RES_NEAR2=/(рекоменд|разъясн|уведом|информир|оповещ|довед|сообщ).{0,60}(жител|заявител|потребител|абонент)/;
+const BARE=['проблематика отсутствует','проблема отсутствует','отсутствует проблематика'];
+const INVEST=['обследован','замер','разъясн','опрос','выезд','выход','провед','устранен','наладк','восстанов','информир'];
+const FLUSH_KEYS=['fl_mkd','fl_reg','fl_str','fl_ctp','fl_gd'];
+const FLUSH_NAMES={fl_mkd:'промывка МКД ХВС/ГВС',fl_reg:'регистрация промывки в ЕДС ЖКХ МО',fl_str:'промывка уличного трубопровода через гидранты',fl_ctp:'промывка уличного трубопровода от ЦТП',fl_gd:'гидродинамическая промывка'};
+
+function textBlob(r,C){ return low(r[C.cause])+' '+low(r[C.quick])+' '+low(r[C.systemic]); }
+function residentsOk(r,C){ const b=textBlob(r,C); if(ACTIONS.some(a=>b.includes(a))) return true; return RES_NEAR1.test(b)||RES_NEAR2.test(b); }
+function flushInText(r,C){ const b=textBlob(r,C); return b.includes('промыв')||b.includes('гидродинам'); }
+function flushFieldsFilled(r,C){ return FLUSH_KEYS.filter(k=>C[k]&&norm(r[C[k]])!==''); }
+function flushPresent(r,C){ return flushFieldsFilled(r,C).length>0||flushInText(r,C); }
+function sysNeeded(r,C){ const ffOther=flushFieldsFilled(r,C).filter(k=>k!=='fl_mkd'); const mkdDated=C.fl_mkd&&dlog(r[C.fl_mkd]); return ffOther.length>0||(flushInText(r,C)&&!mkdDated); }
+function flushDate(r,C){
+  let best=null;
+  for(const k of FLUSH_KEYS){ if(!C[k]) continue; if(dlog(r[C[k]])){ const d=pdate(r[C[k]]); if(!best||d>best) best=d; } }
+  if(best) return best;
+  const t=norm(r[C.quick]);
+  const re=/промыв[а-яё]*.{0,50}?(\d{1,2}\.\d{1,2}\.\d{2,4})|(\d{1,2}\.\d{1,2}\.\d{2,4}).{0,20}?промыв/gi;
+  let m;
+  while((m=re.exec(t))!==null){ const d=pdate(m[1]||m[2]); if(d&&d.getFullYear()>=2026&&(!best||d>best)) best=d; }
+  return best;
+}
+function sensorsOk(r,C){ if(dlog(r[C.sensors])) return true; return SENSOR_EXEMPT.test(low(r[C.quick])+' '+low(r[C.systemic])); }
+
+const CAUSE_STUB=['выясняется','устанавливается','уточняется','не установлена','не установлено','не выявлена','не выявлено','не определена','неизвестн','информация уточняется'];
+function causeBad(t){
+  if(isOtp(t)) return 'не заполнена причина жалобы';
+  const n=low(t);
+  if(CAUSE_STUB.some(k=>n.includes(k))) return 'причина жалобы — отписка («'+norm(t).slice(0,60)+'»)';
+  if(n.replace(/[^а-яёa-z]/g,'').length<8) return 'причина слишком короткая («'+norm(t)+'»)';
+  return null;
+}
+
+function checkRez(r,C){
+  const d=[];
+  const cb=causeBad(r[C.cause]); if(cb) d.push(cb);
+  if(isOtp(r[C.quick])) d.push('пустое быстрое решение');
+  if(isOtp(r[C.systemic])) d.push('пустое системное решение');
+  if(!residentsOk(r,C)) d.push('нет фиксации информирования жителей');
+  if(!dlog(r[C.deadline])) d.push('некорректный срок решения ('+(norm(r[C.deadline])||'пусто')+')');
+  const ff=flushFieldsFilled(r,C);
+  for(const k of ff){ if(!dlog(r[C[k]])) d.push('нелогичная дата «'+FLUSH_NAMES[k]+'» ('+norm(r[C[k]])+')'); }
+  if(sysNeeded(r,C)&&!sysok(r[C.sysnum])){
+    const ffo=ff.filter(k=>k!=='fl_mkd');
+    const src=ffo.length?'поле «'+FLUSH_NAMES[ffo[0]]+'»':'указана в тексте';
+    d.push('промывка есть ('+src+'), но SYS в ZuluGIS не привязан: «'+(norm(r[C.sysnum])||'пусто')+'»');
+  }
+  return d;
+}
+function checkSys(r,C,comp){
+  const fp=flushPresent(r,C), sv=sysok(r[C.sysnum]), sneed=sysNeeded(r,C);
+  const registered=fp&&(sv||!sneed)&&FLUSH_KEYS.some(k=>C[k]&&dlog(r[C[k]]));
+  const d=[];
+  const cb=causeBad(r[C.cause]); if(cb) d.push(cb);
+  if(isOtp(r[C.quick])&&!registered) d.push('пустое быстрое решение');
+  if(isOtp(r[C.systemic])) d.push('пустое системное решение');
+  else{ const s=low(r[C.systemic]); if(BARE.some(k=>s.includes(k))&&!INVEST.some(k=>s.includes(k))) d.push('«проблематика отсутствует» без обоснования'); }
+  if(!dlog(r[C.deadline])) d.push('срок решения невалиден ('+(norm(r[C.deadline])||'пусто')+')');
+  if(!sensorsOk(r,C)&&!registered) d.push('датчики мутности: заглушка ('+(norm(r[C.sensors])||'пусто')+')');
+  if(sneed&&!sv) d.push('уличная промывка есть → SYS в ZuluGIS не привязан');
+  if(d.length) return {verdict:'rw', why:d.join('; ')};
+
+  const id=parseInt(norm(r[C.id]),10);
+  const rows=compRowsFor(id, norm(r[C.subject]), comp);
+  const active=rows.some(x=>x.status==='Жалобы продолжаются'||x.status==='Новый системный');
+  let last=null; for(const x of rows){ if(x.last&&(!last||x.last>last)) last=x.last; }
+  const md=flushDate(r,C);
+  const createdD=pdate(norm(r[C.created]).slice(0,10));
+  const anchor=md||createdD;
+  const winEnd=anchor?addDays(anchor,30):null;
+
+  if(md){
+    if(last&&last>md) return {verdict:'rw', why:'жалоба '+fmtD(last)+' после промывки '+fmtD(md)+' — мероприятие не помогло'};
+    if(!active&&TODAY>=winEnd) return {verdict:'close', why:'промывка '+fmtD(md)+', окно 30 дн истекло, жалоб нет'};
+    return {verdict:'ext', why:'промывка '+fmtD(md)+', окно наблюдения до '+fmtD(winEnd), winEnd};
+  }
+  if(!anchor) return {verdict:'ext', why:'нет даты мероприятия — проверить вручную', winEnd:null};
+  if(!active&&TODAY>=winEnd) return {verdict:'close', why:'окно 30 дн от '+fmtD(anchor)+' истекло, жалоб нет'};
+  if(active) return {verdict:'ext', why:'жалобы продолжаются (посл. '+(last?fmtD(last):'—')+'), окно до '+fmtD(winEnd), winEnd};
+  return {verdict:'ext', why:'окно 30 дн от '+fmtD(anchor)+' не истекло', winEnd};
+}
+
+const COMP_URL='https://disk.yandex.ru/i/NQTPtLj_LVuymw';
+let compData=null, RES=null;
+async function loadComp(){
+  const r=await fetch('/water-rm/yadisk?public_key='+encodeURIComponent(COMP_URL));
+  if(!r.ok) throw new Error(await r.text());
+  const wb=XLSX.read(new Uint8Array(await r.arrayBuffer()),{type:'array',cellDates:true});
+  let found=null;
+  for(const sh of wb.SheetNames){
+    const js=XLSX.utils.sheet_to_json(wb.Sheets[sh],{defval:''});
+    if(!js.length) continue;
+    const hs=Object.keys(js[0]);
+    if(hs.some(h=>low(h).includes('номера задач')||low(h).includes('№ задач')||low(h).includes('номер задач'))){ found={sheet:sh,rows:js,headers:hs}; break; }
+  }
+  if(!found) throw new Error('Не найден лист с колонкой номеров задач');
+  compData=found;
+  document.getElementById('fnComp').textContent='Загружено '+new Date().toTimeString().slice(0,5)+' · «'+found.sheet+'» · '+found.rows.length+' адресов.';
+  ready();
+}
+loadComp().catch(err=>showErr('Не удалось загрузить таблицу жалоб: '+err.message));
+function ready(){
+  const okRm=compData&&document.getElementById('apiKey').value.trim();
+  document.getElementById('rmBtn').disabled=!okRm;
+  const ab=document.getElementById('autoBtn');
+  if(!ab.classList.contains('on')) ab.disabled=!okRm;
+}
+function showErr(m){ document.getElementById('err').textContent=m; }
+function parseCompDate(v){
+  if(v instanceof Date){ const d=new Date(v); d.setHours(0,0,0,0); return d; }
+  if(typeof v==='number'){ const o=XLSX.SSF.parse_date_code(v); if(o){ const d=new Date(o.y,o.m-1,o.d); d.setHours(0,0,0,0); return d; } }
+  const s=norm(v); if(!s) return null;
+  let d=pdate(s); if(d) return d;
+  const m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m){ d=new Date(+m[1],+m[2]-1,+m[3]); d.setHours(0,0,0,0); return d; }
+  return null;
+}
+function buildComp(){
+  const CC=mapCompCols(compData.headers);
+  const byId=new Map(), list=[];
+  for(const row of compData.rows){
+    const ids=(String(row[CC.tids]).match(/\d+/g)||[]).map(Number);
+    const rec={status:norm(row[CC.status]), last:parseCompDate(row[CC.last]), key:CC.addr?addrKey(row[CC.addr]):null};
+    list.push(rec);
+    for(const id of ids){ if(!byId.has(id)) byId.set(id,[]); byId.get(id).push(rec); }
+  }
+  return {byId,list};
+}
+function analyze(tasks){
+  const C=mapTaskCols(tasks.headers);
+  const comp=buildComp();
+  const rez={close:[],rw:[]}, sys={close:[],ext:[],rw:[]};
+  for(const r of tasks.rows){
+    const id=parseInt(norm(r[C.id]),10); if(isNaN(id)) continue;
+    const type=norm(r[C.type]);
+    const meta={id, tracker:norm(r[C.tracker]), project:norm(r[C.project]), subject:norm(r[C.subject])};
+    if(r._extReq&&r._extReq>TODAY){
+      sys.ext.push({...meta, why:'исполнитель просит продлить до '+fmtD(r._extReq), winEnd:r._extReq, byRequest:true});
+      continue;
+    }
+    if(type==='Резонансные обращения'){
+      const d=checkRez(r,C);
+      if(d.length) rez.rw.push({...meta, why:d.join('; ')}); else rez.close.push(meta);
+    } else if(type==='Системный адрес'){
+      const v=checkSys(r,C,comp);
+      if(v.verdict==='close') sys.close.push(meta);
+      else if(v.verdict==='ext') sys.ext.push({...meta, why:v.why, winEnd:v.winEnd});
+      else sys.rw.push({...meta, why:v.why});
+    }
+  }
+  const bynum=(a,b)=>b.id-a.id;
+  rez.close.sort(bynum); rez.rw.sort(bynum); sys.close.sort(bynum); sys.ext.sort(bynum); sys.rw.sort(bynum);
+  return {rez,sys};
+}
+
+const RM_QUERY=23;
+const RM_TYPE={'334':'Резонансные обращения','335':'Системный адрес','336':'Системные отключения'};
+const RM_BASE='/water-rm/rmapi';
+const apiKeyEl=document.getElementById('apiKey');
+apiKeyEl.value=localStorage.getItem('rm_api_key')||'';
+apiKeyEl.addEventListener('input',()=>{ localStorage.setItem('rm_api_key',apiKeyEl.value.trim()); ready(); });
+
+// Автозаполнение ключа из .env (сервер сам подставит настоящий ключ)
+fetch('/water-rm/has-key').then(r=>r.json()).then(j=>{
+  if(j && j.has_key){
+    if(!apiKeyEl.value || apiKeyEl.value==='__ENV__'){
+      apiKeyEl.value='__ENV__';
+      apiKeyEl.placeholder='Ключ из .env (хранится на сервере)';
+      apiKeyEl.readOnly=true;
+      apiKeyEl.style.opacity='0.7';
+      ready();
+    }
+  }
+}).catch(()=>{});
+
+function rmLog(m){ const el=document.getElementById('rmLog'); el.style.display='block'; el.textContent+=m+'\n'; el.scrollTop=el.scrollHeight; }
+async function rmFetch(path,opts){
+  opts=opts||{};
+  let r;
+  try{ r=await fetch(RM_BASE+path,{...opts, headers:{'X-Redmine-API-Key':apiKeyEl.value.trim(),'Content-Type':'application/json'}}); }
+  catch(e){ throw new Error('Запрос к RM не прошёл. '+e.message); }
+  if(r.status===401) throw new Error('401: неверный API-ключ');
+  if(r.status===403) throw new Error('403: нет прав');
+  if(!r.ok){ let t=''; try{ t=(await r.text()).slice(0,300); }catch(e){} throw new Error('HTTP '+r.status+' — '+path+(t?' · '+t:'')); }
+  if(r.status===204) return null;
+  const ct=r.headers.get('content-type')||'';
+  return ct.includes('json')?r.json():null;
+}
+function deIso(v){ return String(v==null?'':v).replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3.$2.$1'); }
+function isoD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+async function rmLoadIssues(){
+  const rows=[]; let offset=0, total=Infinity;
+  while(offset<total){
+    const js=await rmFetch('/issues.json?query_id='+RM_QUERY+'&limit=100&offset='+offset);
+    total=js.total_count||0;
+    for(const is of js.issues){
+      const row={
+        '#':String(is.id),
+        'Трекер':is.tracker?is.tracker.name:'',
+        'Проект':is.project?is.project.name:'',
+        'Тема':is.subject||'',
+        'Создано':deIso(String(is.created_on||'').slice(0,10))
+      };
+      for(const cf of (is.custom_fields||[])){
+        let v=Array.isArray(cf.value)?cf.value.join(', '):(cf.value==null?'':String(cf.value));
+        if(cf.name==='Тип проблемы'&&RM_TYPE[v]!==undefined) v=RM_TYPE[v];
+        row[cf.name]=deIso(v);
+      }
+      rows.push(row);
+    }
+    if(!js.issues.length) break;
+    offset+=js.issues.length;
+  }
+  const EXT_RE=/продл[а-яё]*[\s\S]{0,120}?до\s*(\d{1,2}\.\d{1,2}\.\d{2,4})/i;
+  for(let i=0;i<rows.length;i+=5){
+    await Promise.all(rows.slice(i,i+5).map(async row=>{
+      try{
+        const js=await rmFetch('/issues/'+row['#']+'.json?include=journals');
+        for(const j of ((js.issue&&js.issue.journals)||[])){
+          const m=EXT_RE.exec(j.notes||'');
+          if(m){ const d=pdate(m[1]); if(d) row._extReq=d; }
+        }
+      }catch(e){}
+    }));
+  }
+  const hs=new Set(); rows.forEach(r=>Object.keys(r).forEach(k=>hs.add(k)));
+  return {rows, headers:[...hs]};
+}
+async function rmStatuses(){
+  const js=await rmFetch('/issue_statuses.json');
+  const list=js.issue_statuses||[];
+  const find=re=>{ const s=list.find(x=>re.test(low(x.name))); return s?s.id:null; };
+  const closed=find(/закрыт/), rework=find(/доработ/);
+  if(!closed||!rework) throw new Error('Не нашёл статусы «Закрыта» / «…на доработку». Статусы: '+list.map(x=>x.name).join(', '));
+  return {closed, rework};
+}
+async function rmUpdate(id, body){ await rmFetch('/issues/'+id+'.json',{method:'PUT', body:JSON.stringify({issue:body})}); }
+
+let rmRunning=false;
+async function runRm(auto){
+  if(rmRunning) return;
+  rmRunning=true;
+  const btn=document.getElementById('rmBtn');
+  showErr('');
+  const logEl=document.getElementById('rmLog');
+  if(!auto) logEl.textContent='';
+  else{
+    const ln=logEl.textContent.split('\n');
+    if(ln.length>400) logEl.textContent=ln.slice(-200).join('\n');
+  }
+  btn.disabled=true; btn.textContent='⏳ Работаю…';
+  try{
+    refreshToday();
+    const hm=new Date().toTimeString().slice(0,5);
+    rmLog((auto?'⏰ ['+hm+'] автопроверка · ':'→ ')+'Обновляю таблицу жалоб…');
+    try{
+      await loadComp();
+      rmLog('✓ Таблица жалоб: '+compData.rows.length+' адресов');
+    }catch(e){
+      if(!compData) throw new Error('Таблица жалоб не загружена: '+e.message);
+      rmLog('⚠ Не удалось обновить таблицу ('+e.message+')');
+    }
+    rmLog('→ Загрузка задач из mgkh.rm.mosreg.ru (выборка №'+RM_QUERY+')…');
+    const [tasks, st]=await Promise.all([rmLoadIssues(), rmStatuses()]);
+    rmLog('✓ Получено задач: '+tasks.rows.length);
+    if(!tasks.rows.length){ rmLog('Задач нет.'); return; }
+    RES=analyze(tasks); render();
+    const nClose=RES.rez.close.length+RES.sys.close.length,
+          nRw=RES.rez.rw.length+RES.sys.rw.length,
+          extOk=RES.sys.ext.filter(x=>x.winEnd),
+          extMan=RES.sys.ext.filter(x=>!x.winEnd);
+    rmLog('Итог: закрыть '+nClose+' · доработка '+nRw+' · продление '+extOk.length+(extMan.length?' · вручную '+extMan.length:''));
+    if(extMan.length) rmLog('⚠ Ручная проверка: '+extMan.map(x=>x.id).join(', '));
+    const CF_REASON=264;
+    const jobs=[];
+    for(const x of RES.rez.close) jobs.push({id:x.id, lbl:'закрыта', body:{status_id:st.closed, notes:'Автопроверка: резонансное обращение отработано, задача принята и закрыта.'}});
+    for(const x of RES.sys.close) jobs.push({id:x.id, lbl:'закрыта', body:{status_id:st.closed, notes:'Автопроверка: '+x.why+'. Задача принята и закрыта.'}});
+    for(const x of RES.rez.rw) jobs.push({id:x.id, lbl:'на доработку', body:{status_id:st.rework, custom_fields:[{id:CF_REASON, value:x.why}]}});
+    for(const x of RES.sys.rw) jobs.push({id:x.id, lbl:'на доработку', body:{status_id:st.rework, custom_fields:[{id:CF_REASON, value:x.why}]}});
+    for(const x of extOk) jobs.push({id:x.id, lbl:'продление до '+fmtD(x.winEnd), body:{status_id:st.rework, due_date:isoD(x.winEnd),
+      custom_fields:[{id:CF_REASON, value: x.byRequest
+        ? 'Срок продлён до '+fmtD(x.winEnd)+' по просьбе исполнителя. Прошу направить на проверку по истечении срока.'
+        : 'Продление срока наблюдения до '+fmtD(x.winEnd)+': '+x.why+'. Прошу направить на проверку по истечении срока.'}]}});
+    if(!jobs.length){ rmLog('Нет изменений.'); return; }
+    if(!auto && !confirm('Применить в RM изменения по '+jobs.length+' задачам?\n\nЗакрытие: '+nClose+'\nНа доработку: '+nRw+'\nПродление: '+extOk.length)){
+      rmLog('✋ Отменено пользователем.'); return;
+    }
+    if(auto) rmLog('⚙ Авто-режим: применяю…');
+    let ok=0, fail=0;
+    for(const j of jobs){
+      try{ await rmUpdate(j.id, j.body); ok++; rmLog('✓ #'+j.id+' — '+j.lbl); }
+      catch(e){ fail++; rmLog('✗ #'+j.id+' — '+e.message); }
+    }
+    rmLog('── Готово. Применено: '+ok+(fail?' · ошибок: '+fail:'')+' ──');
+  }catch(err){ showErr(err.message); rmLog('✗ '+err.message); }
+  finally{ rmRunning=false; btn.textContent='⚡ Проверить из RM и применить'; ready(); }
+}
+document.getElementById('rmBtn').addEventListener('click',()=>runRm(false));
+
+let autoTimer=null;
+const autoMinEl=document.getElementById('autoMin'), autoBtn=document.getElementById('autoBtn');
+autoMinEl.value=localStorage.getItem('rm_auto_min')||'30';
+autoBtn.addEventListener('click',()=>{
+  if(autoTimer){
+    clearInterval(autoTimer); autoTimer=null;
+    autoBtn.classList.remove('on'); autoBtn.textContent='🔁 Автопроверка';
+    autoMinEl.disabled=false;
+    rmLog('⏹ Автопроверка остановлена.');
+    ready(); return;
+  }
+  const min=Math.max(1, Math.min(1440, parseInt(autoMinEl.value,10)||30));
+  autoMinEl.value=String(min);
+  localStorage.setItem('rm_auto_min',String(min));
+  autoBtn.classList.add('on'); autoBtn.textContent='⏹ Стоп (каждые '+min+' мин)';
+  autoMinEl.disabled=true;
+  rmLog('🔁 Автопроверка: каждые '+min+' мин.');
+  runRm(true);
+  autoTimer=setInterval(()=>runRm(true), min*60000);
+});
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function closureSection(list){
+  const ids=list.map(x=>x.id).join(',');
+  const strip=list.length
+    ? '<div class="striprow"><div class="idstrip">'+ids+'</div><button class="copybtn" onclick="copyIds(this,\''+ids+'\')">Копировать</button></div>'
+    : '<div class="idstrip empty">Нет задач на закрытие</div>';
+  return '<div class="section"><h4 class="h-close">На закрытие <span class="count">'+list.length+'</span></h4>'+strip+'</div>';
+}
+function tableSection(title, cls, list, withDate){
+  let html='<div class="section"><h4 class="'+cls+'">'+title+' <span class="count">'+list.length+'</span></h4>';
+  if(!list.length){ return html+'<div class="idstrip empty">Нет задач</div></div>'; }
+  html+='<div class="twrap"><table><thead><tr><th>ID</th>'+(withDate?'<th>Дата завершения</th>':'')+'<th>Тема</th><th>Комментарий</th></tr></thead><tbody>';
+  for(const x of list){
+    html+='<tr><td class="id">'+x.id+'</td>'
+      +(withDate?'<td class="st st-ext">'+(x.winEnd?fmtD(x.winEnd):'—')+'</td>':'')
+      +'<td>'+esc(x.subject)+'</td><td>'+esc(x.why||'')+'</td></tr>';
+  }
+  return html+'</tbody></table></div></div>';
+}
+function copyIds(btn, ids){ navigator.clipboard.writeText(ids).then(()=>{ btn.textContent='Скопировано ✓'; setTimeout(()=>btn.textContent='Копировать',1500); }); }
+function render(){
+  const {rez,sys}=RES;
+  document.getElementById('results').style.display='block';
+  document.getElementById('dlRow').style.display='flex';
+  const nClose=rez.close.length+sys.close.length, nExt=sys.ext.length, nRw=rez.rw.length+sys.rw.length;
+  document.getElementById('cClose').textContent=nClose;
+  document.getElementById('cExt').textContent=nExt;
+  document.getElementById('cRw').textContent=nRw;
+  const tot=Math.max(nClose+nExt+nRw,1);
+  document.getElementById('meter').innerHTML=
+    '<div style="width:'+(100*nClose/tot)+'%;background:var(--close)"></div>'+
+    '<div style="width:'+(100*nExt/tot)+'%;background:#E3B341"></div>'+
+    '<div style="width:'+(100*nRw/tot)+'%;background:#D06A6A"></div>';
+  document.getElementById('blkRez').innerHTML=
+    '<h2>Резонансные обращения <span class="count">'+(rez.close.length+rez.rw.length)+' задач</span></h2>'
+    +closureSection(rez.close)
+    +tableSection('Возврат на доработку','h-rw',rez.rw,false);
+  document.getElementById('blkSys').innerHTML=
+    '<h2>Системные адреса <span class="count">'+(sys.close.length+sys.ext.length+sys.rw.length)+' задач</span></h2>'
+    +closureSection(sys.close)
+    +tableSection('Продление 30 дней','h-ext',sys.ext,true)
+    +tableSection('Возврат на доработку','h-rw',sys.rw,false);
+}
+
+const RM_HEAD=['ID задачи','Статус','Трекер','Проект','Тема','Причина возврата / комментарий','Дата завершения'];
+function rmCsvRows(rows){ return [RM_HEAD, ...rows]; }
+document.getElementById('dlRw').addEventListener('click',()=>{
+  if(!RES) return;
+  const rows=[
+    ...RES.rez.rw.map(x=>[x.id,'Возвращена на доработку',x.tracker,x.project,x.subject,x.why,'']),
+    ...RES.sys.rw.map(x=>[x.id,'Возвращена на доработку',x.tracker,x.project,x.subject,x.why,''])
+  ];
+  const d=fmtD(TODAY).replace(/\./g,'-');
+  downloadCsv1251(rmCsvRows(rows), 'На_доработку_'+d+'.csv');
+});
+document.getElementById('dlExt').addEventListener('click',()=>{
+  if(!RES) return;
+  const rows=RES.sys.ext.map(x=>[x.id,'Возвращена на доработку',x.tracker,x.project,x.subject,x.why,x.winEnd?fmtD(x.winEnd):'']);
+  const d=fmtD(TODAY).replace(/\./g,'-');
+  downloadCsv1251(rmCsvRows(rows), 'Продление_срока_'+d+'.csv');
+});
+
+function toCP1251(str){
+  const out=[];
+  const MAP={0x0401:0xA8,0x0451:0xB8,0x2116:0xB9,0x00AB:0xAB,0x00BB:0xBB,0x2014:0x97,0x2013:0x96,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2026:0x85,0x00A0:0xA0,0x2022:0x95,0x00B7:0xB7};
+  for(const ch of str){
+    const c=ch.codePointAt(0);
+    if(c<128) out.push(c);
+    else if(c>=0x0410&&c<=0x044F) out.push(c-0x0410+0xC0);
+    else if(MAP[c]!==undefined) out.push(MAP[c]);
+    else out.push(0x3F);
+  }
+  return new Uint8Array(out);
+}
+function csvField(v){ const s=String(v==null?'':v); return /[;"\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function downloadCsv1251(rows, filename){
+  const text=rows.map(r=>r.map(csvField).join(';')).join('\r\n')+'\r\n';
+  const blob=new Blob([toCP1251(text)],{type:'text/csv;charset=windows-1251'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>

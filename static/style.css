@@ -4645,3 +4645,221 @@ html[data-theme="kreml"] body::before {
 .theme-menu-check { opacity: 0; font-weight: 700; flex: none; }
 .theme-menu-item.active .theme-menu-check { opacity: 1; }
 .theme-menu-item.active { font-weight: 600; }
+
+/* =========================================================
+   CDS MOBILE RESPONSIVE
+   Мониторинг заявок 1С — адаптация под планшеты и телефоны
+   ========================================================= */
+
+/* Планшеты: до 1100px */
+@media (max-width: 1100px) {
+    body > .container {
+        max-width: 100% !important;
+    }
+
+    .container > .header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+    }
+    .container > .header .header-actions {
+        width: 100% !important;
+        justify-content: stretch !important;
+    }
+    .container > .header .header-actions .period-input,
+    .container > .header .header-actions .btn {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Планшеты вертикально / крупные телефоны: до 900px */
+@media (max-width: 900px) {
+    .tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: thin;
+        padding: 0 8px !important;
+        gap: 2px !important;
+    }
+    .tabs::-webkit-scrollbar { height: 4px; }
+    .tab-button {
+        flex: 0 0 auto !important;
+        padding: 10px 12px !important;
+        font-size: 13px !important;
+        white-space: nowrap !important;
+    }
+
+    .kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+    }
+    .kpi-tile {
+        padding: 10px 12px !important;
+    }
+    .kpi-tile .kpi-value {
+        font-size: 22px !important;
+    }
+    .kpi-tile .kpi-label {
+        font-size: 10px !important;
+    }
+
+    .tab-content > h2 {
+        font-size: 20px !important;
+        margin-bottom: 12px !important;
+    }
+    .tab-content {
+        padding: 16px !important;
+    }
+
+    .overdue-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px !important;
+    }
+    .overdue-header .btn-excel,
+    .overdue-header .info-badge {
+        width: 100% !important;
+        justify-content: center !important;
+        text-align: center !important;
+    }
+
+    .filter-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .filter-select {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .table-wrapper {
+        border-radius: 6px !important;
+    }
+    .table-wrapper table {
+        font-size: 12.5px !important;
+    }
+    .table-wrapper th,
+    .table-wrapper td {
+        padding: 8px 10px !important;
+    }
+
+    .modal-content {
+        margin: 8% auto !important;
+        padding: 20px !important;
+        width: calc(100% - 24px) !important;
+        max-height: calc(100vh - 40px) !important;
+    }
+    .modal-derived-grid,
+    #modalAllFields {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* Телефоны: до 640px */
+@media (max-width: 640px) {
+    body {
+        padding: 6px 8px 16px !important;
+    }
+
+    .container > .header {
+        padding: 14px !important;
+    }
+    .container > .header h1 {
+        font-size: 1.05rem !important;
+    }
+
+    .container > .header .header-actions {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+    }
+    .container > .header .header-actions .btn {
+        grid-column: 1 / -1 !important;
+    }
+
+    .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    .tab-button {
+        padding: 8px 10px !important;
+        font-size: 12px !important;
+    }
+
+    .disclaimer {
+        padding: 10px 12px !important;
+        font-size: 12.5px !important;
+    }
+    .info-badge {
+        font-size: 12px !important;
+        padding: 5px 12px !important;
+    }
+
+    .table-wrapper table {
+        font-size: 11.5px !important;
+    }
+    .table-wrapper th,
+    .table-wrapper td {
+        padding: 6px 8px !important;
+    }
+    .table-wrapper th {
+        font-size: 11px !important;
+    }
+
+    .btn-open {
+        padding: 5px 10px !important;
+        font-size: 12px !important;
+    }
+
+    .status-badge {
+        padding: 3px 8px !important;
+        font-size: 11px !important;
+    }
+
+    .chart-container {
+        height: 240px !important;
+    }
+    .chart-card {
+        padding: 12px !important;
+    }
+    .chart-card h3 {
+        font-size: 0.9rem !important;
+    }
+
+    #lastCheckBar {
+        padding: 8px 14px !important;
+        font-size: 12px !important;
+    }
+
+    .modal-content {
+        margin: 4% auto !important;
+        padding: 16px !important;
+    }
+    .modal-content h2 {
+        font-size: 17px !important;
+    }
+    .modal-label {
+        font-size: 11px !important;
+    }
+    .modal-value {
+        font-size: 14px !important;
+    }
+}
+
+/* Совсем узкие: до 400px */
+@media (max-width: 400px) {
+    .kpi-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .container > .header .header-actions {
+        grid-template-columns: 1fr !important;
+    }
+}

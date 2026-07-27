@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import json
 import os
 import subprocess
@@ -996,6 +996,7 @@ PATH_MODULE_MAP = {
     "/appeals": "appeals",
     "/cds": "cds",
     "/municipality-report": "municipality-report",
+    "/water-rm": "water_rm",
 }
 
 PUBLIC_PATH_PREFIXES = (
@@ -1187,6 +1188,13 @@ async def scheduler_page(request: Request):
         },
     )
 
+@app.get("/water-rm", response_class=HTMLResponse)
+async def water_rm_page(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "water_rm.html",
+        {"request": request},
+    )
 
 @app.get("/overdue", response_class=HTMLResponse)
 async def overdue_page(request: Request):
@@ -2509,3 +2517,16 @@ try:
     print("[scheduler] router connected (admin-only), loop started")
 except Exception as e:
     print(f"[scheduler] init error: {e}")
+
+# ===== Модуль «Проверка задач по качеству воды» =====
+try:
+    from services.water_rm.proxy import router as water_rm_router
+    app.include_router(water_rm_router)
+except Exception as e:
+    print(f"[water_rm] router init error: {e}")
+
+
+@app.get("/water-rm", response_class=HTMLResponse)
+async def water_rm_page(request: Request):
+    return templates.TemplateResponse(request, "water_rm.html", {"request": request})
+
