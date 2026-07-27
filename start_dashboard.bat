@@ -9,13 +9,7 @@ set "PROJECT_DIR=%~dp0"
 set "VENV_DIR=%PROJECT_DIR%.venv"
 set "URL=http://127.0.0.1:8000/"
 
-REM === Зеркала PyPI (обход без VPN) ===
-set "MIRROR1=https://pypi.tuna.tsinghua.edu.cn/simple"
-set "HOST1=pypi.tuna.tsinghua.edu.cn"
-set "MIRROR2=https://mirrors.aliyun.com/pypi/simple/"
-set "HOST2=mirrors.aliyun.com"
 
-cd /d "%PROJECT_DIR%"
 
 echo.
 echo ==========================================
@@ -46,42 +40,6 @@ call "%VENV_DIR%\Scripts\activate.bat"
 echo Виртуальное окружение активировано.
 echo.
 
-REM === Установка зависимостей через зеркала (обход без VPN) ===
-if exist "%PROJECT_DIR%requirements.txt" (
-    echo Устанавливаю зависимости из requirements.txt через зеркало Tsinghua...
-    python -m pip install -r "%PROJECT_DIR%requirements.txt" ^
-        -i %MIRROR1% --trusted-host %HOST1% ^
-        --timeout 120 --retries 10 ^
-        --disable-pip-version-check
-    if errorlevel 1 (
-        echo [ВНИМАНИЕ] Tsinghua не сработала. Пробую Aliyun...
-        python -m pip install -r "%PROJECT_DIR%requirements.txt" ^
-            -i %MIRROR2% --trusted-host %HOST2% ^
-            --timeout 120 --retries 10 ^
-            --disable-pip-version-check
-        if errorlevel 1 (
-            echo [ВНИМАНИЕ] Не удалось установить зависимости через оба зеркала.
-            echo Продолжаю запуск с уже установленными пакетами...
-        )
-    )
-    echo.
-)
-
-REM === Дополнительно: точно ставим bcrypt / passlib / jose / multipart ===
-echo Проверяю дополнительные пакеты (bcrypt, passlib, python-jose, python-multipart)...
-python -m pip install bcrypt passlib python-jose python-multipart ^
-    -i %MIRROR1% --trusted-host %HOST1% ^
-    --timeout 120 --retries 10 ^
-    --disable-pip-version-check
-if errorlevel 1 (
-    echo [ВНИМАНИЕ] Tsinghua не сработала для доп. пакетов. Пробую Aliyun...
-    python -m pip install bcrypt passlib python-jose python-multipart ^
-        -i %MIRROR2% --trusted-host %HOST2% ^
-        --timeout 120 --retries 10 ^
-        --disable-pip-version-check
-)
-echo.
-
 REM Открываем браузер, когда сервер станет доступен
 start "" powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$url='%URL%'; for($i=0; $i -lt 40; $i++){ try { Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 1 | Out-Null; Start-Process $url; exit } catch { Start-Sleep -Seconds 1 } }; Start-Process $url"
 
@@ -93,7 +51,7 @@ echo Чтобы остановить сервер — закрой это окн
 echo.
 
 REM ВАЖНО: если у тебя другой entrypoint, замени app:app на свой
-python -m uvicorn app:app --host 127.0.0.1 --port 8000 
+python -m uvicorn app:app --host 0.0.0.0 --port 8000 
 
 echo.
 echo Сервер остановлен.

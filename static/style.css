@@ -1,6 +1,6 @@
-/* =========================================================
-   NEURONA UI — unified style.css
-   Для страниц: home / edo / overdue / watercontrol / utnkr /
+﻿/* =========================================================
+   NEURONA UI вЂ” unified style.css
+   Р”Р»СЏ СЃС‚СЂР°РЅРёС†: home / edo / overdue / watercontrol / utnkr /
    cameras / camera_prescriptions
    ========================================================= */
 
@@ -211,7 +211,7 @@ a {
    ------------------------- */
 
 .container {
-    width: min(1180px, calc(100% - 32px));
+    width: min(1600px, calc(100% - 32px));
     margin: 0 auto;
     padding: 28px 0 64px;
 }
@@ -1103,7 +1103,7 @@ html[data-theme="light"] pre {
     margin: 12px 0;
 }
 
-/* Цветные message-block для УТНКР */
+/* Р¦РІРµС‚РЅС‹Рµ message-block РґР»СЏ РЈРўРќРљР  */
 .message-block-red,
 .message-block-yellow,
 .message-block-green,
@@ -1277,7 +1277,7 @@ tr.status-white {
     font-weight: 850;
 }
 
-/* УТНКР таблица */
+/* РЈРўРќРљР  С‚Р°Р±Р»РёС†Р° */
 .utnkr-table-wrap {
     width: 100%;
     max-width: 100%;
@@ -1385,7 +1385,7 @@ textarea:focus {
     min-width: 220px;
 }
 
-/* УТНКР фильтры */
+/* РЈРўРќРљР  С„РёР»СЊС‚СЂС‹ */
 .utnkr-filters-card {
     margin-bottom: 22px;
 }
@@ -1741,7 +1741,7 @@ textarea:focus {
 }
 
 .module-card-disabled::after {
-    content: "СКОРО";
+    content: "РЎРљРћР Рћ";
     position: absolute;
     top: 18px;
     right: -38px;
@@ -2425,7 +2425,7 @@ textarea:focus {
     font-size: 13px;
 }
 
-/* Ещё компактнее на средних экранах */
+/* Р•С‰С‘ РєРѕРјРїР°РєС‚РЅРµРµ РЅР° СЃСЂРµРґРЅРёС… СЌРєСЂР°РЅР°С… */
 @media (max-width: 1180px) {
     .compact-module-page .hero h1 {
         font-size: clamp(36px, 4vw, 52px);
@@ -2436,7 +2436,7 @@ textarea:focus {
     }
 }
 
-/* На планшетах hero становится в одну колонку */
+/* РќР° РїР»Р°РЅС€РµС‚Р°С… hero СЃС‚Р°РЅРѕРІРёС‚СЃСЏ РІ РѕРґРЅСѓ РєРѕР»РѕРЅРєСѓ */
 @media (max-width: 900px) {
     .compact-module-page .hero {
         grid-template-columns: 1fr;
@@ -2453,7 +2453,7 @@ textarea:focus {
     }
 }
 
-/* На мобильных не делаем заголовок огромным */
+/* РќР° РјРѕР±РёР»СЊРЅС‹С… РЅРµ РґРµР»Р°РµРј Р·Р°РіРѕР»РѕРІРѕРє РѕРіСЂРѕРјРЅС‹Рј */
 @media (max-width: 640px) {
     .compact-module-page .topbar {
         min-height: auto;
@@ -2468,7 +2468,7 @@ textarea:focus {
         line-height: 1;
     }
 }
-/* Исправление таблицы сформированных предписаний */
+/* РСЃРїСЂР°РІР»РµРЅРёРµ С‚Р°Р±Р»РёС†С‹ СЃС„РѕСЂРјРёСЂРѕРІР°РЅРЅС‹С… РїСЂРµРґРїРёСЃР°РЅРёР№ */
 .prescriptions-table-wrap table {
     width: 100%;
     table-layout: auto;
@@ -2531,7 +2531,7 @@ textarea:focus {
     white-space: nowrap;
 }
 /* =========================================================
-   Appeals / Обращения граждан
+   Appeals / РћР±СЂР°С‰РµРЅРёСЏ РіСЂР°Р¶РґР°РЅ
    ========================================================= */
 
 .appeals-page {
@@ -2912,7 +2912,7 @@ textarea:focus {
     }
 }
 /* =========================================================
-   Appeal detail / Карточка обращения
+   Appeal detail / РљР°СЂС‚РѕС‡РєР° РѕР±СЂР°С‰РµРЅРёСЏ
    ========================================================= */
 
 .appeal-detail-page {
@@ -3281,7 +3281,7 @@ textarea:focus {
    Beta accent, readable appeal analysis, compact detail hero
    ========================================================= */
 
-/* Бета-плашка на главной: заметнее и правее */
+/* Р‘РµС‚Р°-РїР»Р°С€РєР° РЅР° РіР»Р°РІРЅРѕР№: Р·Р°РјРµС‚РЅРµРµ Рё РїСЂР°РІРµРµ */
 .module-card-appeals-beta .module-head-beta {
     width: 100%;
     justify-content: space-between;
@@ -3314,7 +3314,7 @@ textarea:focus {
         radial-gradient(circle at top right, rgba(251, 59, 107, 0.14), transparent 42%);
 }
 
-/* Бета-плашка внутри модуля обращений */
+/* Р‘РµС‚Р°-РїР»Р°С€РєР° РІРЅСѓС‚СЂРё РјРѕРґСѓР»СЏ РѕР±СЂР°С‰РµРЅРёР№ */
 .appeals-beta {
     margin-left: auto;
     color: #ffffff;
@@ -3327,7 +3327,7 @@ textarea:focus {
         inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
-/* Компактная карточка обращения */
+/* РљРѕРјРїР°РєС‚РЅР°СЏ РєР°СЂС‚РѕС‡РєР° РѕР±СЂР°С‰РµРЅРёСЏ */
 body.appeal-detail-page .container {
     max-width: 1180px;
 }
@@ -3389,7 +3389,7 @@ body.appeal-detail-page section.card:not(.hero) {
     border-radius: 26px;
 }
 
-/* Понятная сводка анализа */
+/* РџРѕРЅСЏС‚РЅР°СЏ СЃРІРѕРґРєР° Р°РЅР°Р»РёР·Р° */
 .appeal-analysis-card {
     overflow: hidden;
 }
@@ -3507,7 +3507,7 @@ html[data-theme="dark"] .analysis-detail-row {
     border-color: rgba(255, 255, 255, 0.10);
 }
 
-/* Реестр обращений */
+/* Р РµРµСЃС‚СЂ РѕР±СЂР°С‰РµРЅРёР№ */
 .appeals-registry-card {
     scroll-margin-top: 0;
 }
@@ -3574,11 +3574,11 @@ html[data-theme="dark"] .analysis-detail-row {
 }
 
 /* =========================================================
-   FINAL HARD OVERRIDE — APPEALS DETAIL AND BETA
-   Этот блок должен быть последним в файле
+   FINAL HARD OVERRIDE вЂ” APPEALS DETAIL AND BETA
+   Р­С‚РѕС‚ Р±Р»РѕРє РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїРѕСЃР»РµРґРЅРёРј РІ С„Р°Р№Р»Рµ
    ========================================================= */
 
-/* ---------- Бета на главной ---------- */
+/* ---------- Р‘РµС‚Р° РЅР° РіР»Р°РІРЅРѕР№ ---------- */
 
 .module-card-appeals-beta .module-head,
 .module-card-appeals-beta .module-head-beta {
@@ -3614,7 +3614,7 @@ html[data-theme="dark"] .analysis-detail-row {
         radial-gradient(circle at top right, rgba(251, 59, 107, 0.16), transparent 44%) !important;
 }
 
-/* ---------- Бета в верхней панели обращений ---------- */
+/* ---------- Р‘РµС‚Р° РІ РІРµСЂС…РЅРµР№ РїР°РЅРµР»Рё РѕР±СЂР°С‰РµРЅРёР№ ---------- */
 
 .appeals-page .topbar .version-label,
 .appeal-detail-page .topbar .version-label,
@@ -3630,7 +3630,7 @@ html[data-theme="dark"] .analysis-detail-row {
         inset 0 1px 0 rgba(255, 255, 255, 0.32) !important;
 }
 
-/* ---------- Карточка обращения: компактная hero-шапка ---------- */
+/* ---------- РљР°СЂС‚РѕС‡РєР° РѕР±СЂР°С‰РµРЅРёСЏ: РєРѕРјРїР°РєС‚РЅР°СЏ hero-С€Р°РїРєР° ---------- */
 
 .appeal-detail-page .container,
 body.appeal-detail-page .container {
@@ -3715,14 +3715,14 @@ body.appeal-detail-page .appeal-detail-chip {
     line-height: 1.15 !important;
 }
 
-/* Основные карточки ниже */
+/* РћСЃРЅРѕРІРЅС‹Рµ РєР°СЂС‚РѕС‡РєРё РЅРёР¶Рµ */
 .appeal-detail-page section.card:not(.hero),
 body.appeal-detail-page section.card:not(.hero) {
     padding: 28px !important;
     border-radius: 26px !important;
 }
 
-/* ---------- Понятная сводка анализа ---------- */
+/* ---------- РџРѕРЅСЏС‚РЅР°СЏ СЃРІРѕРґРєР° Р°РЅР°Р»РёР·Р° ---------- */
 
 .appeal-analysis-card {
     overflow: hidden !important;
@@ -3835,7 +3835,7 @@ body.appeal-detail-page section.card:not(.hero) {
     color: var(--muted) !important;
 }
 
-/* ---------- Реестр обращений без прыжков ---------- */
+/* ---------- Р РµРµСЃС‚СЂ РѕР±СЂР°С‰РµРЅРёР№ Р±РµР· РїСЂС‹Р¶РєРѕРІ ---------- */
 
 .appeals-registry-card {
     scroll-margin-top: 0 !important;
@@ -3897,7 +3897,7 @@ body.appeal-detail-page section.card:not(.hero) {
     }
 }
 /* ==========================================================================
-   УЛУЧШЕНИЯ ЮЗАБИЛИТИ И ПРЕМИАЛЬНЫЙ СТИЛЬ (ВЕРСИЯ 2.3) С ПОДДЕРЖКОЙ ТЁМНОЙ ТЕМЫ
+   РЈР›РЈР§РЁР•РќРРЇ Р®Р—РђР‘РР›РРўР Р РџР Р•РњРРђР›Р¬РќР«Р™ РЎРўРР›Р¬ (Р’Р•Р РЎРРЇ 2.3) РЎ РџРћР”Р”Р•Р Р–РљРћР™ РўРЃРњРќРћР™ РўР•РњР«
    ========================================================================== */
 
 :root {
@@ -3909,7 +3909,7 @@ body.appeal-detail-page section.card:not(.hero) {
     --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 1. Блок "Сегодня можно быстро" */
+/* 1. Р‘Р»РѕРє "РЎРµРіРѕРґРЅСЏ РјРѕР¶РЅРѕ Р±С‹СЃС‚СЂРѕ" */
 .quick-actions-bar {
     margin-bottom: 24px;
     padding: 20px 24px;
@@ -3922,7 +3922,7 @@ body.appeal-detail-page section.card:not(.hero) {
     gap: 16px;
 }
 
-/* Адаптация быстрой панели под тёмную тему */
+/* РђРґР°РїС‚Р°С†РёСЏ Р±С‹СЃС‚СЂРѕР№ РїР°РЅРµР»Рё РїРѕРґ С‚С‘РјРЅСѓСЋ С‚РµРјСѓ */
 [data-theme="dark"] .quick-actions-bar {
     background: #111827 !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
@@ -3964,7 +3964,7 @@ body.appeal-detail-page section.card:not(.hero) {
     border: 1px solid rgba(0,0,0,0.02);
 }
 
-/* Кнопки быстрой панели в тёмной теме */
+/* РљРЅРѕРїРєРё Р±С‹СЃС‚СЂРѕР№ РїР°РЅРµР»Рё РІ С‚С‘РјРЅРѕР№ С‚РµРјРµ */
 [data-theme="dark"] .quick-action-btn {
     background: #1f2937 !important;
     color: #e5e7eb !important;
@@ -3997,7 +3997,7 @@ body.appeal-detail-page section.card:not(.hero) {
     font-size: 1.1rem;
 }
 
-/* 2. Модульная сетка и статусы */
+/* 2. РњРѕРґСѓР»СЊРЅР°СЏ СЃРµС‚РєР° Рё СЃС‚Р°С‚СѓСЃС‹ */
 .head-pills {
     display: flex;
     gap: 6px;
@@ -4051,7 +4051,7 @@ body.appeal-detail-page section.card:not(.hero) {
     background: var(--status-config-color);
 }
 
-/* 3. Кнопки внутри карточек */
+/* 3. РљРЅРѕРїРєРё РІРЅСѓС‚СЂРё РєР°СЂС‚РѕС‡РµРє */
 .action-panel {
     display: flex;
     gap: 10px;
@@ -4106,7 +4106,7 @@ body.appeal-detail-page section.card:not(.hero) {
     border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
-/* 4. Выделение карточки Отчёта по муниципалитету */
+/* 4. Р’С‹РґРµР»РµРЅРёРµ РєР°СЂС‚РѕС‡РєРё РћС‚С‡С‘С‚Р° РїРѕ РјСѓРЅРёС†РёРїР°Р»РёС‚РµС‚Сѓ */
 .highlight-premium-card {
     grid-column: span 2;
     border: 2px solid transparent !important;
@@ -4120,7 +4120,7 @@ body.appeal-detail-page section.card:not(.hero) {
     transition: var(--transition-smooth);
 }
 
-/* Карточка отчёта в ТЁМНОЙ ТЕМЕ (меняем фон на тёмный и убираем слепящую белизну) */
+/* РљР°СЂС‚РѕС‡РєР° РѕС‚С‡С‘С‚Р° РІ РўРЃРњРќРћР™ РўР•РњР• (РјРµРЅСЏРµРј С„РѕРЅ РЅР° С‚С‘РјРЅС‹Р№ Рё СѓР±РёСЂР°РµРј СЃР»РµРїСЏС‰СѓСЋ Р±РµР»РёР·РЅСѓ) */
 [data-theme="dark"] .highlight-premium-card {
     background-image: linear-gradient(#111827, #111827), var(--premium-gradient) !important;
     box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3) !important;
@@ -4137,7 +4137,7 @@ body.appeal-detail-page section.card:not(.hero) {
     }
 }
 
-/* Стилизация элементов внутри карточки для светлой темы */
+/* РЎС‚РёР»РёР·Р°С†РёСЏ СЌР»РµРјРµРЅС‚РѕРІ РІРЅСѓС‚СЂРё РєР°СЂС‚РѕС‡РєРё РґР»СЏ СЃРІРµС‚Р»РѕР№ С‚РµРјС‹ */
 .highlight-premium-card .pill-white {
     background: rgba(99, 102, 241, 0.08) !important;
     color: #4f46e5 !important;
@@ -4160,7 +4160,7 @@ body.appeal-detail-page section.card:not(.hero) {
     color: #ffffff !important;
 }
 
-/* Стилизация элементов внутри карточки для ТЁМНОЙ ТЕМЫ */
+/* РЎС‚РёР»РёР·Р°С†РёСЏ СЌР»РµРјРµРЅС‚РѕРІ РІРЅСѓС‚СЂРё РєР°СЂС‚РѕС‡РєРё РґР»СЏ РўРЃРњРќРћР™ РўР•РњР« */
 [data-theme="dark"] .highlight-premium-card .module-title {
     color: #ffffff !important;
 }
@@ -4186,11 +4186,11 @@ body.appeal-detail-page section.card:not(.hero) {
     border: 1px solid rgba(99, 102, 241, 0.2) !important;
 }
 /* =========================================================
-   FINAL HEADER POLISH v2 — TOPBAR / BRAND / TOP-ACTIONS
-   Должен быть в самом конце style.css
+   FINAL HEADER POLISH v2 вЂ” TOPBAR / BRAND / TOP-ACTIONS
+   Р”РѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ СЃР°РјРѕРј РєРѕРЅС†Рµ style.css
    ========================================================= */
 
-/* Верхняя панель: можно переносить, ничего не режется */
+/* Р’РµСЂС…РЅСЏСЏ РїР°РЅРµР»СЊ: РјРѕР¶РЅРѕ РїРµСЂРµРЅРѕСЃРёС‚СЊ, РЅРёС‡РµРіРѕ РЅРµ СЂРµР¶РµС‚СЃСЏ */
 .topbar {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -4203,7 +4203,7 @@ body.appeal-detail-page section.card:not(.hero) {
     overflow: visible !important;
 }
 
-/* Бренд слева */
+/* Р‘СЂРµРЅРґ СЃР»РµРІР° */
 .topbar .brand {
     display: flex !important;
     align-items: center !important;
@@ -4232,7 +4232,7 @@ body.appeal-detail-page section.card:not(.hero) {
     color: var(--muted) !important;
 }
 
-/* Правая часть: можно переносить кнопки */
+/* РџСЂР°РІР°СЏ С‡Р°СЃС‚СЊ: РјРѕР¶РЅРѕ РїРµСЂРµРЅРѕСЃРёС‚СЊ РєРЅРѕРїРєРё */
 .topbar .top-actions {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -4244,7 +4244,7 @@ body.appeal-detail-page section.card:not(.hero) {
     overflow: visible !important;
 }
 
-/* Размеры всех кнопок в шапке — компактные */
+/* Р Р°Р·РјРµСЂС‹ РІСЃРµС… РєРЅРѕРїРѕРє РІ С€Р°РїРєРµ вЂ” РєРѕРјРїР°РєС‚РЅС‹Рµ */
 .topbar .top-actions .version-button,
 .topbar .top-actions .version-label,
 .topbar .top-actions .theme-toggle,
@@ -4265,7 +4265,7 @@ body.appeal-detail-page section.card:not(.hero) {
     flex-shrink: 0 !important;
 }
 
-/* Бейдж "Локально. Просто" */
+/* Р‘РµР№РґР¶ "Р›РѕРєР°Р»СЊРЅРѕ. РџСЂРѕСЃС‚Рѕ" */
 .topbar .top-actions .badge {
     color: var(--primary) !important;
     background: rgba(99, 102, 241, 0.10) !important;
@@ -4275,7 +4275,7 @@ body.appeal-detail-page section.card:not(.hero) {
     font-size: 11px !important;
 }
 
-/* Бейдж пользователя ADMIN — спокойный */
+/* Р‘РµР№РґР¶ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ ADMIN вЂ” СЃРїРѕРєРѕР№РЅС‹Р№ */
 .topbar .top-actions .badge[style*="linear-gradient"] {
     background: linear-gradient(135deg,
         rgba(99, 102, 241, 0.12),
@@ -4296,7 +4296,7 @@ body.appeal-detail-page section.card:not(.hero) {
     border-color: rgba(111, 140, 255, 0.38) !important;
 }
 
-/* Кнопка "Выйти" */
+/* РљРЅРѕРїРєР° "Р’С‹Р№С‚Рё" */
 .topbar .top-actions a.badge[href="/logout"] {
     color: #b91c1c !important;
     background: rgba(239, 68, 68, 0.08) !important;
@@ -4319,7 +4319,7 @@ body.appeal-detail-page section.card:not(.hero) {
     border-color: rgba(239, 68, 68, 0.30) !important;
 }
 
-/* Версия и кнопка темы — нейтральные */
+/* Р’РµСЂСЃРёСЏ Рё РєРЅРѕРїРєР° С‚РµРјС‹ вЂ” РЅРµР№С‚СЂР°Р»СЊРЅС‹Рµ */
 .topbar .top-actions .version-button,
 .topbar .top-actions .theme-toggle {
     color: var(--text) !important;
@@ -4329,7 +4329,7 @@ body.appeal-detail-page section.card:not(.hero) {
     border: 1px solid var(--border) !important;
 }
 
-/* Тема — спрячем длинный текст на средних экранах, оставим только иконку */
+/* РўРµРјР° вЂ” СЃРїСЂСЏС‡РµРј РґР»РёРЅРЅС‹Р№ С‚РµРєСЃС‚ РЅР° СЃСЂРµРґРЅРёС… СЌРєСЂР°РЅР°С…, РѕСЃС‚Р°РІРёРј С‚РѕР»СЊРєРѕ РёРєРѕРЅРєСѓ */
 @media (max-width: 1280px) {
     .topbar .top-actions .theme-toggle .theme-toggle-text {
         display: none !important;
@@ -4341,7 +4341,7 @@ body.appeal-detail-page section.card:not(.hero) {
     }
 }
 
-/* На узких — кнопки занимают полную ширину второй строки */
+/* РќР° СѓР·РєРёС… вЂ” РєРЅРѕРїРєРё Р·Р°РЅРёРјР°СЋС‚ РїРѕР»РЅСѓСЋ С€РёСЂРёРЅСѓ РІС‚РѕСЂРѕР№ СЃС‚СЂРѕРєРё */
 @media (max-width: 760px) {
     .topbar {
         flex-direction: column !important;
@@ -4362,9 +4362,9 @@ body.appeal-detail-page section.card:not(.hero) {
     .topbar .top-actions .theme-toggle .theme-toggle-text {
         display: inline !important;
     }
-}   ТЕМА «МОСКОВСКАЯ» — цвет кремлёвской стены
-   Тёплый терракот + кремовый фон + золото акцентов
-   Активируется: html[data-theme="kreml"]
+}   РўР•РњРђ В«РњРћРЎРљРћР’РЎРљРђРЇВ» вЂ” С†РІРµС‚ РєСЂРµРјР»С‘РІСЃРєРѕР№ СЃС‚РµРЅС‹
+   РўС‘РїР»С‹Р№ С‚РµСЂСЂР°РєРѕС‚ + РєСЂРµРјРѕРІС‹Р№ С„РѕРЅ + Р·РѕР»РѕС‚Рѕ Р°РєС†РµРЅС‚РѕРІ
+   РђРєС‚РёРІРёСЂСѓРµС‚СЃСЏ: html[data-theme="kreml"]
    ========================================================= */
 
 html[data-theme="kreml"] {
@@ -4535,8 +4535,8 @@ html[data-theme="kreml"] .secondary-button {
 }
 
 /* =========================================================
-   PREMIUM POLISH — глубина теней, фокус-кольца, плавность
-   Действует во всех темах
+   PREMIUM POLISH вЂ” РіР»СѓР±РёРЅР° С‚РµРЅРµР№, С„РѕРєСѓСЃ-РєРѕР»СЊС†Р°, РїР»Р°РІРЅРѕСЃС‚СЊ
+   Р”РµР№СЃС‚РІСѓРµС‚ РІРѕ РІСЃРµС… С‚РµРјР°С…
    ========================================================= */
 
 .card,
@@ -4581,7 +4581,7 @@ html[data-theme="kreml"] .secondary-button {
     }
 }
 
-/* ===== Узор Кремля для темы kreml (фон-обои) ===== */
+/* ===== РЈР·РѕСЂ РљСЂРµРјР»СЏ РґР»СЏ С‚РµРјС‹ kreml (С„РѕРЅ-РѕР±РѕРё) ===== */
 html[data-theme="kreml"] body::before {
     content: "";
     position: fixed;
@@ -4594,7 +4594,7 @@ html[data-theme="kreml"] body::before {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='160' viewBox='0 0 260 160'%3E%3Cg fill='none' stroke='%237e2f2c' stroke-width='3'%3E%3Crect x='40' y='80' width='180' height='60'/%3E%3Crect x='70' y='50' width='30' height='90'/%3E%3Crect x='160' y='50' width='30' height='90'/%3E%3Crect x='115' y='30' width='30' height='110'/%3E%3Cpath d='M85 50 L85 35 L92 28 L99 35 L99 50'/%3E%3Cpath d='M175 50 L175 35 L182 28 L189 35 L189 50'/%3E%3Cpath d='M130 30 L130 12 L130 30'/%3E%3C/g%3E%3Cg fill='%23c79a3a'%3E%3Ccircle cx='130' cy='8' r='5'/%3E%3Ccircle cx='92' cy='24' r='3'/%3E%3Ccircle cx='182' cy='24' r='3'/%3E%3C/g%3E%3C/svg%3E");
 }
 
-/* ===== Theme dropdown (выбор темы) ===== */
+/* ===== Theme dropdown (РІС‹Р±РѕСЂ С‚РµРјС‹) ===== */
 .theme-dropdown { position: relative; display: inline-block; }
 .theme-toggle-arrow {
     margin-left: 6px;
@@ -4648,10 +4648,10 @@ html[data-theme="kreml"] body::before {
 
 /* =========================================================
    CDS MOBILE RESPONSIVE
-   Мониторинг заявок 1С — адаптация под планшеты и телефоны
+   РњРѕРЅРёС‚РѕСЂРёРЅРі Р·Р°СЏРІРѕРє 1РЎ вЂ” Р°РґР°РїС‚Р°С†РёСЏ РїРѕРґ РїР»Р°РЅС€РµС‚С‹ Рё С‚РµР»РµС„РѕРЅС‹
    ========================================================= */
 
-/* Планшеты: до 1100px */
+/* РџР»Р°РЅС€РµС‚С‹: РґРѕ 1100px */
 @media (max-width: 1100px) {
     body > .container {
         max-width: 100% !important;
@@ -4677,7 +4677,7 @@ html[data-theme="kreml"] body::before {
     }
 }
 
-/* Планшеты вертикально / крупные телефоны: до 900px */
+/* РџР»Р°РЅС€РµС‚С‹ РІРµСЂС‚РёРєР°Р»СЊРЅРѕ / РєСЂСѓРїРЅС‹Рµ С‚РµР»РµС„РѕРЅС‹: РґРѕ 900px */
 @media (max-width: 900px) {
     .tabs {
         flex-wrap: nowrap !important;
@@ -4763,7 +4763,7 @@ html[data-theme="kreml"] body::before {
     }
 }
 
-/* Телефоны: до 640px */
+/* РўРµР»РµС„РѕРЅС‹: РґРѕ 640px */
 @media (max-width: 640px) {
     body {
         padding: 6px 8px 16px !important;
@@ -4854,12 +4854,629 @@ html[data-theme="kreml"] body::before {
     }
 }
 
-/* Совсем узкие: до 400px */
+/* РЎРѕРІСЃРµРј СѓР·РєРёРµ: РґРѕ 400px */
 @media (max-width: 400px) {
     .kpi-grid {
         grid-template-columns: 1fr !important;
     }
     .container > .header .header-actions {
         grid-template-columns: 1fr !important;
+    }
+}
+
+/* =========================================================
+   GLOBAL MOBILE RESPONSIVE вЂ” Р’РЎРЇ РЎРРЎРўР•РњРђ
+   Р¤РёРЅР°Р»СЊРЅС‹Р№ Р°РґР°РїС‚РёРІ РґР»СЏ РІСЃРµС… РјРѕРґСѓР»РµР№ РїСЂРѕРµРєС‚Р°
+   ========================================================= */
+
+/* -------------------------------------------------
+   РџР»Р°РЅС€РµС‚С‹ Рё Р»СЌРїС‚РѕРїС‹: РґРѕ 1200px
+   ------------------------------------------------- */
+@media (max-width: 1200px) {
+    .container,
+    .prescriptions-container {
+        width: min(100% - 24px, 1200px) !important;
+        padding: 20px 0 48px !important;
+    }
+
+    /* РњРѕРґСѓР»Рё РЅР° РіР»Р°РІРЅРѕР№ вЂ” 2 РєРѕР»РѕРЅРєРё */
+    .modules-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    /* РњРµС‚СЂРёРєРё вЂ” 3 РІ СЂСЏРґ */
+    .metrics-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    /* Hero РЅРµРјРЅРѕРіРѕ РєРѕРјРїР°РєС‚РЅРµРµ */
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero,
+    .appeal-detail-hero {
+        padding: 30px !important;
+        min-height: auto !important;
+    }
+
+    h1 {
+        font-size: clamp(30px, 4.5vw, 52px) !important;
+    }
+}
+
+/* -------------------------------------------------
+   РџР»Р°РЅС€РµС‚С‹ РІРµСЂС‚РёРєР°Р»СЊРЅРѕ: РґРѕ 900px
+   ------------------------------------------------- */
+@media (max-width: 900px) {
+    /* Topbar РІ РєРѕР»РѕРЅРєСѓ */
+    .topbar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding: 10px 12px !important;
+        min-height: auto !important;
+        gap: 10px !important;
+    }
+    .topbar .brand,
+    .topbar .brand-link {
+        width: 100% !important;
+        justify-content: flex-start !important;
+    }
+    .topbar-right,
+    .top-actions {
+        width: 100% !important;
+        justify-content: flex-start !important;
+        flex-wrap: wrap !important;
+    }
+
+    /* Hero РІСЃРµС… С‚РёРїРѕРІ РІ РѕРґРЅСѓ РєРѕР»РѕРЅРєСѓ */
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero-grid,
+    .appeal-detail-hero-content,
+    body.appeal-detail-page .appeal-detail-hero-content {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+    .hero-side,
+    .prescriptions-hero-side,
+    .appeals-hero-panel,
+    .appeal-detail-hero-panel {
+        justify-content: flex-start !important;
+        max-width: 100% !important;
+    }
+
+    /* РњРµС‚СЂРёРєРё вЂ” 2 РєРѕР»РѕРЅРєРё */
+    .metrics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px !important;
+    }
+    .metric-value {
+        font-size: 34px !important;
+    }
+    .metric-value-text {
+        font-size: 17px !important;
+    }
+
+    /* РњРѕРґСѓР»Рё вЂ” 1 РєРѕР»РѕРЅРєР° */
+    .modules-grid,
+    .info-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Grid two вЂ” РІ РєРѕР»РѕРЅРєСѓ */
+    .grid.two {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Action-card, system-status вЂ” РІ РєРѕР»РѕРЅРєСѓ */
+    .action-card,
+    .system-status,
+    .prescriptions-action-card,
+    .prescriptions-download-card,
+    .git-update-head,
+    .premium-upload-header,
+    .violators-section-header,
+    .utnkr-filters-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    /* Р¤РѕСЂРјС‹ С„РёР»СЊС‚СЂРѕРІ */
+    .details-toolbar,
+    .prescriptions-filter-form,
+    .git-token-row,
+    .upload-form {
+        width: 100% !important;
+        flex-wrap: wrap !important;
+    }
+    .details-toolbar select,
+    .prescriptions-filter-form select,
+    .git-token-input {
+        flex: 1 1 200px !important;
+        min-width: 0 !important;
+    }
+
+    /* РЈРўРќРљР  С„РёР»СЊС‚СЂС‹ */
+    .utnkr-filters-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+    .utnkr-reset-filters-btn {
+        width: 100% !important;
+    }
+
+    /* Premium upload */
+    .premium-upload-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    /* Screenshots РІ 2 РєРѕР»РѕРЅРєРё */
+    .screenshots-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px !important;
+    }
+
+    /* РўР°Р±Р»РёС†С‹: РіРѕСЂРёР·РѕРЅС‚Р°Р»СЊРЅС‹Р№ СЃРєСЂРѕР»Р» */
+    .table-wrap,
+    .utnkr-table-wrap,
+    .prescriptions-table-wrap,
+    .table-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    table {
+        min-width: 700px !important;
+        font-size: 13px !important;
+    }
+    th, td {
+        padding: 12px 10px !important;
+    }
+
+    /* РњРѕРґР°Р»РєРё */
+    .modal-card,
+    .modal-card-wide {
+        width: calc(100% - 20px) !important;
+        max-height: calc(100vh - 40px) !important;
+    }
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 18px !important;
+    }
+    .modal-tools {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    /* Appeals: Р·Р°РіРѕР»РѕРІРѕРє Рё С„РёР»СЊС‚СЂС‹ */
+    .appeals-table-title,
+    .appeal-detail-card-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .appeals-filter-row {
+        justify-content: flex-start !important;
+    }
+    .appeals-form-grid,
+    .appeal-grid,
+    .appeal-meta-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Analysis summary вЂ” 1 РєРѕР»РѕРЅРєР° */
+    .analysis-summary-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* What's new */
+    .whats-new-dialog {
+        padding: 28px 22px !important;
+        border-radius: 26px !important;
+    }
+    .whats-new-item {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Section titles */
+    .section-title-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+    }
+
+    /* Highlight premium card вЂ” РІРѕ РІСЃСЋ С€РёСЂРёРЅСѓ */
+    .highlight-premium-card {
+        grid-column: 1 / -1 !important;
+    }
+
+    /* Quick actions */
+    .quick-actions-links {
+        flex-direction: column !important;
+    }
+    .quick-action-btn {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+}
+
+/* -------------------------------------------------
+   РўРµР»РµС„РѕРЅС‹: РґРѕ 640px
+   ------------------------------------------------- */
+@media (max-width: 640px) {
+    .container,
+    .prescriptions-container {
+        width: min(100% - 16px, 1200px) !important;
+        padding: 12px 0 32px !important;
+    }
+
+    /* Topbar */
+    .topbar {
+        padding: 10px !important;
+        border-radius: 20px !important;
+        gap: 8px !important;
+    }
+    .brand-logo {
+        width: 44px !important;
+        height: 44px !important;
+        border-radius: 14px !important;
+    }
+    .brand-title {
+        font-size: 14px !important;
+    }
+    .brand-subtitle {
+        font-size: 11.5px !important;
+    }
+    .top-actions,
+    .topbar-right {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 6px !important;
+    }
+    .top-actions > *,
+    .topbar-right > * {
+        width: 100% !important;
+        justify-content: center !important;
+        font-size: 12px !important;
+        padding: 8px 10px !important;
+        min-height: 38px !important;
+    }
+    .theme-toggle .theme-toggle-text {
+        display: none !important;
+    }
+
+    /* Hero: РѕС‡РµРЅСЊ РєРѕРјРїР°РєС‚РЅРѕ */
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero,
+    .appeal-detail-hero,
+    .card:not(.hero):not(.action-card):not(.status-card):not(.loader-card),
+    .action-card,
+    .status-card,
+    .loader-card {
+        padding: 18px !important;
+        border-radius: 22px !important;
+        margin-bottom: 16px !important;
+    }
+    h1 {
+        font-size: clamp(26px, 8vw, 38px) !important;
+        line-height: 1.05 !important;
+    }
+    h2,
+    .section-title,
+    .module-title {
+        font-size: 20px !important;
+    }
+    h3 {
+        font-size: 18px !important;
+    }
+    .hero .subtext,
+    .hero .lead,
+    .lead,
+    .subtext {
+        font-size: 14px !important;
+        margin-top: 14px !important;
+    }
+    .eyebrow,
+    .modal-eyebrow {
+        font-size: 11px !important;
+    }
+
+    /* РњРµС‚СЂРёРєРё: 1 РєРѕР»РѕРЅРєР° */
+    .metrics-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .metric-card {
+        padding: 18px !important;
+    }
+    .metric-value {
+        font-size: 32px !important;
+    }
+    .metric-value-text {
+        font-size: 16px !important;
+    }
+
+    /* РљРЅРѕРїРєРё */
+    .primary-button,
+    .secondary-button,
+    .module-link,
+    .action-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        font-size: 13px !important;
+        padding: 10px 14px !important;
+    }
+    .action-panel,
+    .message-actions {
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    /* Screenshots вЂ” 1 РєРѕР»РѕРЅРєР° */
+    .screenshots-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Premium upload вЂ” 1 РєРѕР»РѕРЅРєР° */
+    .premium-upload-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* РўР°Р±Р»РёС†С‹ РµС‰С‘ РјРµР»СЊС‡Рµ */
+    table {
+        font-size: 12px !important;
+        min-width: 560px !important;
+    }
+    th, td {
+        padding: 10px 8px !important;
+    }
+    th {
+        font-size: 11px !important;
+    }
+
+    /* РЈРўРќРљР  вЂ” РѕСЃС‚Р°РІР»СЏРµРј min-width, С‡С‚РѕР±С‹ СЃРєСЂРѕР»Р»РёР»Р°СЃСЊ */
+    .utnkr-detail-table {
+        min-width: 1200px !important;
+    }
+
+    /* РњРѕРґР°Р»РєР° */
+    .modal-card,
+    .modal-card-wide {
+        width: calc(100% - 12px) !important;
+        border-radius: 22px !important;
+    }
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 14px !important;
+    }
+    .modal-footer {
+        flex-direction: column-reverse !important;
+        align-items: stretch !important;
+    }
+    .modal-close-btn {
+        width: 38px !important;
+        height: 38px !important;
+    }
+
+    /* Appeals вЂ” РєРѕРјРїР°РєС‚РЅРѕ */
+    .appeals-chips {
+        gap: 6px !important;
+    }
+    .appeals-chip {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .appeals-form-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .appeals-form-actions > * {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+
+    /* Appeal detail chips РЅР° РІСЃСЋ С€РёСЂРёРЅСѓ */
+    .appeal-detail-status-row,
+    .appeal-management-actions,
+    .appeal-actions {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    .appeal-detail-status,
+    .appeal-detail-id,
+    .appeal-detail-chip,
+    .appeal-management-actions > *,
+    .appeal-actions > * {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .appeal-detail-score-value {
+        font-size: 30px !important;
+    }
+    .analysis-detail-row {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+    .analysis-detail-row strong {
+        text-align: left !important;
+    }
+
+    /* Message block */
+    .message-block {
+        padding: 16px !important;
+        border-radius: 18px !important;
+    }
+    .message-head {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+    }
+
+    /* What's new вЂ” РѕС‡РµРЅСЊ РєРѕРјРїР°РєС‚РЅРѕ */
+    .whats-new-dialog {
+        padding: 22px 18px !important;
+        border-radius: 24px !important;
+    }
+    .whats-new-title {
+        font-size: clamp(26px, 8vw, 36px) !important;
+    }
+    .whats-new-lead {
+        font-size: 15px !important;
+        margin: 14px 0 20px !important;
+    }
+    .whats-new-icon {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 18px !important;
+    }
+
+    /* Badges вЂ” РјРµР»СЊС‡Рµ */
+    .badge,
+    .pill {
+        font-size: 11px !important;
+        padding: 5px 9px !important;
+    }
+
+    /* Pre / РєРѕРґ */
+    pre {
+        font-size: 12px !important;
+        padding: 12px !important;
+        border-radius: 14px !important;
+    }
+
+    /* Collapse title */
+    .collapse-toggle h2 {
+        font-size: 18px !important;
+    }
+
+    /* Field chip */
+    .field-chip {
+        font-size: 12px !important;
+        padding: 6px 10px !important;
+    }
+
+    /* Grid rows */
+    .analysis-summary-item {
+        padding: 14px !important;
+    }
+    .analysis-summary-value {
+        font-size: 18px !important;
+    }
+
+    /* Update status card */
+    .update-status-card {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        padding: 16px !important;
+    }
+    .update-status-icon {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 20px !important;
+    }
+    .update-status-title {
+        font-size: 16px !important;
+    }
+
+    /* Prescriptions select */
+    .prescriptions-select {
+        min-width: 0 !important;
+        width: 100% !important;
+    }
+
+    /* Version-label / Р±РµС‚Р° РІ topbar */
+    .version-label,
+    .version-button {
+        font-size: 11px !important;
+    }
+
+    /* Quick actions panel */
+    .quick-actions-bar {
+        padding: 14px !important;
+    }
+    .quick-actions-title {
+        font-size: 15px !important;
+    }
+}
+
+/* -------------------------------------------------
+   РњРµР»РєРёРµ С‚РµР»РµС„РѕРЅС‹: РґРѕ 400px
+   ------------------------------------------------- */
+@media (max-width: 400px) {
+    .top-actions,
+    .topbar-right {
+        grid-template-columns: 1fr !important;
+    }
+    h1 {
+        font-size: 26px !important;
+    }
+    h2,
+    .module-title {
+        font-size: 18px !important;
+    }
+    .metric-value {
+        font-size: 28px !important;
+    }
+    .brand-title {
+        font-size: 13px !important;
+    }
+    .brand-subtitle {
+        font-size: 11px !important;
+    }
+    .hero,
+    .prescriptions-hero,
+    .card:not(.hero):not(.action-card):not(.status-card):not(.loader-card) {
+        padding: 14px !important;
+        border-radius: 20px !important;
+    }
+    table {
+        min-width: 480px !important;
+        font-size: 11.5px !important;
+    }
+    th, td {
+        padding: 8px 6px !important;
+    }
+}
+
+/* -------------------------------------------------
+   Landscape phone: РѕС‡РµРЅСЊ РЅРёР·РєРёРµ СЌРєСЂР°РЅС‹
+   ------------------------------------------------- */
+@media (max-height: 480px) and (orientation: landscape) {
+    .modal-card,
+    .modal-card-wide,
+    .whats-new-dialog {
+        max-height: calc(100vh - 20px) !important;
+    }
+    .hero,
+    .prescriptions-hero,
+    .appeals-hero,
+    .appeal-detail-hero {
+        padding: 18px !important;
+        min-height: auto !important;
+    }
+    h1 {
+        font-size: 26px !important;
+    }
+}
+
+/* -------------------------------------------------
+   Touch-СѓСЃС‚СЂРѕР№СЃС‚РІР°: СѓР±РёСЂР°РµРј :hover-СЌС„С„РµРєС‚С‹
+   ------------------------------------------------- */
+@media (hover: none) and (pointer: coarse) {
+    .metric-card:hover,
+    .module-card:hover,
+    .message-block:hover,
+    .hero-chip:hover,
+    .brand-link:hover,
+    .primary-button:hover,
+    .secondary-button:hover,
+    .module-link:hover,
+    .action-btn:hover,
+    .quick-action-btn:hover,
+    tbody tr:hover {
+        transform: none !important;
+    }
+    tbody tr:hover {
+        background: transparent !important;
     }
 }
