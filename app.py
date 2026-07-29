@@ -4,16 +4,19 @@ import os
 import subprocess
 import sys
 import threading
-
-from services import run_history
+import re
+import time
 from typing import Any
 from datetime import datetime
 
-from fastapi import FastAPI, Request, Header, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from pydantic import BaseModel  # <-- Добавлен отсутствовавший импорт
+from fastapi import FastAPI, Request, Header, HTTPException, Form
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import Form
+from jinja2 import ChainableUndefined
+
+from services import run_history
 from services.auth.security import (
     authenticate_user,
     create_access_token,
@@ -22,9 +25,6 @@ from services.auth.security import (
     ADMIN_ROLES,
     has_module_access,
 )
-
-from jinja2 import ChainableUndefined
-import re
 
 from services.appeals.storage import (
     create_appeal,
@@ -315,23 +315,9 @@ def calculate_mgkh_rm_metrics(result):
     return {"total": 0, "close": 0, "extend": 0, "rework": 0}
 
 
-
 def calculate_overdue_metrics(raw_result):
-    if not raw_result:
-        return {
-            "total": 0,
-            "critical": 0,
-            "risk": 0,
-            "ok": 0,
-        }
-
-    if not isinstance(raw_result, dict):
-        return {
-            "total": 0,
-            "critical": 0,
-            "risk": 0,
-            "ok": 0,
-        }
+    if not raw_result or not isinstance(raw_result, dict):
+        return {"total": 0, "critical": 0, "risk": 0, "ok": 0}
 
     items = raw_result.get("items", []) or []
 
@@ -414,48 +400,21 @@ def normalize_camera_status_value(row):
     stream_url = normalize_text(row.get("stream_url") or row.get("link_url"))
 
     if raw_status in (
-        "working",
-        "ok",
-        "online",
-        "success",
-        "active",
-        "green",
-        "норма",
-        "работает",
-        "активна",
-        "активный",
+        "working", "ok", "online", "success", "active", "green",
+        "норма", "работает", "активна", "активный",
     ):
         return "working"
 
     if raw_status in (
-        "not_working",
-        "critical",
-        "offline",
-        "error",
-        "failed",
-        "fail",
-        "broken",
-        "red",
-        "критично",
-        "не работает",
-        "неработает",
-        "ошибка",
-        "отключена",
-        "офлайн",
+        "not_working", "critical", "offline", "error", "failed", "fail",
+        "broken", "red", "критично", "не работает", "неработает",
+        "ошибка", "отключена", "офлайн",
     ):
         return "not_working"
 
     if raw_status in (
-        "not_connected",
-        "no_stream",
-        "missing_stream",
-        "no_url",
-        "empty_url",
-        "не подключена",
-        "не подключен",
-        "нет ссылки",
-        "нет потока",
-        "без ссылки",
+        "not_connected", "no_stream", "missing_stream", "no_url", "empty_url",
+        "не подключена", "не подключен", "нет ссылки", "нет потока", "без ссылки",
     ):
         return "not_connected"
 
@@ -514,15 +473,12 @@ def calculate_cameras_metrics(result):
         else:
             unknown += 1
 
-    # Возвращаем и новые ключи для камер, и старые ключи для общих карточек.
     return {
         "total": total,
-
         "working": working,
         "not_working": not_working,
         "not_connected": not_connected,
         "unknown": unknown,
-
         "ok": working,
         "critical": not_working,
         "risk": not_connected + unknown,
@@ -891,6 +847,7 @@ def save_personal_message_to_file(
         "message": "Сообщение сохранено.",
     }
 
+
 def require_git_update_token(x_git_update_token: str | None):
     if not x_git_update_token or x_git_update_token != GIT_UPDATE_TOKEN:
         raise HTTPException(
@@ -996,7 +953,7 @@ PATH_MODULE_MAP = {
     "/appeals": "appeals",
     "/cds": "cds",
     "/municipality-report": "municipality-report",
-    "/water-rm": "water_rm",
+    "/ecur": "ecur",
 }
 
 PUBLIC_PATH_PREFIXES = (
@@ -1018,7 +975,6 @@ PUBLIC_PATH_PREFIXES = (
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
 
-    # Публичные пути - пропускаем без проверки
     if any(path.startswith(p) for p in PUBLIC_PATH_PREFIXES):
         return await call_next(request)
 
@@ -1033,7 +989,6 @@ async def auth_middleware(request: Request, call_next):
             content={"ok": False, "message": "Требуется авторизация"},
         )
 
-    # Проверка прав на конкретный модуль
     for path_prefix, module_id in PATH_MODULE_MAP.items():
         if path.startswith(path_prefix):
             if not has_module_access(user, module_id):
@@ -1089,7 +1044,7 @@ async def login_submit(
         httponly=True,
         max_age=60 * 60 * 8,
         samesite="lax",
-        secure=False,  # В проде с HTTPS поставьте True
+        secure=False,
     )
     return response
 
@@ -1138,6 +1093,7 @@ async def edo_page(request: Request):
             "run_status": run_status["edo"],
         },
     )
+
 
 @app.get("/mgkh-rm", response_class=HTMLResponse)
 async def mgkh_rm_page(request: Request):
@@ -1188,13 +1144,6 @@ async def scheduler_page(request: Request):
         },
     )
 
-@app.get("/water-rm", response_class=HTMLResponse)
-async def water_rm_page(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "water_rm.html",
-        {"request": request},
-    )
 
 @app.get("/overdue", response_class=HTMLResponse)
 async def overdue_page(request: Request):
@@ -1286,30 +1235,25 @@ async def cameras_page(
             "result": state,
             "state": state,
             "data": state,
-
             "rows": cameras,
             "items": cameras,
             "cameras": cameras,
             "results": cameras,
             "filtered_results": filtered_results,
             "grouped_results": grouped_results,
-
             "metrics": metrics,
             "config": CAMERAS_UI_CONFIG,
             "check_state": make_check_state("cameras"),
             "prescription_state": make_check_state("camera_prescriptions"),
             "status": run_status["cameras"],
             "run_status": run_status["cameras"],
-
             "status_filter": status,
             "group_by": group_by,
-
             "addresses_exists": table_info["exists"],
             "addresses_file": table_info["path"],
             "table_info": table_info,
         },
     )
-
 
 
 @app.get("/prescriptions", response_class=HTMLResponse)
@@ -1328,7 +1272,6 @@ async def camera_prescriptions_page(
         mode = "individual"
 
     state = load_json_file(CAMERAS_STATE_FILE, default={}) or {}
-
     camera_rows = [normalize_camera_row(row) for row in as_list_from_result(state)]
 
     problem_rows = [
@@ -1398,16 +1341,8 @@ async def camera_prescriptions_page(
                 combined_filename = path.name
                 combined_url = f"/generated/prescriptions/{path.name}"
 
-    def clean_filename_text(value):
-        value = str(value or "")
-        value = value.replace("_", " ")
-        value = re.sub(r"\s+", " ", value)
-        return value.strip(" -_.,;")
-
     def parse_generated_prescription_filename(filename):
         stem = Path(filename).stem
-
-        # Убираем начальный номер: 177_no_video_stream_...
         stem_without_number = re.sub(r"^\d+[_-]+", "", stem)
 
         reason_map = [
@@ -1455,14 +1390,10 @@ async def camera_prescriptions_page(
 
         def cleanup(value):
             value = str(value or "")
-
-            value = value.replace("__", " ")
-            value = value.replace("_", " ")
-
+            value = value.replace("__", " ").replace("_", " ")
             value = re.sub(r"\s+", " ", value)
             value = re.sub(r"\s+,", ",", value)
             value = re.sub(r",\s*", ", ", value)
-
             value = value.strip(" -_.,;")
 
             replacements = [
@@ -1590,41 +1521,33 @@ async def camera_prescriptions_page(
         "camera_prescriptions.html",
         {
             "request": request,
-
             "mode": mode,
-
             "result": state,
             "state": state,
             "data": state,
-
             "rows": camera_rows,
             "cameras": camera_rows,
             "results": camera_rows,
-
             "items": problem_rows,
             "problem_items": problem_rows,
             "problem_rows": problem_rows,
             "problem_count": len(problem_rows),
-
             "generated_items": generated_items,
             "prescriptions": prescriptions,
             "generated_count": len(prescriptions),
             "generated_at": generated_at,
-
             "combined_filename": combined_filename,
             "combined_url": combined_url,
-
             "zip_filename": zip_filename,
             "zip_url": zip_url,
-
             "metrics": calculate_cameras_metrics({"rows": camera_rows}),
             "config": CAMERAS_UI_CONFIG,
-
             "check_state": make_check_state("camera_prescriptions"),
             "status": run_status["camera_prescriptions"],
             "run_status": run_status["camera_prescriptions"],
         },
     )
+
 
 @app.get("/edo/run-status")
 async def edo_run_status():
@@ -1697,27 +1620,22 @@ async def cameras_status(
     return {
         "ok": True,
         "status": check_state["status"],
-
         "check_state": check_state,
         "running": check_state["running"],
         "is_running": check_state["is_running"],
         "stage": check_state["stage"],
         "message": check_state["message"],
         "last_error": check_state["last_error"],
-
         "results": rows,
         "rows": rows,
         "items": rows,
         "filtered_results": filtered_results,
         "grouped_results": grouped_results,
-
         "status_filter": status,
         "group_by": group_by,
-
         "metrics": calculate_cameras_metrics({"rows": rows}),
         "table_info": build_table_info(CAMERAS_ADDRESSES_FILE),
     }
-
 
 
 @app.post("/edo/run-check")
@@ -1829,9 +1747,9 @@ async def api_summary():
         },
     }
 
+
 @app.get("/api/history/recent")
 async def api_history_recent(request: Request, limit: int = 10):
-    # admin-only: история запусков
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
     if (user.get("role") or "").strip().lower() not in {"admin", "администратор"}:
@@ -1841,7 +1759,6 @@ async def api_history_recent(request: Request, limit: int = 10):
 
 @app.get("/api/history/all")
 async def api_history_all(request: Request, limit: int = 200):
-    # admin-only: история запусков
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
     if (user.get("role") or "").strip().lower() not in {"admin", "администратор"}:
@@ -1864,25 +1781,17 @@ async def system_git_check(x_git_update_token: str | None = Header(default=None)
         )
 
     branch = get_current_git_branch()
-
     fetch_result = run_git_command(["git", "fetch", GIT_REMOTE_NAME], timeout=120)
-
     status_result = run_git_command(["git", "status", "-sb"], timeout=30)
-
     incoming_result = run_git_command(
         [
-            "git",
-            "log",
-            "--oneline",
-            "--decorate",
-            "--max-count=10",
+            "git", "log", "--oneline", "--decorate", "--max-count=10",
             f"HEAD..{GIT_REMOTE_NAME}/{branch}",
         ],
         timeout=30,
     )
 
     local_changes = has_local_git_changes()
-
     has_updates = bool(incoming_result.get("stdout", "").strip())
 
     return {
@@ -1938,7 +1847,6 @@ async def system_git_pull(x_git_update_token: str | None = Header(default=None))
         )
 
     branch = get_current_git_branch()
-
     fetch_result = run_git_command(["git", "fetch", GIT_REMOTE_NAME], timeout=120)
 
     if not fetch_result.get("ok"):
@@ -1952,7 +1860,6 @@ async def system_git_pull(x_git_update_token: str | None = Header(default=None))
         )
 
     pull_result = run_git_command(["git", "pull", GIT_REMOTE_NAME, branch], timeout=180)
-
     response_status = 200 if pull_result.get("ok") else 400
 
     return JSONResponse(
@@ -1972,8 +1879,6 @@ async def system_git_pull(x_git_update_token: str | None = Header(default=None))
             "restart_required": True,
         },
     )
-
-
 
 
 # =========================
@@ -2060,7 +1965,6 @@ async def api_cds_export(payload: dict):
         )
 
     def to_ru_date(value: str) -> str:
-        """2026-05-01 -> 01.05.2026"""
         value = (value or "").strip()
         m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", value)
         if m:
@@ -2098,14 +2002,6 @@ async def api_cds_export(payload: dict):
 
         rows = result.get("data", []) or []
 
-        def count_by_status(needles):
-            count = 0
-            for r in rows:
-                s = (r.get("status") or "").lower()
-                if any(n in s for n in needles):
-                    count += 1
-            return count
-
         run_status["cds"].update(
             running=False,
             stage="Готово",
@@ -2115,19 +2011,18 @@ async def api_cds_export(payload: dict):
         norm_rows = []
         for r in rows:
             norm_rows.append({
-                "date":        r.get("date") or r.get("Дата") or "",
-                "department":  (r.get("department") or r.get("Подразделение") or "").strip() or "(не указано)",
-                "number":      r.get("number") or r.get("Номер") or "",
-                "status":      r.get("status") or r.get("Состояние обращения") or "",
-                "address":     r.get("address") or r.get("Адрес обращения") or "",
-                "reason":      r.get("reason") or r.get("Причина обращения") or r.get("type") or r.get("Тип обращения") or "",
-                # --- новые поля для вкладок/просрочки/модалки ---
-                "deadline":    r.get("deadline") or r.get("Срок исполнения") or "",
-                "type":        r.get("type") or r.get("Тип обращения") or "",
-                "request_type":r.get("request_type") or r.get("Тип заявки") or "",
-                "source":      r.get("source") or r.get("Источник поступления") or "",
-                "applicant":   r.get("applicant") or r.get("Заявитель") or "",
-                "executor":    r.get("executor") or r.get("Исполнитель") or "",
+                "date":         r.get("date") or r.get("Дата") or "",
+                "department":   (r.get("department") or r.get("Подразделение") or "").strip() or "(не указано)",
+                "number":       r.get("number") or r.get("Номер") or "",
+                "status":       r.get("status") or r.get("Состояние обращения") or "",
+                "address":      r.get("address") or r.get("Адрес обращения") or "",
+                "reason":       r.get("reason") or r.get("Причина обращения") or r.get("type") or r.get("Тип обращения") or "",
+                "deadline":     r.get("deadline") or r.get("Срок исполнения") or "",
+                "type":         r.get("type") or r.get("Тип обращения") or "",
+                "request_type": r.get("request_type") or r.get("Тип заявки") or "",
+                "source":       r.get("source") or r.get("Источник поступления") or "",
+                "applicant":    r.get("applicant") or r.get("Заявитель") or "",
+                "executor":     r.get("executor") or r.get("Исполнитель") or "",
             })
 
         return {
@@ -2148,9 +2043,9 @@ async def api_cds_export(payload: dict):
             content={"success": False, "error": str(e)},
         )
 
+
 @app.get("/api/cds/last-result")
 async def api_cds_last_result():
-    """Возвращает последнюю сохранённую выгрузку CDS (переживает перезагрузку страницы)."""
     data = load_json_file(CDS_RESULT_FILE, default=None)
 
     if not data or not isinstance(data, dict) or not data.get("success"):
@@ -2318,7 +2213,6 @@ async def appeal_generate_draft(request: Request, request_id: str):
         )
 
     item["facts_for_reply"] = official_text
-
     empathy_append_template = "{{ facts }}\n\n{{ empathy_block }}"
 
     draft = generate_reply_from_template(
@@ -2444,12 +2338,37 @@ async def appeal_mark_sent(request_id: str):
     )
 
 
+@app.post("/appeals/{request_id}/delete")
+async def delete_appeal(request_id: str):
+    from services.appeals.storage import delete_appeal as delete_appeal_storage
+
+    item = get_appeal(request_id)
+    if not item:
+        return RedirectResponse(
+            url="/appeals?error=Обращение не найдено",
+            status_code=303,
+        )
+
+    delete_appeal_storage(request_id)
+
+    return RedirectResponse(
+        url="/appeals?message=Обращение удалено",
+        status_code=303,
+    )
+
+
 @app.get("/health")
 async def health():
     return {
         "ok": True,
         "service": "Unified Dashboard",
     }
+
+
+@app.get('/favicon.ico', include_in_schema=False)
+async def favicon():
+    return FileResponse('favicon.ico', media_type='image/png')
+
 
 # ===============================
 # MUNICIPALITY HTML/PDF REPORT
@@ -2469,31 +2388,6 @@ try:
     app.include_router(system_control_router)
 except Exception as e:
     print(f"[system_control] router init error: {e}")
-
-
-from fastapi.responses import FileResponse
-
-@app.get('/favicon.ico', include_in_schema=False)
-async def favicon():
-    return FileResponse('favicon.ico', media_type='image/png')
-
-@app.post("/appeals/{request_id}/delete")
-async def delete_appeal(request_id: str):
-    from services.appeals.storage import get_appeal, delete_appeal as delete_appeal_storage
-
-    item = get_appeal(request_id)
-    if not item:
-        return RedirectResponse(
-            url="/appeals?error=Обращение не найдено",
-            status_code=303,
-        )
-
-    delete_appeal_storage(request_id)
-
-    return RedirectResponse(
-        url="/appeals?message=Обращение удалено",
-        status_code=303,
-    )
 
 
 # ===============================
@@ -2518,6 +2412,7 @@ try:
 except Exception as e:
     print(f"[scheduler] init error: {e}")
 
+
 # ===== Модуль «Проверка задач по качеству воды» =====
 try:
     from services.water_rm.proxy import router as water_rm_router
@@ -2529,4 +2424,287 @@ except Exception as e:
 @app.get("/water-rm", response_class=HTMLResponse)
 async def water_rm_page(request: Request):
     return templates.TemplateResponse(request, "water_rm.html", {"request": request})
+
+
+# ===============================
+# ECUR / КОНТРОЛЬ ЖАЛОБ ДОБРОДЕЛА
+# ===============================
+
+ECUR_UI_CONFIG = {
+    "source_name": "ДоброДел",
+    "source_url": "https://admin.vmeste.mosreg.ru/",
+}
+
+run_status["ecur"] = {
+    "running": False,
+    "stage": "Ожидание запуска",
+    "message": "Требуется авторизация в системе.",
+    "last_error": "",
+}
+
+
+# ── СХЕМА ДЛЯ ВХОДА ──
+class ECURLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+def calculate_ecur_metrics(rows):
+    """KPI по срокам: просрочено / сегодня / неделя / месяц / всего."""
+    from datetime import datetime as _dt, timedelta
+
+    if not rows or len(rows) < 2:
+        return {"total": 0, "overdue": 0, "today": 0, "week": 0, "month": 0}
+
+    header = rows[0]
+    try:
+        idx_deadline = header.index("Срок")
+    except ValueError:
+        idx_deadline = 11
+
+    def parse_ru_date(s):
+        if not s:
+            return None
+        s = str(s).strip()
+        for fmt in ("%d.%m.%Y", "%d.%m.%y", "%Y-%m-%d"):
+            try:
+                return _dt.strptime(s.split()[0], fmt).date()
+            except Exception:
+                continue
+        return None
+
+    today_date = _dt.now().date()
+    end_of_week = today_date + timedelta(days=(6 - today_date.weekday()))
+    end_of_month = (today_date.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+    overdue = today = week = month = 0
+    total = len(rows) - 1
+
+    for r in rows[1:]:
+        if idx_deadline >= len(r):
+            continue
+        d = parse_ru_date(r[idx_deadline])
+        if not d:
+            continue
+        if d < today_date:
+            overdue += 1
+        elif d == today_date:
+            today += 1
+        elif d <= end_of_week:
+            week += 1
+        elif d <= end_of_month:
+            month += 1
+
+    return {
+        "total": total,
+        "overdue": overdue,
+        "today": today,
+        "week": week,
+        "month": month,
+    }
+
+
+# ── СТРАНИЦА ЕЦУР ──
+@app.get("/ecur", response_class=HTMLResponse)
+async def ecur_page(request: Request):
+    from services.ecur.client import get_current_data
+
+    data = get_current_data()
+    rows = data.get("rows")
+    meta = data.get("meta") or {}
+    is_authed = data.get("is_authed", False)
+    user_email = data.get("email", "")
+
+    metrics = calculate_ecur_metrics(rows) if rows else {
+        "total": 0, "overdue": 0, "today": 0, "week": 0, "month": 0
+    }
+
+    return templates.TemplateResponse(
+        request,
+        "ecur.html",
+        {
+            "request": request,
+            "metrics": metrics,
+            "has_data": bool(rows),
+            "is_authed": is_authed,
+            "user_email": user_email,
+            "meta": meta,
+            "config": ECUR_UI_CONFIG,
+            "check_state": make_check_state("ecur"),
+            "status": run_status["ecur"],
+            "run_status": run_status["ecur"],
+        },
+    )
+
+
+# ── СТАТУС ЗАПУСКА ──
+@app.get("/ecur/run-status")
+async def ecur_run_status():
+    return run_status["ecur"]
+
+
+# ── ВХОД ЧЕРЕЗ ИНТЕРФЕЙС (API) ──
+@app.post("/ecur/api/login")
+async def ecur_api_login(data: ECURLoginRequest):
+    """Выполняет вход на портал под переданным email и паролем."""
+    from services.ecur.client import authenticate_user
+
+    if run_status["ecur"]["running"]:
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": "Обновление уже выполняется."},
+        )
+
+    run_status["ecur"].update(
+        running=True,
+        stage="Вход в ДоброДел",
+        message="Проверка учётных данных…",
+        last_error="",
+        started_at=datetime.now().isoformat(timespec="seconds"),
+        finished_at="",
+    )
+
+    ok, result = authenticate_user(data.email, data.password)
+
+    if ok:
+        run_status["ecur"].update(
+            running=False,
+            stage="Готово",
+            message=f"Успешный вход. Загружено жалоб: {result}",
+        )
+        return {"ok": True, "count": result, "message": "Успешный вход."}
+    else:
+        run_status["ecur"].update(
+            running=False,
+            stage="Ошибка входа",
+            message="Не удалось войти.",
+            last_error=str(result),
+        )
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": str(result)},
+        )
+
+
+# ── ВЫХОД / СБРОС СЕССИИ (API) ──
+@app.post("/ecur/api/logout")
+async def ecur_api_logout():
+    """Сбрасывает текущую сессию и удаляет данные из памяти."""
+    from services.ecur.client import clear_session
+
+    clear_session()
+    run_status["ecur"].update(
+        running=False,
+        stage="Ожидание запуска",
+        message="Сессия завершена.",
+        last_error="",
+    )
+    return {"ok": True}
+
+
+# ── ОБНОВЛЕНИЕ СВОДА ──
+@app.post("/ecur/api/refresh")
+async def ecur_api_refresh():
+    """Обновляет свод жалоб из ДоброДела под текущей сессией."""
+    from services.ecur.client import refresh_data, get_current_data
+
+    current_data = get_current_data()
+    if not current_data.get("is_authed"):
+        return JSONResponse(
+            status_code=401,
+            content={"ok": False, "error": "Сессия не активна. Авторизуйтесь заново."},
+        )
+
+    if run_status["ecur"]["running"]:
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": "Обновление уже выполняется."},
+        )
+
+    def worker():
+        run_id = None
+        try:
+            run_id = run_history.record_start("ecur", user=current_data.get("email", "—"))
+            run_status["ecur"].update(
+                running=True,
+                stage="Выгрузка свода",
+                message="Загрузка свежих данных с портала…",
+                last_error="",
+                started_at=datetime.now().isoformat(timespec="seconds"),
+                finished_at="",
+            )
+            save_run_time("ecur")
+
+            ok, result = refresh_data()
+
+            if ok:
+                run_status["ecur"].update(
+                    running=False,
+                    stage="Готово",
+                    message=f"Загружено жалоб: {result}",
+                )
+                if run_id:
+                    run_history.record_finish(run_id, "success")
+            else:
+                run_status["ecur"].update(
+                    running=False,
+                    stage="Ошибка",
+                    message="Не удалось получить свод.",
+                    last_error=str(result),
+                )
+                if run_id:
+                    run_history.record_finish(run_id, "error", str(result))
+        except Exception as e:
+            run_status["ecur"].update(
+                running=False,
+                stage="Ошибка",
+                message="Внутренняя ошибка.",
+                last_error=str(e),
+            )
+            if run_id:
+                run_history.record_finish(run_id, "error", str(e))
+        finally:
+            run_status["ecur"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
+            save_run_time("ecur")
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+    time.sleep(0.3)
+
+    st = run_status["ecur"]
+    if st["running"]:
+        return {"ok": True, "message": "Обновление запущено.", "running": True}
+
+    if st["last_error"]:
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": st["last_error"]},
+        )
+    return {"ok": True, "count": None, "message": st.get("message", "Готово")}
+
+
+# ── ОТДАЧА data.js ──
+@app.get("/ecur/data.js")
+async def ecur_data_js():
+    """Отдаёт data.js с данными для дашборда."""
+    from services.ecur.client import get_current_data
+
+    data = get_current_data()
+    rows = data.get("rows")
+    meta = data.get("meta")
+
+    if rows:
+        payload = (
+            "/* сгенерировано из памяти */\n"
+            "window.PRELOADED_META = " + json.dumps(meta, ensure_ascii=False) + ";\n"
+            "window.PRELOADED_ROWS = " + json.dumps(rows, ensure_ascii=False) + ";\n"
+        )
+    else:
+        payload = "window.PRELOADED_META=null;window.PRELOADED_ROWS=[];"
+
+    return Response(
+        content=payload,
+        media_type="application/javascript; charset=utf-8",
+    )
 

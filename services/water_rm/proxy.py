@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Прокси для модуля «Проверка задач по качеству воды».
 - /water-rm/rmapi/*  — проксирует запросы на Redmine (mgkh.rm.mosreg.ru)
@@ -10,6 +10,11 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import json
+import pathlib
+
+DATA_DIR = pathlib.Path(__file__).resolve().parents[2] / "data" / "water_rm"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+HISTORY_FILE = DATA_DIR / "last_check.json"
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import Response
@@ -86,6 +91,25 @@ async def has_key():
     """Сообщает фронту, задан ли ключ в .env (сам ключ НЕ отдаём)."""
     return {"has_key": bool(_get_api_key())}
 
+@router.get("/history")
+async def get_history():
+    """Отдаёт результат последней проверки (или пусто)."""
+    if HISTORY_FILE.exists():
+        return Response(
+            content=HISTORY_FILE.read_bytes(),
+            status_code=200,
+            media_type="application/json; charset=utf-8",
+        )
+    return Response(content=b'{"empty": true}', status_code=200,
+                    media_type="application/json; charset=utf-8")
+
+
+@router.post("/history")
+async def save_history(request: Request):
+    """Перезаписывает результат последней проверки."""
+    body = await request.body()
+    HISTORY_FILE.write_bytes(body)
+    return {"ok": True}
 
 @router.get("/yadisk")
 async def yadisk_download(public_key: str = ""):
@@ -114,3 +138,4 @@ async def yadisk_download(public_key: str = ""):
         return Response(content=msg.encode("utf-8"), status_code=502, media_type="text/plain; charset=utf-8")
     except Exception as e:
         return Response(content=str(e).encode("utf-8"), status_code=502, media_type="text/plain; charset=utf-8")
+

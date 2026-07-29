@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
     <script>
@@ -351,6 +351,78 @@
         .profile-menu-item:hover { background: #f3f4f6; }
         .profile-menu-logout { color: #b91c1c; }
         .profile-menu-logout:hover { background: #fef2f2; }
+        /* ===== ТЫ Т + - (i) ===== */
+        .module-card { padding: 16px 18px !important; }
+        .module-card .module-description.is-collapsed { display: none !important; }
+        .module-title { position: relative; }
+        .module-title-row { display: flex; align-items: center; gap: 8px; }
+        .info-btn {
+            flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%;
+            border: 1px solid var(--border-color, #cbd5e1);
+            background: var(--bg-neutral-100, rgba(0,0,0,0.03));
+            color: var(--muted-color, #64748b);
+            font-size: 12px; font-weight: 700; font-style: italic;
+            line-height: 1; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .info-btn:hover { background: #8b5cf6; color: #fff; border-color: #8b5cf6; transform: scale(1.1); }
+        [data-theme="dark"] .info-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: #cbd5e1; }
+                /* ===== Оверлей описания карточки ===== */
+        .card-info-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            background: #ffffff;
+            border-radius: inherit;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-sizing: border-box;
+            animation: card-info-fade 0.18s ease;
+        }
+        [data-theme="dark"] .card-info-overlay {
+            background: #1e293b;
+        }
+        .card-info-overlay[hidden] { display: none; }
+        @keyframes card-info-fade {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        .card-info-overlay-title {
+            font-weight: 700;
+            font-size: 15px;
+            color: #1e293b;
+        }
+        [data-theme="dark"] .card-info-overlay-title { color: #e2e8f0; }
+        .card-info-overlay-text {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #475569;
+            overflow-y: auto;
+        }
+        [data-theme="dark"] .card-info-overlay-text { color: #cbd5e1; }
+        .card-info-back {
+            align-self: flex-start;
+            margin-top: auto;
+            background: #8b5cf6;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .card-info-back:hover {
+            background: #7c3aed;
+            transform: translateY(-1px);
+        }
+        /* ===== /Оверлей описания ===== */
+
 
         </style>
 </head>
@@ -409,7 +481,7 @@
                         {% if (user_role or "")|lower in ["admin", "администратор"] %}
                         <a href="/scheduler" class="profile-menu-item">🗓️ Планировщик</a>
                         {% endif %}
-                        <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.4)</button>
+                        <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <div class="profile-menu-divider"></div>
                         <div class="profile-menu-info">Окружение: Локально</div>
@@ -441,9 +513,6 @@
                     Локальная AI-платформа мониторинга и формирования управленческих уведомлений 
                 </h1>
 
-                <p class="lead">
-                    Единый интерфейс для запуска сценариев мониторинга. Это позволяет создавать и развивать комплексные приложения без необходимости дублирования общей инфраструктуры, что значительно повышает эффективность и удобство. 
-                     </p>
             </div>
 
             <div class="hero-side">
@@ -756,7 +825,7 @@
                     <div class="head-pills">
                         <span class="pill primary">Диспетчерская</span>
                         <span class="pill primary">ЖКХ</span>
-                        <span class="status-badge status-stable">Новое</span>
+                        <span class="status-badge status-stable">Стабильно</span>
             
                     </div>
                 </div>
@@ -802,9 +871,10 @@
                 <h2 class="module-title">ЖКХ Redmine</h2>
 
                 <div class="module-description">
-                    Модуль проверки корректности дат в задачах Redmine.
-                    Забирает задачи по сохранённому фильтру и находит поля
-                    с «нулевыми» датами (0001-01-01) — стандартные и пользовательские.
+                   Автоматическая проверка задач по качеству воды в Redmine.
+                   Резонансные обращения и системные адреса: анализ причин, промывок,
+                   датчиков мутности, сопоставление с онлайн-таблицей жалоб.
+                   Автозакрытие, возврат на доработку и продление срока.
                 </div>
 
                 <div class="tag-row">
@@ -826,33 +896,45 @@
                 </div>
             </article>
             {% endif %}
-            {% if 'water_rm' in user_modules %}
+            {% if 'ecur' in user_modules %}
             <article class="card module-card">
-            <div class="module-head">
-            <div class="head-pills">
-            <span class="pill primary">Качество воды</span>
-            <span class="pill primary">Redmine</span>
-            </div>
-            <span class="status-badge status-stable">Новое</span>
-            </div>
-            <h2 class="module-title">Проверка задач по воде</h2>
-            <div class="module-description">
-            Автоматическая проверка задач по качеству воды в Redmine.
-            Резонансные обращения и системные адреса: анализ причин, промывок,
-            датчиков мутности, сопоставление с онлайн-таблицей жалоб.
-            Автозакрытие, возврат на доработку и продление срока.
-            </div>
-            <div class="tag-row">
-            <span class="tag">Redmine API</span>
-            <span class="tag">Яндекс.Диск</span>
-            <span class="tag">Автопроверка</span>
-            </div>
-            <div class="action-panel">
-            <a href="/water-rm" class="module-link">Открыть модуль →</a>
-            <a href="https://mgkh.rm.mosreg.ru" target="_blank" rel="noopener noreferrer" class="secondary-button">Открыть источник ↗</a>
-            </div>
+                <div class="module-head">
+                    <div class="head-pills">
+                        <span class="pill primary">ЕЦУР</span>
+                        <span class="pill primary">Жалобы и сроки</span>
+                    </div>
+                    <span class="status-badge status-beta">Бета</span>
+                </div>
+
+                <h2 class="module-title">ЕЦУР — жалобы</h2>
+
+                <div class="module-description">
+                    Модуль автоматической выгрузки и анализа жалоб из системы ЕЦУР.
+                    Категории, кураторы, синтетические группы, календарь сроков,
+                    просрочки, экспорт в Excel и детальный просмотр каждой карточки.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">Календарь сроков</span>
+                    <span class="tag">Кураторы и группы</span>
+                    <span class="tag">Просрочки</span>
+                    <span class="tag">Excel экспорт</span>
+                </div>
+
+                <div class="action-panel">
+                    <a href="/ecur" class="module-link">Открыть модуль →</a>
+
+                    <a href="https://ecur.mosreg.ru"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="secondary-button">
+                        Открыть источник ↗
+                    </a>
+                </div>
             </article>
             {% endif %}
+
+                                
 
             <!-- Сводный отчёт по муниципалитету (Выделен премиальным градиентным бордером, ленточка удалена) -->
             
@@ -1096,7 +1178,8 @@
                 { id: "appeals", name: "Эмпатичные ответы", path: "/appeals", icon: "✍️" },
                 { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" },
                 { id: "cds", name: "Обращения ЖКХ", path: "/cds", icon: "🏠" },
-                { id: "mgkh_rm", name: "ЖКХ Redmine", path: "/mgkh-rm", icon: "📅" }
+                { id: "mgkh_rm", name: "ЖКХ Redmine", path: "/mgkh-rm", icon: "📅" },
+                { id: "ecur", name: "ЕЦУР — жалобы", path: "/ecur", icon: "📮" }
             ];
 
             // Дефолтный выбор (если пользователь зашел первый раз)
@@ -1593,7 +1676,8 @@
             "municipality-report":  { name: "Отчёт по округу",        icon: "📊" },
             "cds":                  { name: "Обращения ЖКХ",          icon: "🏠" },
             "mgkh_rm":              { name: "МГКХ Redmine",           icon: "📅" },
-        "water_rm":             { name: "Проверка задач по воде", icon: "💧" }
+        "water_rm":             { name: "Проверка задач по воде", icon: "💧" },
+        "ecur":                 { name: "ЕЦУР — жалобы",      icon: "📮" }
         };
         const STATUS_LABELS = {
             "running": "Выполняется", "success": "Успешно",
@@ -1846,6 +1930,49 @@
     })();
     </script>
 
-    </body>
+    
+    <script>
+    (function () {
+        const cards = document.querySelectorAll(".module-card");
+        cards.forEach(function (card) {
+            const title = card.querySelector(".module-title");
+            const desc  = card.querySelector(".module-description");
+            if (!title || !desc) return;
+            desc.classList.add("is-collapsed");
+            const row = document.createElement("div");
+            row.className = "module-title-row";
+            title.parentNode.insertBefore(row, title);
+            row.appendChild(title);
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "info-btn";
+            btn.textContent = "i";
+            btn.setAttribute("aria-label", "Описание модуля");
+            row.appendChild(btn);
+            const pop = document.createElement("div");
+            pop.className = "info-popover";
+            pop.hidden = true;
+            pop.textContent = desc.textContent.trim();
+            row.appendChild(pop);
+            btn.addEventListener("click", function (e) {
+                e.stopPropagation();
+                document.querySelectorAll(".info-popover").forEach(function (p) { if (p !== pop) p.hidden = true; });
+                pop.hidden = !pop.hidden;
+            });
+        });
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest(".info-popover") && !e.target.closest(".info-btn")) {
+                document.querySelectorAll(".info-popover").forEach(function (p) { p.hidden = true; });
+            }
+        });
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") {
+                document.querySelectorAll(".info-popover").forEach(function (p) { p.hidden = true; });
+            }
+        });
+    })();
+    </script>
+</body>
 </html>
+
 

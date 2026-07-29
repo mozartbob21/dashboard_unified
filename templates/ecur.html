@@ -1,0 +1,1361 @@
+﻿<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<script>
+(function(){
+  const saved=localStorage.getItem("neurona-theme-mode")||"auto-moscow";
+  let t=saved;
+  if(saved==="auto-moscow"){const h=new Date().getHours();t=(h>=7&&h<19)?"light":"dark";}
+  document.documentElement.setAttribute("data-theme",t);
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Контроль жалоб ЕЦУР · Нейрона</title>
+<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   ECUR — стили модуля (используем переменные из style.css)
+   ───────────────────────────────────────────────────────────── */
+
+/* Бейдж и статус авторизации */
+.ecur-auth-status{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+.ecur-auth-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:800;background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
+.ecur-auth-badge.off{background:rgba(239,68,68,.15);color:#ef4444;border-color:rgba(239,68,68,.3)}
+.ecur-auth-badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+/* Файл-загрузчик и мета */
+.ecur-loadbox{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ecur-filelabel{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;background:var(--primary);color:#fff;
+  border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;transition:all var(--transition);border:none}
+.ecur-filelabel:hover{filter:brightness(1.08)}
+.ecur-filelabel input{display:none}
+.ecur-filelabel.ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.ecur-filelabel.ghost:hover{border-color:var(--primary);color:var(--primary)}
+.ecur-filelabel.danger{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.ecur-filelabel.danger:hover{background:rgba(239,68,68,.25)}
+.ecur-filemeta{font-size:12px;color:var(--muted)}
+.ecur-filemeta b{color:var(--text)}
+
+/* Панель быстрых кнопок (МОВК/ФКР) + фильтры */
+.ecur-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;
+  border:1.5px solid var(--primary);background:var(--card);color:var(--text);
+  font-size:13px;font-weight:850;cursor:pointer;transition:all var(--transition);white-space:nowrap}
+.ecur-toggle:hover{background:var(--info-soft)}
+.ecur-toggle.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.ecur-toggle .sw{width:28px;height:16px;border-radius:20px;background:var(--border);position:relative;flex-shrink:0;transition:background var(--transition)}
+.ecur-toggle.on .sw{background:rgba(255,255,255,.45)}
+.ecur-toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform var(--transition);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.ecur-toggle.on .sw::after{transform:translateX(12px)}
+
+.ecur-quick-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.ecur-quick-sep{width:1px;height:26px;background:var(--border)}
+
+/* Поисковые поля с иконкой */
+.ecur-search{position:relative;display:inline-flex;align-items:center}
+.ecur-search input{font-family:inherit;font-size:13px;padding:8px 12px 8px 34px;border:1px solid var(--border);
+  border-radius:10px;background:var(--card);color:var(--text);min-width:200px;transition:border-color var(--transition)}
+.ecur-search input:focus{outline:none;border-color:var(--primary)}
+.ecur-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--muted)}
+
+/* Календарь */
+.ecur-cal-nav{display:flex;align-items:center;gap:8px}
+.ecur-cal-btn{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--card);
+  color:var(--text);cursor:pointer;font-size:16px;font-weight:800;transition:all var(--transition);display:inline-flex;align-items:center;justify-content:center}
+.ecur-cal-btn:hover{border-color:var(--primary);color:var(--primary)}
+.ecur-cal-month{min-width:170px;text-align:center;font-weight:850;text-transform:capitalize;color:var(--text)}
+
+.ecur-summary{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start}
+@media(max-width:1100px){.ecur-summary{grid-template-columns:1fr}}
+
+.ecur-cal-dow-row{display:grid;grid-template-columns:repeat(7,40px);gap:6px;margin-bottom:8px}
+.ecur-cal-dow{font-size:11px;color:var(--muted);font-weight:800;text-align:center;text-transform:uppercase;letter-spacing:.06em}
+.ecur-cal-grid{display:grid;grid-template-columns:repeat(7,40px);grid-auto-rows:40px;gap:6px}
+.ecur-cal-cell{width:40px;height:40px;border-radius:10px;border:1px solid var(--border);
+  background:rgba(255,255,255,.04);padding:4px 5px;display:flex;flex-direction:column;justify-content:space-between;
+  cursor:default;transition:all var(--transition);position:relative}
+.ecur-cal-cell.empty{border:none;background:transparent}
+.ecur-cal-cell.void{opacity:.4}
+.ecur-cal-cell.has{cursor:pointer}
+.ecur-cal-cell.has:hover{border-color:var(--primary);transform:translateY(-1px)}
+.ecur-cal-cell.today-ring{box-shadow:0 0 0 2px var(--primary) inset}
+.ecur-cal-cell.selected{box-shadow:0 0 0 2px var(--info) inset}
+.ecur-cal-cell .d{font-size:11px;font-weight:850;color:var(--text);line-height:1}
+.ecur-cal-cell .cnt{font-size:10px;font-weight:850;padding:1px 5px;border-radius:6px;align-self:flex-end}
+.ecur-cal-cell.b-overdue{background:var(--danger-soft)}  .ecur-cal-cell.b-overdue .cnt{background:var(--danger);color:#fff}
+.ecur-cal-cell.b-today  {background:var(--risk-soft)}    .ecur-cal-cell.b-today   .cnt{background:var(--risk);color:#fff}
+.ecur-cal-cell.b-week   {background:var(--info-soft)}    .ecur-cal-cell.b-week    .cnt{background:var(--info);color:#fff}
+.ecur-cal-cell.b-month  {background:var(--ok-soft)}      .ecur-cal-cell.b-month   .cnt{background:var(--ok);color:#fff}
+.ecur-cal-cell.b-later  {background:rgba(255,255,255,.06)}.ecur-cal-cell.b-later  .cnt{background:var(--muted);color:#fff}
+
+.ecur-cal-legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--muted)}
+.ecur-cal-legend .lg{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+.lg-overdue{background:var(--danger)} .lg-today{background:var(--risk)} .lg-week{background:var(--info)} .lg-month{background:var(--ok)}
+
+/* KPI-блок (5 основных) */
+.ecur-kpis{display:flex;flex-direction:column;gap:12px}
+.ecur-kpi-main{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+@media(max-width:900px){.ecur-kpi-main{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:560px){.ecur-kpi-main{grid-template-columns:repeat(2,1fr)}}
+.ecur-kpi{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:14px;padding:14px 16px;
+  position:relative;overflow:hidden;cursor:pointer;transition:all var(--transition);display:flex;flex-direction:column;gap:6px}
+.ecur-kpi:hover{transform:translateY(-1px);border-color:var(--primary)}
+.ecur-kpi.active{box-shadow:0 0 0 2px var(--primary) inset;border-color:var(--primary)}
+.ecur-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--muted)}
+.ecur-kpi.k-overdue::before{background:var(--danger)}
+.ecur-kpi.k-today::before  {background:var(--risk)}
+.ecur-kpi.k-week::before   {background:var(--info)}
+.ecur-kpi.k-month::before  {background:var(--ok)}
+.ecur-kpi.k-total::before  {background:var(--primary)}
+.ecur-kpi .lbl{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:6px}
+.ecur-kpi .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ecur-kpi .num{font-size:32px;font-weight:900;letter-spacing:-.02em;line-height:1}
+.ecur-kpi.k-overdue .num{color:var(--danger)}
+.ecur-kpi.k-today   .num{color:var(--risk)}
+.ecur-kpi.k-week    .num{color:var(--info)}
+.ecur-kpi.k-month   .num{color:var(--ok)}
+.ecur-kpi.k-total   .num{color:var(--text)}
+.ecur-kpi .of{font-size:11px;color:var(--muted)}
+
+/* KPI по категориям (мини) */
+.ecur-kpi-cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.ecur-kpi-cat{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:10px 14px;
+  cursor:pointer;transition:all var(--transition)}
+.ecur-kpi-cat:hover{border-color:var(--primary);transform:translateY(-1px)}
+.ecur-kpi-cat.active{box-shadow:0 0 0 2px var(--primary) inset;border-color:var(--primary)}
+.ecur-kpi-cat .lbl{font-size:12px;color:var(--muted);font-weight:750;line-height:1.3;margin-bottom:4px}
+.ecur-kpi-cat .num{font-size:22px;font-weight:900;color:var(--primary);line-height:1}
+
+/* Чипы фильтров */
+.ecur-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:28px}
+.ecur-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+  background:var(--info-soft);color:var(--info);border:1px solid rgba(96,165,250,.28);font-size:12px;font-weight:750}
+.ecur-chip .x{cursor:pointer;font-weight:900;opacity:.6;line-height:1}
+.ecur-chip .x:hover{opacity:1}
+.ecur-chip.reset{background:var(--danger-soft);color:var(--danger);border-color:rgba(239,68,68,.35);cursor:pointer}
+.ecur-hint{font-size:12px;color:var(--muted)}
+
+/* Сегмент-переключатель */
+.ecur-seg{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
+.ecur-seg button{padding:8px 14px;border:none;border-radius:99px;background:transparent;color:var(--muted);
+  font-weight:800;font-size:13px;cursor:pointer;transition:all var(--transition)}
+.ecur-seg button.on{background:var(--card-strong);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.15)}
+
+/* Двухколоночная сетка секций */
+.ecur-grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}
+@media(max-width:1100px){.ecur-grid2{grid-template-columns:1fr}}
+
+/* Аккордеон */
+.ecur-acc-row{border-bottom:1px solid var(--border)}
+.ecur-acc-row:last-child{border-bottom:none}
+.ecur-acc-head{display:flex;align-items:center;gap:10px;padding:12px 6px;cursor:pointer;user-select:none;transition:background var(--transition);border-radius:8px}
+.ecur-acc-head:hover{background:rgba(255,255,255,.04)}
+.ecur-acc-head .caret{width:14px;height:14px;color:var(--muted);flex-shrink:0;transition:transform var(--transition)}
+.ecur-acc-row.open>.ecur-acc-head .caret{transform:rotate(90deg)}
+.ecur-acc-head .name{font-weight:850;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.ecur-acc-l2 .ecur-acc-head .name{font-weight:600;font-size:13px}
+.ecur-acc-head .mini{display:flex;gap:5px;align-items:center;flex-shrink:0}
+.ecur-acc-body{display:none;padding:0 0 8px 26px}
+.ecur-acc-row.open>.ecur-acc-body{display:block}
+.ecur-acc-l2{border-bottom:1px solid var(--border)}
+.ecur-acc-l2:last-child{border-bottom:none}
+
+.ecur-pill{font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.06);color:var(--muted);border:1px solid var(--border)}
+.ecur-pill.count{background:var(--primary);color:#fff;border-color:transparent}
+.ecur-pill.b-overdue{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+.ecur-pill.b-today  {background:var(--risk-soft);color:var(--risk);border-color:transparent}
+
+/* Строки жалоб */
+.ecur-clist{padding:4px 0 8px 24px}
+.ecur-crow{display:grid;grid-template-columns:14px 96px 1fr auto;gap:10px;align-items:center;padding:8px 10px;
+  border-radius:8px;font-size:13px;transition:background var(--transition)}
+.ecur-crow:hover{background:rgba(255,255,255,.04)}
+.ecur-sev{width:8px;height:8px;border-radius:50%}
+.ecur-sev.b-overdue{background:var(--danger)} .ecur-sev.b-today{background:var(--risk)}
+.ecur-sev.b-week{background:var(--info)} .ecur-sev.b-month{background:var(--ok)} .ecur-sev.b-later{background:var(--muted)}
+.ecur-cnum{font-weight:850;color:var(--primary);font-size:12px}
+.ecur-caddr{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.ecur-cmeta{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.ecur-cdate{font-size:12px;font-weight:800}
+.ecur-cdate.b-overdue{color:var(--danger)} .ecur-cdate.b-today{color:var(--risk)}
+.ecur-cdate.b-week{color:var(--info)} .ecur-cdate.b-month{color:var(--ok)} .ecur-cdate.b-later{color:var(--muted)}
+.ecur-sbadge{font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap;border:1px solid var(--border)}
+.ecur-sb-work{background:var(--info-soft);color:var(--info);border-color:transparent}
+.ecur-sb-repeat{background:var(--risk-soft);color:var(--risk);border-color:transparent}
+.ecur-sb-term{background:rgba(255,255,255,.05);color:var(--muted)}
+.ecur-open-btn{border:1px solid var(--border);background:var(--card);color:var(--primary);border-radius:8px;
+  padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;transition:all var(--transition);font-family:inherit}
+.ecur-open-btn:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* Матрица */
+.ecur-matrix-scroll{overflow-x:auto;margin:0 -8px;padding:0 8px}
+table.ecur-matrix{border-collapse:separate;border-spacing:0;font-size:12px;min-width:100%}
+table.ecur-matrix th,table.ecur-matrix td{padding:0;text-align:center}
+table.ecur-matrix thead th{position:sticky;top:0;background:var(--card-strong);z-index:2}
+table.ecur-matrix .rowh{position:sticky;left:-8px;background:var(--card-strong);text-align:left;padding:8px 12px 8px 4px;
+  font-weight:800;font-size:12px;white-space:nowrap;z-index:1;color:var(--text);box-shadow:1px 0 0 var(--border)}
+table.ecur-matrix .colh{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;font-weight:800;color:var(--muted);
+  padding:8px 0;height:104px;white-space:nowrap;vertical-align:bottom}
+table.ecur-matrix .corner{position:sticky;left:-8px;background:var(--card-strong);z-index:3}
+table.ecur-matrix td.cell{width:36px;height:32px;border:1px solid var(--card-strong);font-weight:800;font-size:12px;
+  cursor:pointer;transition:filter var(--transition);color:#fff}
+table.ecur-matrix td.cell:hover{filter:brightness(1.15);outline:2px solid var(--primary);outline-offset:-2px}
+table.ecur-matrix td.cell.zero{color:var(--muted);cursor:default;background:transparent!important}
+table.ecur-matrix .tot,table.ecur-matrix .rowtot{font-weight:900;background:rgba(255,255,255,.06);color:var(--text)}
+table.ecur-matrix .rowtot{padding:0 12px}
+table.ecur-matrix .grand{background:var(--primary);color:#fff}
+table.ecur-matrix tfoot .rowh{background:rgba(255,255,255,.06)}
+.ecur-matrix-note{font-size:11px;color:var(--muted);margin-top:10px}
+
+.ecur-detail{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;display:none}
+.ecur-detail.show{display:block}
+.ecur-detail .dh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.ecur-detail .dh .t{font-size:13px;font-weight:800;color:var(--primary)}
+.ecur-detail .dh .close{cursor:pointer;color:var(--muted);font-size:12px;font-weight:800}
+.ecur-detail .dh .close:hover{color:var(--danger)}
+
+/* SMS-панель */
+.ecur-sms-card{border-left:3px solid var(--primary)}
+textarea#smsText{width:100%;min-height:280px;padding:14px;border:1px solid var(--border);border-radius:12px;
+  font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.55;resize:vertical;
+  background:rgba(0,0,0,.15);color:var(--text)}
+textarea#smsText:focus{outline:none;border-color:var(--primary)}
+.ecur-sms-foot{font-size:11px;color:var(--muted);margin-top:8px}
+
+/* Модалки */
+.ecur-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}
+.ecur-modal-bg.show{display:flex}
+.ecur-modal{background:var(--card-strong);border:1px solid var(--border);border-radius:18px;
+  max-width:680px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:var(--shadow-strong);overflow:hidden}
+.ecur-modal.sm{max-width:420px}
+.ecur-modal-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border)}
+.ecur-modal-h .mt{font-size:16px;font-weight:900;color:var(--text)}
+.ecur-modal-h .mt .mid{color:var(--primary)}
+.ecur-modal-h .msub{font-size:12px;color:var(--muted);margin-top:4px}
+.ecur-modal-h .mclose{width:32px;height:32px;border:1px solid var(--border);border-radius:10px;
+  background:var(--card);cursor:pointer;color:var(--muted);font-size:16px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;transition:all var(--transition)}
+.ecur-modal-h .mclose:hover{border-color:var(--danger);color:var(--danger)}
+.ecur-modal-b{padding:18px 20px;overflow-y:auto}
+
+/* Форма входа в ДоброДел */
+.ecur-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.ecur-field label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ecur-field input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  background:rgba(0,0,0,.2);color:var(--text);font-family:inherit;font-size:13px;transition:border-color var(--transition)}
+.ecur-field input:focus{outline:none;border-color:var(--primary)}
+.ecur-form-err{font-size:12px;color:var(--danger);margin-bottom:12px;display:none;padding:8px 12px;border-radius:8px;background:var(--danger-soft)}
+
+.ecur-dl{display:grid;grid-template-columns:140px 1fr;gap:8px 16px;font-size:13px;margin-bottom:16px}
+.ecur-dl dt{color:var(--muted);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+.ecur-dl dd{color:var(--text)}
+.ecur-mtext-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:8px}
+.ecur-mtext{background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;
+  font-size:13px;line-height:1.6;white-space:pre-wrap;max-height:260px;overflow-y:auto;color:var(--text)}
+.ecur-mlink{display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;padding:9px 14px;
+  background:var(--primary);color:#fff;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;transition:filter var(--transition)}
+.ecur-mlink:hover{filter:brightness(1.1)}
+
+/* Toast */
+.ecur-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--card-strong);color:var(--text);padding:12px 20px;border-radius:12px;
+  font-size:13px;font-weight:750;border:1px solid var(--border);box-shadow:var(--shadow-strong);
+  opacity:0;pointer-events:none;transition:all var(--transition);z-index:9999}
+.ecur-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.ecur-empty{text-align:center;padding:60px 20px}
+.ecur-empty svg{width:48px;height:48px;color:var(--border);margin-bottom:14px}
+.ecur-empty h3{font-size:16px;font-weight:900;margin-bottom:6px;color:var(--text)}
+.ecur-empty p{font-size:13px;color:var(--muted)}
+.hidden{display:none!important}
+
+.ecur-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.ecur-panel-head h2{font-size:15px;font-weight:900;color:var(--text);margin:0}
+</style>
+</head>
+
+<body>
+<div class="page-glow page-glow-one"></div>
+<div class="page-glow page-glow-two"></div>
+<div class="page-glow page-glow-three"></div>
+
+<div class="container">
+
+  <!-- ═══ Шапка ═══ -->
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="brand-link">
+        <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона" class="brand-logo">
+        <div class="brand-text">
+          <div class="brand-title">Подмосковная Нейрона Роботовна</div>
+          <div class="brand-subtitle">Контроль жалоб ЕЦУР · ХВС/ГВС</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="top-actions">
+      <a href="{{ config.source_url if config else '#' }}" target="_blank" rel="noopener" class="topbar-utnkr-btn violator-link-utnkr">
+        <span>ДоброДел</span>
+        <span class="external-link-icon">↗</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- ═══ Hero ═══ -->
+  <section class="hero card">
+    <div class="hero-copy">
+      <div class="eyebrow">ЕЦУР · СРОКИ</div>
+      <h1>Контроль жалоб ЕЦУР по срокам</h1>
+      <p class="subtext">
+        Система получает свежий свод жалоб из ДоброДела, анализирует сроки
+        и распределение по ОМСУ, категориям и фактам.
+      </p>
+    </div>
+    <div class="hero-side">
+      <div class="hero-chip">ДоброДел API</div>
+      <div class="hero-chip">Календарь сроков</div>
+      <div class="hero-chip">Матрица фактов</div>
+      <div class="hero-chip">SMS-отчёт</div>
+      <div class="hero-chip">Excel экспорт</div>
+    </div>
+  </section>
+
+  <!-- ═══ Управление сводом ═══ -->
+  <div class="card action-card">
+    <div>
+      <h2>Управление сводом</h2>
+      <p class="subtext">Получите свежий свод жалоб из ДоброДела или загрузите файл вручную.</p>
+      
+      <!-- Статус авторизации в ДоброДеле -->
+      <div class="ecur-auth-status">
+        {% if is_authed %}
+          <span class="ecur-auth-badge"><span class="dot"></span>Подключено</span>
+        {% else %}
+          <span class="ecur-auth-badge off"><span class="dot"></span>Требуется авторизация в ДоброДеле</span>
+        {% endif %}
+      </div>
+      <p class="subtext" id="fileMeta" style="margin-top:8px"></p>
+    </div>
+
+    <div class="action-panel ecur-loadbox">
+      {% if not is_authed %}
+        <button class="ecur-filelabel" id="btnOpenLogin" type="button">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          Войти в ДоброДел
+        </button>
+      {% endif %}
+
+      <button class="ecur-filelabel {% if not is_authed %}ghost{% endif %}" id="btnRefresh" type="button" title="Забрать свежий свод из ДоброДела">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>
+        <span id="btnRefreshTxt">Обновить свод</span>
+      </button>
+
+      <label class="ecur-filelabel ghost" title="Загрузить .xlsx вручную">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        Загрузить свод
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </label>
+
+      <button class="ecur-filelabel ghost" id="btnExport" type="button" disabled>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+        Excel
+      </button>
+
+      {% if is_authed %}
+        <button class="ecur-filelabel danger" id="btnLogout" type="button" title="Выйти из аккаунта ДоброДела">
+          Сменить аккаунт
+        </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ═══ Фильтры ═══ -->
+  <div class="card hidden" id="filterCard">
+    <div class="ecur-panel-head">
+      <h2>Фильтры</h2>
+      <div class="ecur-hint" id="ecurFilterCount">Показано: 0</div>
+    </div>
+
+    <div class="ecur-quick-row">
+      <button class="ecur-toggle" id="movkToggle" type="button" title="Зона ответственности МОВК: Богородский, Воскресенский, Орехово-Зуевский, Электросталь, Лосино-Петровский, Павлово-Посадский, Шатура, Чехов, Сергиево-Посадский">
+        <span class="sw"></span>МОВК
+      </button>
+      <button class="ecur-toggle" id="fkrToggle" type="button" title="Исполнитель: Фонд капитального ремонта">
+        <span class="sw"></span>ФКР
+      </button>
+      <div class="ecur-quick-sep"></div>
+      <div class="ecur-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="omsuSearch" placeholder="ОМСУ / район…" autocomplete="off" list="omsuOptions">
+        <datalist id="omsuOptions"></datalist>
+      </div>
+      <div class="ecur-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="execSearch" placeholder="Исполнитель…" autocomplete="off" list="execOptions">
+        <datalist id="execOptions"></datalist>
+      </div>
+    </div>
+
+    <div class="utnkr-filters-grid" style="grid-template-columns: repeat(2, minmax(200px, 1fr));">
+      <div class="utnkr-filter-field">
+        <label for="statusSel">Статус</label>
+        <select id="statusSel"><option value="">все</option></select>
+      </div>
+      <div class="utnkr-filter-field">
+        <label for="catSel">Категория</label>
+        <select id="catSel"><option value="">все</option></select>
+      </div>
+    </div>
+
+    <div id="activeChips" class="ecur-chips" style="margin-top:14px"></div>
+  </div>
+
+  <!-- ═══ Календарь + KPI ═══ -->
+  <div class="card hidden" id="calPanel">
+    <div class="ecur-panel-head">
+      <h2>Сроки и сводка</h2>
+      <div class="ecur-cal-nav">
+        <button id="calPrev" class="ecur-cal-btn" aria-label="Предыдущий месяц">‹</button>
+        <span class="ecur-cal-month" id="calLabel">—</span>
+        <button id="calNext" class="ecur-cal-btn" aria-label="Следующий месяц">›</button>
+      </div>
+    </div>
+
+    <div class="ecur-summary">
+      <div>
+        <div class="ecur-cal-dow-row">
+          <span class="ecur-cal-dow">Пн</span><span class="ecur-cal-dow">Вт</span>
+          <span class="ecur-cal-dow">Ср</span><span class="ecur-cal-dow">Чт</span>
+          <span class="ecur-cal-dow">Пт</span><span class="ecur-cal-dow">Сб</span>
+          <span class="ecur-cal-dow">Вс</span>
+        </div>
+        <div class="ecur-cal-grid" id="calGrid"></div>
+        <div class="ecur-cal-legend">
+          <span><i class="lg lg-overdue"></i>проср.</span>
+          <span><i class="lg lg-today"></i>сег.</span>
+          <span><i class="lg lg-week"></i>нед.</span>
+          <span><i class="lg lg-month"></i>мес.</span>
+          <span>· клик по дню = фильтр</span>
+        </div>
+      </div>
+
+      <div class="ecur-kpis">
+        <div class="ecur-kpi-main">
+          <div class="ecur-kpi k-overdue" data-bucket="overdue">
+            <div class="lbl"><span class="dot" style="background:var(--danger)"></span>Просрочено</div>
+            <div class="num" id="kOverdue">0</div>
+            <div class="of">срок прошёл</div>
+          </div>
+          <div class="ecur-kpi k-today" data-bucket="today">
+            <div class="lbl"><span class="dot" style="background:var(--risk)"></span>Сегодня</div>
+            <div class="num" id="kToday">0</div>
+            <div class="of">закрыть сегодня</div>
+          </div>
+          <div class="ecur-kpi k-week" data-bucket="week">
+            <div class="lbl"><span class="dot" style="background:var(--info)"></span>До конца недели</div>
+            <div class="num" id="kWeek">0</div>
+            <div class="of">до воскресенья</div>
+          </div>
+          <div class="ecur-kpi k-month" data-bucket="month">
+            <div class="lbl"><span class="dot" style="background:var(--ok)"></span>До конца месяца</div>
+            <div class="num" id="kMonth">0</div>
+            <div class="of">после недели</div>
+          </div>
+          <div class="ecur-kpi k-total" data-bucket="">
+            <div class="lbl"><span class="dot" style="background:var(--primary)"></span>Всего в работе</div>
+            <div class="num" id="kTotal">0</div>
+            <div class="of" id="kTotalOf">жалоб</div>
+          </div>
+        </div>
+        <div class="ecur-kpi-cats" id="kpiCats"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Две колонки: ОМСУ + Факты ═══ -->
+  <div class="ecur-grid2 hidden" id="cols">
+    <div class="card">
+      <div class="ecur-panel-head">
+        <h2>По ОМСУ</h2>
+        <span class="ecur-hint">район → факт → жалоба</span>
+      </div>
+      <div id="omsuAcc"></div>
+    </div>
+
+    <div class="card">
+      <div class="ecur-panel-head">
+        <h2>По фактам</h2>
+        <div class="ecur-seg" id="factSeg">
+          <button data-view="matrix">Матрица</button>
+          <button data-view="list" class="on">Список</button>
+        </div>
+      </div>
+      <div id="factMatrix" class="hidden"></div>
+      <div id="factList"></div>
+      <div class="ecur-detail" id="cellDetail">
+        <div class="dh">
+          <span class="t" id="cellDetailTitle"></span>
+          <span class="close" id="cellDetailClose">✕ закрыть</span>
+        </div>
+        <div id="cellDetailBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SMS-отчёт ═══ -->
+  <div class="card ecur-sms-card hidden" id="smsPanel">
+    <div class="ecur-panel-head">
+      <h2>SMS-отчёт по ОМСУ</h2>
+      <div style="display:flex;gap:8px">
+        <button class="ecur-filelabel ghost" id="btnGenSms" type="button">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>
+          Сгенерировать
+        </button>
+        <button class="ecur-filelabel ghost" id="btnCopySms" type="button">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Копировать
+        </button>
+      </div>
+    </div>
+    <textarea id="smsText" placeholder="Нажмите «Сгенерировать» — отчёт учтёт текущие фильтры."></textarea>
+    <div class="ecur-sms-foot">Формат: <b>[ОМСУ] всего X, закрыть сегодня Y, до конца недели Z, просрочено N</b> → далее в разрезе фактов.</div>
+  </div>
+
+  <!-- ═══ Пустое состояние ═══ -->
+  <div class="card" id="emptyState">
+    <div class="ecur-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
+      <h3>Загрузите свод-файл ЕЦУР</h3>
+      <p>Авторизуйтесь на портале «ДоброДел» или загрузите .xlsx файл вручную.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ Модалка карточки жалобы ═══ -->
+<div class="ecur-modal-bg" id="modalBg">
+  <div class="ecur-modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="ecur-modal-h">
+      <div>
+        <div class="mt" id="mTitle"></div>
+        <div class="msub" id="mSub"></div>
+      </div>
+      <button class="mclose" id="mClose" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="ecur-modal-b" id="mBody"></div>
+  </div>
+</div>
+
+<!-- ═══ Модалка входа в ДоброДел ═══ -->
+<div class="ecur-modal-bg" id="loginModalBg">
+  <div class="ecur-modal sm" role="dialog" aria-modal="true">
+    <div class="ecur-modal-h">
+      <div>
+        <div class="mt">Вход в ДоброДел</div>
+        <div class="msub">Введите учетные данные от admin.vmeste.mosreg.ru</div>
+      </div>
+      <button class="mclose" id="loginModalClose" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="ecur-modal-b">
+      <div id="loginErr" class="ecur-form-err"></div>
+      <form id="dobrodelLoginForm" onsubmit="return false;">
+        <div class="ecur-field">
+          <label for="ddEmail">E-mail / Логин</label>
+          <input type="email" id="ddEmail" required placeholder="user@mosreg.ru" autocomplete="username">
+        </div>
+        <div class="ecur-field">
+          <label for="ddPassword">Пароль</label>
+          <input type="password" id="ddPassword" required placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="ecur-filelabel" id="btnSubmitLogin" style="width:100%;justify-content:center;margin-top:8px" type="submit">
+          Войти и загрузить свод
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="ecur-toast"></div>
+
+<!-- XLSX для чтения/записи .xlsx -->
+<script src="{{ url_for('static', path='ecur/xlsx.full.min.js') }}"></script>
+<!-- Опциональный автозагрузчик данных -->
+<script src="/ecur/data.js" onerror="void 0"></script>
+
+<script>
+"use strict";
+
+/* Передаём переменные сессии из Python */
+window.IS_AUTHED = {{ 'true' if is_authed else 'false' }};
+window.USER_EMAIL = "{{ user_email }}";
+
+/* ═══════════════════ STATE ═══════════════════ */
+let RAW = [];
+let FILTERED = [];
+let MOVK = [];
+const state = { omsu:new Set(), status:'', cat:'', exec:'', bucket:'', day:null, factView:'list' };
+const FKR_EXEC = 'Фонд капитального ремонта общего имущества многоквартирных домов';
+const CAT_ENG = 'Инженерная инфраструктура';
+let calMonth = null;
+
+/* ═══════════════════ DATE HELPERS ═══════════════════ */
+function stripTime(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+function today(){ return stripTime(new Date()); }
+function endOfWeek(){ const d=today(); const dow=(d.getDay()+6)%7; const e=new Date(d); e.setDate(d.getDate()+(6-dow)); e.setHours(0,0,0,0); return e; }
+function endOfMonth(){ const d=today(); return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+function parseDate(v){
+  if(v==null||v==='') return null;
+  if(v instanceof Date && !isNaN(v)) return v;
+  if(typeof v==='number') return new Date(Math.round((v-25569)*86400000));
+  const s=String(v).trim();
+  const m=s.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})/);
+  if(m){ let y=+m[3]; if(y<100)y+=2000; return new Date(y,+m[2]-1,+m[1]); }
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function fmtDate(d){ return d? d.toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—'; }
+function daysLeft(d){ if(!d)return null; return Math.round((stripTime(d)-today())/86400000); }
+function bucketOf(deadline){
+  if(!deadline) return 'none';
+  const d=stripTime(deadline), t=today();
+  if(d<t) return 'overdue';
+  if(d.getTime()===t.getTime()) return 'today';
+  if(d<=endOfWeek()) return 'week';
+  if(d<=endOfMonth()) return 'month';
+  return 'later';
+}
+const BUCKET_LABEL={overdue:'просрочено',today:'сегодня',week:'до конца недели',month:'до конца месяца',later:'позже',none:'без срока'};
+
+function shortFact(f){
+  const s=(f||'').toLowerCase();
+  if(s.includes('ржав')||(s.includes('санпин')&&s.includes('водой'))) return 'ХВС · качество (ржавая)';
+  if(s.includes('горячего')||s.includes('гвс')) return 'ГВС · качество';
+  if(s.includes('модернизировать')&&s.includes('водопровод')) return 'Модерниз. водопровода';
+  if(s.includes('модернизировать')&&s.includes('водоотвед')) return 'Модерниз. водоотведения';
+  if(s.includes('модернизировать')&&(s.includes('очистн')||s.includes('канализ')||s.includes('кос'))) return 'Модерниз. КОС';
+  if(s.includes('повреждение')&&s.includes('водоснабж')) return 'Повреждение ХВС';
+  if(s.includes('повреждение')&&s.includes('водоотвед')) return 'Повреждение водоотвед.';
+  if(s.includes('восстановить')) return 'Восстановить водоснабж.';
+  if(s.includes('колодец')) return 'Ремонт колодца';
+  if(s.includes('колонк')) return 'Ремонт колонки';
+  if(s.includes('запах')) return 'Запах от сбросов';
+  if(s.includes('рельеф')||s.includes('неочищ')) return 'Сброс стоков';
+  const t=(f||'—').trim();
+  return t.length>30? t.slice(0,29)+'…' : t;
+}
+function statusBadge(st){
+  const s=(st||'').toLowerCase();
+  if(s.includes('работе')) return '<span class="ecur-sbadge ecur-sb-work">В работе</span>';
+  if(s.includes('повтор')) return '<span class="ecur-sbadge ecur-sb-repeat">Повторная</span>';
+  if(s.includes('срок')) return '<span class="ecur-sbadge ecur-sb-term">Указан срок</span>';
+  return '<span class="ecur-sbadge ecur-sb-term">'+(st||'—')+'</span>';
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ═══════════════════ LOAD ═══════════════════ */
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+      ingest(rows,f.name);
+    }catch(err){ toast('Ошибка чтения: '+err.message); }
+  };
+  r.readAsArrayBuffer(f);
+});
+
+function ingest(rows,fname){
+  const H=(rows[0]||[]).map(x=>String(x||'').trim().toLowerCase());
+  const col=(names,fallback)=>{ for(const n of names){const i=H.indexOf(n); if(i>=0)return i;} return fallback; };
+  const iNum=col(['номер'],0), iAddr=col(['адрес'],3), iDist=col(['район','омсу'],4),
+        iCat=col(['категория ецур','категория'],6), iSub=col(['подкатегория ецур','подкатегория'],7),
+        iFact=col(['ецур факт','факт'],8), iExec=col(['исполнитель'],9), iText=col(['текст'],10),
+        iCreated=col(['дата создания'],14), iSrok=col(['срок'],16), iStatus=col(['статус'],17);
+  RAW=[];
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i]; if(!r||!r.length) continue;
+    const dist=String(r[iDist]||'').trim(); if(!dist) continue;
+    const deadline=parseDate(r[iSrok]);
+    RAW.push({
+      _id:RAW.length, num:r[iNum]||'', addr:String(r[iAddr]||'').trim(), dist,
+      cat:String(r[iCat]||'').trim(), subcat:String(r[iSub]||'').trim(),
+      fact:String(r[iFact]||'').trim()||'—', exec:String(r[iExec]||'').trim(),
+      text:String(r[iText]||'').trim(), created:parseDate(r[iCreated]),
+      deadline, status:String(r[iStatus]||'').trim(), bucket:bucketOf(deadline)
+    });
+  }
+  const stems=['богородск','воскресенск','орехово-зуевск','электросталь','лосино-петровск','павлово-посадск','шатур','чехов','сергиево-посадск'];
+  const allDist=[...new Set(RAW.map(r=>r.dist))];
+  MOVK=allDist.filter(d=>stems.some(s=>d.toLowerCase().startsWith(s)||d.toLowerCase().includes(s)));
+
+  state.omsu.clear(); state.status=''; state.cat=''; state.exec=''; state.bucket=''; state.day=null;
+  calMonth=new Date(today().getFullYear(),today().getMonth(),1);
+  buildFilterOptions();
+
+  document.getElementById('fileMeta').innerHTML=
+    '<b>'+esc(fname)+'</b> · '+RAW.length+' жалоб · '+new Set(RAW.map(r=>r.dist)).size+' ОМСУ';
+  document.getElementById('btnExport').disabled=false;
+
+  ['filterCard','calPanel','cols','smsPanel'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
+  document.getElementById('emptyState').classList.add('hidden');
+
+  applyAndRender();
+  toast('Загружено: '+RAW.length+' записей');
+}
+
+function buildFilterOptions(){
+  const dl=document.getElementById('omsuOptions'); dl.innerHTML='';
+  [...new Set(RAW.map(r=>r.dist))].sort((a,b)=>a.localeCompare(b,'ru')).forEach(d=>{
+    const o=document.createElement('option'); o.value=d; dl.appendChild(o);
+  });
+  const sel=document.getElementById('statusSel'); sel.innerHTML='<option value="">все</option>';
+  [...new Set(RAW.map(r=>r.status).filter(Boolean))].forEach(s=>{
+    const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o);
+  });
+  const cat=document.getElementById('catSel'); cat.innerHTML='<option value="">все</option>';
+  [...new Set(RAW.map(r=>r.cat).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru')).forEach(c=>{
+    const o=document.createElement('option'); o.value=c; o.textContent=c; cat.appendChild(o);
+  });
+  const ex=document.getElementById('execOptions'); ex.innerHTML='';
+  [...new Set(RAW.map(r=>r.exec).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru')).forEach(e=>{
+    const o=document.createElement('option'); o.value=e; ex.appendChild(o);
+  });
+}
+
+/* ═══════════════════ FILTER ═══════════════════ */
+function matches(r, ignore){
+  if(ignore!=='omsu' && state.omsu.size && !state.omsu.has(r.dist)) return false;
+  if(ignore!=='status' && state.status && r.status!==state.status) return false;
+  if(ignore!=='cat' && state.cat && r.cat!==state.cat) return false;
+  if(ignore!=='exec' && state.exec && r.exec!==state.exec) return false;
+  if(ignore!=='bucket' && state.bucket && r.bucket!==state.bucket) return false;
+  if(ignore!=='day' && state.day){
+    if(!r.deadline) return false;
+    if(stripTime(r.deadline).getTime()!==state.day.getTime()) return false;
+  }
+  return true;
+}
+function applyFilters(){ FILTERED=RAW.filter(r=>matches(r,null)); }
+function applyAndRender(){
+  applyFilters();
+  document.getElementById('ecurFilterCount').textContent='Показано: '+FILTERED.length+' из '+RAW.length;
+  renderChips(); renderKPIs(); renderCalendar(); renderOmsu(); renderFacts();
+}
+
+/* ═══════════════════ CHIPS ═══════════════════ */
+function renderChips(){
+  const box=document.getElementById('activeChips'); box.innerHTML='';
+  const add=(txt,onx)=>{
+    const c=document.createElement('span'); c.className='ecur-chip';
+    c.innerHTML=esc(txt)+' <span class="x">✕</span>';
+    c.querySelector('.x').onclick=onx; box.appendChild(c);
+  };
+  state.omsu.forEach(o=>add(o,()=>{state.omsu.delete(o);applyAndRender();}));
+  if(state.status) add('статус: '+state.status,()=>{state.status='';document.getElementById('statusSel').value='';applyAndRender();});
+  if(state.cat) add('категория: '+state.cat,()=>{state.cat='';document.getElementById('catSel').value='';applyAndRender();});
+  if(state.exec) add('исполнитель: '+state.exec,()=>{state.exec='';document.getElementById('execSearch').value='';applyAndRender();});
+  if(state.bucket) add('срок: '+BUCKET_LABEL[state.bucket],()=>{state.bucket='';applyAndRender();});
+  if(state.day) add('день: '+fmtDate(state.day),()=>{state.day=null;applyAndRender();});
+  const any=state.omsu.size||state.status||state.cat||state.exec||state.bucket||state.day;
+  if(any){
+    const c=document.createElement('span'); c.className='ecur-chip reset';
+    c.textContent='Сбросить всё'; c.onclick=resetFilters; box.appendChild(c);
+  } else {
+    const s=document.createElement('span'); s.className='ecur-hint';
+    s.textContent='фильтры не заданы — показаны все жалобы'; box.appendChild(s);
+  }
+  document.getElementById('movkToggle').classList.toggle('on',
+    MOVK.length>0 && MOVK.every(d=>state.omsu.has(d)) && state.cat===CAT_ENG);
+  document.getElementById('fkrToggle').classList.toggle('on', state.exec===FKR_EXEC);
+}
+function resetFilters(){
+  state.omsu.clear(); state.status=''; state.cat=''; state.exec=''; state.bucket=''; state.day=null;
+  document.getElementById('statusSel').value='';
+  document.getElementById('catSel').value='';
+  document.getElementById('execSearch').value='';
+  document.getElementById('omsuSearch').value='';
+  applyAndRender();
+}
+
+document.getElementById('omsuSearch').addEventListener('change',e=>{
+  const v=e.target.value.trim();
+  const match=[...new Set(RAW.map(r=>r.dist))].find(d=>d.toLowerCase()===v.toLowerCase());
+  if(match){ state.omsu.add(match); e.target.value=''; applyAndRender(); }
+});
+document.getElementById('statusSel').addEventListener('change',e=>{ state.status=e.target.value; applyAndRender(); });
+document.getElementById('catSel').addEventListener('change',e=>{ state.cat=e.target.value; applyAndRender(); });
+document.getElementById('execSearch').addEventListener('change',e=>{
+  const v=e.target.value.trim();
+  if(!v){ state.exec=''; applyAndRender(); return; }
+  const match=[...new Set(RAW.map(r=>r.exec))].find(x=>x && x.toLowerCase()===v.toLowerCase());
+  if(match){ state.exec=match; applyAndRender(); }
+});
+
+document.getElementById('movkToggle').addEventListener('click',()=>{
+  const on = MOVK.length && MOVK.every(d=>state.omsu.has(d)) && state.cat===CAT_ENG;
+  if(on){ MOVK.forEach(d=>state.omsu.delete(d)); if(state.cat===CAT_ENG) state.cat=''; }
+  else { MOVK.forEach(d=>state.omsu.add(d)); state.cat=CAT_ENG; }
+  document.getElementById('catSel').value=state.cat;
+  applyAndRender();
+});
+document.getElementById('fkrToggle').addEventListener('click',()=>{
+  state.exec = (state.exec===FKR_EXEC)?'':FKR_EXEC;
+  document.getElementById('execSearch').value = state.exec;
+  applyAndRender();
+});
+
+/* ═══════════════════ COMPLAINT MODAL ═══════════════════ */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.ecur-open-btn'); if(b) openComplaint(+b.dataset.id);
+});
+function dlRow(k,v){ return '<dt>'+k+'</dt><dd>'+esc(v)+'</dd>'; }
+function openComplaint(id){
+  const r=RAW[id]; if(!r) return;
+  const dl=daysLeft(r.deadline);
+  const dltxt = r.deadline
+    ? fmtDate(r.deadline)+(dl!=null?(dl<0?' (просрочено на '+(-dl)+' дн.)':dl===0?' (сегодня)':' (осталось '+dl+' дн.)'):'')
+    : 'без срока';
+  document.getElementById('mTitle').innerHTML='Жалоба <span class="mid">№'+esc(r.num)+'</span>';
+  document.getElementById('mSub').textContent=r.dist+' · срок: '+BUCKET_LABEL[r.bucket];
+  document.getElementById('mBody').innerHTML=
+    '<a class="ecur-mlink" href="https://vmeste.mosreg.ru/claims/'+encodeURIComponent(r.num)+'" target="_blank" rel="noopener">'+
+      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>'+
+      'Перейти к жалобе на сайте</a>'+
+    '<dl class="ecur-dl">'+
+      dlRow('ОМСУ',r.dist)+dlRow('Категория',r.cat||'—')+dlRow('Подкатегория',r.subcat||'—')+
+      dlRow('Факт ЕЦУР',r.fact)+dlRow('Адрес',r.addr||'—')+dlRow('Исполнитель',r.exec||'—')+
+      dlRow('Дата создания',r.created?fmtDate(r.created):'—')+dlRow('Срок',dltxt)+dlRow('Статус',r.status||'—')+
+    '</dl><div class="ecur-mtext-h">Текст жалобы</div><div class="ecur-mtext">'+
+    (r.text? esc(r.text) : '<span style="color:var(--muted)">— текст в своде отсутствует —</span>')+'</div>';
+  document.getElementById('modalBg').classList.add('show');
+}
+function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
+document.getElementById('mClose').onclick=closeModal;
+document.getElementById('modalBg').addEventListener('click',e=>{ if(e.target.id==='modalBg') closeModal(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ═══════════════════ KPI ═══════════════════ */
+document.querySelectorAll('.ecur-kpi-main .ecur-kpi').forEach(k=>k.addEventListener('click',()=>{
+  const b=k.dataset.bucket;
+  state.bucket = (state.bucket===b)?'':b;
+  applyAndRender();
+}));
+function renderKPIs(){
+  const c={overdue:0,today:0,week:0,month:0};
+  FILTERED.forEach(r=>{ if(c[r.bucket]!=null)c[r.bucket]++; });
+  document.getElementById('kOverdue').textContent=c.overdue;
+  document.getElementById('kToday').textContent=c.today;
+  document.getElementById('kWeek').textContent=c.week;
+  document.getElementById('kMonth').textContent=c.month;
+  document.getElementById('kTotal').textContent=FILTERED.length;
+  document.getElementById('kTotalOf').textContent = FILTERED.length===RAW.length?'жалоб (всего)':('из '+RAW.length);
+  document.querySelectorAll('.ecur-kpi-main .ecur-kpi').forEach(k=>
+    k.classList.toggle('active',k.dataset.bucket && k.dataset.bucket===state.bucket));
+  renderCatKpis();
+}
+function renderCatKpis(){
+  const box=document.getElementById('kpiCats'); if(!box) return;
+  const cats=[...new Set(RAW.map(r=>r.cat).filter(Boolean))];
+  const cnt={}; FILTERED.forEach(r=>{ if(r.cat) cnt[r.cat]=(cnt[r.cat]||0)+1; });
+  box.innerHTML='';
+  cats.forEach(cat=>{
+    const card=document.createElement('div');
+    card.className='ecur-kpi-cat'+(state.cat===cat?' active':'');
+    card.title=cat;
+    card.innerHTML='<div class="lbl">'+esc(cat)+'</div><div class="num">'+(cnt[cat]||0)+'</div>';
+    card.onclick=()=>{
+      state.cat=(state.cat===cat)?'':cat;
+      document.getElementById('catSel').value=state.cat;
+      applyAndRender();
+    };
+    box.appendChild(card);
+  });
+}
+
+/* ═══════════════════ CALENDAR ═══════════════════ */
+document.getElementById('calPrev').onclick=()=>{ calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()-1,1); renderCalendar(); };
+document.getElementById('calNext').onclick=()=>{ calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1); renderCalendar(); };
+function renderCalendar(){
+  const grid=document.getElementById('calGrid'); grid.innerHTML='';
+  const y=calMonth.getFullYear(), m=calMonth.getMonth();
+  document.getElementById('calLabel').textContent=calMonth.toLocaleDateString('ru-RU',{month:'long',year:'numeric'});
+  const first=new Date(y,m,1), last=new Date(y,m+1,0), lead=(first.getDay()+6)%7;
+  for(let i=0;i<lead;i++){ const e=document.createElement('div'); e.className='ecur-cal-cell empty'; grid.appendChild(e); }
+  const byDate={};
+  FILTERED.forEach(r=>{
+    if(!r.deadline)return;
+    const d=stripTime(r.deadline);
+    if(d.getFullYear()===y&&d.getMonth()===m){
+      const k=d.getDate(); byDate[k]=(byDate[k]||0)+1;
+    }
+  });
+  const t=today();
+  for(let day=1;day<=last.getDate();day++){
+    const date=new Date(y,m,day), cnt=byDate[day]||0, cell=document.createElement('div');
+    cell.className='ecur-cal-cell';
+    if(cnt>0){
+      cell.classList.add('has','b-'+bucketOf(date));
+      cell.onclick=()=>{
+        const sd=stripTime(date);
+        state.day=(state.day&&state.day.getTime()===sd.getTime())?null:sd;
+        applyAndRender();
+      };
+    } else { cell.classList.add('void'); }
+    if(date.getTime()===t.getTime()) cell.classList.add('today-ring');
+    if(state.day && state.day.getTime()===date.getTime()) cell.classList.add('selected');
+    cell.innerHTML='<span class="d">'+day+'</span>'+(cnt?'<span class="cnt">'+cnt+'</span>':'');
+    grid.appendChild(cell);
+  }
+}
+
+/* ═══════════════════ ОМСУ ACCORDION ═══════════════════ */
+function groupBy(arr,key){
+  const m=new Map();
+  arr.forEach(x=>{ const k=key(x); if(!m.has(k))m.set(k,[]); m.get(k).push(x); });
+  return m;
+}
+function bucketMini(items){
+  const c={overdue:0,today:0};
+  items.forEach(r=>{ if(c[r.bucket]!=null)c[r.bucket]++; });
+  let h='';
+  if(c.overdue) h+='<span class="ecur-pill b-overdue">'+c.overdue+' проср.</span>';
+  if(c.today) h+='<span class="ecur-pill b-today">'+c.today+' сег.</span>';
+  return h;
+}
+function complaintRows(items){
+  const sorted=[...items].sort((a,b)=>{
+    const da=a.deadline?stripTime(a.deadline).getTime():Infinity;
+    const db=b.deadline?stripTime(b.deadline).getTime():Infinity;
+    return da-db;
+  });
+  return '<div class="ecur-clist">'+sorted.map(r=>{
+    const dl=daysLeft(r.deadline);
+    const dtxt = r.deadline
+      ? fmtDate(r.deadline)+(dl!=null?(dl<0?' · '+(-dl)+'д назад':dl===0?' · сегодня':' · '+dl+'д'):'')
+      : 'без срока';
+    return '<div class="ecur-crow">'+
+      '<span class="ecur-sev b-'+r.bucket+'"></span>'+
+      '<span class="ecur-cnum">'+esc(r.num)+'</span>'+
+      '<span class="ecur-caddr" title="'+esc(r.addr)+'">'+esc(r.addr||'—')+'</span>'+
+      '<span class="ecur-cmeta">'+
+        '<span class="ecur-cdate b-'+r.bucket+'">'+dtxt+'</span>'+
+        statusBadge(r.status)+
+        '<button class="ecur-open-btn" data-id="'+r._id+'">Открыть</button>'+
+      '</span>'+
+    '</div>';
+  }).join('')+'</div>';
+}
+function renderOmsu(){
+  const box=document.getElementById('omsuAcc'); box.innerHTML='';
+  const byOmsu=[...groupBy(FILTERED,r=>r.dist).entries()].sort((a,b)=>b[1].length-a[1].length);
+  if(!byOmsu.length){ box.innerHTML='<div class="ecur-hint" style="padding:14px 4px">Нет жалоб под текущие фильтры.</div>'; return; }
+  byOmsu.forEach(([omsu,items])=>{
+    const row=document.createElement('div'); row.className='ecur-acc-row';
+    const head=document.createElement('div'); head.className='ecur-acc-head'; head.tabIndex=0;
+    head.innerHTML=
+      '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'+
+      '<span class="name">'+esc(omsu)+'</span>'+
+      '<span class="mini">'+bucketMini(items)+'<span class="ecur-pill count">'+items.length+'</span></span>';
+    const body=document.createElement('div'); body.className='ecur-acc-body';
+    const toggle=()=>{
+      row.classList.toggle('open');
+      if(row.classList.contains('open')&&!body.dataset.built){
+        buildOmsuFacts(body,items); body.dataset.built='1';
+      }
+    };
+    head.onclick=toggle;
+    head.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();} };
+    row.appendChild(head); row.appendChild(body); box.appendChild(row);
+  });
+}
+function buildOmsuFacts(container,items){
+  const byFact=[...groupBy(items,r=>r.fact).entries()].sort((a,b)=>b[1].length-a[1].length);
+  byFact.forEach(([fact,fitems])=>{
+    const row=document.createElement('div'); row.className='ecur-acc-row ecur-acc-l2';
+    const head=document.createElement('div'); head.className='ecur-acc-head'; head.tabIndex=0;
+    head.innerHTML=
+      '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'+
+      '<span class="name" title="'+esc(fact)+'">'+esc(shortFact(fact))+'</span>'+
+            '<span class="mini">'+bucketMini(fitems)+'<span class="ecur-pill">'+fitems.length+'</span></span>';
+    const body=document.createElement('div'); body.className='ecur-acc-body';
+    const toggle=()=>{
+      row.classList.toggle('open');
+      if(row.classList.contains('open')&&!body.dataset.built){
+        body.innerHTML=complaintRows(fitems); body.dataset.built='1';
+      }
+    };
+    head.onclick=toggle;
+    head.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();} };
+    row.appendChild(head); row.appendChild(body); container.appendChild(row);
+  });
+}
+
+/* ═══════════════════ FACTS: matrix + list ═══════════════════ */
+document.getElementById('factSeg').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  state.factView=b.dataset.view;
+  document.querySelectorAll('#factSeg button').forEach(x=>x.classList.toggle('on',x===b));
+  renderFacts();
+});
+function renderFacts(){
+  const mx=document.getElementById('factMatrix'), ls=document.getElementById('factList');
+  closeCellDetail();
+  if(state.factView==='matrix'){
+    mx.classList.remove('hidden'); ls.classList.add('hidden'); renderMatrix();
+  } else {
+    mx.classList.add('hidden'); ls.classList.remove('hidden'); renderFactList();
+  }
+}
+function renderMatrix(){
+  const mx=document.getElementById('factMatrix');
+  if(!FILTERED.length){ mx.innerHTML='<div class="ecur-hint">Нет данных под фильтры.</div>'; return; }
+  const facts=[...groupBy(FILTERED,r=>r.fact).entries()].sort((a,b)=>b[1].length-a[1].length).map(e=>e[0]);
+  const omsus=[...groupBy(FILTERED,r=>r.dist).entries()].sort((a,b)=>b[1].length-a[1].length).map(e=>e[0]);
+  const M={}; facts.forEach(f=>M[f]={}); let max=0;
+  FILTERED.forEach(r=>{
+    M[r.fact][r.dist]=(M[r.fact][r.dist]||0)+1;
+    if(M[r.fact][r.dist]>max) max=M[r.fact][r.dist];
+  });
+  const colTot={}, rowTot={}; let grand=0;
+  facts.forEach(f=>{
+    rowTot[f]=0;
+    omsus.forEach(o=>{ const v=M[f][o]||0; rowTot[f]+=v; colTot[o]=(colTot[o]||0)+v; grand+=v; });
+  });
+  const shade=v=>{
+    if(!v) return 'background:transparent';
+    const t=Math.pow(v/max,.6);
+    const a=(0.20+t*0.70).toFixed(2);
+    return 'background:rgba(96,165,250,'+a+')';
+  };
+
+  let h='<div class="ecur-matrix-scroll"><table class="ecur-matrix"><thead><tr><th class="corner rowh">Факт \\ ОМСУ</th>';
+  omsus.forEach(o=>h+='<th class="colh" title="'+esc(o)+'">'+esc(o.length>16?o.slice(0,15)+'…':o)+'</th>');
+  h+='<th class="colh" style="color:var(--primary)">ИТОГО</th></tr></thead><tbody>';
+  facts.forEach(f=>{
+    h+='<tr><td class="rowh" title="'+esc(f)+'">'+esc(shortFact(f))+'</td>';
+    omsus.forEach(o=>{
+      const v=M[f][o]||0;
+      h+='<td class="cell'+(v?'':' zero')+'" style="'+shade(v)+'" '+(v?'data-f="'+esc(f)+'" data-o="'+esc(o)+'"':'')+'>'+(v||'·')+'</td>';
+    });
+    h+='<td class="cell rowtot" data-f="'+esc(f)+'" data-o="">'+rowTot[f]+'</td></tr>';
+  });
+  h+='</tbody><tfoot><tr><td class="rowh">ИТОГО</td>';
+  omsus.forEach(o=>h+='<td class="tot">'+colTot[o]+'</td>');
+  h+='<td class="tot grand">'+grand+'</td></tr></tfoot></table></div>'+
+     '<div class="ecur-matrix-note">Насыщенность клетки — доля жалоб. Клик по клетке — список жалоб этого факта в районе (последний столбец/строка — итоги).</div>';
+  mx.innerHTML=h;
+  mx.querySelectorAll('td.cell:not(.zero)').forEach(td=>td.addEventListener('click',()=>{
+    const f=td.dataset.f, o=td.dataset.o;
+    let items=FILTERED.filter(r=>r.fact===f && (o===''||r.dist===o));
+    const title = shortFact(f)+(o?(' · '+o):' · все ОМСУ')+' — '+items.length+' жалоб';
+    openCellDetail(title,items);
+  }));
+}
+function renderFactList(){
+  const ls=document.getElementById('factList'); ls.innerHTML='';
+  const byFact=[...groupBy(FILTERED,r=>r.fact).entries()].sort((a,b)=>b[1].length-a[1].length);
+  if(!byFact.length){ ls.innerHTML='<div class="ecur-hint">Нет данных под фильтры.</div>'; return; }
+  byFact.forEach(([fact,items])=>{
+    const row=document.createElement('div'); row.className='ecur-acc-row';
+    const head=document.createElement('div'); head.className='ecur-acc-head'; head.tabIndex=0;
+    head.innerHTML=
+      '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'+
+      '<span class="name" title="'+esc(fact)+'">'+esc(fact)+'</span>'+
+      '<span class="mini">'+bucketMini(items)+'<span class="ecur-pill count">'+items.length+'</span></span>';
+    const body=document.createElement('div'); body.className='ecur-acc-body';
+    const toggle=()=>{
+      row.classList.toggle('open');
+      if(row.classList.contains('open')&&!body.dataset.built){
+        buildFactOmsu(body,items); body.dataset.built='1';
+      }
+    };
+    head.onclick=toggle;
+    head.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();} };
+    row.appendChild(head); row.appendChild(body); ls.appendChild(row);
+  });
+}
+function buildFactOmsu(container,items){
+  const byOmsu=[...groupBy(items,r=>r.dist).entries()].sort((a,b)=>b[1].length-a[1].length);
+  byOmsu.forEach(([omsu,oitems])=>{
+    const row=document.createElement('div'); row.className='ecur-acc-row ecur-acc-l2';
+    const head=document.createElement('div'); head.className='ecur-acc-head'; head.tabIndex=0;
+    head.innerHTML=
+      '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'+
+      '<span class="name">'+esc(omsu)+'</span>'+
+      '<span class="mini">'+bucketMini(oitems)+'<span class="ecur-pill">'+oitems.length+'</span></span>';
+    const body=document.createElement('div'); body.className='ecur-acc-body';
+    const toggle=()=>{
+      row.classList.toggle('open');
+      if(row.classList.contains('open')&&!body.dataset.built){
+        body.innerHTML=complaintRows(oitems); body.dataset.built='1';
+      }
+    };
+    head.onclick=toggle;
+    head.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();} };
+    row.appendChild(head); row.appendChild(body); container.appendChild(row);
+  });
+}
+function openCellDetail(title,items){
+  document.getElementById('cellDetailTitle').textContent=title;
+  document.getElementById('cellDetailBody').innerHTML=complaintRows(items);
+  const d=document.getElementById('cellDetail');
+  d.classList.add('show');
+  d.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function closeCellDetail(){ document.getElementById('cellDetail').classList.remove('show'); }
+document.getElementById('cellDetailClose').onclick=closeCellDetail;
+
+/* ═══════════════════ SMS ═══════════════════ */
+document.getElementById('btnGenSms').onclick=generateSMS;
+document.getElementById('btnCopySms').onclick=copySMS;
+function calc(items){
+  const c={total:items.length,today:0,week:0,overdue:0};
+  items.forEach(r=>{
+    if(r.bucket==='today') c.today++;
+    else if(r.bucket==='week') c.week++;
+    else if(r.bucket==='overdue') c.overdue++;
+  });
+  return c;
+}
+function generateSMS(){
+  if(!FILTERED.length){ document.getElementById('smsText').value='Нет данных под текущие фильтры.'; return; }
+  let out='';
+  const byOmsu=[...groupBy(FILTERED,r=>r.dist).entries()].sort((a,b)=>a[0].localeCompare(b[0],'ru'));
+  byOmsu.forEach(([omsu,items])=>{
+    const s=calc(items);
+    let head=omsu+' всего в работе '+s.total+' жалоб';
+    const he=[];
+    if(s.today) he.push('закрыть сегодня '+s.today);
+    if(s.week) he.push('до конца недели '+s.week);
+    if(s.overdue) he.push('просрочено '+s.overdue);
+    if(he.length) head+=', из них необходимо '+he.join(', ');
+    out+=head+'.\n';
+    const byFact=[...groupBy(items,r=>r.fact).entries()].sort((a,b)=>b[1].length-a[1].length);
+    byFact.forEach(([fact,fitems])=>{
+      const fs=calc(fitems);
+      let line='  • '+shortFact(fact)+': всего '+fs.total;
+      const fe=[];
+      if(fs.today) fe.push('сегодня '+fs.today);
+      if(fs.week) fe.push('до конца недели '+fs.week);
+      if(fs.overdue) fe.push('просрочено '+fs.overdue);
+      if(fe.length) line+=', '+fe.join(', ');
+      out+=line+'\n';
+    });
+    out+='\n'+'─'.repeat(52)+'\n\n';
+  });
+  document.getElementById('smsText').value=out.trim();
+}
+function copySMS(){
+  const ta=document.getElementById('smsText');
+  if(!ta.value){ toast('Сначала сгенерируйте отчёт'); return; }
+  navigator.clipboard?.writeText(ta.value)
+    .then(()=>toast('✅ Скопировано'))
+    .catch(()=>{ ta.select(); document.execCommand('copy'); toast('✅ Скопировано'); });
+}
+
+/* ═══════════════════ EXPORT ═══════════════════ */
+document.getElementById('btnExport').onclick=()=>{
+  if(!FILTERED.length){ toast('Нет данных'); return; }
+  const rows=[['Номер','ОМСУ','Категория','Подкатегория','Факт ЕЦУР','Адрес','Исполнитель','Дата создания','Срок','Дней до срока','Статус','Приоритет','Текст жалобы']];
+  [...FILTERED].sort((a,b)=>{
+    const da=a.deadline?stripTime(a.deadline).getTime():Infinity;
+    const db=b.deadline?stripTime(b.deadline).getTime():Infinity;
+    return da-db;
+  }).forEach(r=>rows.push([
+    r.num,r.dist,r.cat,r.subcat,r.fact,r.addr,r.exec,
+    r.created?fmtDate(r.created):'', r.deadline?fmtDate(r.deadline):'',
+    daysLeft(r.deadline), r.status, BUCKET_LABEL[r.bucket], r.text
+  ]));
+  const wb=XLSX.utils.book_new(), ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:10},{wch:18},{wch:20},{wch:28},{wch:36},{wch:32},{wch:26},{wch:12},{wch:12},{wch:8},{wch:14},{wch:16},{wch:70}];
+  XLSX.utils.book_append_sheet(wb,ws,'Жалобы');
+  XLSX.writeFile(wb,'Жалобы_ЕЦУР_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Выгружено '+FILTERED.length+' записей');
+};
+
+/* ═══════════════════ TOAST ═══════════════════ */
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT);
+  toastT=setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+/* ═══════════════════ AUTH & REFRESH ═══════════════════ */
+(function(){
+  const btn = document.getElementById('btnRefresh');
+  const txt = document.getElementById('btnRefreshTxt');
+  const btnOpenLogin = document.getElementById('btnOpenLogin');
+  const btnLogout = document.getElementById('btnLogout');
+  const loginModal = document.getElementById('loginModalBg');
+  const loginForm = document.getElementById('dobrodelLoginForm');
+  const loginErr = document.getElementById('loginErr');
+
+  function openLoginModal(){
+    loginErr.style.display = 'none';
+    loginModal.classList.add('show');
+  }
+  function closeLoginModal(){ loginModal.classList.remove('show'); }
+
+  if(btnOpenLogin) btnOpenLogin.onclick = openLoginModal;
+  document.getElementById('loginModalClose').onclick = closeLoginModal;
+
+  // Авторизация в ДоброДеле
+  loginForm.onsubmit = async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById('ddEmail').value.trim();
+    const password = document.getElementById('ddPassword').value.trim();
+    const subBtn = document.getElementById('btnSubmitLogin');
+
+    if(!email || !password) return;
+
+    subBtn.disabled = true;
+    subBtn.textContent = 'Проверка данных…';
+    loginErr.style.display = 'none';
+
+    try {
+      const res = await fetch('/ecur/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if(res.ok && data.ok) {
+        toast('✅ Авторизация успешна! Загрузка свода…');
+        closeLoginModal();
+        setTimeout(() => location.reload(), 600);
+      } else {
+        loginErr.textContent = data.error || 'Неверный логин или пароль';
+        loginErr.style.display = 'block';
+      }
+    } catch(err) {
+      loginErr.textContent = 'Ошибка сети / сервера';
+      loginErr.style.display = 'block';
+    } finally {
+      subBtn.disabled = false;
+      subBtn.textContent = 'Войти и загрузить свод';
+    }
+  };
+
+  // Выход из ДоброДела
+  if(btnLogout) {
+    btnLogout.onclick = async ()=>{
+      if(!confirm('Завершить сессию ДоброДела?')) return;
+      await fetch('/ecur/api/logout', { method: 'POST' });
+      toast('Cессия сброшена');
+      setTimeout(() => location.reload(), 500);
+    };
+  }
+
+  // Обновление свода
+  async function apiFetch(url, opts={}){
+    const r = await fetch(url, {
+      credentials:'same-origin',
+      headers:{'Accept':'application/json', ...(opts.headers||{})},
+      ...opts,
+    });
+    if(r.status===401 || r.status===403){
+      openLoginModal();
+      throw new Error('unauthorized');
+    }
+    const ct = r.headers.get('content-type') || '';
+    if(!ct.includes('application/json')){
+      throw new Error('Сервер вернул не JSON');
+    }
+    return { r, json: await r.json() };
+  }
+
+  let pollT = null;
+
+  async function pollStatus(originalText){
+    try{
+      const { json:st } = await apiFetch('/ecur/run-status');
+      if(st.stage){ txt.textContent = st.stage + '…'; }
+
+      if(st.running){
+        pollT = setTimeout(()=>pollStatus(originalText), 1500);
+        return;
+      }
+
+      if(st.last_error){
+        toast('Ошибка: ' + st.last_error);
+        btn.disabled = false;
+        txt.textContent = originalText;
+        return;
+      }
+
+      toast('✅ ' + (st.message || 'Обновлено'));
+      setTimeout(()=>location.reload(), 700);
+    }catch(e){
+      if(e.message==='unauthorized') return;
+      toast('Не удалось получить статус: ' + e.message);
+      btn.disabled = false;
+      txt.textContent = originalText;
+    }
+  }
+
+  btn.addEventListener('click', async ()=>{
+    if(!window.IS_AUTHED){
+      openLoginModal();
+      return;
+    }
+
+    const originalText = txt.textContent;
+    btn.disabled = true;
+    txt.textContent = 'Запускаю…';
+    toast('Запускаю обновление свода из ДоброДела…');
+
+    try{
+      const { r, json } = await apiFetch('/ecur/api/refresh', { method:'POST' });
+
+      if(r.status===409){
+        toast('Обновление уже выполняется');
+        clearTimeout(pollT);
+        pollStatus(originalText);
+        return;
+      }
+
+      if(!json.ok){
+        toast('Ошибка: ' + (json.error || 'неизвестно'));
+        btn.disabled = false;
+        txt.textContent = originalText;
+        return;
+      }
+
+      clearTimeout(pollT);
+      pollStatus(originalText);
+    }catch(e){
+      if(e.message==='unauthorized') return;
+      toast('Сервер не отвечает: ' + e.message);
+      btn.disabled = false;
+      txt.textContent = originalText;
+    }
+  });
+
+  (async ()=>{
+    try{
+      const { json:st } = await apiFetch('/ecur/run-status');
+      if(st && st.running){
+        btn.disabled = true;
+        txt.textContent = (st.stage || 'Обновляю') + '…';
+        pollStatus(txt.textContent);
+      }
+    }catch(_){/* тихо */}
+  })();
+})();
+
+/* ═══════════════════ AUTO-LOAD data.js ═══════════════════ */
+window.addEventListener('DOMContentLoaded',()=>{
+  if(Array.isArray(window.PRELOADED_ROWS) && window.PRELOADED_ROWS.length>1){
+    const meta=window.PRELOADED_META||{};
+    ingest(window.PRELOADED_ROWS, (meta.file||'data.js')+(meta.generated?(' · '+meta.generated):''));
+  }
+});
+</script>
+</body>
+</html>

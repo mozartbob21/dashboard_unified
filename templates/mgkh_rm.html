@@ -6,33 +6,78 @@
             const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
             let activeTheme = savedThemeMode;
             if (savedThemeMode === "auto-moscow") {
-                const MOSCOW_LAT = 55.7558;
-                const MOSCOW_LON = 37.6173;
-                const MOSCOW_TZ = 3;
-                const now = new Date();
-                const start = new Date(now.getFullYear(), 0, 0);
-                const diff = now - start;
-                const oneDay = 1000 * 60 * 60 * 24;
-                const dayOfYear = Math.floor(diff / oneDay);
-                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
-                const latRad = MOSCOW_LAT * Math.PI / 180;
-                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
-                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
-                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
-                const currentHour = now.getHours() + now.getMinutes() / 60;
-                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+                const MOSCOW_LAT=55.7558, MOSCOW_LON=37.6173, MOSCOW_TZ=3;
+                const now=new Date(), start=new Date(now.getFullYear(),0,0);
+                const dayOfYear=Math.floor((now-start)/(1000*60*60*24));
+                const decl=0.409*Math.sin(2*Math.PI*(dayOfYear-80)/365);
+                const latRad=MOSCOW_LAT*Math.PI/180;
+                const cosH=(Math.sin(-0.83*Math.PI/180)-Math.sin(latRad)*Math.sin(decl))/(Math.cos(latRad)*Math.cos(decl));
+                let H=cosH>=1?0:cosH<=-1?Math.PI:Math.acos(cosH);
+                const sunriseLocal=(12-(H*12/Math.PI)-(MOSCOW_LON/15)+MOSCOW_TZ+24)%24;
+                const sunsetLocal=(12+(H*12/Math.PI)-(MOSCOW_LON/15)+MOSCOW_TZ+24)%24;
+                const currentHour=now.getHours()+now.getMinutes()/60;
+                activeTheme=(currentHour>=sunriseLocal&&currentHour<sunsetLocal)?"light":"dark";
             }
             document.documentElement.setAttribute("data-theme", activeTheme);
-            document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — ЖКХ Redmine</title>
+    <title>Нейрона ИИ — Качество воды</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+#pane-rm{--ink:#14505C;--steel:#2A7286;--water:#EAF4F6;--paper:#FFFFFF;--line:#CFE0E5;--close:#2E7D32;--ext:#9A6700;--rw:#A61B1B;--mut:#5B7A83;font:15px/1.5 "Segoe UI",system-ui,Arial,sans-serif;background:var(--water);color:#1c3138;padding-bottom:60px;border-radius:12px;overflow:hidden;margin-top:20px}
+#pane-rm *{box-sizing:border-box}
+#pane-rm header{background:var(--ink);color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+#pane-rm header h1{font:600 21px/1.2 Georgia,serif;margin:0}
+#pane-rm header .sub{font-size:12.5px;opacity:.75}
+#pane-rm header .today{font-size:13px;background:rgba(255,255,255,.12);padding:4px 12px;border-radius:20px}
+#pane-rm main{max-width:1100px;margin:26px auto;padding:0 20px}
+#pane-rm .runrow{margin:18px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+#pane-rm button{font:600 14px/1 "Segoe UI",Arial,sans-serif;border:none;border-radius:8px;padding:12px 22px;cursor:pointer}
+#pane-rm .dlbtn{background:#2A7286;color:#fff;padding:12px 22px;border-radius:8px}
+#pane-rm .dlbtn.ext{background:#9A6700}
+#pane-rm .copybtn{background:#fff;border:1px solid var(--line);color:var(--ink);padding:6px 12px;font-size:12.5px;border-radius:6px}
+#pane-rm #err{color:var(--rw);font-size:13.5px;margin:10px 0;white-space:pre-wrap}
+#pane-rm .meter{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:6px 0 4px;border:1px solid var(--line)}
+#pane-rm .meter div{height:100%}
+#pane-rm .legend{display:flex;gap:16px;font-size:12.5px;color:var(--mut);flex-wrap:wrap}
+#pane-rm .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+#pane-rm .block{background:var(--paper);border:1px solid var(--line);border-radius:12px;margin-top:22px;overflow:hidden}
+#pane-rm .block>h2{font:600 16px Georgia,serif;color:var(--ink);padding:14px 20px;border-bottom:1px solid var(--line);background:linear-gradient(#FAFDFD,#F1F8F9);margin:0}
+#pane-rm .section{padding:14px 20px;border-bottom:1px solid #E7F0F2}
+#pane-rm .section:last-child{border-bottom:none}
+#pane-rm .section h4{font-size:13px;text-transform:uppercase;letter-spacing:.6px;margin:0 0 8px}
+#pane-rm .h-close{color:var(--close)}
+#pane-rm .h-ext{color:var(--ext)}
+#pane-rm .h-rw{color:var(--rw)}
+#pane-rm .idstrip{font:600 14px/1.7 Consolas,monospace;background:#0F2E36;color:#BFE8D2;padding:10px 14px;border-radius:8px;word-break:break-all;user-select:all}
+#pane-rm .idstrip.empty{background:#F3F7F8;color:var(--mut);font-family:inherit;font-weight:400}
+#pane-rm .striprow{display:flex;gap:10px;align-items:flex-start}
+#pane-rm .striprow .idstrip{flex:1}
+#pane-rm table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+#pane-rm th{background:var(--ink);color:#fff;padding:7px 9px;text-align:left;font-weight:600;position:sticky;top:0}
+#pane-rm td{padding:7px 9px;border-bottom:1px solid #E7F0F2;vertical-align:top}
+#pane-rm tr:nth-child(even) td{background:#F7FBFC}
+#pane-rm td.id{font:600 13px Consolas,monospace;white-space:nowrap}
+#pane-rm td.st{white-space:nowrap;font-weight:600}
+#pane-rm .st-ext{color:var(--ext)}
+#pane-rm .twrap{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:8px}
+#pane-rm .count{font-size:12px;color:var(--mut);font-weight:400;margin-left:6px}
+#pane-rm .note{font-size:12.5px;color:var(--mut);margin-top:6px}
+#pane-rm #results{display:none}
+#pane-rm .rmrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 4px}
+#pane-rm .rmrow input[type=password]{flex:1;min-width:240px;max-width:380px;padding:11px 14px;border:1px solid var(--line);border-radius:8px;font:14px "Segoe UI",Arial,sans-serif;background:#fff}
+#pane-rm #rmBtn{background:var(--steel);color:#fff}
+#pane-rm #rmBtn:disabled{background:#9db8bf;cursor:not-allowed}
+#pane-rm #applyBtn{background:var(--rw);color:#fff}
+#pane-rm #applyBtn:disabled{background:#d8a9a9;cursor:not-allowed}
+#pane-rm #autoMin{width:86px;padding:11px 10px;border:1px solid var(--line);border-radius:8px;font:14px sans-serif;background:#fff;text-align:center}
+#pane-rm #autoBtn{background:#fff;border:1.5px solid var(--steel);color:var(--steel)}
+#pane-rm #autoBtn.on{background:var(--rw);border-color:var(--rw);color:#fff}
+#pane-rm #rmLog{display:none;background:#0F2E36;color:#BFE8D2;font:12.5px/1.6 Consolas,monospace;border-radius:8px;padding:12px 14px;margin-top:14px;max-height:320px;overflow:auto;white-space:pre-wrap}
+    </style>
 </head>
 
 <body class="compact-module-page">
@@ -51,311 +96,610 @@
                     </div>
                 </a>
             </div>
-
             <div class="topbar-right">
                 <button id="themeToggleBtn" class="theme-toggle-btn" type="button" aria-label="Переключить тему">
                     <span class="theme-toggle-icon">🌙</span>
                     <span class="theme-toggle-text">Тёмная тема</span>
                 </button>
-
-                <a
-                    href="{{ result.redmine_url if result and result.redmine_url else 'https://mgkh.rm.mosreg.ru' }}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="topbar-redmine-btn"
-                >
-                    Redmine
-                </a>
+                <a href="https://mgkh.rm.mosreg.ru" target="_blank" rel="noopener noreferrer" class="topbar-redmine-btn">Redmine</a>
             </div>
         </header>
 
-        <section class="hero card">
-            <div class="hero-copy">
-                <div class="eyebrow">ПРОВЕРКА ДАННЫХ В REDMINE</div>
-                <h1>Контроль корректности дат в задачах ЖКХ</h1>
-                <p class="subtext">
-                    Система забирает задачи по сохранённому фильтру Redmine и находит поля
-                    с «нулевыми» датами (0001-01-01) — стандартные и пользовательские.
-                </p>
+        <div class="pane active" id="pane-rm">
+        <header>
+          <div>
+            <h1>💧 Проверка задач по качеству воды</h1>
+            <div class="sub">Резонансные обращения и системные адреса · приёмка «На проверке»</div>
+          </div>
+          <div class="today" id="todayLbl"></div>
+        </header>
+        <main>
+          <div class="note" id="compNote">📊 Статусы жалоб берутся из <a href="https://disk.yandex.ru/i/NQTPtLj_LVuymw" target="_blank">онлайн-таблицы на Яндекс.Диске</a>. <span id="fnComp"></span></div>
+          <div class="rmrow">
+            <input type="password" id="apiKey" placeholder="API-ключ Redmine" autocomplete="off">
+            <button id="rmBtn" disabled>🔍 Проверить (без записи)</button>
+            <button id="applyBtn" disabled>✅ Применить в RM</button>
+            <input type="number" id="autoMin" min="1" max="1440" value="30" title="Интервал автопроверки, минут">
+            <button id="autoBtn" disabled>🔁 Автопроверка</button>
+          </div>
+          <div class="note">«🔍 Проверить» — загрузка задач из выборки RM (query 23), анализ и предпросмотр без изменений. «✅ Применить» — записать решения в RM. «🔁 Автопроверка» — по таймеру, проверяет и применяет сама.</div>
+          <div class="runrow">
+            <span id="dlRow" style="display:none;gap:12px;flex-wrap:wrap">
+              <button id="dlRw" class="dlbtn">⬇ На доработку (CSV)</button>
+              <button id="dlExt" class="dlbtn ext">⬇ Продление срока (CSV)</button>
+            </span>
+          </div>
+          <div id="err"></div>
+          <div id="rmLog"></div>
+          <div id="results">
+            <div class="block" style="padding:14px 20px">
+              <div class="legend" style="margin-bottom:4px"><b style="color:var(--ink)">Итог проверки</b></div>
+              <div class="meter" id="meter"></div>
+              <div class="legend">
+                <span><span class="dot" style="background:var(--close)"></span>На закрытие: <b id="cClose">0</b></span>
+                <span><span class="dot" style="background:#E3B341"></span>Продление 30 дней: <b id="cExt">0</b></span>
+                <span><span class="dot" style="background:#D06A6A"></span>Возврат на доработку: <b id="cRw">0</b></span>
+              </div>
             </div>
-
-            <div class="hero-side">
-                <div class="hero-chip">Read-only</div>
-                <div class="hero-chip">Redmine API</div>
-                <div class="hero-chip">Проверка дат</div>
-                <div class="hero-chip">PHP-мост</div>
-            </div>
-        </section>
-
-        <section class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label">Всего задач</div>
-                <div class="metric-value">{{ metrics.total }}</div>
-            </div>
-            <div class="metric-card ok">
-                <div class="metric-label">На закрытие</div>
-                <div class="metric-value">{{ metrics.close }}</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Продление</div>
-                <div class="metric-value">{{ metrics.extend }}</div>
-            </div>
-            <div class="metric-card critical">
-                <div class="metric-label">Возврат</div>
-                <div class="metric-value">{{ metrics.rework }}</div>
-            </div>
-        </section>
-
-        <div class="card action-card">
-            <div>
-                <h2>Управление проверкой</h2>
-                <p class="subtext">Запустите проверку дат в задачах Redmine.</p>
-            </div>
-            <div class="action-panel">
-                <button id="runCheckBtn" class="primary-button" type="button">
-                    Запустить проверку
-                </button>
-            </div>
+            <div class="block" id="blkRez"></div>
+            <div class="block" id="blkSys"></div>
+          </div>
+        </main>
         </div>
-
-        <div class="card status-card">
-            <div class="system-status">
-                <div>
-                    <div class="status-title">Состояние системы</div>
-                    <div id="systemStateBadge" class="system-badge ready">Готова</div>
-                </div>
-                <div class="stage-block">
-                    <div class="stage-label">Текущий этап</div>
-                    <div id="currentStage" class="stage-value">Ожидание запуска</div>
-                    <div id="currentStageMessage" class="stage-message">
-                        Система готова к выполнению проверки.
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="loaderBlock" class="card loader-card hidden">
-            <div class="loader-wrap">
-                <div class="spinner"></div>
-                <div>
-                    <h2>Выполняется проверка</h2>
-                    <p class="subtext">Пожалуйста, дождитесь завершения обработки.</p>
-                </div>
-            </div>
-        </div>
-
-        <div id="statusMessage" class="status-message hidden"></div>
-
-        {% if result %}
-            <div class="grid two">
-                <div class="card">
-                    <h2>Последнее обновление</h2>
-                    <p class="big-time">{{ result.created_at }}</p>
-                </div>
-                <div class="card">
-                    <h2>Статус системы</h2>
-                    <p>Проверка выполнена, данные получены из Redmine.</p>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Возврат ({{ result.buckets.rework | length }})</h2>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr><th>#</th><th>Тема</th><th>Причина</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            {% for r in result.buckets.rework %}
-                                <tr class="status-critical">
-                                    <td>{{ r.id }}</td>
-                                    <td>{{ r.subject }}</td>
-                                    <td>{{ r.comment }}</td>
-                                    <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="topbar-redmine-btn">Открыть</a></td>
-                                </tr>
-                            {% else %}
-                                <tr><td colspan="4">Нет задач на возврат.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Продление ({{ result.buckets.extend | length }})</h2>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr><th>#</th><th>Тема</th><th>Комментарий</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            {% for r in result.buckets.extend %}
-                                <tr>
-                                    <td>{{ r.id }}</td>
-                                    <td>{{ r.subject }}</td>
-                                    <td>{{ r.comment }}</td>
-                                    <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="topbar-redmine-btn">Открыть</a></td>
-                                </tr>
-                            {% else %}
-                                <tr><td colspan="4">Нет задач на продление.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>На закрытие ({{ result.buckets.close | length }})</h2>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr><th>#</th><th>Тема</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            {% for r in result.buckets.close %}
-                                <tr>
-                                    <td>{{ r.id }}</td>
-                                    <td>{{ r.subject }}</td>
-                                    <td><a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="topbar-redmine-btn">Открыть</a></td>
-                                </tr>
-                            {% else %}
-                                <tr><td colspan="3">Нет задач на закрытие.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        {% else %}
-            <div class="card">
-                <h2>Данные пока не сформированы</h2>
-                <p>
-                    Нажмите кнопку <strong>«Запустить проверку»</strong>,
-                    после чего результат появится на этой странице.
-                </p>
-            </div>
-        {% endif %}
     </div>
 
     <script>
-        const runCheckBtn = document.getElementById("runCheckBtn");
-        const loaderBlock = document.getElementById("loaderBlock");
-        const statusMessage = document.getElementById("statusMessage");
-        const systemStateBadge = document.getElementById("systemStateBadge");
-        const currentStage = document.getElementById("currentStage");
-        const currentStageMessage = document.getElementById("currentStageMessage");
-
-        function setSystemReady() {
-            systemStateBadge.textContent = "Готова";
-            systemStateBadge.className = "system-badge ready";
-        }
-        function setSystemRunning() {
-            systemStateBadge.textContent = "Выполняется проверка";
-            systemStateBadge.className = "system-badge running";
-        }
-        function scrollToTopSmooth() {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        }
-        function showToast(message, kind, scrollTop) {
-            kind = kind || "success";
-            statusMessage.textContent = message;
-            statusMessage.className = "status-message " + kind;
-            if (scrollTop) scrollToTopSmooth();
-            clearTimeout(window.__toastTimer);
-            window.__toastTimer = setTimeout(function () {
-                statusMessage.className = "status-message hidden";
-                statusMessage.textContent = "";
-            }, 2800);
-        }
-
-        async function pollStatus() {
-            try {
-                const response = await fetch("/mgkh-rm/run-status");
-                const data = await response.json();
-
-                currentStage.textContent = data.stage || "Ожидание";
-                currentStageMessage.textContent = data.message || "";
-
-                if (data.running) {
-                    loaderBlock.classList.remove("hidden");
-                    setSystemRunning();
-                    runCheckBtn.disabled = true;
-                    runCheckBtn.textContent = "Проверка выполняется...";
-                    setTimeout(pollStatus, 1000);
-                } else {
-                    setSystemReady();
-                    runCheckBtn.disabled = false;
-                    runCheckBtn.textContent = "Запустить проверку";
-
-                    if (data.stage === "Готово") {
-                        showToast("Проверка завершена. Обновление страницы...", "success", true);
-                        setTimeout(function () { window.location.reload(); }, 1200);
-                    } else if (data.stage === "Ошибка") {
-                        loaderBlock.classList.add("hidden");
-                        showToast(data.last_error || "Произошла ошибка", "error", true);
-                    }
-                }
-            } catch (error) {
-                loaderBlock.classList.add("hidden");
-                runCheckBtn.disabled = false;
-                runCheckBtn.textContent = "Запустить проверку";
-                showToast("Ошибка связи с сервером", "error", true);
-            }
-        }
-
-        runCheckBtn.addEventListener("click", async function () {
-            runCheckBtn.disabled = true;
-            runCheckBtn.textContent = "Запуск...";
-            loaderBlock.classList.remove("hidden");
-            setSystemRunning();
-
-            try {
-                const response = await fetch("/mgkh-rm/run-check", { method: "POST" });
-                const data = await response.json();
-
-                if (data && data.status === "started") {
-                    showToast("Проверка запущена", "success");
-                    setTimeout(pollStatus, 800);
-                } else {
-                    loaderBlock.classList.add("hidden");
-                    runCheckBtn.disabled = false;
-                    runCheckBtn.textContent = "Запустить проверку";
-                    showToast((data && data.message) || "Не удалось запустить проверку", "error", true);
-                }
-            } catch (error) {
-                loaderBlock.classList.add("hidden");
-                runCheckBtn.disabled = false;
-                runCheckBtn.textContent = "Запустить проверку";
-                showToast("Ошибка запуска проверки", "error", true);
-            }
-        });
-
         // Тема
         const themeToggleBtn = document.getElementById("themeToggleBtn");
         function updateThemeButton() {
             const theme = document.documentElement.getAttribute("data-theme");
             const icon = themeToggleBtn.querySelector(".theme-toggle-icon");
             const text = themeToggleBtn.querySelector(".theme-toggle-text");
-            if (theme === "dark") {
-                icon.textContent = "🌙";
-                text.textContent = "Тёмная тема";
-            } else {
-                icon.textContent = "☀️";
-                text.textContent = "Светлая тема";
-            }
+            if (theme === "dark") { icon.textContent="🌙"; text.textContent="Тёмная тема"; }
+            else { icon.textContent="☀️"; text.textContent="Светлая тема"; }
         }
         themeToggleBtn.addEventListener("click", function () {
-            const current = document.documentElement.getAttribute("data-theme");
-            const next = current === "dark" ? "light" : "dark";
+            const next = document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";
             document.documentElement.setAttribute("data-theme", next);
             localStorage.setItem("neurona-theme-mode", next);
             updateThemeButton();
         });
         updateThemeButton();
+    </script>
 
-        // Если проверка уже идёт при загрузке
-        {% if run_status and run_status.running %}
-            pollStatus();
-        {% endif %}
+    <script>
+let TODAY = new Date(); TODAY.setHours(0,0,0,0);
+function fmtD(d){ return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear(); }
+document.getElementById('todayLbl').textContent = 'Проверка на: ' + fmtD(TODAY);
+function refreshToday(){ TODAY = new Date(); TODAY.setHours(0,0,0,0); document.getElementById('todayLbl').textContent = 'Проверка на: ' + fmtD(TODAY); }
+function norm(t){ if(t===null||t===undefined) return ''; return String(t).replace(/[\r\n]/g,' ').replace(/\s+/g,' ').trim(); }
+function low(t){ return norm(t).toLowerCase(); }
+const OTP = new Set(['все решено','причин не выявлено','причин не выявленно','не требуется','нет','-','—','вода восстановлена','решено','отсутствует','нет проблемы','проблема отсутствует']);
+function isOtp(t){ const n=norm(t); if(!n) return true; if(OTP.has(n.toLowerCase().replace(/\.+$/,''))) return true; return n.replace(/ /g,'').length<5; }
+function pdate(s){
+  const m = norm(s).match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/); if(!m) return null;
+  let y=+m[3]; if(y<100) y+=2000;
+  const d=new Date(y, +m[2]-1, +m[1]); d.setHours(0,0,0,0);
+  if(d.getFullYear()!==y || d.getMonth()!==+m[2]-1 || d.getDate()!==+m[1]) return null;
+  return d;
+}
+function dlog(s){ const d=pdate(s); return d!==null && d.getFullYear()>=2026; }
+function sysok(s){ const p=norm(s).split(/[,;\s]+/).filter(Boolean); return p.length>0 && p.every(x=>/^\d{3,4}$/.test(x)); }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+
+function findCol(headers, tests){
+  for(const t of tests){
+    const hit = headers.find(h => typeof t==='string' ? low(h)===low(t) : t(low(h)));
+    if(hit!==undefined) return hit;
+  }
+  return null;
+}
+function mapTaskCols(headers){
+  const C={};
+  C.id=findCol(headers,['#',h=>h==='id'||h==='№'||h.includes('номер задачи')]);
+  C.type=findCol(headers,['тип проблемы',h=>h.includes('тип проблем')]);
+  C.cause=findCol(headers,['причина',h=>h==='причина']);
+  C.quick=findCol(headers,['быстрое решение',h=>h.includes('быстрое реш')]);
+  C.systemic=findCol(headers,['системное решение',h=>h.includes('системное реш')]);
+  C.deadline=findCol(headers,['срок решения',h=>h.includes('срок решени')]);
+  C.created=findCol(headers,['создано',h=>h.includes('создан')]);
+  C.tracker=findCol(headers,['трекер']);
+  C.project=findCol(headers,['проект']);
+  C.subject=findCol(headers,['тема']);
+  C.sensors=findCol(headers,[h=>h.includes('датчик')&&h.includes('мутност')]);
+  C.sysnum=findCol(headers,[h=>h.includes('sys')&&h.includes('zulugis')]);
+  C.fl_mkd=findCol(headers,[h=>h.includes('промывка мкд')]);
+  C.fl_reg=findCol(headers,[h=>h.includes('регистрация')&&h.includes('промывк')]);
+  C.fl_str=findCol(headers,[h=>h.includes('уличного трубопровода')&&h.includes('гидрант')&&!h.includes('цтп')]);
+  C.fl_ctp=findCol(headers,[h=>h.includes('уличного трубопровода')&&h.includes('цтп')]);
+  C.fl_gd=findCol(headers,[h=>h.includes('гидродинамическ')]);
+  const missing=['id','type','cause','quick','systemic','deadline','created','tracker','project','subject','sensors','sysnum'].filter(k=>!C[k]);
+  if(missing.length) throw new Error('Не найдены колонки: '+missing.join(', '));
+  return C;
+}
+function mapCompCols(headers){
+  const C={};
+  C.tids=findCol(headers,[h=>h.includes('номера задач')||h.includes('№ задач')||h.includes('номер задач')]);
+  C.status=findCol(headers,['статус',h=>h.includes('статус')]);
+  C.last=findCol(headers,[h=>h.includes('дата')&&h.includes('жалоб')]);
+  C.addr=findCol(headers,['адрес',h=>h.includes('адрес')]);
+  if(!C.tids||!C.status||!C.last) throw new Error('В таблице жалоб не найдены нужные колонки');
+  return C;
+}
+
+const ADDR_STOP=new Set(['московская','область','обл','россия','город','гор','мкр','мкрн','микрорайон','ул','улица','пр-кт','проспект','пер','переулок','б-р','бульвар','ш','шоссе','проезд','пр-д','наб','набережная','пл','площадь','дом','корп','корпус','стр','строение','кв','квартира','рп','дп','поселок','посёлок','пос','село','деревня','дер','снт','тер','территория','городской','округ','го']);
+function addrKey(s){
+  let t=low(s).replace(/ё/g,'е'); if(!t) return null;
+  let house='';
+  let m=t.match(/(?:^|[\s,.(])(?:д|дом)\s*\.?\s*№?\s*(\d+\s*[а-я]?(?:[\/-]\d+)?)/);
+  if(m) house=m[1].replace(/\s+/g,'');
+  else { m=t.match(/,\s*(\d+[а-я]?(?:[\/-]\d+)?)\s*(?:,|$)/); if(m) house=m[1]; }
+  const tokens=t.replace(/[^а-яa-z0-9\s-]/g,' ').split(/\s+/).filter(w=>w&&w.length>=3&&!ADDR_STOP.has(w)&&!/^\d+[а-я]?([\/-]\d+)?$/.test(w));
+  if(!tokens.length) return null;
+  return {house, street:tokens[tokens.length-1], rest:tokens.slice(0,-1)};
+}
+function compRowsFor(id, subject, comp){
+  const byId=comp.byId.get(id)||[];
+  const k=addrKey(subject);
+  const exact=[], street=[];
+  if(k){
+    for(const rec of comp.list){
+      if(!rec.key||rec.key.street!==k.street) continue;
+      const restOk=!rec.key.rest.length||!k.rest.length||rec.key.rest.some(t=>k.rest.includes(t));
+      if(!restOk) continue;
+      if(k.house&&rec.key.house&&rec.key.house===k.house) exact.push(rec);
+      else street.push(rec);
+    }
+  }
+  const rows=byId.concat(exact.filter(x=>!byId.includes(x)));
+  return rows.length?rows:street;
+}
+
+const SENSOR_EXEMPT=/датчик.{0,25}(не требу|не предусмотр|не нужн|не устанавл)|(не требу|не предусмотр|не нужн|не устанавл).{0,25}датчик/;
+const ACTIONS=['разъясн','оповещ','уведом','информир','проинформир','довед','обзвон','опрош','опрос ','сообщен','связал'];
+const RES_NEAR1=/(жител|заявител|потребител|абонент|населени).{0,60}(рекоменд|разъясн|уведом|информир|оповещ|довед|сообщ|направлен ответ|дан ответ)/;
+const RES_NEAR2=/(рекоменд|разъясн|уведом|информир|оповещ|довед|сообщ).{0,60}(жител|заявител|потребител|абонент)/;
+const BARE=['проблематика отсутствует','проблема отсутствует','отсутствует проблематика'];
+const INVEST=['обследован','замер','разъясн','опрос','выезд','выход','провед','устранен','наладк','восстанов','информир'];
+const FLUSH_KEYS=['fl_mkd','fl_reg','fl_str','fl_ctp','fl_gd'];
+const FLUSH_NAMES={fl_mkd:'промывка МКД ХВС/ГВС',fl_reg:'регистрация промывки в ЕДС ЖКХ МО',fl_str:'промывка уличного трубопровода через гидранты',fl_ctp:'промывка уличного трубопровода от ЦТП',fl_gd:'гидродинамическая промывка'};
+
+function textBlob(r,C){ return low(r[C.cause])+' '+low(r[C.quick])+' '+low(r[C.systemic]); }
+function residentsOk(r,C){ const b=textBlob(r,C); if(ACTIONS.some(a=>b.includes(a))) return true; return RES_NEAR1.test(b)||RES_NEAR2.test(b); }
+function flushInText(r,C){ const b=textBlob(r,C); return b.includes('промыв')||b.includes('гидродинам'); }
+function flushFieldsFilled(r,C){ return FLUSH_KEYS.filter(k=>C[k]&&norm(r[C[k]])!==''); }
+function flushPresent(r,C){ return flushFieldsFilled(r,C).length>0||flushInText(r,C); }
+function sysNeeded(r,C){ const ffOther=flushFieldsFilled(r,C).filter(k=>k!=='fl_mkd'); const mkdDated=C.fl_mkd&&dlog(r[C.fl_mkd]); return ffOther.length>0||(flushInText(r,C)&&!mkdDated); }
+function flushDate(r,C){
+  let best=null;
+  for(const k of FLUSH_KEYS){ if(!C[k]) continue; if(dlog(r[C[k]])){ const d=pdate(r[C[k]]); if(!best||d>best) best=d; } }
+  if(best) return best;
+  const t=norm(r[C.quick]);
+  const re=/промыв[а-яё]*.{0,50}?(\d{1,2}\.\d{1,2}\.\d{2,4})|(\d{1,2}\.\d{1,2}\.\d{2,4}).{0,20}?промыв/gi;
+  let m;
+  while((m=re.exec(t))!==null){ const d=pdate(m[1]||m[2]); if(d&&d.getFullYear()>=2026&&(!best||d>best)) best=d; }
+  return best;
+}
+function sensorsOk(r,C){ if(dlog(r[C.sensors])) return true; return SENSOR_EXEMPT.test(low(r[C.quick])+' '+low(r[C.systemic])); }
+
+const CAUSE_STUB=['выясняется','устанавливается','уточняется','не установлена','не установлено','не выявлена','не выявлено','не определена','неизвестн','информация уточняется'];
+function causeBad(t){
+  if(isOtp(t)) return 'не заполнена причина жалобы';
+  const n=low(t);
+  if(CAUSE_STUB.some(k=>n.includes(k))) return 'причина жалобы — отписка («'+norm(t).slice(0,60)+'»)';
+  if(n.replace(/[^а-яёa-z]/g,'').length<8) return 'причина слишком короткая («'+norm(t)+'»)';
+  return null;
+}
+
+function checkRez(r,C){
+  const d=[];
+  const cb=causeBad(r[C.cause]); if(cb) d.push(cb);
+  if(isOtp(r[C.quick])) d.push('пустое быстрое решение');
+  if(isOtp(r[C.systemic])) d.push('пустое системное решение');
+  if(!residentsOk(r,C)) d.push('нет фиксации информирования жителей');
+  if(!dlog(r[C.deadline])) d.push('некорректный срок решения ('+(norm(r[C.deadline])||'пусто')+')');
+  const ff=flushFieldsFilled(r,C);
+  for(const k of ff){ if(!dlog(r[C[k]])) d.push('нелогичная дата «'+FLUSH_NAMES[k]+'» ('+norm(r[C[k]])+')'); }
+  if(sysNeeded(r,C)&&!sysok(r[C.sysnum])){
+    const ffo=ff.filter(k=>k!=='fl_mkd');
+    const src=ffo.length?'поле «'+FLUSH_NAMES[ffo[0]]+'»':'указана в тексте';
+    d.push('промывка есть ('+src+'), но SYS в ZuluGIS не привязан: «'+(norm(r[C.sysnum])||'пусто')+'»');
+  }
+  return d;
+}
+function checkSys(r,C,comp){
+  const fp=flushPresent(r,C), sv=sysok(r[C.sysnum]), sneed=sysNeeded(r,C);
+  const registered=fp&&(sv||!sneed)&&FLUSH_KEYS.some(k=>C[k]&&dlog(r[C[k]]));
+  const d=[];
+  const cb=causeBad(r[C.cause]); if(cb) d.push(cb);
+  if(isOtp(r[C.quick])&&!registered) d.push('пустое быстрое решение');
+  if(isOtp(r[C.systemic])) d.push('пустое системное решение');
+  else{ const s=low(r[C.systemic]); if(BARE.some(k=>s.includes(k))&&!INVEST.some(k=>s.includes(k))) d.push('«проблематика отсутствует» без обоснования'); }
+  if(!dlog(r[C.deadline])) d.push('срок решения невалиден ('+(norm(r[C.deadline])||'пусто')+')');
+  if(!sensorsOk(r,C)&&!registered) d.push('датчики мутности: заглушка ('+(norm(r[C.sensors])||'пусто')+')');
+  if(sneed&&!sv) d.push('уличная промывка есть → SYS в ZuluGIS не привязан');
+  if(d.length) return {verdict:'rw', why:d.join('; ')};
+
+  const id=parseInt(norm(r[C.id]),10);
+  const rows=compRowsFor(id, norm(r[C.subject]), comp);
+  const active=rows.some(x=>x.status==='Жалобы продолжаются'||x.status==='Новый системный');
+  let last=null; for(const x of rows){ if(x.last&&(!last||x.last>last)) last=x.last; }
+  const md=flushDate(r,C);
+  const createdD=pdate(norm(r[C.created]).slice(0,10));
+  const anchor=md||createdD;
+  const winEnd=anchor?addDays(anchor,30):null;
+
+  if(md){
+    if(last&&last>md) return {verdict:'rw', why:'жалоба '+fmtD(last)+' после промывки '+fmtD(md)+' — мероприятие не помогло'};
+    if(!active&&TODAY>=winEnd) return {verdict:'close', why:'промывка '+fmtD(md)+', окно 30 дн истекло, жалоб нет'};
+    return {verdict:'ext', why:'промывка '+fmtD(md)+', окно наблюдения до '+fmtD(winEnd), winEnd};
+  }
+  if(!anchor) return {verdict:'ext', why:'нет даты мероприятия — проверить вручную', winEnd:null};
+  if(!active&&TODAY>=winEnd) return {verdict:'close', why:'окно 30 дн от '+fmtD(anchor)+' истекло, жалоб нет'};
+  if(active) return {verdict:'ext', why:'жалобы продолжаются (посл. '+(last?fmtD(last):'—')+'), окно до '+fmtD(winEnd), winEnd};
+  return {verdict:'ext', why:'окно 30 дн от '+fmtD(anchor)+' не истекло', winEnd};
+}
+
+const COMP_URL='https://disk.yandex.ru/i/NQTPtLj_LVuymw';
+let compData=null, RES=null;
+async function loadComp(){
+  const r=await fetch('/water-rm/yadisk?public_key='+encodeURIComponent(COMP_URL));
+  if(!r.ok) throw new Error(await r.text());
+  const wb=XLSX.read(new Uint8Array(await r.arrayBuffer()),{type:'array',cellDates:true});
+  let found=null;
+  for(const sh of wb.SheetNames){
+    const js=XLSX.utils.sheet_to_json(wb.Sheets[sh],{defval:''});
+    if(!js.length) continue;
+    const hs=Object.keys(js[0]);
+    if(hs.some(h=>low(h).includes('номера задач')||low(h).includes('№ задач')||low(h).includes('номер задач'))){ found={sheet:sh,rows:js,headers:hs}; break; }
+  }
+  if(!found) throw new Error('Не найден лист с колонкой номеров задач');
+  compData=found;
+  document.getElementById('fnComp').textContent='Загружено '+new Date().toTimeString().slice(0,5)+' · «'+found.sheet+'» · '+found.rows.length+' адресов.';
+  ready();
+}
+loadComp().catch(err=>showErr('Не удалось загрузить таблицу жалоб: '+err.message));
+
+function ready(){
+  const okRm=compData&&document.getElementById('apiKey').value.trim();
+  document.getElementById('rmBtn').disabled=!okRm;
+  const ab=document.getElementById('autoBtn');
+  if(!ab.classList.contains('on')) ab.disabled=!okRm;
+  // Кнопка «Применить» доступна только когда есть просчитанный результат
+  document.getElementById('applyBtn').disabled=!(okRm && RES && PENDING_JOBS.length);
+}
+function showErr(m){ document.getElementById('err').textContent=m; }
+function parseCompDate(v){
+  if(v instanceof Date){ const d=new Date(v); d.setHours(0,0,0,0); return d; }
+  if(typeof v==='number'){ const o=XLSX.SSF.parse_date_code(v); if(o){ const d=new Date(o.y,o.m-1,o.d); d.setHours(0,0,0,0); return d; } }
+  const s=norm(v); if(!s) return null;
+  let d=pdate(s); if(d) return d;
+  const m=s.match(/(\d{4})-(\d{2})-(\d{2})/); if(m){ d=new Date(+m[1],+m[2]-1,+m[3]); d.setHours(0,0,0,0); return d; }
+  return null;
+}
+function buildComp(){
+  const CC=mapCompCols(compData.headers);
+  const byId=new Map(), list=[];
+  for(const row of compData.rows){
+    const ids=(String(row[CC.tids]).match(/\d+/g)||[]).map(Number);
+    const rec={status:norm(row[CC.status]), last:parseCompDate(row[CC.last]), key:CC.addr?addrKey(row[CC.addr]):null};
+    list.push(rec);
+    for(const id of ids){ if(!byId.has(id)) byId.set(id,[]); byId.get(id).push(rec); }
+  }
+  return {byId,list};
+}
+function analyze(tasks){
+  const C=mapTaskCols(tasks.headers);
+  const comp=buildComp();
+  const rez={close:[],rw:[]}, sys={close:[],ext:[],rw:[]};
+  for(const r of tasks.rows){
+    const id=parseInt(norm(r[C.id]),10); if(isNaN(id)) continue;
+    const type=norm(r[C.type]);
+    const meta={id, tracker:norm(r[C.tracker]), project:norm(r[C.project]), subject:norm(r[C.subject])};
+    if(r._extReq&&r._extReq>TODAY){
+      sys.ext.push({...meta, why:'исполнитель просит продлить до '+fmtD(r._extReq), winEnd:r._extReq, byRequest:true});
+      continue;
+    }
+    if(type==='Резонансные обращения'){
+      const d=checkRez(r,C);
+      if(d.length) rez.rw.push({...meta, why:d.join('; ')}); else rez.close.push(meta);
+    } else if(type==='Системный адрес'){
+      const v=checkSys(r,C,comp);
+      if(v.verdict==='close') sys.close.push(meta);
+      else if(v.verdict==='ext') sys.ext.push({...meta, why:v.why, winEnd:v.winEnd});
+      else sys.rw.push({...meta, why:v.why});
+    }
+  }
+  const bynum=(a,b)=>b.id-a.id;
+  rez.close.sort(bynum); rez.rw.sort(bynum); sys.close.sort(bynum); sys.ext.sort(bynum); sys.rw.sort(bynum);
+  return {rez,sys};
+}
+
+const RM_QUERY=23;
+const RM_TYPE={'334':'Резонансные обращения','335':'Системный адрес','336':'Системные отключения'};
+const RM_BASE='/water-rm/rmapi';
+const CF_REASON=264;
+const apiKeyEl=document.getElementById('apiKey');
+apiKeyEl.value=localStorage.getItem('rm_api_key')||'';
+apiKeyEl.addEventListener('input',()=>{ localStorage.setItem('rm_api_key',apiKeyEl.value.trim()); ready(); });
+
+// Автозаполнение ключа из .env
+fetch('/water-rm/has-key').then(r=>r.json()).then(j=>{
+  if(j && j.has_key){
+    if(!apiKeyEl.value || apiKeyEl.value==='__ENV__'){
+      apiKeyEl.value='__ENV__';
+      apiKeyEl.placeholder='Ключ из .env (хранится на сервере)';
+      apiKeyEl.readOnly=true;
+      apiKeyEl.style.opacity='0.7';
+      ready();
+    }
+  }
+}).catch(()=>{});
+
+function rmLog(m){ const el=document.getElementById('rmLog'); el.style.display='block'; el.textContent+=m+'\n'; el.scrollTop=el.scrollHeight; }
+async function rmFetch(path,opts){
+  opts=opts||{};
+  let r;
+  try{ r=await fetch(RM_BASE+path,{...opts, headers:{'X-Redmine-API-Key':apiKeyEl.value.trim(),'Content-Type':'application/json'}}); }
+  catch(e){ throw new Error('Запрос к RM не прошёл. '+e.message); }
+  if(r.status===401) throw new Error('401: неверный API-ключ');
+  if(r.status===403) throw new Error('403: нет прав');
+  if(!r.ok){ let t=''; try{ t=(await r.text()).slice(0,300); }catch(e){} throw new Error('HTTP '+r.status+' — '+path+(t?' · '+t:'')); }
+  if(r.status===204) return null;
+  const ct=r.headers.get('content-type')||'';
+  return ct.includes('json')?r.json():null;
+}
+function deIso(v){ return String(v==null?'':v).replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3.$2.$1'); }
+function isoD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+async function rmLoadIssues(){
+  const rows=[]; let offset=0, total=Infinity;
+  while(offset<total){
+    const js=await rmFetch('/issues.json?query_id='+RM_QUERY+'&limit=100&offset='+offset);
+    total=js.total_count||0;
+    for(const is of js.issues){
+      const row={
+        '#':String(is.id),
+        'Трекер':is.tracker?is.tracker.name:'',
+        'Проект':is.project?is.project.name:'',
+        'Тема':is.subject||'',
+        'Создано':deIso(String(is.created_on||'').slice(0,10))
+      };
+      for(const cf of (is.custom_fields||[])){
+        let v=Array.isArray(cf.value)?cf.value.join(', '):(cf.value==null?'':String(cf.value));
+        if(cf.name==='Тип проблемы'&&RM_TYPE[v]!==undefined) v=RM_TYPE[v];
+        row[cf.name]=deIso(v);
+      }
+      rows.push(row);
+    }
+    if(!js.issues.length) break;
+    offset+=js.issues.length;
+  }
+  const EXT_RE=/продл[а-яё]*[\s\S]{0,120}?до\s*(\d{1,2}\.\d{1,2}\.\d{2,4})/i;
+  for(let i=0;i<rows.length;i+=5){
+    await Promise.all(rows.slice(i,i+5).map(async row=>{
+      try{
+        const js=await rmFetch('/issues/'+row['#']+'.json?include=journals');
+        for(const j of ((js.issue&&js.issue.journals)||[])){
+          const m=EXT_RE.exec(j.notes||'');
+          if(m){ const d=pdate(m[1]); if(d) row._extReq=d; }
+        }
+      }catch(e){}
+    }));
+  }
+  const hs=new Set(); rows.forEach(r=>Object.keys(r).forEach(k=>hs.add(k)));
+  return {rows, headers:[...hs]};
+}
+async function rmStatuses(){
+  const js=await rmFetch('/issue_statuses.json');
+  const list=js.issue_statuses||[];
+  const find=re=>{ const s=list.find(x=>re.test(low(x.name))); return s?s.id:null; };
+  const closed=find(/закрыт/), rework=find(/доработ/);
+  if(!closed||!rework) throw new Error('Не нашёл статусы «Закрыта» / «…на доработку». Статусы: '+list.map(x=>x.name).join(', '));
+  return {closed, rework};
+}
+async function rmUpdate(id, body){ await rmFetch('/issues/'+id+'.json',{method:'PUT', body:JSON.stringify({issue:body})}); }
+
+// Готовим список задач на запись из уже посчитанного RES
+let PENDING_JOBS=[];
+function buildJobs(st){
+  const jobs=[];
+  for(const x of RES.rez.close) jobs.push({id:x.id, lbl:'закрыта', body:{status_id:st.closed, notes:'Автопроверка: резонансное обращение отработано, задача принята и закрыта.'}});
+  for(const x of RES.sys.close) jobs.push({id:x.id, lbl:'закрыта', body:{status_id:st.closed, notes:'Автопроверка: '+x.why+'. Задача принята и закрыта.'}});
+  for(const x of RES.rez.rw) jobs.push({id:x.id, lbl:'на доработку', body:{status_id:st.rework, custom_fields:[{id:CF_REASON, value:x.why}]}});
+  for(const x of RES.sys.rw) jobs.push({id:x.id, lbl:'на доработку', body:{status_id:st.rework, custom_fields:[{id:CF_REASON, value:x.why}]}});
+  const extOk=RES.sys.ext.filter(x=>x.winEnd);
+  for(const x of extOk) jobs.push({id:x.id, lbl:'продление до '+fmtD(x.winEnd), body:{status_id:st.rework, due_date:isoD(x.winEnd),
+    custom_fields:[{id:CF_REASON, value: x.byRequest
+      ? 'Срок продлён до '+fmtD(x.winEnd)+' по просьбе исполнителя. Прошу направить на проверку по истечении срока.'
+      : 'Продление срока наблюдения до '+fmtD(x.winEnd)+': '+x.why+'. Прошу направить на проверку по истечении срока.'}]}});
+  return jobs;
+}
+
+let rmRunning=false;
+let RM_STATUSES=null;
+
+// ── РЕЖИМ 1: только предпроверка (без записи) ──
+async function runCheckOnly(auto){
+  if(rmRunning) return;
+  rmRunning=true;
+  const btn=document.getElementById('rmBtn');
+  showErr('');
+  const logEl=document.getElementById('rmLog');
+  if(!auto) logEl.textContent='';
+  else{ const ln=logEl.textContent.split('\n'); if(ln.length>400) logEl.textContent=ln.slice(-200).join('\n'); }
+  btn.disabled=true; btn.textContent='⏳ Проверяю…';
+  document.getElementById('applyBtn').disabled=true;
+  PENDING_JOBS=[];
+  try{
+    refreshToday();
+    const hm=new Date().toTimeString().slice(0,5);
+    rmLog((auto?'⏰ ['+hm+'] автопроверка · ':'→ ')+'Обновляю таблицу жалоб…');
+    try{ await loadComp(); rmLog('✓ Таблица жалоб: '+compData.rows.length+' адресов'); }
+    catch(e){ if(!compData) throw new Error('Таблица жалоб не загружена: '+e.message); rmLog('⚠ Не удалось обновить таблицу ('+e.message+')'); }
+    rmLog('→ Загрузка задач из mgkh.rm.mosreg.ru (выборка №'+RM_QUERY+')…');
+    const [tasks, st]=await Promise.all([rmLoadIssues(), rmStatuses()]);
+    RM_STATUSES=st;
+    rmLog('✓ Получено задач: '+tasks.rows.length);
+    if(!tasks.rows.length){ rmLog('Задач нет.'); RES=null; return; }
+    RES=analyze(tasks); render();
+    const nClose=RES.rez.close.length+RES.sys.close.length,
+          nRw=RES.rez.rw.length+RES.sys.rw.length,
+          extOk=RES.sys.ext.filter(x=>x.winEnd),
+          extMan=RES.sys.ext.filter(x=>!x.winEnd);
+    rmLog('Итог: закрыть '+nClose+' · доработка '+nRw+' · продление '+extOk.length+(extMan.length?' · вручную '+extMan.length:''));
+    if(extMan.length) rmLog('⚠ Ручная проверка: '+extMan.map(x=>x.id).join(', '));
+    PENDING_JOBS=buildJobs(st);
+    rmLog(PENDING_JOBS.length?('Готово к применению: '+PENDING_JOBS.length+' задач. Нажмите «✅ Применить в RM».'):'Нет изменений для применения.');
+  }catch(err){ showErr(err.message); rmLog('✗ '+err.message); RES=null; }
+  finally{ rmRunning=false; btn.textContent='🔍 Проверить (без записи)'; ready(); }
+}
+
+// ── РЕЖИМ 2: применить уже посчитанное ──
+async function applyPending(auto){
+  if(rmRunning) return;
+  if(!RES || !PENDING_JOBS.length){ rmLog('Нet данных для применения. Сначала выполните проверку.'); return; }
+  rmRunning=true;
+  const btn=document.getElementById('applyBtn');
+  btn.disabled=true; btn.textContent='⏳ Применяю…';
+  document.getElementById('rmBtn').disabled=true;
+  showErr('');
+  try{
+    const jobs=PENDING_JOBS;
+    const nClose=RES.rez.close.length+RES.sys.close.length,
+          nRw=RES.rez.rw.length+RES.sys.rw.length,
+          extOk=RES.sys.ext.filter(x=>x.winEnd).length;
+    if(!auto && !confirm('Применить в RM изменения по '+jobs.length+' задачам?\n\nЗакрытие: '+nClose+'\nНа доработку: '+nRw+'\nПродление: '+extOk)){
+      rmLog('✋ Отменено пользователем.'); return;
+    }
+    rmLog((auto?'⚙ Авто-режим: применяю…':'→ Применяю изменения…'));
+    let ok=0, fail=0;
+    for(const j of jobs){
+      try{ await rmUpdate(j.id, j.body); ok++; rmLog('✓ #'+j.id+' — '+j.lbl); }
+      catch(e){ fail++; rmLog('✗ #'+j.id+' — '+e.message); }
+    }
+    rmLog('── Готово. Применено: '+ok+(fail?' · ошибок: '+fail:'')+' ──');
+    // После применения результат уже неактуален — сбрасываем
+    PENDING_JOBS=[];
+    RES=null;
+  }catch(err){ showErr(err.message); rmLog('✗ '+err.message); }
+  finally{ rmRunning=false; btn.textContent='✅ Применить в RM'; ready(); }
+}
+
+// ── РЕЖИМ 3: автопроверка = проверка + сразу применение ──
+async function runAuto(){
+  await runCheckOnly(true);
+  if(RES && PENDING_JOBS.length){
+    await applyPending(true);
+  }
+}
+
+document.getElementById('rmBtn').addEventListener('click',()=>runCheckOnly(false));
+document.getElementById('applyBtn').addEventListener('click',()=>applyPending(false));
+
+let autoTimer=null;
+const autoMinEl=document.getElementById('autoMin'), autoBtn=document.getElementById('autoBtn');
+autoMinEl.value=localStorage.getItem('rm_auto_min')||'30';
+autoBtn.addEventListener('click',()=>{
+  if(autoTimer){
+    clearInterval(autoTimer); autoTimer=null;
+    autoBtn.classList.remove('on'); autoBtn.textContent='🔁 Автопроверка';
+    autoMinEl.disabled=false;
+    rmLog('⏹ Автопроверка остановлена.');
+    ready(); return;
+  }
+  const min=Math.max(1, Math.min(1440, parseInt(autoMinEl.value,10)||30));
+  autoMinEl.value=String(min);
+  localStorage.setItem('rm_auto_min',String(min));
+  autoBtn.classList.add('on'); autoBtn.textContent='⏹ Стоп (каждые '+min+' мин)';
+  autoMinEl.disabled=true;
+  rmLog('🔁 Автопроверка: каждые '+min+' мин (проверка + применение).');
+  runAuto();
+  autoTimer=setInterval(runAuto, min*60000);
+});
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function closureSection(list){
+  const ids=list.map(x=>x.id).join(',');
+  const strip=list.length
+    ? '<div class="striprow"><div class="idstrip">'+ids+'</div><button class="copybtn" onclick="copyIds(this,\''+ids+'\')">Копировать</button></div>'
+    : '<div class="idstrip empty">Нет задач на закрытие</div>';
+  return '<div class="section"><h4 class="h-close">На закрытие <span class="count">'+list.length+'</span></h4>'+strip+'</div>';
+}
+function tableSection(title, cls, list, withDate){
+  let html='<div class="section"><h4 class="'+cls+'">'+title+' <span class="count">'+list.length+'</span></h4>';
+  if(!list.length){ return html+'<div class="idstrip empty">Нет задач</div></div>'; }
+  html+='<div class="twrap"><table><thead><tr><th>ID</th>'+(withDate?'<th>Дата завершения</th>':'')+'<th>Тема</th><th>Комментарий</th></tr></thead><tbody>';
+  for(const x of list){
+    html+='<tr><td class="id">'+x.id+'</td>'
+      +(withDate?'<td class="st st-ext">'+(x.winEnd?fmtD(x.winEnd):'—')+'</td>':'')
+      +'<td>'+esc(x.subject)+'</td><td>'+esc(x.why||'')+'</td></tr>';
+  }
+  return html+'</tbody></table></div></div>';
+}
+function copyIds(btn, ids){ navigator.clipboard.writeText(ids).then(()=>{ btn.textContent='Скопировано ✓'; setTimeout(()=>btn.textContent='Копировать',1500); }); }
+function render(){
+  const {rez,sys}=RES;
+  document.getElementById('results').style.display='block';
+  document.getElementById('dlRow').style.display='flex';
+  const nClose=rez.close.length+sys.close.length, nExt=sys.ext.length, nRw=rez.rw.length+sys.rw.length;
+  document.getElementById('cClose').textContent=nClose;
+  document.getElementById('cExt').textContent=nExt;
+  document.getElementById('cRw').textContent=nRw;
+  const tot=Math.max(nClose+nExt+nRw,1);
+  document.getElementById('meter').innerHTML=
+    '<div style="width:'+(100*nClose/tot)+'%;background:var(--close)"></div>'+
+    '<div style="width:'+(100*nExt/tot)+'%;background:#E3B341"></div>'+
+    '<div style="width:'+(100*nRw/tot)+'%;background:#D06A6A"></div>';
+  document.getElementById('blkRez').innerHTML=
+    '<h2>Резонансные обращения <span class="count">'+(rez.close.length+rez.rw.length)+' задач</span></h2>'
+    +closureSection(rez.close)
+    +tableSection('Возврат на доработку','h-rw',rez.rw,false);
+  document.getElementById('blkSys').innerHTML=
+    '<h2>Системные адреса <span class="count">'+(sys.close.length+sys.ext.length+sys.rw.length)+' задач</span></h2>'
+    +closureSection(sys.close)
+    +tableSection('Продление 30 дней','h-ext',sys.ext,true)
+    +tableSection('Возврат на доработку','h-rw',sys.rw,false);
+}
+
+const RM_HEAD=['ID задачи','Статус','Трекер','Проект','Тема','Причина возврата / комментарий','Дата завершения'];
+function rmCsvRows(rows){ return [RM_HEAD, ...rows]; }
+document.getElementById('dlRw').addEventListener('click',()=>{
+  if(!RES) return;
+  const rows=[
+    ...RES.rez.rw.map(x=>[x.id,'Возвращена на доработку',x.tracker,x.project,x.subject,x.why,'']),
+    ...RES.sys.rw.map(x=>[x.id,'Возвращена на доработку',x.tracker,x.project,x.subject,x.why,''])
+  ];
+  const d=fmtD(TODAY).replace(/\./g,'-');
+  downloadCsv1251(rmCsvRows(rows), 'На_доработку_'+d+'.csv');
+});
+document.getElementById('dlExt').addEventListener('click',()=>{
+  if(!RES) return;
+  const rows=RES.sys.ext.map(x=>[x.id,'Возвращена на доработку',x.tracker,x.project,x.subject,x.why,x.winEnd?fmtD(x.winEnd):'']);
+  const d=fmtD(TODAY).replace(/\./g,'-');
+  downloadCsv1251(rmCsvRows(rows), 'Продление_срока_'+d+'.csv');
+});
+
+function toCP1251(str){
+  const out=[];
+  const MAP={0x0401:0xA8,0x0451:0xB8,0x2116:0xB9,0x00AB:0xAB,0x00BB:0xBB,0x2014:0x97,0x2013:0x96,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2026:0x85,0x00A0:0xA0,0x2022:0x95,0x00B7:0xB7};
+  for(const ch of str){
+    const c=ch.codePointAt(0);
+    if(c<128) out.push(c);
+    else if(c>=0x0410&&c<=0x044F) out.push(c-0x0410+0xC0);
+    else if(MAP[c]!==undefined) out.push(MAP[c]);
+    else out.push(0x3F);
+  }
+  return new Uint8Array(out);
+}
+function csvField(v){ const s=String(v==null?'':v); return /[;"\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function downloadCsv1251(rows, filename){
+  const text=rows.map(r=>r.map(csvField).join(';')).join('\r\n')+'\r\n';
+  const blob=new Blob([toCP1251(text)],{type:'text/csv;charset=windows-1251'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+  URL.revokeObjectURL(a.href);
+}
     </script>
 </body>
 </html>
