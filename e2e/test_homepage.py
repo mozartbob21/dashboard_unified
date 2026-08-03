@@ -1,6 +1,7 @@
 """Тесты главной страницы (home.html)."""
 import pytest
 import re
+from playwright.sync_api import expect  
 
 
 pytestmark = pytest.mark.e2e
