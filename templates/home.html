@@ -109,7 +109,6 @@
             color: #94a3b8;
         }
 
-        /* Адаптивность */
         @media (max-width: 900px) {
             .hero {
                 grid-template-columns: 1fr;
@@ -152,9 +151,7 @@
                 grid-template-columns: 1fr;
             }
         }
-        /* ===== /КОМПАКТНАЯ ГЕРОЙ-СЕКЦИЯ ===== */
 
-        /* ===== КНОПКА АВТО-ЗАПУСКА ===== */
         .scheduler-btn {
             background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
             color: white;
@@ -186,7 +183,6 @@
                 font-size: 12px;
             }
         }
-        /* ===== /КНОПКА АВТО-ЗАПУСКА ===== */
 
         .quick-actions-bar {
             display: flex !important;
@@ -267,7 +263,6 @@
             color: #e2e8f0 !important;
         }
         
-        /* Стили модального окна кастомизации */
         .neurona-switch {
             position: relative;
             display: inline-block;
@@ -350,7 +345,6 @@
             font-size: 14px;
         }
 
-        /* Адаптивность для мобильных телефонов */
         @media (max-width: 768px) {
             .quick-actions-bar {
                 flex-direction: column !important;
@@ -369,7 +363,6 @@
             }
         }
     
-        /* ===== ВИДЖЕТ ИСТОРИИ ЗАПУСКОВ ===== */
         .history-widget { margin-bottom: 20px; }
         .history-widget-head {
             display: flex; align-items: center; justify-content: space-between;
@@ -463,9 +456,7 @@
             .history-duration { display: none; }
             .history-module-name { font-size: 13px; }
         }
-        /* ===== /ВИДЖЕТ ИСТОРИИ ===== */
     
-        /* ===== Меню профиля ===== */
         .profile-menu { position: relative; display: inline-block; }
         .profile-menu-trigger { user-select: none; }
         .profile-menu-dropdown {
@@ -503,7 +494,7 @@
         .profile-menu-item:hover { background: #f3f4f6; }
         .profile-menu-logout { color: #b91c1c; }
         .profile-menu-logout:hover { background: #fef2f2; }
-        /* ===== ТЫ Т + - (i) ===== */
+
         .module-card { 
             padding: 16px 18px !important;
             position: relative;
@@ -527,7 +518,9 @@
             pointer-events: all;
         }
         
+        /* Скрытые описания — доступны JS для оверлея, но не видны на лицевой стороне */
         .module-card .module-description.is-collapsed { display: none !important; }
+        
         .module-title { position: relative; }
         .module-title-row { display: flex; align-items: center; gap: 8px; }
         .info-btn {
@@ -543,7 +536,6 @@
         .info-btn:hover { background: #8b5cf6; color: #fff; border-color: #8b5cf6; transform: scale(1.1); }
         [data-theme="dark"] .info-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: #cbd5e1; }
         
-        /* ===== Оверлей описания карточки ===== */
         .card-info-overlay {
             position: absolute;
             inset: 0;
@@ -622,7 +614,6 @@
                 padding: 24px;
             }
         }
-        /* ===== /Оверлей описания ===== */
     </style>
 </head>
 
@@ -675,7 +666,7 @@
                             aria-haspopup="true" aria-expanded="false"
                             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer;"
                             title="{{ user_role or '' }}">
-                        👤 {{ user_username }} 
+                        👤 {{ user_username }} ▾
                     </button>
                     <div id="profileMenuDropdown" class="profile-menu-dropdown" hidden>
                         <div class="profile-menu-header">
@@ -683,12 +674,12 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item" type="button"> Что нового (v2.5)</button>
+                        <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <div class="profile-menu-divider"></div>
                         <div class="profile-menu-info">Окружение: Локально</div>
                         <div class="profile-menu-divider"></div>
-                        <a href="/logout" class="profile-menu-item profile-menu-logout"> Выйти</a>
+                        <a href="/logout" class="profile-menu-item profile-menu-logout">🚪 Выйти</a>
                     </div>
                 </div>
                 {% endif %}
@@ -742,7 +733,6 @@
             </div>
         </section>
 
-        <!-- ИСПРАВЛЕННАЯ СЕКЦИЯ БЫСТРОГО ДОСТУПА (только для admin) -->
         {% if user_username == "admin" %}
         <section class="card quick-actions-bar">
             <div class="quick-actions-left">
@@ -750,7 +740,6 @@
                     <span>⚡</span> Сегодня можно быстро посмотреть:
                 </div>
                 <div id="quickActionsContainer" class="quick-actions-links">
-                    <!-- Заполняется через JS динамически -->
                 </div>
             </div>
             <button id="configureQuickActionsBtn" class="quick-actions-configure-btn" type="button">
@@ -759,8 +748,7 @@
         </section>
         {% endif %}
 
-                {% if user_username == "admin" %}
-        <!-- ===== ВИДЖЕТ: ИСТОРИЯ ЗАПУСКОВ МОДУЛЕЙ ===== -->
+        {% if user_username == "admin" %}
         <section class="card history-widget" id="historyWidget">
             <div class="history-widget-head">
                 <div>
@@ -783,11 +771,9 @@
                 </div>
             </div>
         </section>
-        <!-- ===== /ВИДЖЕТ ===== -->
         {% endif %}
 
         <section class="modules-grid">
-            
             
             {% if 'edo' in user_modules %}
             <article class="card module-card">
@@ -801,7 +787,11 @@
 
                 <h2 class="module-title">Заполненность данных</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль автоматического контроля корректности и полноты данных.
+                    Открывает панель мониторинга, анализирует проблемные строки,
+                    формирует сводку, персональные уведомления и показывает скриншоты.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Скриншоты панели</span>
@@ -823,8 +813,6 @@
             </article>
             {% endif %}
 
-
-            
             {% if 'overdue' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
@@ -837,7 +825,11 @@
 
                 <h2 class="module-title">Просроченные задачи</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль автоматического мониторинга просроченных задач по территориям и организациям.
+                    Позволяет запускать проверку, анализировать уровень риска,
+                    просматривать итоговые материалы и готовить персональные уведомления.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Контроль просрочки</span>
@@ -859,8 +851,6 @@
             </article>
             {% endif %}
 
-
-            
             {% if 'watercontrol' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
@@ -873,7 +863,11 @@
 
                 <h2 class="module-title">Контроль воды</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль автоматической проверки карточек контроля воды.
+                    Выявляет незаполненные обязательные поля, формирует сводку,
+                    персональные уведомления и показывает скриншоты панели.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Обязательные поля</span>
@@ -895,8 +889,6 @@
             </article>
             {% endif %}
 
-
-            
             {% if 'utnkr' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
@@ -909,7 +901,11 @@
 
                 <h2 class="module-title">Технадзор УТНКР</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль автоматического контроля просрочек и проблематики по таблице УТНКР.
+                    Система авторизуется на сайте, открывает нужную таблицу,
+                    анализирует строки и классифицирует объекты по правилам светофора.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Авторизация</span>
@@ -925,14 +921,12 @@
                        target="_blank"
                        rel="noopener noreferrer"
                        class="secondary-button">
-                        Открыть источник 
+                        Открыть источник ↗
                     </a>
                 </div>
             </article>
             {% endif %}
 
-
-            
             {% if 'cameras' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
@@ -945,7 +939,11 @@
 
                 <h2 class="module-title">Проверка камер</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль автоматической проверки подключения и работоспособности камер.
+                    Поддерживает загрузку адресной таблицы, сверку с сайтом камер,
+                    проверку видеопотоков и формирование предписаний по проблемным адресам.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Excel / CSV / TSV</span>
@@ -967,8 +965,6 @@
             </article>
             {% endif %}
 
-
-            
             {% if 'appeals' in user_modules %}
             <article class="card module-card module-card-appeals-beta">
                 <div class="module-head">
@@ -980,7 +976,11 @@
 
                 <h2 class="module-title">Эмпатичные ответы</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль подготовки мягких, корректных и человекоориентированных ответов
+                    на обращения. Определяет эмоцию и критичность кодом, подставляет эмпатичный
+                    блок и формирует черновик по редактируемому шаблону.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Тональность ответа</span>
@@ -995,8 +995,6 @@
             </article>
             {% endif %}
 
-
-            
             {% if 'cds' in user_modules %}
             <article class="card module-card module-card-appeals-beta">
                 <div class="module-head">
@@ -1004,13 +1002,16 @@
                         <span class="pill primary">Диспетчерская</span>
                         <span class="pill primary">ЖКХ</span>
                         <span class="status-badge status-stable">Стабильно</span>
-            
                     </div>
                 </div>
 
                 <h2 class="module-title">Обращения 1С</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль автоматического экспорта обращений из системы диспетчерской ЖКХ (1С).
+                    Авторизуется в веб-интерфейсе, переходит в раздел обращений, устанавливает период
+                    и выгружает структурированный список для анализа и отчётности.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Авторизация 1С</span>
@@ -1044,7 +1045,12 @@
 
                 <h2 class="module-title">ЖКХ Redmine</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                   Автоматическая проверка задач по качеству воды в Redmine.
+                   Резонансные обращения и системные адреса: анализ причин, промывок,
+                   датчиков мутности, сопоставление с онлайн-таблицей жалоб.
+                   Автозакрытие, возврат на доработку и продление срока.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Redmine API</span>
@@ -1065,6 +1071,7 @@
                 </div>
             </article>
             {% endif %}
+
             {% if 'ecur' in user_modules %}
             <article class="card module-card">
                 <div class="module-head">
@@ -1072,12 +1079,16 @@
                         <span class="pill primary">ЕЦУР</span>
                         <span class="pill primary">Жалобы и сроки</span>
                     </div>
-                    <span class="status-badge status-beta">Бета</span>
+                    <span class="status-badge status-stable">Новое</span>
                 </div>
 
                 <h2 class="module-title">ЕЦУР — жалобы</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Модуль автоматической выгрузки и анализа жалоб из системы ЕЦУР.
+                    Категории, кураторы, синтетические группы, календарь сроков,
+                    просрочки, экспорт в Excel и детальный просмотр каждой карточки.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag">Календарь сроков</span>
@@ -1099,10 +1110,6 @@
             </article>
             {% endif %}
 
-                                
-
-            <!-- Сводный отчёт по муниципалитету (Выделен премиальным градиентным бордером, ленточка удалена) -->
-            
             {% if 'municipality-report' in user_modules %}
             <article class="card module-card module-card-municipality-report highlight-premium-card">
                 <div class="module-head">
@@ -1115,7 +1122,11 @@
 
                 <h2 class="module-title">Отчёт по муниципалитету</h2>
 
-                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
+                <div class="module-description is-collapsed">
+                    Единый аналитический срез по выбранному городскому округу: просрочки, незаполненные поля в системах,
+                    проблемные камеры, критические риски, сводные данные из всех источников и структурированная 
+                    фактическая управленческая сводка без перегруженных JSON-данных.
+                </div>
 
                 <div class="tag-row">
                     <span class="tag tag-white">Факты по модулям</span>
@@ -1132,60 +1143,6 @@
             </article>
             {% endif %}
 
-
-        </section>
-
-        <section class="card git-update-card">
-            <div class="git-update-head">
-                <div>
-                    <div class="eyebrow">СИНХРОНИЗАЦИЯ</div>
-                    <h2 class="section-title">Обновления проекта</h2>
-                </div>
-
-                <span class="pill primary">GitHub</span>
-            </div>
-
-            <p class="muted">
-                Проверьте наличие обновлений в GitHub и загрузите их прямо из интерфейса.
-                Если после загрузки обновлялся Python-код, приложение нужно перезапустить.
-            </p>
-
-            <div class="git-token-row">
-                <input id="gitUpdateToken"
-                       class="git-token-input"
-                       type="password"
-                       value="12345"
-                       placeholder="Ключ обновления"
-                       autocomplete="off">
-
-                <button id="gitCheckButton" class="secondary-button" type="button">
-                    Проверить обновления
-                </button>
-
-                <button id="gitPullButton" class="module-link" type="button">
-                    Загрузить обновления
-                </button>
-
-                <button id="appRestartButton" class="secondary-button" type="button"
-                        style="background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;">
-                    🔄 Перезапустить приложение
-                </button>
-            </div>
-
-            <div id="gitUpdateStatus"
-                 class="update-status-card update-status-neutral"
-                 aria-live="polite">
-                <div class="update-status-icon">
-                    <span>?</span>
-                </div>
-
-                <div class="update-status-content">
-                    <div class="update-status-title">Статус обновлений пока не проверялся</div>
-                    <div class="update-status-text">
-                        Нажмите кнопку «Проверить обновления», чтобы узнать, доступна ли новая версия проекта.
-                    </div>
-                </div>
-            </div>
         </section>
 
         <section class="card">
@@ -1236,7 +1193,6 @@
 
             <div class="whats-new-kicker">Нейрона </div>
 
-            <!-- ===== Что уже есть в 2.4 Бета (Apple-style) ===== -->
             <div class="whats-new-kicker" style="margin-top: 28px;">Что есть в 2.4 </div>
             <h2 class="whats-new-title" style="font-size: 22px; margin: 8px 0 6px;">
                 Тихо. Мощно. Уже внутри.
@@ -1284,7 +1240,6 @@
                     </div>
                 </article>
             </div>
-            <!-- ===== /Что уже есть в 2.4 Бета ===== -->
 
             <div class="whats-new-footer">
                 <button class="module-link whats-new-done" type="button" data-whats-new-close>
@@ -1294,7 +1249,6 @@
         </section>
     </div>
 
-    <!-- Модальное окно кастомизации быстрого доступа (только для admin) -->
     {% if user_username == "admin" %}
     <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
         <div class="whats-new-backdrop" data-quick-modal-close></div>
@@ -1313,7 +1267,6 @@
             </p>
 
             <div class="customizer-list" id="customizerList">
-                <!-- Сюда JS вставит варианты выбора -->
             </div>
 
             <div class="whats-new-footer">
@@ -1327,14 +1280,12 @@
 
     {% if user_username == "admin" %}
     <script>
-        // JS скрипт настройки панели быстрого доступа
         (function () {
-            // Список всех доступных на платформе модулей
             const ALL_MODULES = [
                 { id: "edo", name: "Заполненность данных", path: "/edo", icon: "📋" },
                 { id: "cameras", name: "Проверить камеры", path: "/cameras", icon: "📹" },
                 { id: "overdue", name: "Посмотреть просрочки", path: "/overdue", icon: "⏱️" },
-                { id: "utnkr", name: "Технадзор УТНКР", path: "/utnkr", icon: "️🛡️" },
+                { id: "utnkr", name: "Технадзор УТНКР", path: "/utnkr", icon: "🛡️" },
                 { id: "watercontrol", name: "Контроль воды", path: "/watercontrol", icon: "💧" },
                 { id: "appeals", name: "Эмпатичные ответы", path: "/appeals", icon: "✍️" },
                 { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" },
@@ -1343,7 +1294,6 @@
                 { id: "ecur", name: "ЕЦУР — жалобы", path: "/ecur", icon: "📮" }
             ];
 
-            // Дефолтный выбор (если пользователь зашел первый раз)
             const DEFAULT_SELECTION = ["edo", "cameras", "overdue", "utnkr"];
 
             const container = document.getElementById("quickActionsContainer");
@@ -1351,13 +1301,11 @@
             const modal = document.getElementById("quickActionsModal");
             const customizerList = document.getElementById("customizerList");
 
-            // Загружаем текущие настройки или ставим дефолтные
             function getSelectedModuleIds() {
                 const saved = localStorage.getItem("neurona-quick-links");
                 return saved ? JSON.parse(saved) : DEFAULT_SELECTION;
             }
 
-            // Отрисовка кнопок быстрого перехода
             function renderQuickButtons() {
                 if (!container) return;
                 const activeIds = getSelectedModuleIds();
@@ -1375,7 +1323,6 @@
                 `).join("");
             }
 
-            // Отрисовка списка тумблеров в модалке настроек
             function renderCustomizerList() {
                 if (!customizerList) return;
                 const activeIds = getSelectedModuleIds();
@@ -1396,7 +1343,6 @@
                     `;
                 }).join("");
 
-                // Вешаем события на изменение тумблеров
                 customizerList.querySelectorAll("input[type='checkbox']").forEach(checkbox => {
                     checkbox.addEventListener("change", function () {
                         saveSelectionFromModal();
@@ -1404,7 +1350,6 @@
                 });
             }
 
-            // Сохранение положения тумблеров в LocalStorage
             function saveSelectionFromModal() {
                 const checkboxes = customizerList.querySelectorAll("input[type='checkbox']");
                 const newSelected = [];
@@ -1417,7 +1362,6 @@
                 renderQuickButtons();
             }
 
-            // Открытие / закрытие модалки
             if (configBtn && modal) {
                 configBtn.addEventListener("click", () => {
                     renderCustomizerList();
@@ -1435,14 +1379,12 @@
                 });
             }
 
-            // Инициализация при старте страницы
             renderQuickButtons();
         })();
     </script>
     {% endif %}
 
     <script>
-        // Скрипт модального окна "Что нового"
         (function () {
             const button = document.getElementById("whatsNewButton");
             const modal = document.getElementById("whatsNewModal");
@@ -1478,219 +1420,6 @@
     </script>
 
     <script>
-        // Скрипт обновления Git
-        (function () {
-            const tokenInput = document.getElementById("gitUpdateToken");
-            const checkButton = document.getElementById("gitCheckButton");
-            const pullButton = document.getElementById("gitPullButton");
-            const statusBox = document.getElementById("gitUpdateStatus");
-
-            function getToken() {
-                return tokenInput ? tokenInput.value.trim() : "";
-            }
-
-            function renderStatus(type, icon, title, text) {
-                if (!statusBox) {
-                    return;
-                }
-
-                statusBox.className = "update-status-card update-status-" + type;
-
-                statusBox.innerHTML = `
-                    <div class="update-status-icon">
-                        <span>${icon}</span>
-                    </div>
-
-                    <div class="update-status-content">
-                        <div class="update-status-title">${title}</div>
-                        <div class="update-status-text">${text}</div>
-                    </div>
-                `;
-            }
-
-            async function requestJson(url, options) {
-                const token = getToken();
-
-                const response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        "X-Git-Update-Token": token
-                    }
-                });
-
-                let data = {};
-
-                try {
-                    data = await response.json();
-                } catch (error) {
-                    data = {
-                        message: "Сервер вернул не JSON-ответ.",
-                        error: String(error)
-                    };
-                }
-
-                if (!response.ok) {
-                    const error = new Error(data.message || data.detail || "Ошибка запроса");
-                    error.data = data;
-                    throw error;
-                }
-
-                return data;
-            }
-
-            if (checkButton) {
-                checkButton.addEventListener("click", async function () {
-                    checkButton.disabled = true;
-
-                    renderStatus(
-                        "process",
-                        "⏳",
-                        "Проверяю обновления",
-                        "Идёт сверка локальной версии проекта с GitHub. Подождите несколько секунд."
-                    );
-
-                    try {
-                        const data = await requestJson("/system/git/check", {
-                            method: "GET"
-                        });
-
-                        if (data.has_local_changes) {
-                            renderStatus(
-                                "warning",
-                                "!",
-                                "Есть локальные изменения",
-                                "В проекте есть несохранённые или незакоммиченные изменения. Перед обновлением лучше сохранить их."
-                            );
-                        } else if (data.has_updates) {
-                            renderStatus(
-                                "update",
-                                "↻",
-                                "Доступно обновление",
-                                "На GitHub найдена новая версия проекта. Вы можете загрузить обновления кнопкой выше."
-                            );
-                        } else {
-                            renderStatus(
-                                "success",
-                                "✓",
-                                "Вы используете актуальную версию",
-                                "Обновлений нет. Локальный проект синхронизирован с GitHub."
-                            );
-                        }
-                    } catch (error) {
-                        renderStatus(
-                            "error",
-                            "×",
-                            "Ошибка проверки обновлений",
-                            "Не удалось проверить обновления. Проверьте ключ, подключение или настройки сервера."
-                        );
-                    } finally {
-                        checkButton.disabled = false;
-                    }
-                });
-            }
-
-            if (pullButton) {
-                pullButton.addEventListener("click", async function () {
-                    const confirmed = confirm(
-                        "Загрузить обновления из GitHub?\n\n" +
-                        "Важно: если обновлялся Python-код, после загрузки нужно перезапустить приложение."
-                    );
-
-                    if (!confirmed) {
-                        return;
-                    }
-
-                    pullButton.disabled = true;
-
-                    renderStatus(
-                        "process",
-                        "",
-                        "Загружаю обновления",
-                        "Проект получает свежие изменения из GitHub. Не закрывайте страницу до завершения."
-                    );
-
-                    try {
-                        await requestJson("/system/git/pull", {
-                            method: "POST"
-                        });
-
-                        renderStatus(
-                            "success",
-                            "✓",
-                            "Обновления загружены",
-                            "Новая версия проекта успешно получена. Если обновлялся Python-код, перезапустите приложение."
-                        );
-                    } catch (error) {
-                        renderStatus(
-                            "error",
-                            "×",
-                            "Ошибка загрузки обновлений",
-                            "Не удалось загрузить обновления. Возможно, есть локальные изменения или проблема с подключением."
-                        );
-                    } finally {
-                        pullButton.disabled = false;
-                    }
-                });
-            }
-
-            // === Перезапуск приложения ===
-            const restartButton = document.getElementById("appRestartButton");
-
-            if (restartButton) {
-                restartButton.addEventListener("click", async function () {
-                    const confirmed = confirm(
-                        "Перезапустить приложение?\n\n" +
-                        "Сервер перечитает Python-код. Страница автоматически обновится через 5 секунд."
-                    );
-
-                    if (!confirmed) return;
-
-                    restartButton.disabled = true;
-
-                    renderStatus(
-                        "process",
-                        "⏳",
-                        "Перезапускаю приложение",
-                        "Сервер перечитывает код. Страница автоматически обновится через несколько секунд."
-                    );
-
-                    try {
-                        const response = await fetch("/api/system/restart", {
-                            method: "POST"
-                        });
-
-                        let data = {};
-                        try { data = await response.json(); } catch (_) {}
-
-                        renderStatus(
-                            "success",
-                            "✓",
-                            "Команда перезапуска отправлена",
-                            (data.message || "Сервер перезагружается.") + " Перезагружаю страницу..."
-                        );
-
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 5000);
-
-                    } catch (error) {
-                        renderStatus(
-                            "process",
-                            "⏳",
-                            "Соединение прервано — сервер перезапускается",
-                            "Это ожидаемо. Перезагружаю страницу через 5 секунд..."
-                        );
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 5000);
-                    }
-                });
-            }
-
-        })();
-    </script>
-    <script>
-    // Скрипт интеллектуальной смены темы
     (function () {
         const root = document.documentElement;
         const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
@@ -1821,7 +1550,6 @@
 
     {% if user_username == "admin" %}
     <script>
-    // ===== Виджет истории запусков =====
     (function () {
         const listEl = document.getElementById("historyList");
         const refreshBtn = document.getElementById("historyRefreshBtn");
@@ -1830,8 +1558,8 @@
         const MODULE_META = {
             "edo":                  { name: "Заполненность данных",  icon: "📋" },
             "cameras":              { name: "Проверка камер",         icon: "📹" },
-            "overdue":              { name: "Просроченные задачи",    icon: "️⏱️" },
-            "utnkr":                { name: "Технадзор УТНКР",        icon: "️🛡️" },
+            "overdue":              { name: "Просроченные задачи",    icon: "⏱️" },
+            "utnkr":                { name: "Технадзор УТНКР",        icon: "🛡️" },
             "watercontrol":         { name: "Контроль воды",          icon: "💧" },
             "appeals":              { name: "Эмпатичные ответы",      icon: "✍️" },
             "municipality-report":  { name: "Отчёт по округу",        icon: "📊" },
@@ -1889,7 +1617,7 @@
                             <span>${escapeHtml(meta.name)}</span>
                         </div>
                         <div class="history-meta">
-                            <span class="history-user-tag"> ${escapeHtml(username)}</span>
+                            <span class="history-user-tag">👤 ${escapeHtml(username)}</span>
                             <span>•</span>
                             <span>${escapeHtml(timeAgo(startedAt))}</span>
                         </div>
@@ -1908,7 +1636,7 @@
         function renderError() {
             listEl.innerHTML = `
                 <div class="history-empty">
-                    <div class="history-empty-icon">️</div>
+                    <div class="history-empty-icon">⚠️</div>
                     <div class="history-empty-title">Не удалось загрузить историю</div>
                 </div>`;
         }
@@ -2057,9 +1785,7 @@
 })();
 </script>
 
-
     <script>
-    /* profile-menu-toggle */
     (function () {
         const btn = document.getElementById("profileMenuButton");
         const dropdown = document.getElementById("profileMenuDropdown");
@@ -2091,7 +1817,6 @@
     })();
     </script>
 
-    
     <script>
     (function () {
         const cards = document.querySelectorAll(".module-card");
@@ -2101,13 +1826,11 @@
             const desc  = card.querySelector(".module-description");
             if (!title || !desc) return;
             
-            // Создаем ряд с заголовком и кнопкой (i)
             const row = document.createElement("div");
             row.className = "module-title-row";
             title.parentNode.insertBefore(row, title);
             row.appendChild(title);
             
-            // Кнопка информации
             const infoBtn = document.createElement("button");
             infoBtn.type = "button";
             infoBtn.className = "info-btn";
@@ -2115,7 +1838,6 @@
             infoBtn.setAttribute("aria-label", "Описание модуля");
             row.appendChild(infoBtn);
             
-            // Создаем оверлей с описанием
             const overlay = document.createElement("div");
             overlay.className = "card-info-overlay";
             overlay.hidden = true;
@@ -2125,12 +1847,9 @@
                 <button class="card-info-back" type="button">← Назад</button>
             `;
             
-            // Добавляем оверлей внутрь карточки
             card.appendChild(overlay);
             
-            // Функция открытия оверлея
             function openOverlay() {
-                // Закрываем все другие открытые оверлеи
                 document.querySelectorAll(".card-info-overlay").forEach(function(o) {
                     if (o !== overlay) o.hidden = true;
                 });
@@ -2139,19 +1858,16 @@
                 card.classList.add("card-info-open");
             }
             
-            // Функция закрытия оверлея
             function closeOverlay() {
                 overlay.hidden = true;
                 card.classList.remove("card-info-open");
             }
             
-            // Обработчики событий
             infoBtn.addEventListener("click", function (e) {
                 e.stopPropagation();
                 openOverlay();
             });
             
-            // Кнопка "Назад" внутри оверлея
             const backBtn = overlay.querySelector(".card-info-back");
             if (backBtn) {
                 backBtn.addEventListener("click", function (e) {
@@ -2161,7 +1877,6 @@
             }
         });
         
-        // Закрытие по клику вне карточек и по Escape
         document.addEventListener("click", function (e) {
             if (!e.target.closest(".module-card")) {
                 document.querySelectorAll(".card-info-overlay").forEach(function (o) {
