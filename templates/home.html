@@ -1849,15 +1849,18 @@
             
             card.appendChild(overlay);
             
-            function openOverlay() {
-                document.querySelectorAll(".card-info-overlay").forEach(function(o) {
-                    if (o !== overlay) o.hidden = true;
-                });
-                
-                overlay.hidden = false;
-                card.classList.add("card-info-open");
-            }
-            
+         function openOverlay() {
+    // Закрываем все другие открытые оверлеи И снимаем с них класс
+    document.querySelectorAll(".card-info-overlay").forEach(function(o) {
+        if (o !== overlay) {
+            o.hidden = true;
+            o.closest(".module-card")?.classList.remove("card-info-open");
+        }
+    });
+
+    overlay.hidden = false;
+    card.classList.add("card-info-open");
+}
             function closeOverlay() {
                 overlay.hidden = true;
                 card.classList.remove("card-info-open");

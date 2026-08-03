@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import ChainableUndefined
 
+
 from services import run_history
 from services.auth.security import (
     authenticate_user,
