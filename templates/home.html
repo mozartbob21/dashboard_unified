@@ -675,7 +675,7 @@
                             aria-haspopup="true" aria-expanded="false"
                             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer;"
                             title="{{ user_role or '' }}">
-                        👤 {{ user_username }} ▾
+                        👤 {{ user_username }} 
                     </button>
                     <div id="profileMenuDropdown" class="profile-menu-dropdown" hidden>
                         <div class="profile-menu-header">
@@ -683,12 +683,12 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
+                        <button id="whatsNewButton" class="profile-menu-item" type="button"> Что нового (v2.5)</button>
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <div class="profile-menu-divider"></div>
                         <div class="profile-menu-info">Окружение: Локально</div>
                         <div class="profile-menu-divider"></div>
-                        <a href="/logout" class="profile-menu-item profile-menu-logout">🚪 Выйти</a>
+                        <a href="/logout" class="profile-menu-item profile-menu-logout"> Выйти</a>
                     </div>
                 </div>
                 {% endif %}
@@ -801,11 +801,7 @@
 
                 <h2 class="module-title">Заполненность данных</h2>
 
-                <div class="module-description">
-                    Модуль автоматического контроля корректности и полноты данных.
-                    Открывает панель мониторинга, анализирует проблемные строки,
-                    формирует сводку, персональные уведомления и показывает скриншоты.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Скриншоты панели</span>
@@ -841,11 +837,7 @@
 
                 <h2 class="module-title">Просроченные задачи</h2>
 
-                <div class="module-description">
-                    Модуль автоматического мониторинга просроченных задач по территориям и организациям.
-                    Позволяет запускать проверку, анализировать уровень риска,
-                    просматривать итоговые материалы и готовить персональные уведомления.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Контроль просрочки</span>
@@ -881,11 +873,7 @@
 
                 <h2 class="module-title">Контроль воды</h2>
 
-                <div class="module-description">
-                    Модуль автоматической проверки карточек контроля воды.
-                    Выявляет незаполненные обязательные поля, формирует сводку,
-                    персональные уведомления и показывает скриншоты панели.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Обязательные поля</span>
@@ -921,11 +909,7 @@
 
                 <h2 class="module-title">Технадзор УТНКР</h2>
 
-                <div class="module-description">
-                    Модуль автоматического контроля просрочек и проблематики по таблице УТНКР.
-                    Система авторизуется на сайте, открывает нужную таблицу,
-                    анализирует строки и классифицирует объекты по правилам светофора.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Авторизация</span>
@@ -941,7 +925,7 @@
                        target="_blank"
                        rel="noopener noreferrer"
                        class="secondary-button">
-                        Открыть источник ↗
+                        Открыть источник 
                     </a>
                 </div>
             </article>
@@ -961,11 +945,7 @@
 
                 <h2 class="module-title">Проверка камер</h2>
 
-                <div class="module-description">
-                    Модуль автоматической проверки подключения и работоспособности камер.
-                    Поддерживает загрузку адресной таблицы, сверку с сайтом камер,
-                    проверку видеопотоков и формирование предписаний по проблемным адресам.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Excel / CSV / TSV</span>
@@ -1000,11 +980,7 @@
 
                 <h2 class="module-title">Эмпатичные ответы</h2>
 
-                <div class="module-description">
-                    Модуль подготовки мягких, корректных и человекоориентированных ответов
-                    на обращения. Определяет эмоцию и критичность кодом, подставляет эмпатичный
-                    блок и формирует черновик по редактируемому шаблону.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Тональность ответа</span>
@@ -1034,11 +1010,7 @@
 
                 <h2 class="module-title">Обращения 1С</h2>
 
-                <div class="module-description">
-                    Модуль автоматического экспорта обращений из системы диспетчерской ЖКХ (1С).
-                    Авторизуется в веб-интерфейсе, переходит в раздел обращений, устанавливает период
-                    и выгружает структурированный список для анализа и отчётности.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Авторизация 1С</span>
@@ -1072,12 +1044,7 @@
 
                 <h2 class="module-title">ЖКХ Redmine</h2>
 
-                <div class="module-description">
-                   Автоматическая проверка задач по качеству воды в Redmine.
-                   Резонансные обращения и системные адреса: анализ причин, промывок,
-                   датчиков мутности, сопоставление с онлайн-таблицей жалоб.
-                   Автозакрытие, возврат на доработку и продление срока.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Redmine API</span>
@@ -1110,11 +1077,7 @@
 
                 <h2 class="module-title">ЕЦУР — жалобы</h2>
 
-                <div class="module-description">
-                    Модуль автоматической выгрузки и анализа жалоб из системы ЕЦУР.
-                    Категории, кураторы, синтетические группы, календарь сроков,
-                    просрочки, экспорт в Excel и детальный просмотр каждой карточки.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag">Календарь сроков</span>
@@ -1152,11 +1115,7 @@
 
                 <h2 class="module-title">Отчёт по муниципалитету</h2>
 
-                <div class="module-description">
-                    Единый аналитический срез по выбранному городскому округу: просрочки, незаполненные поля в системах,
-                    проблемные камеры, критические риски, сводные данные из всех источников и структурированная 
-                    фактическая управленческая сводка без перегруженных JSON-данных.
-                </div>
+                <!-- Описание убрано с лицевой стороны, доступно по кнопке (i) -->
 
                 <div class="tag-row">
                     <span class="tag tag-white">Факты по модулям</span>
@@ -1375,7 +1334,7 @@
                 { id: "edo", name: "Заполненность данных", path: "/edo", icon: "📋" },
                 { id: "cameras", name: "Проверить камеры", path: "/cameras", icon: "📹" },
                 { id: "overdue", name: "Посмотреть просрочки", path: "/overdue", icon: "⏱️" },
-                { id: "utnkr", name: "Технадзор УТНКР", path: "/utnkr", icon: "🛡️" },
+                { id: "utnkr", name: "Технадзор УТНКР", path: "/utnkr", icon: "️🛡️" },
                 { id: "watercontrol", name: "Контроль воды", path: "/watercontrol", icon: "💧" },
                 { id: "appeals", name: "Эмпатичные ответы", path: "/appeals", icon: "✍️" },
                 { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" },
@@ -1645,7 +1604,7 @@
 
                     renderStatus(
                         "process",
-                        "⏳",
+                        "",
                         "Загружаю обновления",
                         "Проект получает свежие изменения из GitHub. Не закрывайте страницу до завершения."
                     );
@@ -1871,8 +1830,8 @@
         const MODULE_META = {
             "edo":                  { name: "Заполненность данных",  icon: "📋" },
             "cameras":              { name: "Проверка камер",         icon: "📹" },
-            "overdue":              { name: "Просроченные задачи",    icon: "⏱️" },
-            "utnkr":                { name: "Технадзор УТНКР",        icon: "🛡️" },
+            "overdue":              { name: "Просроченные задачи",    icon: "️⏱️" },
+            "utnkr":                { name: "Технадзор УТНКР",        icon: "️🛡️" },
             "watercontrol":         { name: "Контроль воды",          icon: "💧" },
             "appeals":              { name: "Эмпатичные ответы",      icon: "✍️" },
             "municipality-report":  { name: "Отчёт по округу",        icon: "📊" },
@@ -1930,7 +1889,7 @@
                             <span>${escapeHtml(meta.name)}</span>
                         </div>
                         <div class="history-meta">
-                            <span class="history-user-tag">👤 ${escapeHtml(username)}</span>
+                            <span class="history-user-tag"> ${escapeHtml(username)}</span>
                             <span>•</span>
                             <span>${escapeHtml(timeAgo(startedAt))}</span>
                         </div>
@@ -1949,7 +1908,7 @@
         function renderError() {
             listEl.innerHTML = `
                 <div class="history-empty">
-                    <div class="history-empty-icon">⚠️</div>
+                    <div class="history-empty-icon">️</div>
                     <div class="history-empty-title">Не удалось загрузить историю</div>
                 </div>`;
         }
