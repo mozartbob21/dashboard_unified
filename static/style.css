@@ -5480,3 +5480,62 @@ html[data-theme="kreml"] body::before {
         background: transparent !important;
     }
 }
+/* =========================================================
+   COMPACT HERO OVERRIDES (Без изменения размера шрифта)
+   Уменьшает отступы, высоту и промежутки, сохраняя читаемость текста
+   ========================================================= */
+
+.compact-module-page .hero {
+    padding: 20px 24px !important; /* Было 34px 38px */
+    min-height: auto !important; /* УБИРАЕМ принудительную высоту 430px, которая растягивала блок */
+    gap: 16px !important; /* Было 28px */
+    margin-bottom: 16px !important;
+}
+
+/* Делаем заголовок пропорциональным, чтобы он не создавал огромных пустот, 
+   но при этом оставался крупным и читаемым */
+.compact-module-page .hero h1,
+.compact-module-page .hero h3 {
+    font-size: clamp(24px, 3vw, 32px) !important; /* Было clamp(38px, 4.15vw, 58px) */
+    line-height: 1.25 !important; /* Чуть плотнее по вертикали */
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+}
+
+.compact-module-page .hero .subtext {
+    margin-top: 8px !important; /* Было 18px */
+    line-height: 1.5 !important; /* Строки чуть ближе друг к другу, размер шрифта не меняем */
+}
+
+.compact-module-page .hero-side {
+    gap: 8px !important; /* Было 12px */
+    align-content: center !important;
+}
+
+.compact-module-page .hero-chip {
+    padding: 6px 12px !important; /* Было 9px 13px */
+    min-height: 32px !important; /* Было 34px */
+    /* font-size остается 13px, как и был */
+}
+
+/* Адаптив для планшетов, чтобы не ломалось */
+@media (max-width: 900px) {
+    .compact-module-page .hero {
+        padding: 18px 20px !important;
+        gap: 14px !important;
+    }
+    .compact-module-page .hero h1,
+    .compact-module-page .hero h3 {
+        font-size: 22px !important;
+    }
+}
+
+/* Адаптив для мобильных */
+@media (max-width: 640px) {
+    .compact-module-page .hero {
+        padding: 16px !important;
+    }
+    .compact-module-page .hero-chip {
+        padding: 5px 10px !important;
+    }
+}

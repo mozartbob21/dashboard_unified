@@ -34,8 +34,160 @@
     <title>Нейрона ИИ — Единая точка входа</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
 
-    <!-- Абсолютно надежные стили для панели быстрого доступа -->
     <style>
+        /* ===== КОМПАКТНАЯ ГЕРОЙ-СЕКЦИЯ ===== */
+        .hero {
+            padding: 16px 20px !important;
+            margin-bottom: 12px !important;
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .hero > div:first-child {
+            min-width: 0;
+        }
+
+        .eyebrow {
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b5cf6;
+            margin-bottom: 2px !important;
+        }
+
+        .hero h1 {
+            font-size: 18px !important;
+            line-height: 1.25 !important;
+            margin: 0 !important;
+            font-weight: 700;
+            color: var(--text-color, #1e293b);
+        }
+
+        [data-theme="dark"] .hero h1 {
+            color: #e2e8f0;
+        }
+
+        .hero-side {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .soft-card {
+            padding: 10px 12px !important;
+            border-radius: 8px !important;
+            background: rgba(0, 0, 0, 0.02);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        [data-theme="dark"] .soft-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .soft-card-title {
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8b5cf6;
+            margin-bottom: 6px !important;
+        }
+
+        .soft-card-text,
+        .soft-card .muted {
+            font-size: 15px !important;
+            line-height: 1.55 !important;
+            color: var(--muted-color, #64748b);
+        }
+
+        [data-theme="dark"] .soft-card-text,
+        [data-theme="dark"] .soft-card .muted {
+            color: #94a3b8;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 900px) {
+            .hero {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .hero-side {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .hero h1 {
+                font-size: 16px !important;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .hero {
+                padding: 12px !important;
+            }
+            
+            .hero h1 {
+                font-size: 14px !important;
+            }
+            
+            .soft-card {
+                padding: 8px !important;
+            }
+            
+            .soft-card-title,
+            .eyebrow {
+                font-size: 11px !important;
+            }
+            
+            .soft-card-text,
+            .soft-card .muted {
+                font-size: 13px !important;
+            }
+            
+            .hero-side {
+                grid-template-columns: 1fr;
+            }
+        }
+        /* ===== /КОМПАКТНАЯ ГЕРОЙ-СЕКЦИЯ ===== */
+
+        /* ===== КНОПКА АВТО-ЗАПУСКА ===== */
+        .scheduler-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .scheduler-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+        }
+
+        .scheduler-btn:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .scheduler-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+        }
+        /* ===== /КНОПКА АВТО-ЗАПУСКА ===== */
+
         .quick-actions-bar {
             display: flex !important;
             flex-direction: row !important;
@@ -96,7 +248,7 @@
             transition: all 0.2s ease !important;
             white-space: nowrap !important;
             flex-shrink: 0 !important;
-            margin-left: auto !important; /* Всегда прижимает кнопку настройки к правому краю */
+            margin-left: auto !important;
         }
         .quick-actions-configure-btn:hover {
             background: var(--bg-neutral-200, rgba(0,0,0,0.06)) !important;
@@ -352,7 +504,29 @@
         .profile-menu-logout { color: #b91c1c; }
         .profile-menu-logout:hover { background: #fef2f2; }
         /* ===== ТЫ Т + - (i) ===== */
-        .module-card { padding: 16px 18px !important; }
+        .module-card { 
+            padding: 16px 18px !important;
+            position: relative;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        
+        .module-card.card-info-open {
+            transform: scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .module-card.card-info-open > *:not(.card-info-overlay) {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        .module-card.card-info-open .card-info-overlay {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: all;
+        }
+        
         .module-card .module-description.is-collapsed { display: none !important; }
         .module-title { position: relative; }
         .module-title-row { display: flex; align-items: center; gap: 8px; }
@@ -368,7 +542,8 @@
         }
         .info-btn:hover { background: #8b5cf6; color: #fff; border-color: #8b5cf6; transform: scale(1.1); }
         [data-theme="dark"] .info-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); color: #cbd5e1; }
-                /* ===== Оверлей описания карточки ===== */
+        
+        /* ===== Оверлей описания карточки ===== */
         .card-info-overlay {
             position: absolute;
             inset: 0;
@@ -380,22 +555,26 @@
             flex-direction: column;
             gap: 12px;
             box-sizing: border-box;
-            animation: card-info-fade 0.18s ease;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
         }
+        
+        .card-info-overlay[hidden] { display: none; }
+        
         [data-theme="dark"] .card-info-overlay {
             background: #1e293b;
         }
-        .card-info-overlay[hidden] { display: none; }
-        @keyframes card-info-fade {
-            from { opacity: 0; }
-            to   { opacity: 1; }
-        }
+        
         .card-info-overlay-title {
             font-weight: 700;
             font-size: 15px;
             color: #1e293b;
         }
+        
         [data-theme="dark"] .card-info-overlay-title { color: #e2e8f0; }
+        
         .card-info-overlay-text {
             flex: 1;
             font-size: 14px;
@@ -403,28 +582,48 @@
             color: #475569;
             overflow-y: auto;
         }
+        
         [data-theme="dark"] .card-info-overlay-text { color: #cbd5e1; }
+        
         .card-info-back {
             align-self: flex-start;
             margin-top: auto;
-            background: #8b5cf6;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
             color: #fff;
             border: none;
-            border-radius: 8px;
-            padding: 8px 16px;
-            font-size: 13px;
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
         }
+        
         .card-info-back:hover {
-            background: #7c3aed;
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+        }
+        
+        .card-info-back:active {
+            transform: translateY(0);
+        }
+        
+        @media (max-width: 768px) {
+            .module-card.card-info-open {
+                transform: none;
+            }
+            
+            .card-info-overlay {
+                position: fixed;
+                inset: 20px;
+                z-index: 1000;
+                border-radius: 16px;
+                padding: 24px;
+            }
         }
         /* ===== /Оверлей описания ===== */
-
-
-        </style>
+    </style>
 </head>
 
 <body class="compact-module-page">
@@ -464,6 +663,12 @@
                     </div>
                 </div>
 
+                {% if user_username == "admin" %}
+                <a href="/scheduler" class="scheduler-btn" title="Планировщик задач">
+                    <span>🗓️</span> Авто-запуск
+                </a>
+                {% endif %}
+
                 {% if user_username %}
                 <div class="profile-menu">
                     <button id="profileMenuButton" class="badge profile-menu-trigger" type="button"
@@ -478,9 +683,6 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        {% if (user_role or "")|lower in ["admin", "администратор"] %}
-                        <a href="/scheduler" class="profile-menu-item">🗓️ Планировщик</a>
-                        {% endif %}
                         <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <div class="profile-menu-divider"></div>
@@ -1676,8 +1878,8 @@
             "municipality-report":  { name: "Отчёт по округу",        icon: "📊" },
             "cds":                  { name: "Обращения ЖКХ",          icon: "🏠" },
             "mgkh_rm":              { name: "МГКХ Redmine",           icon: "📅" },
-        "water_rm":             { name: "Проверка задач по воде", icon: "💧" },
-        "ecur":                 { name: "ЕЦУР — жалобы",      icon: "📮" }
+            "water_rm":             { name: "Проверка задач по воде", icon: "💧" },
+            "ecur":                 { name: "ЕЦУР — жалобы",          icon: "📮" }
         };
         const STATUS_LABELS = {
             "running": "Выполняется", "success": "Успешно",
@@ -1934,45 +2136,91 @@
     <script>
     (function () {
         const cards = document.querySelectorAll(".module-card");
+        
         cards.forEach(function (card) {
             const title = card.querySelector(".module-title");
             const desc  = card.querySelector(".module-description");
             if (!title || !desc) return;
-            desc.classList.add("is-collapsed");
+            
+            // Создаем ряд с заголовком и кнопкой (i)
             const row = document.createElement("div");
             row.className = "module-title-row";
             title.parentNode.insertBefore(row, title);
             row.appendChild(title);
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "info-btn";
-            btn.textContent = "i";
-            btn.setAttribute("aria-label", "Описание модуля");
-            row.appendChild(btn);
-            const pop = document.createElement("div");
-            pop.className = "info-popover";
-            pop.hidden = true;
-            pop.textContent = desc.textContent.trim();
-            row.appendChild(pop);
-            btn.addEventListener("click", function (e) {
+            
+            // Кнопка информации
+            const infoBtn = document.createElement("button");
+            infoBtn.type = "button";
+            infoBtn.className = "info-btn";
+            infoBtn.innerHTML = "i";
+            infoBtn.setAttribute("aria-label", "Описание модуля");
+            row.appendChild(infoBtn);
+            
+            // Создаем оверлей с описанием
+            const overlay = document.createElement("div");
+            overlay.className = "card-info-overlay";
+            overlay.hidden = true;
+            overlay.innerHTML = `
+                <div class="card-info-overlay-title">${title.textContent}</div>
+                <div class="card-info-overlay-text">${desc.textContent.trim()}</div>
+                <button class="card-info-back" type="button">← Назад</button>
+            `;
+            
+            // Добавляем оверлей внутрь карточки
+            card.appendChild(overlay);
+            
+            // Функция открытия оверлея
+            function openOverlay() {
+                // Закрываем все другие открытые оверлеи
+                document.querySelectorAll(".card-info-overlay").forEach(function(o) {
+                    if (o !== overlay) o.hidden = true;
+                });
+                
+                overlay.hidden = false;
+                card.classList.add("card-info-open");
+            }
+            
+            // Функция закрытия оверлея
+            function closeOverlay() {
+                overlay.hidden = true;
+                card.classList.remove("card-info-open");
+            }
+            
+            // Обработчики событий
+            infoBtn.addEventListener("click", function (e) {
                 e.stopPropagation();
-                document.querySelectorAll(".info-popover").forEach(function (p) { if (p !== pop) p.hidden = true; });
-                pop.hidden = !pop.hidden;
+                openOverlay();
             });
-        });
-        document.addEventListener("click", function (e) {
-            if (!e.target.closest(".info-popover") && !e.target.closest(".info-btn")) {
-                document.querySelectorAll(".info-popover").forEach(function (p) { p.hidden = true; });
+            
+            // Кнопка "Назад" внутри оверлея
+            const backBtn = overlay.querySelector(".card-info-back");
+            if (backBtn) {
+                backBtn.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    closeOverlay();
+                });
             }
         });
+        
+        // Закрытие по клику вне карточек и по Escape
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest(".module-card")) {
+                document.querySelectorAll(".card-info-overlay").forEach(function (o) {
+                    o.hidden = true;
+                    o.closest(".module-card")?.classList.remove("card-info-open");
+                });
+            }
+        });
+        
         document.addEventListener("keydown", function (e) {
             if (e.key === "Escape") {
-                document.querySelectorAll(".info-popover").forEach(function (p) { p.hidden = true; });
+                document.querySelectorAll(".card-info-overlay").forEach(function (o) {
+                    o.hidden = true;
+                    o.closest(".module-card")?.classList.remove("card-info-open");
+                });
             }
         });
     })();
     </script>
 </body>
 </html>
-
-
