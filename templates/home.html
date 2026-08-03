@@ -35,123 +35,123 @@
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
 
     <style>
-        /* ===== КОМПАКТНАЯ ГЕРОЙ-СЕКЦИЯ ===== */
-        .hero {
-            padding: 16px 20px !important;
-            margin-bottom: 12px !important;
-            display: grid;
-            grid-template-columns: 1fr 320px;
-            gap: 16px;
-            align-items: center;
-        }
+/* ===== КОМПАКТНАЯ ГЕРОЙ-СЕКЦИЯ ===== */
+.hero {
+    padding: 16px 20px !important;
+    margin-bottom: 12px !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;  /* правая колонка уже */
+    gap: 16px;
+    align-items: stretch;
+}
 
-        .hero > div:first-child {
-            min-width: 0;
-        }
+.hero-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
 
-        .eyebrow {
-            font-size: 10px !important;
-            font-weight: 700 !important;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #8b5cf6;
-            margin-bottom: 2px !important;
-        }
+/* «НАЗНАЧЕНИЕ» — горизонтальная полоса под заголовком */
+.hero-purpose {
+    margin-top: 12px;
+}
 
-        .hero h1 {
-            font-size: 18px !important;
-            line-height: 1.25 !important;
-            margin: 0 !important;
-            font-weight: 700;
-            color: var(--text-color, #1e293b);
-        }
+.hero-side {
+    display: grid;
+    grid-template-columns: 1fr;   /* теперь одна карточка в столбик */
+    gap: 10px;
+    align-content: start;
+}
 
-        [data-theme="dark"] .hero h1 {
-            color: #e2e8f0;
-        }
+.eyebrow {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #8b5cf6;
+    margin-bottom: 2px !important;
+}
 
-        .hero-side {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
+.hero h1 {
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+    margin: 0 !important;
+    font-weight: 700;
+    color: var(--text-color, #1e293b);
+}
 
-        .soft-card {
-            padding: 10px 12px !important;
-            border-radius: 8px !important;
-            background: rgba(0, 0, 0, 0.02);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-        }
+[data-theme="dark"] .hero h1 {
+    color: #e2e8f0;
+}
 
-        [data-theme="dark"] .soft-card {
-            background: rgba(255, 255, 255, 0.03);
-            border-color: rgba(255, 255, 255, 0.08);
-        }
+.soft-card {
+    padding: 10px 12px !important;
+    border-radius: 8px !important;
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
 
-        .soft-card-title {
-            font-size: 13px !important;
-            font-weight: 700 !important;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #8b5cf6;
-            margin-bottom: 6px !important;
-        }
+[data-theme="dark"] .soft-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
 
-        .soft-card-text,
-        .soft-card .muted {
-            font-size: 15px !important;
-            line-height: 1.55 !important;
-            color: var(--muted-color, #64748b);
-        }
+.soft-card-title {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #8b5cf6;
+    margin-bottom: 6px !important;
+}
 
-        [data-theme="dark"] .soft-card-text,
-        [data-theme="dark"] .soft-card .muted {
-            color: #94a3b8;
-        }
+.soft-card-text,
+.soft-card .muted {
+    font-size: 15px !important;
+    line-height: 1.55 !important;
+    color: var(--muted-color, #64748b);
+}
 
-        @media (max-width: 900px) {
-            .hero {
-                grid-template-columns: 1fr;
-                gap: 12px;
-            }
-            
-            .hero-side {
-                grid-template-columns: 1fr 1fr;
-            }
-            
-            .hero h1 {
-                font-size: 16px !important;
-            }
-        }
+[data-theme="dark"] .soft-card-text,
+[data-theme="dark"] .soft-card .muted {
+    color: #94a3b8;
+}
 
-        @media (max-width: 640px) {
-            .hero {
-                padding: 12px !important;
-            }
-            
-            .hero h1 {
-                font-size: 14px !important;
-            }
-            
-            .soft-card {
-                padding: 8px !important;
-            }
-            
-            .soft-card-title,
-            .eyebrow {
-                font-size: 11px !important;
-            }
-            
-            .soft-card-text,
-            .soft-card .muted {
-                font-size: 13px !important;
-            }
-            
-            .hero-side {
-                grid-template-columns: 1fr;
-            }
-        }
+@media (max-width: 900px) {
+    .hero {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
 
+    .hero h1 {
+        font-size: 16px !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .hero {
+        padding: 12px !important;
+    }
+
+    .hero h1 {
+        font-size: 14px !important;
+    }
+
+    .soft-card {
+        padding: 8px !important;
+    }
+
+    .soft-card-title,
+    .eyebrow {
+        font-size: 11px !important;
+    }
+
+    .soft-card-text,
+    .soft-card .muted {
+        font-size: 13px !important;
+    }
+}
+/* ===== /КОМПАКТНАЯ ГЕРОЙ-СЕКЦИЯ ===== */
         .scheduler-btn {
             background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
             color: white;
@@ -698,41 +698,38 @@
         </div>
         {% endif %}
 
-        <section class="card hero">
-            <div>
-                <div class="eyebrow">ЕДИНАЯ ТОЧКА ВХОДА</div>
+<section class="card hero">
+    <div class="hero-main">
+        <div class="eyebrow">ЕДИНАЯ ТОЧКА ВХОДА</div>
 
-                <h1>
-                    Локальная AI-платформа мониторинга и формирования управленческих уведомлений 
-                </h1>
+        <h1>
+            Локальная AI-платформа мониторинга и формирования управленческих уведомлений
+        </h1>
 
+        <!-- «НАЗНАЧЕНИЕ» теперь горизонтально под основным текстом -->
+        <div class="soft-card hero-purpose">
+            <div class="soft-card-title">НАЗНАЧЕНИЕ</div>
+            <div class="muted">
+                Платформа объединяет независимые сценарии мониторинга
+                в одном интерфейсе и позволяет развивать их как единое приложение
+                без дублирования общей инфраструктуры.
             </div>
+        </div>
+    </div>
 
-            <div class="hero-side">
-                <div class="soft-card">
-                    <div class="soft-card-title">КОНТУР РАБОТЫ</div>
-
-                    <div class="soft-card-text">
-                        Локальный контур<br>
-                        FastAPI<br>
-                        Playwright<br>
-                        Jinja2<br>
-                        FFmpeg
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <div class="soft-card-title">НАЗНАЧЕНИЕ</div>
-
-                    <div class="muted">
-                        Платформа объединяет независимые сценарии мониторинга
-                        в одном интерфейсе и позволяет развивать их как единое приложение
-                        без дублирования общей инфраструктуры.
-                    </div>
-                </div>
+    <div class="hero-side">
+        <div class="soft-card">
+            <div class="soft-card-title">КОНТУР РАБОТЫ</div>
+            <div class="soft-card-text">
+                Локальный контур<br>
+                FastAPI<br>
+                Playwright<br>
+                Jinja2<br>
+                FFmpeg
             </div>
-        </section>
-
+        </div>
+    </div>
+</section>
         {% if user_username == "admin" %}
         <section class="card quick-actions-bar">
             <div class="quick-actions-left">
