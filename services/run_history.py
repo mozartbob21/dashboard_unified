@@ -27,26 +27,37 @@ MAX_RECORDS = 500  # в БД можно хранить больше, чем в J
 
 # ─── Человекочитаемые названия модулей для UI ──────────────────────
 
+# ─── Человекочитаемые названия модулей для UI ──────────────────────
+
 MODULE_LABELS = {
-    "edo": "ЭДО",
-    "overdue": "Просроченные задачи",
-    "watercontrol": "Контроль воды",
-    "utnkr": "УТНКР",
-    "cameras": "Проверка камер",
+    "edo":                  "Заполненность данных",
+    "overdue":              "Просроченные задачи",
+    "watercontrol":         "Контроль воды",
+    "utnkr":                "Технадзор УТНКР",
+    "cameras":              "Проверка камер",
     "camera_prescriptions": "Предписания по камерам",
-    "cds": "ЦДС",
+    "cds":                  "Обращения 1С",
+    "mgkh_rm":              "ЖКХ Redmine",
+    "water_rm":             "Проверка задач по воде",
+    "ecur":                 "ЕЦУР — жалобы",
+    "appeals":              "Эмпатичные ответы",
+    "municipality-report":  "Отчёт по округу",
 }
 
 MODULE_ICONS = {
-    "edo": "📋",
-    "overdue": "⏱️",
-    "watercontrol": "💧",
-    "utnkr": "🔍",
-    "cameras": "📹",
+    "edo":                  "📋",
+    "overdue":              "⏱️",
+    "watercontrol":         "💧",
+    "utnkr":                "🛡️",
+    "cameras":              "📹",
     "camera_prescriptions": "📄",
-    "cds": "📞",
+    "cds":                  "🏠",
+    "mgkh_rm":              "📅",
+    "water_rm":             "💧",
+    "ecur":                 "📮",
+    "appeals":              "✍️",
+    "municipality-report":  "📊",
 }
-
 
 # ─── Миграция JSON → SQLite (один раз) ─────────────────────────────
 
