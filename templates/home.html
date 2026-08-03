@@ -1180,71 +1180,73 @@
     </div>
 
     <!-- Модальное окно "Что нового" -->
-    <div id="whatsNewModal" class="whats-new-modal" aria-hidden="true">
-        <div class="whats-new-backdrop" data-whats-new-close></div>
+    <!-- Модальное окно "Что нового" -->
+<div id="whatsNewModal" class="whats-new-modal" aria-hidden="true">
+    <div class="whats-new-backdrop" data-whats-new-close></div>
 
-        <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
-            <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
-                ×
+    <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
+        <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
+            ×
+        </button>
+
+        <div class="whats-new-kicker">Нейрона </div>
+
+        <!-- ===== Что уже есть в 2.5 (Apple-style) ===== -->
+        <div class="whats-new-kicker" style="margin-top: 28px;">Что есть в 2.5 </div>
+        <h2 class="whats-new-title" style="font-size: 22px; margin: 8px 0 6px;">
+            Чище. Удобнее. Всё так же просто.
+        </h2>
+        <p class="whats-new-lead" style="margin-bottom: 4px;">
+            В 2.5 отшлифовали интерфейс и добавили блоки, которыми хочется пользоваться.
+            Больше воздуха в дизайне, больше пользы на каждом экране.
+        </p>
+
+        <div class="whats-new-list">
+            <article class="whats-new-item">
+                <div class="whats-new-icon">🎨</div>
+                <div>
+                    <h3>Дизайн. Отшлифован.</h3>
+                    <p>
+                        Главный экран стал компактнее, карточки — чище, тексты — читабельнее.
+                        Описания больше не шумят на лицевой стороне: они открываются по кнопке (i),
+                        ровно тогда, когда нужны. Единые названия и иконки модулей на всех экранах.
+                    </p>
+                </div>
+            </article>
+
+            <article class="whats-new-item">
+                <div class="whats-new-icon">🧩</div>
+                <div>
+                    <h3>Новые блоки. Уже на местах.</h3>
+                    <p>
+                        История запусков с живым статусом, настраиваемая панель быстрого доступа
+                        и планировщик «Авто-запуск». Всё важное видно с одного взгляда
+                        и управляется одним движением.
+                    </p>
+                </div>
+            </article>
+
+            <article class="whats-new-item">
+                <div class="whats-new-icon">✨</div>
+                <div>
+                    <h3>Детали. Продуманы.</h3>
+                    <p>
+                        Тема «Подмосковное солнце», светлое и тёмное оформление, плавные анимации
+                        карточек и оверлеев. Интерфейс подстраивается под время суток
+                        и остаётся приятным глазу.
+                    </p>
+                </div>
+            </article>
+        </div>
+        <!-- ===== /Что уже есть в 2.5 ===== -->
+
+        <div class="whats-new-footer">
+            <button class="module-link whats-new-done" type="button" data-whats-new-close>
+                Отлично
             </button>
-
-            <div class="whats-new-kicker">Нейрона </div>
-
-            <div class="whats-new-kicker" style="margin-top: 28px;">Что есть в 2.4 </div>
-            <h2 class="whats-new-title" style="font-size: 22px; margin: 8px 0 6px;">
-                Тихо. Мощно. Уже внутри.
-            </h2>
-            <p class="whats-new-lead" style="margin-bottom: 4px;">
-                Часть будущего уже работает прямо сейчас — незаметно, но ощутимо.
-                Мы заложили фундамент, к которому платформа будет возвращаться ещё долго.
-            </p>
-
-            <div class="whats-new-list">
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">🗄️</div>
-                    <div>
-                        <h3>Фундамент данных. Заложен.</h3>
-                        <p>
-                            Завершён первый этап формирования собственной базы данных SQL —
-                            основы, на которой платформа станет быстрее, надёжнее и умнее.
-                            Это начало большого пути: тихая, но фундаментальная работа,
-                            результаты которой раскроются в полной мере совсем скоро.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">🏛️</div>
-                    <div>
-                        <h3>Новая тема. Новое настроение.</h3>
-                        <p>
-                            Добавлено свежее оформление, созданное с особым вниманием к деталям.
-                            Тёплая, выразительная и узнаваемая — она меняет восприятие интерфейса,
-                            оставляя его привычно удобным. Один клик — и платформа звучит по-новому.
-                        </p>
-                    </div>
-                </article>
-
-                <article class="whats-new-item">
-                    <div class="whats-new-icon">⚙️</div>
-                    <div>
-                        <h3>Внутренняя логика. Отточена.</h3>
-                        <p>
-                            Улучшена работа отдельных блоков системы: процессы стали аккуратнее,
-                            предсказуемее и плавнее. Снаружи — почти незаметно. Внутри — заметная
-                            разница, которую вы почувствуете в ежедневной работе.
-                        </p>
-                    </div>
-                </article>
-            </div>
-
-            <div class="whats-new-footer">
-                <button class="module-link whats-new-done" type="button" data-whats-new-close>
-                    Отлично
-                </button>
-            </div>
-        </section>
-    </div>
+        </div>
+    </section>
+</div>
 
     {% if user_username == "admin" %}
     <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
