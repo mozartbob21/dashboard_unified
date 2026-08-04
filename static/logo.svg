@@ -1,6 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#2563EB"/>
-  <circle cx="22" cy="26" r="5" fill="#FFFFFF"/>
-  <circle cx="42" cy="26" r="5" fill="#FFFFFF"/>
-  <rect x="20" y="38" width="24" height="6" rx="3" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f7bf6"/>
+      <stop offset="1" stop-color="#1e56d6"/>
+    </linearGradient>
+    <clipPath id="round">
+      <rect x="4" y="4" width="88" height="88" rx="22"/>
+    </clipPath>
+    <style>
+      .eyes, .mouth {
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+      /* Моргание каждые ~4.5 сек */
+      .eyes { animation: blink 4.5s infinite; }
+      @keyframes blink {
+        0%, 91%, 100% { transform: scaleY(1); }
+        94%           { transform: scaleY(0.12); }
+        97%           { transform: scaleY(1); }
+      }
+      /* Рот слегка «дышит» */
+      .mouth { animation: think 3s ease-in-out infinite; }
+      @keyframes think {
+        0%, 100% { transform: scaleX(1); }
+        50%      { transform: scaleX(0.7); }
+      }
+      /* Блик раз в 6 сек */
+      .shine { animation: shine 6s linear infinite; }
+      @keyframes shine {
+        0%        { transform: translateX(-60px) skewX(-20deg); }
+        55%, 100% { transform: translateX(160px) skewX(-20deg); }
+      }
+      /* Уважаем настройку «уменьшить движение» */
+      @media (prefers-reduced-motion: reduce) {
+        .eyes, .mouth, .shine { animation: none; }
+      }
+    </style>
+  </defs>
+
+  <!-- Фон */ -->
+  <rect x="4" y="4" width="88" height="88" rx="22" fill="url(#bg)"/>
+
+  <!-- Блик -->
+  <g clip-path="url(#round)">
+    <rect class="shine" x="0" y="-10" width="26" height="120" fill="#ffffff" opacity="0.16"/>
+  </g>
+
+  <!-- Глаза -->
+  <g class="eyes" fill="#ffffff">
+    <rect x="30" y="33" width="11" height="15" rx="4.5"/>
+    <rect x="55" y="33" width="11" height="15" rx="4.5"/>
+  </g>
+
+  <!-- Рот -->
+  <rect class="mouth" x="34" y="60" width="28" height="6" rx="3" fill="#ffffff"/>
 </svg>
