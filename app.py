@@ -1013,17 +1013,14 @@ PATH_MODULE_MAP = {
 PUBLIC_PATH_PREFIXES = (
     "/login",
     "/logout",
-    "/register",        # ← добавить
-    "/api/register",
+    "/register",        # страница регистрации
+    "/api/register",    # покрывает /verify и /resend
     "/static",
     "/data",
     "/generated",
     "/favicon.ico",
     "/health",
     "/api/system/health",
-    "/docs",
-    "/redoc",
-    "/openapi.json",
 )
 
 
@@ -1055,6 +1052,32 @@ async def auth_middleware(request: Request, call_next):
     request.state.user = user
     return await call_next(request)
 
+# =========================
+# SECURITY: RATE-LIMIT + ЗАГОЛОВКИ
+# =========================
+
+LOGIN_ATTEMPTS: dict = {}
+
+
+def rate_limit_ok(key: str, limit: int = 5, window: int = 300) -> bool:
+    """Не более limit попыток за window секунд для одного key."""
+    now = time.time()
+    rec = LOGIN_ATTEMPTS.setdefault(key, [])
+    rec[:] = [t for t in rec if now - t < window]
+    if len(rec) >= limit:
+        return False
+    rec.append(now)
+    return True
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    return response
 
 # =========================
 # AUTH: РОУТЫ ВХОДА И ВЫХОДА
@@ -1076,12 +1099,21 @@ async def login_page(request: Request, error: str = "", message: str = ""):
         },
     )
 
-
 @app.post("/login")
 async def login_submit(
+    request: Request,
     username: str = Form(...),
     password: str = Form(...),
 ):
+    client_ip = request.client.host if request.client else "unknown"
+    rl_key = f"{client_ip}:{username.lower()}"
+
+    if not rate_limit_ok(rl_key):
+        return RedirectResponse(
+            url="/login?error=Слишком много попыток входа. Подождите 5 минут.",
+            status_code=303,
+        )
+
     user = authenticate_user(username, password)
     if not user:
         return RedirectResponse(
@@ -1098,13 +1130,12 @@ async def login_submit(
     response.set_cookie(
         key="access_token",
         value=access_token,
-        httponly=True,
+        httponly=True,          # кука недоступна из JavaScript (защита от XSS-кражи)
         max_age=60 * 60 * 8,
-        samesite="lax",
-        secure=False,
+        samesite="strict",      # кука не отправляется с чужих сайтов (защита от CSRF)
+        secure=False,           # остаёмся на HTTP
     )
     return response
-
 
 @app.get("/logout")
 async def logout():
@@ -1224,7 +1255,7 @@ async def api_register_verify(payload: dict):
     access_token = create_access_token({"sub": result["username"], "role": result["role"]})
     response = JSONResponse(content={"ok": True, "message": "Аккаунт создан! Добро пожаловать.", "redirect": "/"})
     response.set_cookie(key="access_token", value=access_token, httponly=True,
-                        max_age=60 * 60 * 8, samesite="lax", secure=False)
+                        max_age=60 * 60 * 8, samesite="strict", secure=False)
     return response
 
 
