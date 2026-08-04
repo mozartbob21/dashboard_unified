@@ -1632,7 +1632,7 @@
             return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
-        function renderItem(entry) {
+         function renderItem(entry) {
             const moduleId = entry.module_id || entry.module || "unknown";
             const meta = MODULE_META[moduleId] || { name: moduleId, icon: "📦" };
             const status = entry.status || "unknown";
@@ -1640,6 +1640,13 @@
             const username = entry.username || entry.user || "—";
             const startedAt = entry.started_at || entry.timestamp || entry.created_at;
             const duration = entry.duration_seconds ?? entry.duration ?? null;
+
+            // Для ЕЦУР не показываем имя учётной записи
+            const userTag = (moduleId === "ecur")
+                ? ""
+                : `<span class="history-user-tag">👤 ${escapeHtml(username)}</span>
+                   <span>•</span>`;
+
             return `
                 <div class="history-item" data-id="${escapeHtml(entry.id || "")}">
                     <span class="history-status-dot status-${status}" aria-hidden="true"></span>
@@ -1649,8 +1656,7 @@
                             <span>${escapeHtml(meta.name)}</span>
                         </div>
                         <div class="history-meta">
-                            <span class="history-user-tag">👤 ${escapeHtml(username)}</span>
-                            <span>•</span>
+                            ${userTag}
                             <span>${escapeHtml(timeAgo(startedAt))}</span>
                         </div>
                     </div>

@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import json
 import os
 import subprocess
@@ -2821,7 +2821,7 @@ async def ecur_api_refresh():
     def worker():
         run_id = None
         try:
-            run_id = run_history.record_start("ecur", user=current_data.get("email", "—"))
+            run_id = run_history.record_start("ecur", user="—")
             run_status["ecur"].update(
                 running=True,
                 stage="Выгрузка свода",
