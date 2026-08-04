@@ -235,42 +235,74 @@ def fetch_dashboard_data():
         except Exception:
             pass
 
-
-        # [dom_omsu_extract_start]
+        # ── Извлечение блока ОМСУ напрямую из DOM ──
         try:
             dom_items = page.evaluate(
                 """
                 () => {
-                    const widgets = Array.from(document.querySelectorAll('.dl-widget'));
+                    const norm = (s) => (s || '').trim();
 
+                    // ── Способ 1: ЛЮБАЯ таблица с заголовками «ОМСУ» и «Кол-во задач» ──
+                    const tables = Array.from(document.querySelectorAll('table'));
+                    for (const table of tables) {
+                        let headerCells = Array.from(table.querySelectorAll('thead th'));
+                        if (!headerCells.length) {
+                            const firstRow = table.querySelector('tr');
+                            if (firstRow) headerCells = Array.from(firstRow.querySelectorAll('th, td'));
+                        }
+                        const headers = headerCells.map((n) => norm(n.textContent).toLowerCase());
+                        const idxMun = headers.findIndex((h) => h.includes('омсу') || h.includes('муниципал'));
+                        const idxCnt = headers.findIndex((h) =>
+                            h.includes('кол-во') || h.includes('количество') ||
+                            (h.includes('задач') && !h.includes('срок')));
+                        if (idxMun === -1 || idxCnt === -1) continue;
+
+                        const items = [];
+                        for (const tr of Array.from(table.querySelectorAll('tbody tr'))) {
+                            const cells = Array.from(tr.querySelectorAll('td'))
+                                .map((td) => norm(td.textContent));
+                            if (cells.length <= Math.max(idxMun, idxCnt)) continue;
+
+                            const name = cells[idxMun];
+                            const countRaw = (cells[idxCnt] || '').replace(/[^0-9]/g, '');
+                            const count = countRaw === '' ? null : parseInt(countRaw, 10);
+
+                            if (!name || count === null) continue;
+                            if (/^итого/i.test(name)) continue;
+
+                            items.push({
+                                municipality: name,
+                                organization: name,
+                                overdue_count: count,
+                                responsible_name: '',
+                                responsible_phone: '',
+                            });
+                        }
+                        if (items.length) {
+                            return {
+                                source: 'playwright_dom_omsu_table',
+                                items,
+                                debug: { tableRows: items.length },
+                            };
+                        }
+                    }
+
+                    // ── Способ 2 (фолбэк): виджет с заголовком «ОМСУ» как бар-чарт ──
+                    const widgets = Array.from(document.querySelectorAll('.dl-widget'));
                     const widget = widgets.find((node) => {
                         const title = node.querySelector('.dl-widget__chart-title-text');
                         return title && title.textContent && title.textContent.trim() === 'ОМСУ';
                     });
 
                     if (!widget) {
-                        return {
-                            source: 'dom_widget_not_found',
-                            items: [],
-                            debug: {
-                                widgetCount: widgets.length,
-                                titles: widgets.map((node) => {
-                                    const title = node.querySelector('.dl-widget__chart-title-text');
-                                    return title ? title.textContent.trim() : '';
-                                }).filter(Boolean),
-                            },
-                        };
+                        return { source: 'dom_widget_not_found', items: [], debug: { widgetCount: widgets.length } };
                     }
 
                     const yLabels = Array.from(widget.querySelectorAll('.gcharts-y-axis__label'))
                         .map((node) => {
                             const text = (node.textContent || '').trim();
                             const rect = node.getBoundingClientRect();
-
-                            return {
-                                text,
-                                top: rect.top,
-                            };
+                            return { text, top: rect.top };
                         })
                         .filter((item) => item.text && !/^\\d+$/.test(item.text));
 
@@ -279,12 +311,7 @@ def fetch_dashboard_data():
                             const text = (node.textContent || '').trim();
                             const value = parseInt(text.replace(/\\s+/g, ''), 10);
                             const rect = node.getBoundingClientRect();
-
-                            return {
-                                text,
-                                value: Number.isFinite(value) ? value : null,
-                                top: rect.top,
-                            };
+                            return { text, value: Number.isFinite(value) ? value : null, top: rect.top };
                         })
                         .filter((item) => item.value !== null);
 
@@ -293,7 +320,6 @@ def fetch_dashboard_data():
 
                     const count = Math.min(yLabels.length, valueLabels.length);
                     const items = [];
-
                     for (let i = 0; i < count; i += 1) {
                         items.push({
                             municipality: yLabels[i].text,
@@ -307,29 +333,22 @@ def fetch_dashboard_data():
                     return {
                         source: 'playwright_dom_omsu',
                         items,
-                        debug: {
-                            yLabelsCount: yLabels.length,
-                            valueLabelsCount: valueLabels.length,
-                            firstYLabels: yLabels.slice(0, 5),
-                            firstValueLabels: valueLabels.slice(0, 5),
-                        },
+                        debug: { yLabelsCount: yLabels.length, valueLabelsCount: valueLabels.length },
                     };
                 }
                 """
             )
-
             dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
             with open(dom_items_file, "w", encoding="utf-8") as f:
                 json.dump(dom_items, f, ensure_ascii=False, indent=2)
 
             print(
-                "[saved] DOM OМСУ items:",
+                "[saved] DOM ОМСУ items:",
                 len(dom_items.get("items", [])),
                 dom_items_file,
             )
         except Exception as e:
-            print(f"[warn] DOM OМСУ extract failed: {e}")
-        # [dom_omsu_extract_end]
+            print(f"[warn] DOM ОМСУ extract failed: {e}")
 
         context.close()
 
@@ -374,8 +393,6 @@ def load_wrappers():
     return wrappers
 
 
-
-
 def walk_json_objects(value):
     if isinstance(value, dict):
         yield value
@@ -388,7 +405,65 @@ def walk_json_objects(value):
             yield from walk_json_objects(item)
 
 
+def extract_table_items_from_payload(payload):
+    """Извлекает таблицу ОМСУ из ответа DataLens (columns + data)."""
+    best = []
+
+    for obj in walk_json_objects(payload):
+        columns = obj.get("columns")
+        rows = obj.get("data")
+
+        if not isinstance(columns, list) or not isinstance(rows, list):
+            continue
+        if not columns or not rows:
+            continue
+
+        names = []
+        for col in columns:
+            if isinstance(col, dict):
+                names.append(str(col.get("name") or col.get("title") or "").lower())
+            else:
+                names.append(str(col).lower())
+
+        idx_mun = None
+        idx_cnt = None
+        for i, n in enumerate(names):
+            if idx_mun is None and ("омсу" in n or "муниципал" in n):
+                idx_mun = i
+            if idx_cnt is None and ("кол-во" in n or "количество" in n or "задач" in n):
+                idx_cnt = i
+
+        if idx_mun is None or idx_cnt is None:
+            continue
+
+        items = []
+        for row in rows:
+            if not isinstance(row, (list, tuple)) or len(row) <= max(idx_mun, idx_cnt):
+                continue
+            municipality = str(row[idx_mun]).strip()
+            count = safe_int(row[idx_cnt], 0)
+            if not municipality or municipality.lower().startswith("итого"):
+                continue
+            items.append({
+                "municipality": municipality,
+                "organization": municipality,
+                "overdue_count": count,
+                "responsible_name": "",
+                "responsible_phone": "",
+            })
+
+        if len(items) > len(best):
+            best = items
+
+    return best
+
+
 def extract_chart_items_from_payload(payload):
+    """Извлекает ОМСУ из ответа /charts/api/run: сначала таблица, затем бар-чарт."""
+    table_items = extract_table_items_from_payload(payload)
+    if table_items:
+        return table_items
+
     candidates = []
 
     for obj in walk_json_objects(payload):
@@ -473,61 +548,100 @@ def strip_tags(value):
     return value.strip()
 
 
-def extract_dashboard_data_from_html():
-    html_file = DEBUG_ENV_DIR / "dashboard_page.html"
+def extract_dashboard_data():
+    wrappers = load_wrappers()
+    omsu_chart_id = find_omsu_chart_id(wrappers)
 
-    if not html_file.exists():
-        return {
-            "source": "html_missing",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
+    best_items = []
+    matched_sources = []
+    source = "empty"
 
-    try:
-        page_html = html_file.read_text(encoding="utf-8")
-    except Exception:
-        return {
-            "source": "html_read_error",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
+    # ── Проход 1: DOM — отрисованная таблица (самый надёжный источник) ──
+    dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
+    if dom_items_file.exists():
+        try:
+            dom_payload = load_json(dom_items_file, default={}) or {}
+            dom_items = dom_payload.get("items", []) or []
+            if dom_items:
+                best_items = dom_items
+                source = dom_payload.get("source", "playwright_dom_omsu")
+                matched_sources = [
+                    {
+                        "file": str(dom_items_file),
+                        "url": "dashboard_dom",
+                        "items_found": len(best_items),
+                        "chart_id": "dom_omsu",
+                    }
+                ]
+        except Exception:
+            pass
 
-    title_index = page_html.find('title="ОМСУ"')
+    # ── Проход 2: таблица ОМСУ из сетевых ответов ──
+    if not best_items:
+        for wrapper in wrappers:
+            items = extract_table_items_from_payload(wrapper.get("data") or {})
+            if not items:
+                continue
+            total = sum(safe_int(i.get("overdue_count", 0), 0) for i in items)
+            matched_sources.append({
+                "file": wrapper.get("file", ""),
+                "url": wrapper.get("url", ""),
+                "items_found": len(items),
+                "total_overdue": total,
+                "chart_id": "table_omsu",
+            })
+            if len(items) > len(best_items):
+                best_items = items
+                source = "saved_network_table"
 
-    if title_index == -1:
-        title_index = page_html.find(">ОМСУ</span>")
+    # ── Проход 3: бар-чарты (старый вид) ──
+    if not best_items:
+        for wrapper in wrappers:
+            items = extract_from_chart_run_response(wrapper, omsu_chart_id)
+            if not items:
+                continue
+            total = sum(safe_int(i.get("overdue_count", 0), 0) for i in items)
+            matched_sources.append({
+                "file": wrapper.get("file", ""),
+                "url": wrapper.get("url", ""),
+                "items_found": len(items),
+                "total_overdue": total,
+                "chart_id": (wrapper.get("data") or {}).get("id")
+                or (wrapper.get("data") or {}).get("_confStorageConfig", {}).get("entryId", ""),
+            })
+            current_total = sum(safe_int(i.get("overdue_count", 0), 0) for i in best_items)
+            if len(items) > len(best_items) or total > current_total:
+                best_items = items
+                source = "saved_network"
 
-    if title_index == -1:
-        return {
-            "source": "html_omsu_title_not_found",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
+    # ── Проход 4: парсинг сохранённого HTML/SVG ──
+    if not best_items:
+        try:
+            html_extracted = extract_dashboard_data_from_html()
+            best_items = html_extracted.get("items", []) or []
+            matched_sources = html_extracted.get("matched_sources", []) or []
+            source = html_extracted.get("source", "saved_html_svg")
+        except Exception:
+            pass
 
-    axis_index = page_html.find("gcharts-y-axis", title_index)
+    best_items.sort(key=lambda x: (-safe_int(x.get("overdue_count", 0), 0), x.get("municipality", "")))
 
-    if axis_index == -1:
-        return {
-            "source": "html_omsu_axis_not_found",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
-    svg_start = page_html.rfind("<svg", 0, axis_index)
-    svg_end = page_html.find("</svg>", axis_index)
-
-    if svg_start == -1 or svg_end == -1:
-        return {
-            "source": "html_omsu_svg_not_found",
-            "items": [],
-            "matched_sources": [],
-            "items_count": 0,
-        }
-
+    return {
+        "source": source if best_items else "empty",
+        "items": best_items,
+        "matched_sources": matched_sources,
+        "responses_scanned": len(wrappers),
+        "items_count": len(best_items),
+        "summary": {
+            "total_records": len(best_items),
+            "critical": sum(1 for x in best_items if safe_int(x.get("overdue_count", 0), 0) >= 20),
+            "risk": sum(1 for x in best_items if 0 < safe_int(x.get("overdue_count", 0), 0) < 20),
+            "ok": sum(1 for x in best_items if safe_int(x.get("overdue_count", 0), 0) == 0),
+        },
+        "debug": {
+            "omsu_chart_id": omsu_chart_id,
+        },
+    }
     widget_html = page_html[svg_start:svg_end + len("</svg>")]
 
     y_labels = []
@@ -651,7 +765,6 @@ def find_omsu_chart_id(wrappers):
     return None
 
 
-
 def extract_from_chart_run_response(wrapper, omsu_chart_id):
     url = wrapper.get("url") or ""
     payload = wrapper.get("data") or {}
@@ -677,41 +790,55 @@ def extract_from_chart_run_response(wrapper, omsu_chart_id):
     return items
 
 
-
-
 def extract_dashboard_data():
     wrappers = load_wrappers()
     omsu_chart_id = find_omsu_chart_id(wrappers)
 
     best_items = []
     matched_sources = []
+    source = "empty"
 
+    # Проход 1: таблица ОМСУ из сетевых ответов (новый вид дашборда)
     for wrapper in wrappers:
-        items = extract_from_chart_run_response(wrapper, omsu_chart_id)
+        items = extract_table_items_from_payload(wrapper.get("data") or {})
+        if not items:
+            continue
 
-        if items:
-            total = sum(safe_int(item.get("overdue_count", 0), 0) for item in items)
+        total = sum(safe_int(i.get("overdue_count", 0), 0) for i in items)
+        matched_sources.append({
+            "file": wrapper.get("file", ""),
+            "url": wrapper.get("url", ""),
+            "items_found": len(items),
+            "total_overdue": total,
+            "chart_id": "table_omsu",
+        })
+        if len(items) > len(best_items):
+            best_items = items
+            source = "saved_network_table"
 
-            matched_sources.append(
-                {
-                    "file": wrapper.get("file", ""),
-                    "url": wrapper.get("url", ""),
-                    "items_found": len(items),
-                    "total_overdue": total,
-                    "chart_id": wrapper.get("data", {}).get("id")
-                    or wrapper.get("data", {}).get("_confStorageConfig", {}).get("entryId", ""),
-                }
-            )
+    # Проход 2: бар-чарты (старый вид), только если таблица не найдена
+    if not best_items:
+        for wrapper in wrappers:
+            items = extract_from_chart_run_response(wrapper, omsu_chart_id)
+            if not items:
+                continue
 
-            current_total = sum(safe_int(item.get("overdue_count", 0), 0) for item in best_items)
+            total = sum(safe_int(i.get("overdue_count", 0), 0) for i in items)
+            matched_sources.append({
+                "file": wrapper.get("file", ""),
+                "url": wrapper.get("url", ""),
+                "items_found": len(items),
+                "total_overdue": total,
+                "chart_id": (wrapper.get("data") or {}).get("id")
+                or (wrapper.get("data") or {}).get("_confStorageConfig", {}).get("entryId", ""),
+            })
 
+            current_total = sum(safe_int(i.get("overdue_count", 0), 0) for i in best_items)
             if len(items) > len(best_items) or total > current_total:
                 best_items = items
+                source = "saved_network"
 
-    source = "saved_network"
-
-    # Главный fallback: данные, снятые напрямую из отрисованного DOM страницы.
-    # Это устойчивее, чем парсить внутренний JSON DataLens, который часто меняется.
+    # Проход 3: данные, снятые напрямую из отрисованного DOM
     if not best_items:
         dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
 
@@ -734,7 +861,7 @@ def extract_dashboard_data():
             except Exception:
                 pass
 
-    # Резервный fallback: парсинг сохранённого HTML/SVG.
+    # Проход 4: парсинг сохранённого HTML/SVG
     if not best_items:
         try:
             html_extracted = extract_dashboard_data_from_html()
@@ -764,12 +891,29 @@ def extract_dashboard_data():
     }
 
 
+def format_municipality(name):
+    """ОДИНЦОВСКИЙ → Одинцовский, СЕРГИЕВО-ПОСАДСКИЙ → Сергиево-Посадский."""
+    name = (name or "").strip()
+    if not name or not name.isupper():
+        return name
+
+    words = name.split()
+    formatted = ["-".join(p.capitalize() for p in w.split("-")) for w in words]
+
+    if len(formatted) > 1:
+        return formatted[0] + " " + " ".join(w.lower() for w in formatted[1:])
+    return formatted[0]
+
+
 def normalize_items(raw_items):
     normalized = []
 
     for item in raw_items or []:
-        municipality = (item.get("municipality") or item.get("name") or "Не указано").strip()
-        organization = (item.get("organization") or municipality).strip()
+        raw_mun = (item.get("municipality") or item.get("name") or "Не указано").strip()
+        raw_org = (item.get("organization") or raw_mun).strip()
+
+        municipality = format_municipality(raw_mun)
+        organization = format_municipality(raw_org) or municipality
         overdue_count = safe_int(item.get("overdue_count", item.get("count", 0)), 0)
 
         normalized.append(
@@ -834,7 +978,7 @@ def build_public_message(summary, items):
     lines = [
         "Добрый день.",
         "По итогам проверки информационной панели выполнения поручений, зафиксированных в системе управления Министерства ЖКХ МО, выявлены невыполненные задачи.",
-  
+
         f"Общее количество просроченных задач: {summary.get('total_overdue', 0)}.",
     ]
 
@@ -907,7 +1051,6 @@ def build_personal_messages(items):
             f"выявлены невыполненные задачи: {overdue_count}.\n"
             f"Просьба проверить блок '{organization}', отработать просроченные позиции и актуализировать отчёт.\n\n"
             f"Необходимо до конца следующего рабочего дня внести комментарии о текущем статусе исполнения поручения и перевести задачу на контролёра."
-
         )
 
         messages.append(
