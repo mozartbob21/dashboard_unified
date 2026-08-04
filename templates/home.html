@@ -654,7 +654,7 @@
                     </div>
                 </div>
 
-                {% if user_username == "admin" %}
+                {% if is_admin_ui %}
                 <a href="/scheduler" class="scheduler-btn" title="Планировщик задач">
                     <span>🗓️</span> Авто-запуск
                 </a>
@@ -730,7 +730,7 @@
         </div>
     </div>
 </section>
-        {% if user_username == "admin" %}
+        {% if is_admin_ui %}
         <section class="card quick-actions-bar">
             <div class="quick-actions-left">
                 <div class="quick-actions-title">
@@ -745,7 +745,7 @@
         </section>
         {% endif %}
 
-        {% if user_username == "admin" %}
+        {% if is_admin_ui %}
         <section class="card history-widget" id="historyWidget">
             <div class="history-widget-head">
                 <div>
@@ -1280,7 +1280,7 @@
     </section>
 </div>
 
-    {% if user_username == "admin" %}
+    {% if is_admin_ui %}
     <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
         <div class="whats-new-backdrop" data-quick-modal-close></div>
 
@@ -1309,7 +1309,7 @@
     </div>
     {% endif %}
 
-    {% if user_username == "admin" %}
+    {% if is_admin_ui %}
     <script>
         (function () {
             const ALL_MODULES = [
@@ -1580,7 +1580,7 @@
     })();
     </script>
 
-    {% if user_username == "admin" %}
+    {% if is_admin_ui %}
     <script>
     (function () {
         const listEl = document.getElementById("historyList");

@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 import json
 import os
 import subprocess
@@ -94,6 +94,51 @@ CAMERAS_UI_CONFIG = {
     "prescriptions_dir": "generated/prescriptions",
 }
 
+# =========================
+# РОЛИ С ПОЛНЫМ ДОСТУПОМ
+# =========================
+
+# Роли, которые видят ВСЕ модули и админ-интерфейс.
+# Хочешь ещё одну — просто допиши название в нижнем регистре.
+FULL_ACCESS_ROLES = {"администратор", "руководитель", "пользователь"}
+
+# Полный список модулей платформы
+ALL_MODULE_IDS = [
+    "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
+    "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
+    "water_rm",
+]
+
+
+def is_full_access(user) -> bool:
+    return ((user.get("role") or "").strip().lower() in FULL_ACCESS_ROLES)
+
+
+def check_module_access(user, module_id) -> bool:
+    """Полные роли проходят на любой модуль, остальные — стандартная проверка."""
+    if is_full_access(user):
+        return True
+    return has_module_access(user, module_id)
+
+
+def effective_modules(user) -> list:
+    """Модули для главной: полным ролям показываем всё."""
+    if is_full_access(user):
+        return ALL_MODULE_IDS
+    return user.get("modules", [])
+
+
+async def require_admin_or_full(request: Request):
+    """Dependency для роутеров, доступных админу и полным ролям."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        user = get_user_from_token(request.cookies.get("access_token"))
+    if not user:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    role = (user.get("role") or "").strip().lower()
+    if role in ADMIN_ROLES or role in FULL_ACCESS_ROLES:
+        return user
+    raise HTTPException(status_code=403, detail="Недостаточно прав")
 
 app = FastAPI(title="Unified Dashboard")
 
@@ -1002,7 +1047,8 @@ async def auth_middleware(request: Request, call_next):
 
     for path_prefix, module_id in PATH_MODULE_MAP.items():
         if path.startswith(path_prefix):
-            if not has_module_access(user, module_id):
+            # ← ЗДЕСЬ единственная замена: has_module_access → check_module_access
+            if not check_module_access(user, module_id):
                 return RedirectResponse(url="/?error=no_access", status_code=302)
             break
 
@@ -1078,7 +1124,8 @@ async def home(request: Request, error: str = ""):
         {
             "request": request,
             "user": user,
-            "user_modules": user.get("modules", []),
+            "user_modules": effective_modules(user),
+            "is_admin_ui": user.get("username") == "admin" or is_full_access(user),
             "user_role": user.get("role", ""),
             "user_username": user.get("username", ""),
             "access_error": error,
@@ -1246,7 +1293,8 @@ async def scheduler_page(request: Request):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
 
-    if (user.get("role") or "").strip().lower() not in ADMIN_ROLES:
+    role = (user.get("role") or "").strip().lower()
+    if role not in ADMIN_ROLES and role not in FULL_ACCESS_ROLES:
         return RedirectResponse(url="/", status_code=303)
 
     return templates.TemplateResponse(
@@ -1259,8 +1307,6 @@ async def scheduler_page(request: Request):
             "user_username": user.get("username", ""),
         },
     )
-
-
 @app.get("/overdue", response_class=HTMLResponse)
 async def overdue_page(request: Request):
     raw_result = load_json_file(OVERDUE_RESULT_FILE)
@@ -1882,16 +1928,17 @@ async def api_summary():
 async def api_history_recent(request: Request, limit: int = 10):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
-    if (user.get("role") or "").strip().lower() not in {"admin", "администратор"}:
+    role = (user.get("role") or "").strip().lower()
+    if role not in {"admin", "администратор"} and role not in FULL_ACCESS_ROLES:
         raise HTTPException(status_code=403, detail="Доступ только для администратора")
     return run_history.get_recent(limit)
-
 
 @app.get("/api/history/all")
 async def api_history_all(request: Request, limit: int = 200):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
-    if (user.get("role") or "").strip().lower() not in {"admin", "администратор"}:
+    role = (user.get("role") or "").strip().lower()
+    if role not in {"admin", "администратор"} and role not in FULL_ACCESS_ROLES:
         raise HTTPException(status_code=403, detail="Доступ только для администратора")
     return run_history.get_all(limit)
 
@@ -2536,11 +2583,31 @@ except Exception as e:
 try:
     from services.scheduler import router as scheduler_router, start as start_scheduler
     from fastapi import Depends
-    app.include_router(scheduler_router, dependencies=[Depends(require_admin_user)])
+    app.include_router(scheduler_router, dependencies=[Depends(require_admin_or_full)])
     start_scheduler()
     print("[scheduler] router connected (admin-only), loop started")
 except Exception as e:
     print(f"[scheduler] init error: {e}")
+
+@app.get("/scheduler", response_class=HTMLResponse)
+async def scheduler_page(request: Request):
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+
+    role = (user.get("role") or "").strip().lower()
+    if role not in ADMIN_ROLES and role not in FULL_ACCESS_ROLES:
+        return RedirectResponse(url="/", status_code=303)
+
+    return templates.TemplateResponse(
+        request,
+        "scheduler.html",
+        {
+            "request": request,
+            "user": user,
+            "user_role": user.get("role", ""),
+            "user_username": user.get("username", ""),
+        },
+    )
 
 
 # ===== Модуль «Проверка задач по качеству воды» =====
