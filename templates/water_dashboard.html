@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558, MOSCOW_LON = 37.6173, MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Качество водоснабжения МО — Нейрона ИИ</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+    <!-- === СТИЛИ ДАШБОРДА (из вашего исходника) === -->
+    <style>
+        :root { color-scheme: light;
+            --plane:#eef1f3; --surface:#fbfcfd; --surface-2:#f3f6f8;
+            --ink:#10161b; --ink-2:#4a555d; --muted:#7d8890;
+            --hair:#dde4e8; --hair-strong:#c6d0d6;
+            --accent:#1f6fb2; --accent-soft:#e3eef6;
+            --good:#0c8a3e; --good-soft:#e2f2e8;
+            --warn:#b5760a; --warn-soft:#f6ecda;
+            --crit:#c0392b; --crit-soft:#f7e3e0;
+            --shadow:0 1px 2px rgba(16,22,27,.06), 0 8px 24px -12px rgba(16,22,27,.18);
+            --sans:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --plane:#0c0f12; --surface:#161b1f; --surface-2:#1d242a;
+            --ink:#f2f5f7; --ink-2:#b3bfc7; --muted:#7f8b93;
+            --hair:#29323a; --hair-strong:#384550;
+            --accent:#4a9fdc; --accent-soft:#16303f;
+            --good:#35b364; --good-soft:#12291d;
+            --warn:#d99a2b; --warn-soft:#2c2413;
+            --crit:#e46b5d; --crit-soft:#2e1a17;
+            --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.6);
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .wrap { font-family: var(--sans); background: var(--plane); color: var(--ink);
+                min-height: 100vh; padding: clamp(16px, 3vw, 40px); -webkit-font-smoothing: antialiased; }
+        .inner { max-width: 1240px; margin: 0 auto; }
+        header.head { margin-bottom: 26px; }
+        .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .09em;
+                   text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+        h1 { font-size: clamp(24px, 3.6vw, 38px); line-height: 1.1; margin: 0;
+             font-weight: 700; letter-spacing: -.02em; text-wrap: balance; max-width: 20ch; }
+        .sub { color: var(--ink-2); font-size: 15px; margin: 12px 0 0; max-width: 78ch; line-height: 1.5; }
+        .meta { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 16px;
+                font-size: 12.5px; color: var(--muted); }
+        .meta b { color: var(--ink-2); font-weight: 600; }
+        .snap { display: inline-flex; align-items: center; gap: 7px;
+                background: var(--surface); border: 1px solid var(--hair);
+                padding: 5px 11px; border-radius: 999px; font-weight: 600; color: var(--ink-2); }
+        .snap::before { content:""; width:7px; height:7px; border-radius:50%; background: var(--accent); }
+        .refresh { display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+                   background: var(--accent); color: #fff; font-weight: 600; font-size: 13px;
+                   padding: 8px 15px; border-radius: 999px; border: 1px solid transparent;
+                   transition: filter .15s ease, transform .05s ease; cursor: pointer; }
+        .refresh:hover { filter: brightness(1.08); }
+        .refresh:active { transform: translateY(1px); }
+        .refresh svg { width: 15px; height: 15px; }
+        .refresh-note { font-size: 12px; color: var(--muted); margin: 8px 2px 0; line-height: 1.5; max-width: 74ch; }
+        .refresh-note b { color: var(--ink-2); font-weight: 600; }
+        .refresh-row { display:flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
+        .sec-title { display: flex; align-items: baseline; gap: 12px;
+                     margin: 34px 0 14px; padding-bottom: 8px;
+                     border-bottom: 1px solid var(--hair); }
+        .sec-title h2 { font-size: 17px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+        .sec-title span { font-size: 12.5px; color: var(--muted); }
+        .grid { display: grid; gap: 14px; align-items: start; grid-template-columns: repeat(4, 1fr); }
+        @media (max-width: 1080px){ .grid { grid-template-columns: repeat(2,1fr);} }
+        @media (max-width: 560px){ .grid { grid-template-columns: 1fr;} }
+        .card { background: var(--surface); border: 1px solid var(--hair);
+                border-radius: 14px; padding: 16px 16px 15px; box-shadow: var(--shadow);
+                display: flex; flex-direction: column; min-height: 158px; position: relative; overflow: hidden; }
+        .card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background: var(--accent); }
+        .card.s-crit::before { background: var(--crit); }
+        .card.s-warn::before { background: var(--warn); }
+        .card.s-good::before { background: var(--good); }
+        .card .k-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+                           color: var(--muted); margin: 0 0 3px; padding-left: 6px; }
+        .card .k-name { font-size: 13.5px; font-weight: 600; color: var(--ink-2); margin: 0 0 12px; padding-left: 6px; line-height: 1.25; }
+        .card .k-hero { font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1; padding-left: 6px;
+                        font-variant-numeric: tabular-nums; margin-top: auto; }
+        .card .k-hero small { font-size: 15px; font-weight: 600; color: var(--muted); }
+        .card .k-unit { font-size: 12.5px; color: var(--muted); padding-left: 6px; margin-top: 3px; }
+        .card .k-rows { margin-top: 11px; padding-left: 6px; display: flex; flex-direction: column; gap: 4px; }
+        .card .k-row { display:flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+        .card .k-row span { color: var(--muted); }
+        .card .k-row b { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+        .pill { align-self: flex-start; margin: 10px 0 0 6px;
+                display:inline-flex; align-items:center; gap:6px;
+                font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+        .pill.crit { background: var(--crit-soft); color: var(--crit); }
+        .pill.warn { background: var(--warn-soft); color: var(--warn); }
+        .pill.good { background: var(--good-soft); color: var(--good); }
+        .pill::before { content:""; width:6px; height:6px; border-radius:50%; background: currentColor; }
+        .bar { height: 6px; border-radius: 4px; background: var(--surface-2); margin: 12px 6px 0; overflow: hidden; }
+        .bar > i { display:block; height:100%; border-radius:4px; background: var(--accent); }
+        .bar.warn > i { background: var(--warn); }
+        .bar.crit > i { background: var(--crit); }
+        .bar.good > i { background: var(--good); }
+        .exp-btn { margin: 13px 6px 0; align-self: flex-start; background: none; border: none;
+                   padding: 4px 0; color: var(--accent); font-weight: 600; font-size: 12px;
+                   cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-family: inherit; }
+        .exp-btn .chev { transition: transform .2s ease; display: inline-flex; }
+        .card.open .exp-btn .chev { transform: rotate(180deg); }
+        .detail { display: none; margin: 12px 6px 2px; padding-top: 12px; border-top: 1px dashed var(--hair-strong); }
+        .card.open .detail { display: block; animation: fade .18s ease; }
+        @keyframes fade { from { opacity: 0; transform: translateY(-3px);} to { opacity:1; transform:none; } }
+        .detail h4 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 9px; font-weight: 600; }
+        .top5 { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+        .top5 li { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; }
+        .top5 .n { color: var(--muted); font-variant-numeric: tabular-nums; width: 14px; flex: none; font-weight: 600; }
+        .top5 .nm { flex: 1; color: var(--ink-2); line-height: 1.25; }
+        .top5 .nm small { color: var(--muted); font-size: 11px; }
+        .top5 .v { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--crit); white-space: nowrap; }
+        .detail .note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 0 0 9px; }
+        .dyn { display:grid; gap:14px; grid-template-columns: repeat(4,1fr); }
+        @media (max-width: 1080px){ .dyn { grid-template-columns: repeat(2,1fr);} }
+        @media (max-width: 560px){ .dyn { grid-template-columns:1fr;} }
+        .dcard { background: var(--surface); border:1px solid var(--hair); border-radius:12px;
+                 padding:14px 15px; box-shadow: var(--shadow); }
+        .dcard .d-lbl { font-size:12px; color: var(--muted); font-weight:600; margin:0 0 8px; }
+        .dcard .d-val { font-size: 22px; font-weight:700; font-variant-numeric: tabular-nums; letter-spacing:-.01em; display:flex; align-items:baseline; gap:8px; }
+        .delta { font-size:13px; font-weight:700; display:inline-flex; align-items:center; gap:3px; }
+        .delta.up { color: var(--crit); }
+        .delta.down { color: var(--good); }
+        .delta.up::before { content:"▲"; font-size:9px; }
+        .delta.down::before { content:"▼"; font-size:9px; }
+        .dcard .d-note { font-size:12px; color: var(--muted); margin-top:6px; line-height:1.4; }
+        .tbl-shell { background: var(--surface); border:1px solid var(--hair); border-radius:14px; box-shadow: var(--shadow); overflow: hidden; }
+        .tbl-scroll { overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 760px; }
+        thead th { position: sticky; top: 0; background: var(--surface-2);
+                   text-align: right; font-weight: 600; color: var(--ink-2); font-size: 11.5px;
+                   padding: 11px 12px; border-bottom: 1px solid var(--hair-strong); white-space: nowrap;
+                   cursor: pointer; user-select: none; }
+        thead th:first-child { text-align: left; }
+        thead th .arw { color: var(--accent); font-size: 9px; margin-left: 3px; opacity: 0; }
+        thead th.sorted .arw { opacity: 1; }
+        tbody td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--hair);
+                   font-variant-numeric: tabular-nums; color: var(--ink-2); }
+        tbody td:first-child { text-align: left; font-weight: 600; color: var(--ink); white-space: nowrap; }
+        tbody tr:hover { background: var(--surface-2); }
+        tbody tr:last-child td { border-bottom: none; }
+        tfoot td { padding: 10px 12px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums;
+                   background: var(--surface-2); border-top: 2px solid var(--hair-strong); color: var(--ink); }
+        tfoot td:first-child { text-align: left; }
+        .cell-hi { color: var(--crit); font-weight: 700; }
+        .att { display:inline-block; min-width: 40px; padding: 2px 7px; border-radius: 6px; font-weight:600; font-size:12px; }
+        .att.lo { background: var(--crit-soft); color: var(--crit); }
+        .att.mid { background: var(--warn-soft); color: var(--warn); }
+        .att.hi { background: var(--good-soft); color: var(--good); }
+        .rank { color: var(--muted); font-weight:600; font-size:12px; margin-right:8px; font-variant-numeric: tabular-nums; }
+        .hint { font-size:12px; color: var(--muted); margin: 8px 2px 0; }
+        .sources { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--hair); }
+        .sources h3 { font-size: 13px; margin:0 0 10px; color: var(--ink-2); }
+        .src-list { display:grid; gap:6px 22px; grid-template-columns: repeat(2,1fr); font-size:12.5px; }
+        @media (max-width:680px){ .src-list{ grid-template-columns:1fr; } }
+        .src-list a { color: var(--accent); text-decoration: none; }
+        .src-list a:hover { text-decoration: underline; }
+        .src-list li { color: var(--muted); list-style: none; padding-left: 16px; position: relative; }
+        .src-list li::before { content:""; position:absolute; left:2px; top:7px; width:6px; height:6px; border-radius:2px; background: var(--hair-strong); }
+        .disclaimer { margin-top: 18px; font-size: 12px; color: var(--muted); background: var(--surface);
+                      border: 1px dashed var(--hair-strong); border-radius: 10px; padding: 12px 14px; line-height: 1.55; }
+        .disclaimer b { color: var(--ink-2); }
+    </style>
+</head>
+
+<body class="compact-module-page">
+<div class="container">
+    <header class="topbar">
+        <div class="brand">
+            <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+            <div>
+                <div class="brand-title">Нейрона ИИ</div>
+                <div class="brand-subtitle">Сводный дашборд качества водоснабжения</div>
+            </div>
+        </div>
+        <div class="top-actions">
+            <a href="/" class="secondary-button" style="text-decoration:none;">← Главная</a>
+            {% if user_username %}
+            <div class="badge"
+                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                👤 {{ user_username }}
+            </div>
+            {% endif %}
+        </div>
+    </header>
+</div>
+
+<div class="wrap">
+<div class="inner">
+
+  <header class="head">
+    <p class="eyebrow">Мин ЖКХ Московской области · КВЦ</p>
+    <h1>Сводный дашборд качества водоснабжения</h1>
+    <p class="sub">Ключевые показатели, собранные из 8 операционных дашбордов DataLens: занесение данных, промывки сетей, отработка задач ОМСУ, системные и резонансные адреса, электронный документооборот, плата за негативное воздействие и дисциплина участия в совещаниях.</p>
+    <div class="meta">
+      <span class="snap">Снимок данных: 31.07.2026</span>
+      <span><b>Охват:</b> 56 ОМСУ Московской области</span>
+      <span><b>Статичный снимок</b> — цифры не обновляются автоматически</span>
+    </div>
+    <div class="refresh-row">
+      <a class="refresh" href="https://claude.ai/code/routines" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+        </svg>
+        Обновить снимок
+      </a>
+    </div>
+    <p class="refresh-note">Кнопка открывает страницу <b>Routines</b> в claude.ai (нужен вход в ваш аккаунт). Там у задачи «Сводный дашборд водоснабжения — автообновление» нажмите <b>Run</b> — облачный агент снимет свежие цифры и обновит эту страницу по той же ссылке.</p>
+  </header>
+
+  <!-- ============ KPI GRID ============ -->
+  <div class="sec-title"><h2>Ключевые показатели</h2><span>по одному блоку на каждый исходный дашборд</span></div>
+  <div class="grid">
+    <!-- 1 задвижки -->
+    <div class="card s-warn">
+      <p class="k-eyebrow">ZULUGIS</p>
+      <p class="k-name">Внесение замены задвижек</p>
+      <div class="k-hero">1 185<small> / 1 865</small></div>
+      <div class="k-unit">внесено на 2026 из плана · 63%</div>
+      <div class="k-rows"><div class="k-row"><span>С корректным адресом</span><b>972 · 52%</b></div></div>
+      <div class="bar warn"><i style="width:63%"></i></div>
+      <span class="pill warn">Ниже цели 100%</span>
+      <button class="exp-btn" type="button">Топ-5 худших ОМСУ <span class="chev">▾</span></button>
+      <div class="detail">
+        <h4>Не внесено — по числу задвижек</h4>
+        <ol class="top5">
+          <li><span class="n">1</span><span class="nm">Балашиха</span><span class="v">76 шт</span></li>
+          <li><span class="n">2</span><span class="nm">Коломна</span><span class="v">60 шт</span></li>
+          <li><span class="n">3</span><span class="nm">Щёлково</span><span class="v">34 шт</span></li>
+          <li><span class="n">4</span><span class="nm">Фрязино</span><span class="v">23 шт</span></li>
+          <li><span class="n">5</span><span class="nm">Лобня <small>· Ступино, Сергиево-Посадский — по 21</small></span><span class="v">21 шт</span></li>
+        </ol>
+      </div>
+    </div>
+    <!-- 2 промывки -->
+    <div class="card s-warn">
+      <p class="k-eyebrow">Водоснабжение</p>
+      <p class="k-name">Промывки сетей и РЧВ</p>
+      <div class="k-hero">1 371<small> / 1 999</small></div>
+      <div class="k-unit">выполнено промывок · 69%</div>
+      <div class="k-rows">
+        <div class="k-row"><span>Плановые</span><b>1 774</b></div>
+        <div class="k-row"><span>По жалобам / аварии</span><b>195 / 4</b></div>
+      </div>
+      <div class="bar warn"><i style="width:69%"></i></div>
+      <span class="pill warn">Выполнение 69%</span>
+      <button class="exp-btn" type="button">Детализация <span class="chev">▾</span></button>
+      <div class="detail">
+        <p class="note">Разреза «худшие ОМСУ» в дашборде промывок нет — данные ведутся по адресам. Структура по основанию:</p>
+        <ol class="top5">
+          <li><span class="n">1</span><span class="nm">Плановые (по графику)</span><span class="v" style="color:var(--ink-2)">1 774</span></li>
+          <li><span class="n">2</span><span class="nm">Внеплановые (жалобы ЕЦУР)</span><span class="v" style="color:var(--warn)">195</span></li>
+          <li><span class="n">3</span><span class="nm">После аварии</span><span class="v">4</span></li>
+        </ol>
+      </div>
+    </div>
+    <!-- 3 задачи -->
+    <div class="card s-crit">
+      <p class="k-eyebrow">РМ МИНЖКХ</p>
+      <p class="k-name">Просроченные задачи ОМСУ</p>
+      <div class="k-hero">864</div>
+      <div class="k-unit">задач с просрочкой</div>
+      <div class="k-rows">
+        <div class="k-row"><span>Не отработано</span><b>407 · 47%</b></div>
+        <div class="k-row"><span>На доработке</span><b>457 · 53%</b></div>
+      </div>
+      <span class="pill crit">Требует отработки</span>
+      <button class="exp-btn" type="button">Топ-5 худших ОМСУ <span class="chev">▾</span></button>
+      <div class="detail">
+        <h4>Просроченных задач — больше всего</h4>
+        <ol class="top5">
+          <li><span class="n">1</span><span class="nm">Одинцовский</span><span class="v">97</span></li>
+          <li><span class="n">2</span><span class="nm">Солнечногорск</span><span class="v">84</span></li>
+          <li><span class="n">3</span><span class="nm">Красногорск</span><span class="v">47</span></li>
+          <li><span class="n">4</span><span class="nm">Ступино</span><span class="v">43</span></li>
+          <li><span class="n">5</span><span class="nm">Сергиево-Посадский</span><span class="v">38</span></li>
+        </ol>
+      </div>
+    </div>
+    <!-- 4 системные ВС -->
+    <div class="card s-crit">
+      <p class="k-eyebrow">Водоснабжение</p>
+      <p class="k-name">Системные и резонансные адреса</p>
+      <div class="k-hero">521<small> сист.</small></div>
+      <div class="k-unit">резонансных адресов — 676</div>
+      <div class="k-rows">
+        <div class="k-row"><span>Динамика за неделю</span><b class="cell-hi">+16 / +42</b></div>
+        <div class="k-row"><span>Без жалоб 30 дней</span><b>332</b></div>
+      </div>
+      <span class="pill crit">Рост за неделю</span>
+      <button class="exp-btn" type="button">Топ-5 худших ОМСУ <span class="chev">▾</span></button>
+      <div class="detail">
+        <h4>Резонансных адресов — больше всего</h4>
+        <ol class="top5">
+          <li><span class="n">1</span><span class="nm">Одинцовский</span><span class="v">51</span></li>
+          <li><span class="n">2</span><span class="nm">Богородский</span><span class="v">47</span></li>
+          <li><span class="n">3</span><span class="nm">Красногорск</span><span class="v">47</span></li>
+          <li><span class="n">4</span><span class="nm">Электросталь</span><span class="v">44</span></li>
+          <li><span class="n">5</span><span class="nm">Солнечногорск</span><span class="v">43</span></li>
+        </ol>
+      </div>
+    </div>
+    <!-- 5 ЭДО -->
+    <div class="card s-warn">
+      <p class="k-eyebrow">РСО</p>
+      <p class="k-name">Переход на электронный документооборот</p>
+      <div class="k-hero">61<small> %</small></div>
+      <div class="k-unit">подписантов имеют ЭЦП</div>
+      <div class="k-rows">
+        <div class="k-row"><span>Лиц с правом подписи</span><b>616</b></div>
+        <div class="k-row"><span>Цель</span><b>100%</b></div>
+      </div>
+      <div class="bar warn"><i style="width:61%"></i></div>
+      <span class="pill warn">Ниже цели</span>
+      <button class="exp-btn" type="button">Топ-5 худших РСО <span class="chev">▾</span></button>
+      <div class="detail">
+        <h4>Доля ЭД — самая низкая (тек. неделя)</h4>
+        <ol class="top5">
+          <li><span class="n">1</span><span class="nm">Солнечногорское ЖКХ <small>· Солнечногорск</small></span><span class="v">0,6%</span></li>
+          <li><span class="n">2</span><span class="nm">ЗАО «Водоканал» <small>· Клин</small></span><span class="v">49,2%</span></li>
+          <li><span class="n">3</span><span class="nm">Мособлтепло <small>· область</small></span><span class="v">49,4%</span></li>
+          <li><span class="n">4</span><span class="nm">Лотошинское ЖКХ <small>· Лотошино</small></span><span class="v">49,6%</span></li>
+          <li><span class="n">5</span><span class="nm">Видновское ПТО ГХ <small>· Ленинский</small></span><span class="v">51,3%</span></li>
+        </ol>
+      </div>
+    </div>
+    <!-- 6 НВОС -->
+    <div class="card s-warn">
+      <p class="k-eyebrow">Трансформ. проект КВЦ</p>
+      <p class="k-name">Плата за негативное воздействие</p>
+      <div class="k-hero">68,2<small> %</small></div>
+      <div class="k-unit">собираемость платы</div>
+      <div class="k-rows">
+        <div class="k-row"><span>Получено / начислено</span><b>324,6 / 581 млн ₽</b></div>
+        <div class="k-row"><span>% от НВВ (цель 6–10%)</span><b>5,16%</b></div>
+      </div>
+      <div class="bar warn"><i style="width:68%"></i></div>
+      <span class="pill warn">Ниже целевого % НВВ</span>
+      <button class="exp-btn" type="button">Детализация <span class="chev">▾</span></button>
+      <div class="detail">
+        <p class="note">Разреза по округам в дашборде НВОС нет — только сводные показатели проекта:</p>
+        <ol class="top5">
+          <li><span class="n">·</span><span class="nm">Собираемость платы</span><span class="v" style="color:var(--warn)">68,2%</span></li>
+          <li><span class="n">·</span><span class="nm">% от НВВ <small>(цель 6–10%)</small></span><span class="v" style="color:var(--crit)">5,16%</span></li>
+          <li><span class="n">·</span><span class="nm">Отбор проб, год <small>факт/план</small></span><span class="v" style="color:var(--crit)">1 241 / 6 422</span></li>
+          <li><span class="n">·</span><span class="nm">Отбор проб, неделя</span><span class="v" style="color:var(--good)">125 / 130</span></li>
+        </ol>
+      </div>
+    </div>
+    <!-- 7 совещания -->
+    <div class="card s-warn">
+      <p class="k-eyebrow">Дисциплина</p>
+      <p class="k-name">Присутствие на совещаниях</p>
+      <div class="k-hero">~75<small> %</small></div>
+      <div class="k-unit">средняя явка · 12 совещаний</div>
+      <div class="k-rows">
+        <div class="k-row"><span>Худшая явка</span><b class="cell-hi">Красногорск 38%</b></div>
+        <div class="k-row"><span>Явка &lt; 50%</span><b>Клин, Мол-ный, Ср. Пруды</b></div>
+      </div>
+      <span class="pill warn">Есть отстающие</span>
+      <button class="exp-btn" type="button">Топ-5 худших ОМСУ <span class="chev">▾</span></button>
+      <div class="detail">
+        <h4>Явка на переклички — самая низкая</h4>
+        <ol class="top5">
+          <li><span class="n">1</span><span class="nm">Красногорск</span><span class="v">38%</span></li>
+          <li><span class="n">2</span><span class="nm">Клин</span><span class="v">40%</span></li>
+          <li><span class="n">3</span><span class="nm">Молодёжный</span><span class="v">40%</span></li>
+          <li><span class="n">4</span><span class="nm">Серебряные Пруды</span><span class="v">40%</span></li>
+          <li><span class="n">5</span><span class="nm">Шатура</span><span class="v">42%</span></li>
+        </ol>
+      </div>
+    </div>
+    <!-- 8 капремонт -->
+    <div class="card s-warn">
+      <p class="k-eyebrow">Капремонт</p>
+      <p class="k-name">Системные адреса (капремонт)</p>
+      <div class="k-hero">97<small> сист.</small></div>
+      <div class="k-unit">резонансных адресов — 111</div>
+      <div class="k-rows">
+        <div class="k-row"><span>Фиксируются жалобы 30 дн</span><b>90</b></div>
+        <div class="k-row"><span>Новых / без жалоб</span><b>9 / 45</b></div>
+      </div>
+      <span class="pill warn">На контроле</span>
+      <button class="exp-btn" type="button">Топ-5 худших ОМСУ <span class="chev">▾</span></button>
+      <div class="detail">
+        <h4>Резонансных адресов (капремонт) — больше всего</h4>
+        <ol class="top5">
+          <li><span class="n">1</span><span class="nm">Красногорск</span><span class="v">14</span></li>
+          <li><span class="n">2</span><span class="nm">Балашиха</span><span class="v">11</span></li>
+          <li><span class="n">3</span><span class="nm">Чехов</span><span class="v">10</span></li>
+          <li><span class="n">4</span><span class="nm">Одинцовский</span><span class="v">9</span></li>
+          <li><span class="n">5</span><span class="nm">Пушкинский</span><span class="v">7</span></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DYNAMICS ============ -->
+  <div class="sec-title"><h2>Динамика и исполнение</h2><span>где данные позволяют оценить тренд</span></div>
+  <div class="dyn">
+    <div class="dcard">
+      <p class="d-lbl">Системные адреса (ВС) за неделю</p>
+      <div class="d-val">521 <span class="delta up">+16</span></div>
+      <p class="d-note">Рост числа системных адресов — новые точки хронических жалоб на ХВС.</p>
+    </div>
+    <div class="dcard">
+      <p class="d-lbl">Резонансные адреса (ВС) за неделю</p>
+      <div class="d-val">676 <span class="delta up">+42</span></div>
+      <p class="d-note">Основной прирост: Красногорск +11, Богородский +9.</p>
+    </div>
+    <div class="dcard">
+      <p class="d-lbl">Отбор проб НВОС (год)</p>
+      <div class="d-val">1 241 <span style="font-size:13px;color:var(--muted);font-weight:600;">/ 6 422</span></div>
+      <p class="d-note">Факт от плана — 19%. За неделю: 125 из 130 (96%).</p>
+    </div>
+    <div class="dcard">
+      <p class="d-lbl">Промывки — выполнение плана</p>
+      <div class="d-val">69 <span style="font-size:14px;color:var(--muted);font-weight:600;">%</span></div>
+      <p class="d-note">1 371 из 1 999 промывок выполнено.</p>
+    </div>
+  </div>
+
+  <!-- ============ ОМСУ TABLE ============ -->
+  <div class="sec-title"><h2>Разрез по ОМСУ</h2><span>кликните на заголовок столбца для сортировки</span></div>
+  <div class="tbl-shell">
+    <div class="tbl-scroll">
+      <table id="omsu">
+        <thead>
+          <tr>
+            <th data-k="name" data-t="str">ОМСУ<span class="arw">▼</span></th>
+            <th data-k="resVS" class="sorted" data-t="num">Резонансн. ВС<span class="arw">▼</span></th>
+            <th data-k="sysVS" data-t="num">Системн. ВС<span class="arw">▼</span></th>
+            <th data-k="tasks" data-t="num">Просроч. задачи<span class="arw">▼</span></th>
+            <th data-k="sysKR" data-t="num">Системн. КР<span class="arw">▼</span></th>
+            <th data-k="resKR" data-t="num">Резонансн. КР<span class="arw">▼</span></th>
+            <th data-k="att" data-t="num">Явка, %<span class="arw">▼</span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr><td>Итого / область</td><td>676</td><td>521</td><td>864</td><td>97</td><td>111</td><td>~75</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  <p class="hint">Столбцы: резонансные и системные адреса водоснабжения (ВС) и капремонта (КР), число просроченных задач в РМ МИНЖКХ, средняя явка на переклички. Красным выделены значения, требующие внимания.</p>
+
+  <!-- ============ SOURCES ============ -->
+  <div class="sources">
+    <h3>Источники (дашборды DataLens)</h3>
+    <ul class="src-list">
+      <li>Замена задвижек в ZULUGIS — <a href="https://datalens.yandex/e2q0obgt7xsex" target="_blank">открыть</a></li>
+      <li>Повышение качества водоснабжения — <a href="https://datalens.yandex/j9dqqujx03qa3" target="_blank">открыть</a></li>
+      <li>Задачи ОМСУ в РМ МИНЖКХ — <a href="https://datalens.yandex/hdxgldxnx8ui1" target="_blank">открыть</a></li>
+      <li>Системные адреса (водоснабжение) — <a href="https://datalens.yandex/6k9dbjyurmu0q" target="_blank">открыть</a></li>
+      <li>Переход РСО на ЭДО — <a href="https://datalens.yandex/f5wqqij889haz" target="_blank">открыть</a></li>
+      <li>Плата за негативное воздействие — <a href="https://datalens.yandex/62l1qih3msocq" target="_blank">открыть</a></li>
+      <li>Присутствие на совещаниях — <a href="https://datalens.yandex/5f1g88ft7v1up" target="_blank">открыть</a></li>
+      <li>Системные адреса (капремонт) — <a href="https://datalens.yandex/6rxd41nckzkep" target="_blank">открыть</a></li>
+    </ul>
+    <div class="disclaimer">
+      <b>О данных.</b> Это статический снимок значений на 31.07.2026, собранный из перечисленных дашбордов. Цифры <b>не обновляются автоматически</b> — для актуализации страницу нужно пересобрать. Для живого сводного дашборда его следует собрать внутри DataLens на тех же датасетах. Часть показателей зависит от периода и фильтров исходных дашбордов.
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+  document.querySelectorAll('.card .exp-btn').forEach(btn => {
+    const card = btn.closest('.card');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.addEventListener('click', () => {
+      const open = card.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
+</script>
+
+<script>
+  const DATA = [
+    ["Балашиха",39,17,3,9,11,90],["Богородский",47,29,21,4,2,83],["Бронницы",0,0,2,0,0,100],
+    ["Власиха",1,1,4,0,0,64],["Волоколамский",9,15,16,1,5,100],["Воскресенск",16,23,2,2,5,85],
+    ["Восход",0,0,4,0,0,80],["Дмитровский",19,22,7,2,1,64],["Долгопрудный",1,0,5,0,2,54],
+    ["Домодедово",8,4,15,2,2,85],["Дубна",1,1,14,0,0,75],["Егорьевск",5,6,6,0,0,69],
+    ["Жуковский",12,15,10,2,3,100],["Зарайск",4,3,22,0,0,100],["Звёздный городок",0,0,5,1,0,80],
+    ["Истра",14,8,18,1,2,100],["Кашира",7,4,26,0,0,82],["Клин",2,0,10,0,0,40],
+    ["Коломна",5,4,1,0,2,80],["Королёв",3,1,2,0,0,100],["Котельники",1,5,6,0,0,64],
+    ["Красногорск",47,28,47,12,14,38],["Краснознаменск",1,2,0,0,1,100],["Ленинский",2,5,10,1,3,85],
+    ["Лобня",7,0,17,3,2,83],["Лосино-Петровский",33,16,11,0,0,69],["Лотошино",8,2,3,0,0,100],
+    ["Луховицы",10,14,15,0,0,82],["Лыткарино",8,4,1,0,1,58],["Люберцы",11,7,7,4,4,77],
+    ["Можайский",10,2,13,0,0,75],["Молодёжный",0,0,2,0,0,40],["Мытищи",12,13,6,0,1,93],
+    ["Наро-Фоминский",17,12,10,1,4,100],["Одинцовский",51,29,97,9,9,54],["Орехово-Зуевский",24,20,6,0,0,69],
+    ["Павлово-Посадский",12,7,32,1,0,69],["Подольск",10,13,20,14,3,80],["Пушкинский",22,25,20,2,7,86],
+    ["Раменский",21,23,28,1,2,85],["Реутов",3,2,5,0,0,80],["Рузский",15,15,35,0,0,50],
+    ["Сергиево-Посадский",16,9,38,4,2,67],["Серебряные Пруды",6,2,6,0,0,40],["Серпухов",0,6,23,0,1,67],
+    ["Солнечногорск",43,25,84,1,1,57],["Ступино",12,23,43,1,2,82],["Талдомский",4,1,17,1,1,80],
+    ["Фрязино",0,1,1,1,0,80],["Химки",12,12,13,4,2,79],["Черноголовка",1,1,7,0,0,80],
+    ["Чехов",3,2,16,7,10,67],["Шатура",8,2,1,1,3,42],["Шаховская",1,2,12,0,0,50],
+    ["Щёлково",8,12,17,1,3,50],["Электросталь",44,26,2,4,0,76]
+  ].map(r => ({name:r[0], resVS:r[1], sysVS:r[2], tasks:r[3], sysKR:r[4], resKR:r[5], att:r[6]}));
+
+  const tbody = document.querySelector('#omsu tbody');
+  const heads = document.querySelectorAll('#omsu thead th');
+  let sortKey = 'resVS', asc = false;
+
+  function attClass(v){ return v < 50 ? 'lo' : v < 70 ? 'mid' : 'hi'; }
+  function hi(v, thr){ return v >= thr ? ' class="cell-hi"' : ''; }
+
+  function render(){
+    const rows = [...DATA].sort((a,b)=>{
+      let x=a[sortKey], y=b[sortKey];
+      if(sortKey==='name') return asc ? x.localeCompare(y,'ru') : y.localeCompare(x,'ru');
+      return asc ? x-y : y-x;
+    });
+    tbody.innerHTML = rows.map((r,i)=>`
+      <tr>
+        <td>${sortKey!=='name' ? `<span class="rank">${i+1}</span>` : ''}${r.name}</td>
+        <td${hi(r.resVS,30)}>${r.resVS}</td>
+        <td${hi(r.sysVS,25)}>${r.sysVS}</td>
+        <td${hi(r.tasks,30)}>${r.tasks}</td>
+        <td${hi(r.sysKR,8)}>${r.sysKR}</td>
+        <td${hi(r.resKR,8)}>${r.resKR}</td>
+        <td><span class="att ${attClass(r.att)}">${r.att}</span></td>
+      </tr>`).join('');
+    heads.forEach(h=>{
+      const on = h.dataset.k===sortKey;
+      h.classList.toggle('sorted', on);
+      const arw = h.querySelector('.arw');
+      if(arw) arw.textContent = asc ? '▲' : '▼';
+    });
+  }
+  heads.forEach(h=>{
+    h.addEventListener('click', ()=>{
+      const k=h.dataset.k;
+      if(k===sortKey){ asc=!asc; }
+      else { sortKey=k; asc = (k==='name'); }
+      render();
+    });
+  });
+  render();
+</script>
+</body>
+</html>

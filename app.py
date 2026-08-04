@@ -8,6 +8,13 @@ import re
 import time
 from typing import Any
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
+
+import bcrypt
+from services.auth import registration
+from services.auth import mailer
 
 from pydantic import BaseModel  # <-- Добавлен отсутствовавший импорт
 from fastapi import FastAPI, Request, Header, HTTPException, Form
@@ -36,7 +43,7 @@ from services.appeals.storage import (
     calculate_stats as calculate_appeals_stats,
 )
 from services.appeals.reply_builder import DEFAULT_REPLY_TEMPLATE, generate_reply_from_template
-from services.appeals.files import extract_text_from_file
+
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -955,11 +962,14 @@ PATH_MODULE_MAP = {
     "/cds": "cds",
     "/municipality-report": "municipality-report",
     "/ecur": "ecur",
+    "/water-dashboard": "water-dashboard",
 }
 
 PUBLIC_PATH_PREFIXES = (
     "/login",
     "/logout",
+    "/register",        # ← добавить
+    "/api/register",
     "/static",
     "/data",
     "/generated",
@@ -1076,6 +1086,111 @@ async def home(request: Request, error: str = ""):
     )
 
 
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    return templates.TemplateResponse(request, "register.html", {"request": request})
+
+
+@app.post("/api/register")
+async def api_register_start(payload: dict):
+    try:
+        username = normalize_text(payload.get("username"))
+        email = normalize_text(payload.get("email"))
+        password = str(payload.get("password") or "")
+
+        if len(password) < 6:
+            return JSONResponse(status_code=400,
+                                content={"ok": False, "message": "Пароль должен быть не короче 6 символов"})
+
+        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        print(f"[register] Старт регистрации: username={username}, email={email}")
+        
+        ok, result = registration.start_registration(username, email, password_hash)
+        if not ok:
+            print(f"[register] Ошибка валидации: {result}")
+            return JSONResponse(status_code=400, content={"ok": False, "message": result})
+
+        print(f"[register] Заявка создана, отправляю код на {result['email']}")
+        sent, err = mailer.send_verification_code(result["email"], result["code"])
+        if not sent:
+            print(f"[register] Ошибка отправки письма: {err}")
+            if os.getenv("REGISTRATION_DEBUG_CODE") == "1":
+                return {"ok": True, "debug_code": result["code"],
+                        "message": "SMTP не настроен (dev-режим). Код: " + result["code"]}
+            return JSONResponse(status_code=500, content={
+                "ok": False,
+                "message": f"Не удалось отправить письмо. Проверьте YANDEX_SMTP_USER / YANDEX_SMTP_PASSWORD. ({err})",
+            })
+
+        print(f"[register] Письмо отправлено успешно")
+        return {"ok": True, "message": f"Код отправлен на {result['email']}"}
+    except Exception as e:
+        import traceback
+        print("[register] НЕПРЕДВИДЕННАЯ ОШИБКА:")
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"ok": False, "message": f"Ошибка сервера: {str(e)}"})
+
+    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    ok, result = registration.start_registration(username, email, password_hash)
+    if not ok:
+        return JSONResponse(status_code=400, content={"ok": False, "message": result})
+
+    sent, err = mailer.send_verification_code(result["email"], result["code"])
+    if not sent:
+        if os.getenv("REGISTRATION_DEBUG_CODE") == "1":
+            return {"ok": True, "debug_code": result["code"],
+                    "message": "SMTP не настроен (dev-режим). Код: " + result["code"]}
+        return JSONResponse(status_code=500, content={
+            "ok": False,
+            "message": f"Не удалось отправить письмо. Проверьте YANDEX_SMTP_USER / YANDEX_SMTP_PASSWORD. ({err})",
+        })
+
+    return {"ok": True, "message": f"Код отправлен на {result['email']}"}
+
+
+@app.post("/api/register/resend")
+async def api_register_resend(payload: dict):
+    ident = normalize_text(payload.get("username") or payload.get("email"))
+    ok, result = registration.resend_code(ident)
+    if not ok:
+        return JSONResponse(status_code=400, content={"ok": False, "message": result})
+
+    sent, err = mailer.send_verification_code(result["email"], result["code"])
+    if not sent:
+        if os.getenv("REGISTRATION_DEBUG_CODE") == "1":
+            return {"ok": True, "debug_code": result["code"], "message": "Dev-режим. Код: " + result["code"]}
+        return JSONResponse(status_code=500, content={"ok": False, "message": f"Ошибка отправки: {err}"})
+
+    return {"ok": True, "message": f"Письмо отправлено на {result['email']}"}
+
+
+@app.post("/api/register/verify")
+async def api_register_verify(payload: dict):
+    ident = normalize_text(payload.get("username") or payload.get("email"))
+    code = normalize_text(payload.get("code"))
+
+    ok, result = registration.verify_registration(ident, code)
+    if not ok:
+        return JSONResponse(status_code=400, content={"ok": False, "message": result})
+
+    # Автовход: выдаём cookie, как при логине
+    access_token = create_access_token({"sub": result["username"], "role": result["role"]})
+    response = JSONResponse(content={"ok": True, "message": "Аккаунт создан! Добро пожаловать.", "redirect": "/"})
+    response.set_cookie(key="access_token", value=access_token, httponly=True,
+                        max_age=60 * 60 * 8, samesite="lax", secure=False)
+    return response
+
+
+@app.get("/api/me/settings")
+async def api_me_settings(request: Request):
+    return {"ok": True, "settings": registration.get_settings(request.state.user["id"])}
+
+
+@app.post("/api/me/settings")
+async def api_me_save_settings(request: Request, payload: dict):
+    settings = registration.save_settings(request.state.user["id"], payload.get("settings") or {})
+    return {"ok": True, "settings": settings}
+
 @app.get("/edo", response_class=HTMLResponse)
 async def edo_page(request: Request):
     result = load_json_file(EDO_RESULT_FILE)
@@ -1188,6 +1303,20 @@ async def watercontrol_page(request: Request):
         },
     )
 
+@app.get("/water-dashboard", response_class=HTMLResponse)
+async def water_dashboard_page(request: Request):
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+    return templates.TemplateResponse(
+        request,
+        "water_dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "user_role": user.get("role", ""),
+            "user_username": user.get("username", ""),
+        },
+    )
 
 @app.get("/utnkr", response_class=HTMLResponse)
 async def utnkr_page(request: Request):

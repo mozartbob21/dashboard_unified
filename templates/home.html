@@ -1106,7 +1106,39 @@
                 </div>
             </article>
             {% endif %}
+        {% if 'water-dashboard' in user_modules %}
+<article class="card module-card module-card-municipality-report highlight-premium-card">
+    <div class="module-head">
+        <div class="head-pills">
+            <span class="pill primary">Сводный дашборд</span>
+            <span class="pill primary pill-white">Водоснабжение МО</span>
+        </div>
+        <span class="status-badge status-stable status-badge-white">Снимок 31.07.2026</span>
+    </div>
 
+    <h2 class="module-title">Качество водоснабжения</h2>
+
+    <div class="module-description is-collapsed">
+        Сводный аналитический срез по 8 операционным дашбордам DataLens:
+        занесение данных в ZULUGIS, промывки сетей, задачи ОМСУ в РМ МИНЖКХ,
+        системные и резонансные адреса, переход РСО на ЭДО, плата за НВОС,
+        дисциплина совещаний и системные адреса капремонта. Сортируемая таблица по 56 ОМСУ.
+    </div>
+
+    <div class="tag-row">
+        <span class="tag tag-white">8 источников DataLens</span>
+        <span class="tag tag-white">56 ОМСУ</span>
+        <span class="tag tag-white">KPI + динамика</span>
+        <span class="tag tag-white">Таблица с сортировкой</span>
+    </div>
+
+    <div class="action-panel">
+        <a href="/water-dashboard" class="module-link btn-white">
+            Открыть дашборд →
+        </a>
+    </div>
+</article>
+{% endif %}
             {% if 'municipality-report' in user_modules %}
             <article class="card module-card module-card-municipality-report highlight-premium-card">
                 <div class="module-head">
@@ -1291,6 +1323,7 @@
                 { id: "cds", name: "Обращения ЖКХ", path: "/cds", icon: "🏠" },
                 { id: "mgkh_rm", name: "ЖКХ Redmine", path: "/mgkh-rm", icon: "📅" },
                 { id: "ecur", name: "ЕЦУР — жалобы", path: "/ecur", icon: "📮" }
+                { id: "water-dashboard", name: "Качество водоснабжения", path: "/water-dashboard", icon: "🌊" },
             ];
 
             const DEFAULT_SELECTION = ["edo", "cameras", "overdue", "utnkr"];

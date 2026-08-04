@@ -42,6 +42,7 @@ MODULE_LABELS = {
     "ecur":                 "ЕЦУР — жалобы",
     "appeals":              "Эмпатичные ответы",
     "municipality-report":  "Отчёт по округу",
+    "water-dashboard":      "Качество водоснабжения",
 }
 
 MODULE_ICONS = {
@@ -57,6 +58,7 @@ MODULE_ICONS = {
     "ecur":                 "📮",
     "appeals":              "✍️",
     "municipality-report":  "📊",
+    "water-dashboard":      "🌊",
 }
 
 # ─── Миграция JSON → SQLite (один раз) ─────────────────────────────

@@ -93,6 +93,21 @@
             font-size: 13px;
             margin-bottom: 16px;
         }
+        /* ===== НОВОЕ: ссылка на регистрацию ===== */
+        .login-register {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 14px;
+            color: #64748b;
+        }
+        .login-register a {
+            color: #667eea;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .login-register a:hover {
+            text-decoration: underline;
+        }
         .login-hint {
             margin-top: 24px;
             padding-top: 20px;
@@ -174,7 +189,10 @@
             </button>
         </form>
 
-   
+        <!-- ===== НОВОЕ: переход на регистрацию ===== -->
+        <div class="login-register">
+            Нет аккаунта? <a href="/register">Зарегистрироваться</a>
+        </div>
 
         <div class="login-security-note">
             🔒 Локальная авторизация: bcrypt + JWT, без внешних сервисов.

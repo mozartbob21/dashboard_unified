@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script>
+        (function() {
+            var m = localStorage.getItem("neurona-theme-mode") || "auto-moscow", t = m;
+            if (m === "auto-moscow") {
+                var La = 55.7558, Lo = 37.6173, n = new Date();
+                var s = new Date(n.getFullYear(), 0, 0);
+                var d = Math.floor((n - s) / 864e5);
+                var dec = .409 * Math.sin(2 * Math.PI * (d - 80) / 365);
+                var r = La * Math.PI / 180;
+                var c = (Math.sin(-.83 * Math.PI / 180) - Math.sin(r) * Math.sin(dec)) / (Math.cos(r) * Math.cos(dec));
+                var H = c >= 1 ? 0 : c <= -1 ? Math.PI : Math.acos(c);
+                var sr = (12 - H * 12 / Math.PI - Lo / 15 + 3 + 24) % 24;
+                var ss = (12 + H * 12 / Math.PI - Lo / 15 + 3 + 24) % 24;
+                var h = n.getHours() + n.getMinutes() / 60;
+                t = (h >= sr && h < ss) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", t);
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация — Нейрона ИИ</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+    <style>
+        .reg-wrap { max-width: 460px; margin: 60px auto; padding: 0 16px; }
+        .reg-card { padding: 28px; }
+        .reg-title { font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+        .reg-sub { color: var(--muted, #64748b); font-size: 13px; margin: 0 0 18px; }
+        .f-field { margin-bottom: 14px; }
+        .f-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+        .f-field input {
+            width: 100%; box-sizing: border-box; padding: 10px 12px;
+            border-radius: 10px; border: 1px solid var(--border, #cbd5e1);
+            background: var(--card, #fff); color: var(--text, #1e293b); font-size: 14px;
+        }
+        .code-input { letter-spacing: .4em; text-align: center; font-size: 20px !important; font-weight: 700; }
+        .reg-status { display: none; margin-top: 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+        .reg-status.error  { display: block; background: rgba(239,68,68,.1);  color: #b91c1c; border: 1px solid rgba(239,68,68,.3); }
+        .reg-status.success{ display: block; background: rgba(16,185,129,.1); color: #065f46; border: 1px solid rgba(16,185,129,.3); }
+        .reg-links { margin-top: 16px; text-align: center; font-size: 13px; }
+    </style>
+</head>
+<body class="compact-module-page">
+<div class="reg-wrap">
+    <section class="card reg-card">
+        <div class="reg-title">🤖 Регистрация</div>
+        <div class="reg-sub">Нейрона ИИ — единая точка входа</div>
+
+        <!-- Шаг 1: данные -->
+        <div id="step1">
+            <div class="f-field">
+                <label for="regUsername">Логин</label>
+                <input id="regUsername" type="text" autocomplete="username" placeholder="например, ivanov">
+            </div>
+            <div class="f-field">
+                <label for="regEmail">E-mail (для кода подтверждения)</label>
+                <input id="regEmail" type="email" autocomplete="email" placeholder="name@yandex.ru">
+            </div>
+            <div class="f-field">
+                <label for="regPassword">Пароль (мин. 6 символов)</label>
+                <input id="regPassword" type="password" autocomplete="new-password">
+            </div>
+            <button id="btnSendCode" class="module-link" style="width:100%;">Получить код на почту</button>
+        </div>
+
+        <!-- Шаг 2: код -->
+        <div id="step2" hidden>
+            <div class="reg-sub" id="step2Info" style="margin-bottom:12px;"></div>
+            <div class="f-field">
+                <label for="regCode">Код из письма</label>
+                <input id="regCode" class="code-input" type="text" inputmode="numeric" maxlength="6" placeholder="______">
+            </div>
+            <button id="btnVerify" class="module-link" style="width:100%;">Подтвердить и создать аккаунт</button>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button id="btnResend" class="secondary-button" style="flex:1;">Код ещё раз</button>
+                <button id="btnBack" class="secondary-button" style="flex:1;">Изменить данные</button>
+            </div>
+        </div>
+
+        <div id="regStatus" class="reg-status"></div>
+        <div class="reg-links">Уже есть аккаунт? <a href="/login">Войти</a></div>
+    </section>
+</div>
+
+<script>
+(function () {
+    var step1 = document.getElementById("step1");
+    var step2 = document.getElementById("step2");
+    var statusBox = document.getElementById("regStatus");
+    var identity = "";
+
+    function showStatus(kind, text) {
+        statusBox.className = "reg-status" + (kind ? " " + kind : "");
+        statusBox.textContent = text || "";
+    }
+
+    async function post(url, body) {
+        var r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+        var data = await r.json().catch(function () { return {}; });
+        return { ok: r.ok, data: data };
+    }
+
+    document.getElementById("btnSendCode").addEventListener("click", async function () {
+        var username = document.getElementById("regUsername").value.trim();
+        var email = document.getElementById("regEmail").value.trim();
+        var password = document.getElementById("regPassword").value;
+
+        var res = await post("/api/register", { username: username, email: email, password: password });
+        if (!res.ok) { showStatus("error", res.data.message || "Ошибка регистрации"); return; }
+
+        identity = username || email;
+        document.getElementById("step2Info").textContent = "Код отправлен на " + email + ". Введите его ниже.";
+        step1.hidden = true;
+        step2.hidden = false;
+        showStatus("success", res.data.debug_code
+            ? "DEV-режим: код " + res.data.debug_code
+            : "Письмо с кодом отправлено.");
+        document.getElementById("regCode").focus();
+    });
+
+    document.getElementById("btnVerify").addEventListener("click", async function () {
+        var code = document.getElementById("regCode").value.trim();
+        var res = await post("/api/register/verify", { username: identity, code: code });
+        if (!res.ok) { showStatus("error", res.data.message || "Неверный код"); return; }
+        showStatus("success", res.data.message || "Аккаунт создан!");
+        setTimeout(function () { window.location.href = res.data.redirect || "/"; }, 700);
+    });
+
+    document.getElementById("btnResend").addEventListener("click", async function () {
+        var res = await post("/api/register/resend", { username: identity });
+        showStatus(res.ok ? "success" : "error",
+            res.data.debug_code ? "DEV-режим: код " + res.data.debug_code : (res.data.message || ""));
+    });
+
+    document.getElementById("btnBack").addEventListener("click", function () {
+        step2.hidden = true;
+        step1.hidden = false;
+        showStatus("", "");
+    });
+})();
+</script>
+</body>
+</html>
