@@ -614,6 +614,45 @@
                 padding: 24px;
             }
         }
+ /* ===== ПРЕМИУМ-КАРТОЧКИ: 2 В РЯД ===== */
+.modules-grid {
+    grid-template-columns: repeat(6, 1fr) !important;
+}
+
+/* обычные модули: по 2 колонки из 6 = 3 в ряд */
+.modules-grid .module-card {
+    grid-column: span 2;
+}
+
+/* премиум: по 3 колонки из 6 = 2 в ряд */
+.modules-grid .module-card.highlight-premium-card {
+    grid-column: span 3;
+}
+
+/* планшет: обычные 2 в ряд, премиум во всю ширину */
+@media (max-width: 1080px) {
+    .modules-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .modules-grid .module-card {
+        grid-column: span 1;
+    }
+    .modules-grid .module-card.highlight-premium-card {
+        grid-column: 1 / -1;
+    }
+}
+
+/* мобильный: всё в столбик */
+@media (max-width: 640px) {
+    .modules-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .modules-grid .module-card,
+    .modules-grid .module-card.highlight-premium-card {
+        grid-column: auto;
+    }
+}
+/* ===== /ПРЕМИУМ-КАРТОЧКИ ===== */
     </style>
 </head>
 
