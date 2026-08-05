@@ -912,8 +912,8 @@
             <div class="notifications-empty">Пока нет уведомлений</div>
         </div>
         <div class="notifications-foot">
-            <a href="/notifications" class="notifications-open-all">Открыть все →</a>
-        </div>
+        
+        
     </div>
 </div>
 
@@ -1801,6 +1801,7 @@
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && !dropdown.hidden) closeMenu();
     });
+    setInterval(reload, 60000);
 
     reload();
 })();
