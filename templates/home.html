@@ -1673,41 +1673,6 @@
     </script>
     {% endif %}
 
-    <script>
-        (function () {
-            const button = document.getElementById("whatsNewButton");
-            const modal = document.getElementById("whatsNewModal");
-
-            if (!button || !modal) {
-                return;
-            }
-
-            function openModal() {
-                modal.classList.add("is-open");
-                modal.setAttribute("aria-hidden", "false");
-                document.body.classList.add("modal-open");
-            }
-
-            function closeModal() {
-                modal.classList.remove("is-open");
-                modal.setAttribute("aria-hidden", "true");
-                document.body.classList.remove("modal-open");
-            }
-
-            button.addEventListener("click", openModal);
-
-            modal.querySelectorAll("[data-whats-new-close]").forEach(function (element) {
-                element.addEventListener("click", closeModal);
-            });
-
-            document.addEventListener("keydown", function (event) {
-                if (event.key === "Escape" && modal.classList.contains("is-open")) {
-                    closeModal();
-                }
-            });
-        })();
-    </script>
-
 <script>
 (function () {
     const bellBtn = document.getElementById("notificationsBellBtn");
@@ -1717,32 +1682,14 @@
     const markAllBtn = document.getElementById("notificationsMarkAllBtn");
     if (!bellBtn || !dropdown || !list) return;
 
-    const STORAGE_KEY = "neurona-notifications";
+    const READ_KEY = "neurona-notifications-read";
 
-    // Демо-уведомления (стартовый набор)
-    const SEED = [
-        { id: 1, icon: "🌊", title: "Дашборд водоснабжения обновлён",
-          text: "Снимок данных собран. Актуальные показатели на сегодня.",
-          time: "2 мин назад", unread: true },
-        { id: 2, icon: "⏱️", title: "Проверка просрочек завершена",
-          text: "Найдено 917 просроченных задач в 56 ОМСУ.",
-          time: "15 мин назад", unread: true },
-        { id: 3, icon: "📮", title: "ЕЦУР: 3 жалобы с истекающим сроком",
-          text: "Требуется отработка до конца рабочего дня.",
-          time: "1 ч назад", unread: false },
-        { id: 4, icon: "🛡️", title: "УТНКР: новые записи",
-          text: "За сегодня добавлено 12 объектов в таблицу технадзора.",
-          time: "3 ч назад", unread: false },
-    ];
-
-    function load() {
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            return saved ? JSON.parse(saved) : SEED;
-        } catch (e) { return SEED; }
+    function getReadIds() {
+        try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]")); }
+        catch { return new Set(); }
     }
-    function save(items) {
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch (e) {}
+    function saveReadIds(set) {
+        try { localStorage.setItem(READ_KEY, JSON.stringify([...set])); } catch {}
     }
 
     function escapeHtml(s) {
@@ -1750,51 +1697,82 @@
             ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
-    function renderBadge(items) {
-        const count = items.filter(i => i.unread).length;
-        if (count > 0) {
+    function formatTime(unixTs) {
+        if (!unixTs) return "";
+        const sec = Math.max(0, Math.floor(Date.now() / 1000 - unixTs));
+        if (sec < 60) return "только что";
+        const min = Math.floor(sec / 60);
+        if (min < 60) return min + " мин назад";
+        const hr = Math.floor(min / 60);
+        if (hr < 24) return hr + " ч назад";
+        const d = Math.floor(hr / 24);
+        if (d < 7) return d + " дн назад";
+        return new Date(unixTs * 1000).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+    }
+
+    let items = [];
+
+    function renderBadge() {
+        const readIds = getReadIds();
+        const unread = items.filter(n => !readIds.has(n.id)).length;
+        if (unread > 0) {
             badge.hidden = false;
-            badge.textContent = count > 99 ? "99+" : String(count);
+            badge.textContent = unread > 99 ? "99+" : String(unread);
         } else {
             badge.hidden = true;
         }
     }
 
-    function renderList(items) {
+    function renderList() {
+        const readIds = getReadIds();
         if (!items.length) {
             list.innerHTML = `<div class="notifications-empty">Пока нет уведомлений</div>`;
             return;
         }
-        list.innerHTML = items.slice(0, 15).map(n => `
-            <div class="notif-item ${n.unread ? 'unread' : ''}" data-id="${n.id}">
-                <span class="notif-icon">${n.icon || '🔔'}</span>
-                <div class="notif-body">
-                    <div class="notif-title">${escapeHtml(n.title)}</div>
-                    <div class="notif-text">${escapeHtml(n.text)}</div>
-                    <div class="notif-time">${escapeHtml(n.time)}</div>
+        list.innerHTML = items.slice(0, 20).map(n => {
+            const unread = !readIds.has(n.id);
+            return `
+                <div class="notif-item ${unread ? 'unread' : ''}" data-id="${n.id}">
+                    <span class="notif-icon">${escapeHtml(n.icon || '🔔')}</span>
+                    <div class="notif-body">
+                        <div class="notif-title">${escapeHtml(n.title)}</div>
+                        <div class="notif-text">${escapeHtml(n.text)}</div>
+                        <div class="notif-time">${formatTime(n.time)}${n.author ? ' · ' + escapeHtml(n.author) : ''}</div>
+                    </div>
+                    <span class="notif-dot" aria-hidden="true"></span>
                 </div>
-                <span class="notif-dot" aria-hidden="true"></span>
-            </div>
-        `).join("");
+            `;
+        }).join("");
 
         list.querySelectorAll(".notif-item").forEach(el => {
             el.addEventListener("click", () => {
                 const id = Number(el.getAttribute("data-id"));
-                const items = load();
-                const item = items.find(i => i.id === id);
-                if (item) {
-                    item.unread = false;
-                    save(items);
-                    renderBadge(items);
-                    renderList(items);
-                }
+                const readIds = getReadIds();
+                readIds.add(id);
+                saveReadIds(readIds);
+                renderBadge();
+                renderList();
             });
         });
+    }
+
+    async function reload() {
+        try {
+            const r = await fetch("/api/notifications");
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            items = await r.json();
+        } catch (e) {
+            console.warn("[notifications]", e);
+            items = [];
+        }
+        renderBadge();
+        renderList();
     }
 
     function openMenu() {
         dropdown.hidden = false;
         bellBtn.setAttribute("aria-expanded", "true");
+        reload();
     }
     function closeMenu() {
         dropdown.hidden = true;
@@ -1809,10 +1787,11 @@
     if (markAllBtn) {
         markAllBtn.addEventListener("click", (e) => {
             e.stopPropagation();
-            const items = load().map(i => ({ ...i, unread: false }));
-            save(items);
-            renderBadge(items);
-            renderList(items);
+            const readIds = getReadIds();
+            items.forEach(n => readIds.add(n.id));
+            saveReadIds(readIds);
+            renderBadge();
+            renderList();
         });
     }
 
@@ -1823,9 +1802,7 @@
         if (e.key === "Escape" && !dropdown.hidden) closeMenu();
     });
 
-    const initial = load();
-    renderBadge(initial);
-    renderList(initial);
+    reload();
 })();
 </script>
 

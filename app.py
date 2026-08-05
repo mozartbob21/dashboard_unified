@@ -15,6 +15,7 @@ load_dotenv()
 import bcrypt
 from services.auth import registration
 from services.auth import mailer
+from services.notifications import store as notif_store
 
 from pydantic import BaseModel  # <-- Добавлен отсутствовавший импорт
 from fastapi import FastAPI, Request, Header, HTTPException, Form
@@ -2961,3 +2962,11 @@ async def water_dashboard_run_check():
 @app.get("/water-dashboard/run-status")
 async def water_dashboard_run_status():
     return run_status["water_dashboard"]
+
+@app.get("/api/notifications")
+async def list_notifications(request: Request):
+    user = get_user_from_token(request.cookies.get("access_token"))
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Требуется авторизация"})
+    items = notif_store.list_all()
+    return JSONResponse(content=items)
