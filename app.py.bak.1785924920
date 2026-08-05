@@ -194,15 +194,15 @@ run_status = {
         "last_error": "",
     },
     "mgkh_rm": {
-        "running": False,
-        "stage": "Ожидание запуска",
-        "message": "Система готова к проверке дат в задачах Redmine.",
-        "last_error": "",
-    },
     "water_dashboard": {
         "running": False,
         "stage": "Ожидание запуска",
         "message": "Система готова к обновлению сводного дашборда.",
+        "last_error": "",
+    },
+        "running": False,
+        "stage": "Ожидание запуска",
+        "message": "Система готова к проверке дат в задачах Redmine.",
         "last_error": "",
     },
     "cds": {
@@ -1403,11 +1403,6 @@ async def water_dashboard_page(request: Request):
             "user_username": user.get("username", ""),
             "snapshot_date": snap.get("snapshot_date", "—"),
             "table_json": json.dumps(snap.get("table", []), ensure_ascii=False),
-            "meta_json": json.dumps({
-                "updated_at": snap.get("updated_at", ""),
-                "refresh": snap.get("sources_refresh", {}),
-                "kpi_live": snap.get("kpi_live", {}),
-            }, ensure_ascii=False),
         },
     )
 @app.get("/utnkr", response_class=HTMLResponse)
@@ -2957,7 +2952,3 @@ async def ecur_data_js():
 async def water_dashboard_run_check():
     command = [sys.executable, "-m", "services.water_dashboard.runner"]
     return start_background_service("water_dashboard", command)
-
-@app.get("/water-dashboard/run-status")
-async def water_dashboard_run_status():
-    return run_status["water_dashboard"]

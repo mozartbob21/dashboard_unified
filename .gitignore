@@ -49,6 +49,7 @@ temp/
 data/overdue/browser-profile/
 data/**/browser-profile/
 data/**/storage_state.json
+data/
 
 # Debug screenshots / html dumps
 debug_*.png
@@ -181,4 +182,5 @@ data/edo/screenshots/
 *.bak2
 *.bak3
 data/cds/appeals.xlsx
+/.bak.
 

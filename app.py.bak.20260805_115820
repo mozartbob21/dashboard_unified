@@ -199,12 +199,6 @@ run_status = {
         "message": "Система готова к проверке дат в задачах Redmine.",
         "last_error": "",
     },
-    "water_dashboard": {
-        "running": False,
-        "stage": "Ожидание запуска",
-        "message": "Система готова к обновлению сводного дашборда.",
-        "last_error": "",
-    },
     "cds": {
         "running": False,
         "stage": "Ожидание запуска",
@@ -1390,9 +1384,6 @@ async def watercontrol_page(request: Request):
 async def water_dashboard_page(request: Request):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
-
-    snap = load_json_file(BASE_DIR / "data" / "water_dashboard" / "snapshot.json", default={}) or {}
-
     return templates.TemplateResponse(
         request,
         "water_dashboard.html",
@@ -1401,15 +1392,9 @@ async def water_dashboard_page(request: Request):
             "user": user,
             "user_role": user.get("role", ""),
             "user_username": user.get("username", ""),
-            "snapshot_date": snap.get("snapshot_date", "—"),
-            "table_json": json.dumps(snap.get("table", []), ensure_ascii=False),
-            "meta_json": json.dumps({
-                "updated_at": snap.get("updated_at", ""),
-                "refresh": snap.get("sources_refresh", {}),
-                "kpi_live": snap.get("kpi_live", {}),
-            }, ensure_ascii=False),
         },
     )
+
 @app.get("/utnkr", response_class=HTMLResponse)
 async def utnkr_page(request: Request):
     result = load_json_file(UTNKR_RESULT_FILE, default={})
@@ -2951,13 +2936,3 @@ async def ecur_data_js():
         media_type="application/javascript; charset=utf-8",
     )
 
-
-
-@app.post("/water-dashboard/run-check")
-async def water_dashboard_run_check():
-    command = [sys.executable, "-m", "services.water_dashboard.runner"]
-    return start_background_service("water_dashboard", command)
-
-@app.get("/water-dashboard/run-status")
-async def water_dashboard_run_status():
-    return run_status["water_dashboard"]
