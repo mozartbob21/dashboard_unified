@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 import json
 import os
 import subprocess
@@ -16,6 +16,15 @@ import bcrypt
 from services.auth import registration
 from services.auth import mailer
 from services.notifications import store as notif_store
+
+
+# ── Keycloak OIDC (активируется через AUTH_PROVIDER=keycloak в .env) ──
+import os as _kc_os  # noqa: E402
+KC_SERVER_URL = _kc_os.getenv("KC_SERVER_URL", "http://localhost:8080")
+KC_REALM = _kc_os.getenv("KC_REALM", "neurona")
+KC_CLIENT_ID = _kc_os.getenv("KC_CLIENT_ID", "neurona-web")
+KC_CLIENT_SECRET = _kc_os.getenv("KC_CLIENT_SECRET", "")
+AUTH_PROVIDER = _kc_os.getenv("AUTH_PROVIDER", "local")
 
 from pydantic import BaseModel  # <-- Добавлен отсутствовавший импорт
 from fastapi import FastAPI, Request, Header, HTTPException, Form
@@ -107,12 +116,52 @@ FULL_ACCESS_ROLES = {"администратор", "руководитель", "
 ALL_MODULE_IDS = [
     "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
     "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
-    "water_rm",
+    "water_rm", "tools",
 ]
 
 
+
+# ── Маппинг ролей Keycloak → модули платформы ──
+# Роль admin даёт полный доступ. Остальные роли = имя модуля.
+KC_ROLE_TO_MODULE = {
+    "admin":             "__full_access__",
+    "администратор":     "__full_access__",
+    "руководитель":      "__full_access__",
+    "edo":               "edo",
+    "overdue":           "overdue",
+    "watercontrol":      "watercontrol",
+    "utnkr":             "utnkr",
+    "cameras":           "cameras",
+    "appeals":           "appeals",
+    "cds":               "cds",
+    "mgkh_rm":           "mgkh_rm",
+    "ecur":              "ecur",
+    "municipality-report": "municipality-report",
+    "water-dashboard":   "water-dashboard",
+    "water_rm":          "water_rm",
+    "tools":             "tools",
+}
+
+def _kc_user_modules(user: dict) -> list:
+    """Собирает список модулей по ролям Keycloak."""
+    roles = user.get("roles", []) or []
+    role = (user.get("role") or "").strip().lower()
+    if role in {"admin", "администратор", "руководитель"}:
+        return list(ALL_MODULE_IDS)
+    modules = []
+    for r in roles:
+        mapped = KC_ROLE_TO_MODULE.get(r.lower())
+        if mapped and mapped != "__full_access__" and mapped not in modules:
+            modules.append(mapped)
+    return modules
+
 def is_full_access(user) -> bool:
-    return ((user.get("role") or "").strip().lower() in FULL_ACCESS_ROLES)
+    role = (user.get("role") or "").strip().lower()
+    if role in FULL_ACCESS_ROLES:
+        return True
+    if user.get("kc_sub") and role in {"admin", "администратор", "руководитель"}:
+        return True
+    return False
 
 
 def check_module_access(user, module_id) -> bool:
@@ -123,9 +172,12 @@ def check_module_access(user, module_id) -> bool:
 
 
 def effective_modules(user) -> list:
-    """Модули для главной: полным ролям показываем всё."""
+    """Модули для главной. Поддерживает локальных и Keycloak-пользователей."""
     if is_full_access(user):
-        return ALL_MODULE_IDS
+        return list(ALL_MODULE_IDS)
+    if user.get("kc_sub"):
+        # Keycloak-пользователь — собираем модули из его ролей
+        return _kc_user_modules(user) or ALL_MODULE_IDS  # fallback: показать всё
     return user.get("modules", [])
 
 
@@ -1031,6 +1083,54 @@ PUBLIC_PATH_PREFIXES = (
 )
 
 
+
+
+# ── Keycloak: роуты логина (OAuth2 Authorization Code Flow) ──
+@app.get("/login/keycloak")
+async def login_keycloak_redirect(request: Request):
+    redirect_uri = str(request.url_for("login_keycloak_callback"))
+    auth_url = (
+        f"{KC_SERVER_URL}/realms/{KC_REALM}/protocol/openid-connect/auth"
+        f"?client_id={KC_CLIENT_ID}&response_type=code"
+        f"&redirect_uri={redirect_uri}&scope=openid+profile+email"
+    )
+    return RedirectResponse(auth_url, status_code=302)
+
+
+@app.get("/login/keycloak/callback", name="login_keycloak_callback")
+async def login_keycloak_callback(request: Request, code: str = ""):
+    if not code:
+        return RedirectResponse("/login?error=no_code", status_code=302)
+    try:
+        import httpx
+        redirect_uri = str(request.url_for("login_keycloak_callback"))
+        token_url = f"{KC_SERVER_URL}/realms/{KC_REALM}/protocol/openid-connect/token"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(token_url, data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": redirect_uri,
+                "client_id": KC_CLIENT_ID,
+                "client_secret": KC_CLIENT_SECRET,
+            })
+        if resp.status_code != 200:
+            print(f"[keycloak] token exchange failed: {resp.status_code} {resp.text[:200]}")
+            return RedirectResponse("/login?error=token_exchange", status_code=302)
+        tokens = resp.json()
+        access_token = tokens.get("access_token", "")
+        refresh_token = tokens.get("refresh_token", "")
+        expires_in = tokens.get("expires_in", 3600)
+        response = RedirectResponse("/", status_code=302)
+        response.set_cookie("access_token", access_token, httponly=True, max_age=expires_in, samesite="lax")
+        if refresh_token:
+            response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=7 * 86400, samesite="lax")
+        response.set_cookie("auth_provider", "keycloak", max_age=expires_in, samesite="lax")
+        return response
+    except Exception as e:
+        print(f"[keycloak] login error: {e}")
+        return RedirectResponse("/login?error=exception", status_code=302)
+
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
@@ -1148,6 +1248,7 @@ async def login_submit(
 async def logout():
     response = RedirectResponse(url="/login?message=Вы вышли из системы", status_code=303)
     response.delete_cookie("access_token")
+    response.delete_cookie("auth_provider")
     return response
 
 
@@ -2587,6 +2688,91 @@ async def health():
         "ok": True,
         "service": "Unified Dashboard",
     }
+
+
+
+
+# =========================
+# TOOLS / ПОЛЕЗНЫЕ ИНСТРУМЕНТЫ
+# =========================
+from services.tools import pptx_converter as pptx_conv
+
+
+@app.get("/tools", response_class=HTMLResponse)
+async def tools_page(request: Request):
+    user = get_user_from_token(request.cookies.get("access_token")) or {}
+    return templates.TemplateResponse(request, "tools.html", {
+        "request": request,
+        "templates": pptx_conv.list_templates(),
+        "user_username": user.get("username", ""),
+        "user_role": user.get("role", ""),
+    })
+
+
+@app.post("/tools/html2pptx/preview")
+async def tools_preview(request: Request):
+    form = await request.form()
+    html = str(form.get("html") or "")
+    file = form.get("html_file")
+    if file is not None and getattr(file, "filename", ""):
+        html = (await file.read()).decode("utf-8", errors="replace")
+    if not html.strip():
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет HTML"})
+    return {"ok": True, "slides": pptx_conv.parse_html_to_slides(html)}
+
+
+@app.post("/tools/html2pptx")
+async def tools_convert(request: Request):
+    form = await request.form()
+    html = str(form.get("html") or "")
+    file = form.get("html_file")
+    if file is not None and getattr(file, "filename", ""):
+        html = (await file.read()).decode("utf-8", errors="replace")
+    template_name = str(form.get("template") or "") or None
+    out_name = str(form.get("out_name") or "").strip() or "presentation.pptx"
+    if not out_name.endswith(".pptx"):
+        out_name += ".pptx"
+    if not html.strip():
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет HTML"})
+    try:
+        slides = pptx_conv.parse_html_to_slides(html)
+        out = pptx_conv.build_pptx(slides, template_name, out_name)
+        rel = out.relative_to(BASE_DIR)
+        return {"ok": True, "url": "/" + rel.as_posix(), "slides": len(slides)}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"ok": False, "message": str(e)})
+
+
+@app.post("/tools/template")
+async def tools_upload_template(request: Request):
+    form = await request.form()
+    file = form.get("template_file")
+    if file is None or not getattr(file, "filename", ""):
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет файла"})
+    if not file.filename.lower().endswith(".pptx"):
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Нужен .pptx"})
+    pptx_conv.TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+    (pptx_conv.TEMPLATES_DIR / file.filename).write_bytes(await file.read())
+    return {"ok": True, "templates": pptx_conv.list_templates()}
+
+
+@app.post("/tools/template/delete")
+async def tools_delete_template(request: Request):
+    form = await request.form()
+    name = str(form.get("name") or "").strip()
+    if not name or "/" in name or '\\' in name or ".." in name:
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Некорректное имя"})
+    if not name.lower().endswith(".pptx"):
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Это не шаблон .pptx"})
+    p = pptx_conv.TEMPLATES_DIR / name
+    if not p.exists():
+        return JSONResponse(status_code=404, content={"ok": False, "message": "Шаблон не найден"})
+    p.unlink()
+    print(f"[tools] шаблон удалён: {name}")
+    return {"ok": True, "templates": pptx_conv.list_templates()}
+
 
 
 @app.get('/favicon.ico', include_in_schema=False)

@@ -298,32 +298,7 @@ def authenticate_user(username: str, password: str) -> dict[str, Any] | None:
     return user
 
 
-
-from services.auth.keycloak import (  # noqa: E402
-    get_user_from_token_keycloak,
-    get_user_from_token_keycloak_async,
-)
-import os  # noqa: E402
-
-
-def _is_keycloak_token(token):
-    """По claim iss определяет, что токен выпущен Keycloak."""
-    try:
-        import base64
-        import json
-        parts = (token or "").split(".")
-        if len(parts) != 3:
-            return False
-        seg = parts[1] + "=" * (-len(parts[1]) % 4)
-        claims = json.loads(base64.urlsafe_b64decode(seg))
-        return "/realms/" in str(claims.get("iss", ""))
-    except Exception:
-        return False
-
 def get_user_from_token(token: str | None) -> dict[str, Any] | None:
-    # ── Keycloak path (auto-patched) ──────────────────────
-    if _is_keycloak_token(token):
-        return get_user_from_token_keycloak(token)
     if not token:
         return None
     payload = decode_access_token(token)

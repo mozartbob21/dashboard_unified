@@ -183,4 +183,7 @@ data/edo/screenshots/
 *.bak3
 data/cds/appeals.xlsx
 /.bak.
+*.ps1*
+*yml*
+
 

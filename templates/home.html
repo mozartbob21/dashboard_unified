@@ -996,6 +996,7 @@
                 <div id="quickActionsContainer" class="quick-actions-links">
                 </div>
             </div>
+            <a href="/tools" title="HTML → PPTX, корпоративные шаблоны, предпросмотр" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;background:var(--bg-card,#fff);border:1px solid var(--border-color,#e2e8f0);font-size:13px;font-weight:700;color:var(--text-color,#334155);text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:all .2s;" onmouseover="this.style.borderColor='#8b5cf6';this.style.color='#8b5cf6'" onmouseout="this.style.borderColor='';this.style.color=''">🧰 <span>Полезные инструменты</span></a>
             <button id="configureQuickActionsBtn" class="quick-actions-configure-btn" type="button">
                 <span>⚙️</span> Настроить
             </button>
@@ -1363,6 +1364,8 @@
                 </div>
             </article>
             {% endif %}
+        
+
         {% if 'water-dashboard' in user_modules %}
 <article class="card module-card module-card-municipality-report highlight-premium-card">
     <div class="module-head">
@@ -1581,6 +1584,7 @@
                 { id: "mgkh_rm", name: "ЖКХ Redmine", path: "/mgkh-rm", icon: "📅" },
                 { id: "ecur", name: "ЕЦУР — жалобы", path: "/ecur", icon: "📮" },
                 { id: "water-dashboard", name: "Качество водоснабжения", path: "/water-dashboard", icon: "🌊" },
+                { id: "tools", name: "Полезные инструменты", path: "/tools", icon: "🧰" },
             ];
 
             const DEFAULT_SELECTION = ["edo", "cameras", "overdue", "utnkr"];
@@ -1955,6 +1959,7 @@
             "mgkh_rm":              { name: "МГКХ Redmine",           icon: "📅" },
             "water_rm":             { name: "Проверка задач по воде", icon: "💧" },
             "water_dashboard":      { name: "Качество водоснабжения",   icon: "🌊" },
+            "tools":              { name: "Полезные инструменты", icon: "🧰" },
             "ecur":                 { name: "ЕЦУР — жалобы",          icon: "📮" }
         };
         const STATUS_LABELS = {
