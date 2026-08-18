@@ -187,3 +187,13 @@ data/cds/appeals.xlsx
 *yml*
 
 
+
+# ── Одноразовые патч/фикс-скрипты (не коммитим) ──
+patch_*.py
+fix_*.py
+check_giga_*.py
+make_test_html.py
+rewrite_*.py
+cleanup_secrets.py
+test_pres.html
+tests_html/

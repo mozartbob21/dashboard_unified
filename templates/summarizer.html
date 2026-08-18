@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script>
+        (function() {
+            var m = localStorage.getItem("neurona-theme-mode") || "auto-moscow", t = m;
+            if (m === "auto-moscow") {
+                var now = new Date(), d = Math.floor((now - new Date(now.getFullYear(),0,0)) / 864e5);
+                var dec = .409 * Math.sin(2*Math.PI*(d-80)/365), r = 55.7558*Math.PI/180;
+                var c = (Math.sin(-.83*Math.PI/180) - Math.sin(r)*Math.sin(dec)) / (Math.cos(r)*Math.cos(dec));
+                var H = c>=1?0:c<=-1?Math.PI:Math.acos(c);
+                var sr = (12 - H*12/Math.PI - 37.6173/15 + 3 + 24) % 24;
+                var ss = (12 + H*12/Math.PI - 37.6173/15 + 3 + 24) % 24;
+                var h = now.getHours() + now.getMinutes()/60;
+                t = (h >= sr && h < ss) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", t);
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сумматор — Нейрона ИИ</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+    <style>
+        .sm-hero{padding:20px 24px!important;margin-bottom:16px!important}
+        .sm-title{font-size:20px;font-weight:800;margin:0 0 6px;color:var(--text-color,#1e293b)}
+        .sm-sub{font-size:13px;color:var(--muted-color,#64748b);margin:0;max-width:85ch;line-height:1.55}
+        .sm-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+        @media(max-width:1080px){.sm-grid{grid-template-columns:1fr}}
+        .sm-card{padding:18px 20px!important;display:flex;flex-direction:column;gap:12px}
+        .sm-card h2{font-size:16px;font-weight:800;margin:0;color:var(--text-color,#1e293b)}
+        .sm-card textarea{width:100%;min-height:320px;padding:12px 14px;border-radius:12px;border:1px solid var(--border-color,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-color,#1e293b);font-size:13px;line-height:1.55;resize:vertical;box-sizing:border-box;font-family:inherit}
+        .sm-btn{border:none;border-radius:10px;padding:11px 22px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s}
+        .sm-btn.primary{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;box-shadow:0 4px 14px rgba(102,126,234,.35)}
+        .sm-btn.primary:hover{transform:translateY(-1px)}
+        .sm-btn.green{background:linear-gradient(135deg,#10b981,#059669);color:#fff}
+        .sm-btn.red{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+        .sm-btn.ghost{background:var(--bg-neutral-100,rgba(0,0,0,.04));border:1px solid var(--border-color,#cbd5e1);color:var(--text-color,#475569)}
+        .sm-status{font-size:12.5px;font-weight:600;min-height:18px}
+        .sm-status.err{color:#ef4444}.sm-status.ok{color:#059669}
+        .sm-report{border:1px solid var(--border-color,#e2e8f0);border-radius:12px;padding:14px 16px;background:var(--bg-neutral-100,rgba(0,0,0,.02))}
+        .sm-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+        .sm-stat{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:rgba(139,92,246,.12);color:#8b5cf6}
+        .sm-h{font-size:13px;font-weight:800;margin:10px 0 6px;color:var(--text-color,#1e293b)}
+        .sm-report ul{margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:var(--muted-color,#475569)}
+        .sm-approve{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px dashed var(--border-color,#e2e8f0);padding-top:12px}
+        .sm-badges{display:flex;gap:6px;flex-wrap:wrap}
+        .sm-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px}
+        .sm-badge.pending{background:rgba(245,158,11,.15);color:#d97706}
+        .sm-badge.approved{background:rgba(16,185,129,.15);color:#059669}
+        .sm-badge.revision{background:rgba(239,68,68,.12);color:#ef4444}
+        .sm-comment{width:100%;min-height:70px;padding:10px;border-radius:10px;border:1px solid var(--border-color,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-color,#1e293b);font-size:12.5px;font-family:inherit;box-sizing:border-box}
+        .sm-history{margin-top:16px}
+        .sm-hitem{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 12px;border:1px solid var(--border-color,#e2e8f0);border-radius:10px;margin-bottom:6px;font-size:12.5px;color:var(--muted-color,#475569);cursor:pointer}
+        .sm-hitem:hover{border-color:#8b5cf6}
+    </style>
+</head>
+<body class="compact-module-page">
+<div class="container">
+    <header class="topbar">
+        <div class="brand">
+            <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+            <div>
+                <div class="brand-title">Нейрона ИИ</div>
+                <div class="brand-subtitle">Сумматор</div>
+            </div>
+        </div>
+        <div class="top-actions">
+            <a href="/" class="secondary-button" style="text-decoration:none;">← Главная</a>
+            {% if user_username %}
+            <div class="badge" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;">👤 {{ user_username }}</div>
+            {% endif %}
+        </div>
+    </header>
+
+    <section class="card sm-hero">
+        <div class="sm-title">📋 Сумматор — оперативный сводчик</div>
+        <p class="sm-sub">Вставь переписку или любой текст → нажми <b>/summary</b> → получи сжатый структурный отчёт.
+        Отчёт уходит на утверждение: нужно минимум 2 утверждения; отклонение — только с комментарием, после чего отчёт пересобирается с его учётом (BPMN-процесс «БОТ-сумматор»).</p>
+    </section>
+
+    <div class="sm-grid">
+        <section class="card sm-card">
+            <h2>1. Текст переписки</h2>
+            <textarea id="srcText" placeholder="Борис: Промывки по Красногорску 38%&#10;Мария: Клин — 40%, нужно совещание&#10;..."></textarea>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <button class="sm-btn primary" id="summaryBtn" type="button">⚡ /summary</button>
+                <button class="sm-btn ghost" id="demoBtn" type="button">✨ Пример</button>
+            </div>
+            <div class="sm-status" id="statusLine"></div>
+        </section>
+
+        <section class="card sm-card" id="reportCard" hidden>
+            <h2>2. Отчёт и утверждение</h2>
+            <div id="reportBox"></div>
+        </section>
+    </div>
+
+    <section class="card sm-card sm-history">
+        <h2>История отчётов</h2>
+        <div id="historyBox">
+            {% for r in reports %}
+            <div class="sm-hitem" data-id="{{ r.id }}">
+                <span>📄 {{ r.created_at }} · {{ r.author }}</span>
+                <span class="sm-badge {{ r.status }}">{{ r.status }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let current = null;
+
+const DEMO = "Иванов: По Красногорску промывки выполнены на 38%, отставание от графика.\nПетрова: Клин — явка 40%, прошу совещание с куратором.\nИванов: Собираемость НВОС 80%, план 95%.\nСидоров: По камерам: 22 не работают, 14 не подключены.\nПетрова: Просроченных задач 864, из них 132 более 20 дней.\nИванов: До 15.08 подготовить объяснения по НВОС.\nСидоров: Авария на водоводе в Серпухове устранена за 4 часа.\nПетрова: Напомните про отчёт к совещанию у министра в пятницу.";
+
+$("demoBtn").addEventListener("click", () => { $("srcText").value = DEMO; });
+
+function setStatus(t, cls) { const el = $("statusLine"); el.textContent = t; el.className = "sm-status " + (cls || ""); }
+
+$("summaryBtn").addEventListener("click", async () => {
+    const text = $("srcText").value.trim();
+    if (text.length < 50) return setStatus("Нужно минимум 50 символов текста.", "err");
+    setStatus("⏳ Анализирую переписку…");
+    const r = await fetch("/summarizer/api/summary", {
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text})
+    });
+    const d = await r.json();
+    if (!d.ok) return setStatus("❌ " + (d.message || d.error || "Ошибка"), "err");
+    current = d.report;
+    renderReport(current);
+    setStatus("✅ Отчёт готов и отправлен на утверждение.", "ok");
+});
+
+function renderReport(rep) {
+    $("reportCard").hidden = false;
+    const res = rep.result;
+    const st = res.stats || {};
+    const appr = Object.keys(rep.approvals || {});
+    const badges = {pending: "⏳ на утверждении", approved: "✅ утверждён", revision: "🛠 на доработке"};
+    const reportText = res.report_text || "";
+    $("reportBox").innerHTML = `
+        <div class="sm-report">
+            <div class="sm-stats">
+                <span class="sm-stat">🕐 ${st.time || "—"}</span>
+                <span class="sm-stat">📍 ${esc(st.place || "—")}</span>
+                <span class="sm-stat">⚡ ${esc(st.event || "—")}</span>
+                <span class="sm-badge ${rep.status}">${badges[rep.status] || rep.status}</span>
+            </div>
+            <div class="sm-doc" id="docBox" style="white-space:pre-wrap;font-size:13.5px;line-height:1.7;
+                padding:16px 18px;background:var(--bg-card,#fff);border:1px solid var(--border-color,#e2e8f0);
+                border-radius:10px;color:var(--text-color,#1e293b);font-family:Georgia,serif;max-height:420px;overflow:auto;">${esc(reportText)}</div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="sm-btn ghost" id="copyBtn" type="button" style="padding:7px 14px;font-size:12px;">📋 Скопировать</button>
+                <span style="font-size:11.5px;color:var(--muted-color,#94a3b8);align-self:center;">
+                    сжатие ${st.compression || 0}% · ${st.authors || 0} источников
+                </span>
+            </div>
+            ${(res.key_points || []).length ? `<div class="sm-h" style="margin-top:14px;">⚠️ Не распознано (сырой текст)</div>
+                <ul>${res.key_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+        </div>
+        <div class="sm-approve">
+            <button class="sm-btn green" id="approveBtn" type="button">✅ Утвердить</button>
+            <button class="sm-btn red" id="rejectBtn" type="button">❌ Отклонить</button>
+            ${rep.status === "revision" ? '<button class="sm-btn primary" id="regenBtn" type="button">🔄 Пересобрать с учётом комментария</button>' : ""}
+            <div class="sm-badges">${appr.map(u => `<span class="sm-badge approved">✅ ${esc(u)}</span>`).join("")}</div>
+            <span style="font-size:11.5px;color:var(--muted-color,#94a3b8);">нужно минимум 2 утверждения</span>
+        </div>
+        ${rep.status !== "approved" ? `<textarea class="sm-comment" id="commentBox" placeholder="Комментарий для доработки (обязателен при отклонении)…">${esc(rep.revision_comment || "")}</textarea>` : ""}
+    `;
+    const cb = $("copyBtn");
+    if (cb) cb.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(reportText);
+            cb.textContent = "✅ Скопировано!";
+            setTimeout(() => cb.textContent = "📋 Скопировать", 1500);
+        } catch (e) {
+            alert("Не удалось скопировать");
+        }
+    });
+    const ab = $("approveBtn");
+    if (ab) ab.addEventListener("click", async () => {
+        const r = await fetch("/summarizer/api/approve", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: rep.id})});
+        const d = await r.json();
+        if (d.ok) { current = d.report; renderReport(current); }
+    });
+    const rb = $("rejectBtn");
+    if (rb) rb.addEventListener("click", async () => {
+        const comment = ($("commentBox") || {}).value || "";
+        const r = await fetch("/summarizer/api/reject", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: rep.id, comment})});
+        const d = await r.json();
+        if (d.ok) { current = d.report; renderReport(current); }
+        else alert(d.message || "Ошибка");
+    });
+    const gb = $("regenBtn");
+    if (gb) gb.addEventListener("click", async () => {
+        const r = await fetch("/summarizer/api/regenerate", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: rep.id})});
+        const d = await r.json();
+        if (d.ok) { current = d.report; renderReport(current); }
+    });
+}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+</script>
+</body>
+</html>

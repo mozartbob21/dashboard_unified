@@ -163,6 +163,10 @@
                     <input type="file" id="tplFile" accept=".pptx" hidden>
                     <span>📤 Загрузить шаблон</span>
                 </label>
+                <label class="tl-upload">
+                    <input type="file" id="emblemFile" accept=".png,.jpg,.jpeg" hidden>
+                    <span>🛡️ Загрузить герб</span>
+                </label>
                 <div id="tplList"></div>
             </section>
 
@@ -310,6 +314,15 @@ $("sampleBtn").addEventListener("click", () => {
     setStatus("info", "✨ Пример вставлен — жми «Предпросмотр» или «Конвертировать»");
 });
 
+
+$("emblemFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const fd = new FormData(); fd.append("emblem_file", f);
+    const r = await fetch("/tools/emblem", { method: "POST", body: fd });
+    const d = await r.json();
+    if (d.ok) setStatus("done", "✅ Герб загружен — будет на всех контентных слайдах");
+    else setStatus("error", d.message || "Ошибка");
+});
 refreshTemplates({{ templates | tojson }});
 </script>
 </body>

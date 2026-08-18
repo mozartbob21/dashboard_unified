@@ -847,6 +847,12 @@
 }
 /* ===== /ПРЕМИУМ-КАРТОЧКИ ===== */
     </style>
+
+    <style>
+        .wide-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;grid-column:1/-1;}
+        .wide-pair .module-card{grid-column:auto !important;width:100%;}
+        @media(max-width:1080px){.wide-pair{grid-template-columns:1fr;}}
+    </style>
 </head>
 
 
@@ -1004,7 +1010,10 @@
         {% endif %}
 
         {% if is_admin_ui %}
-        <section class="card history-widget" id="historyWidget">
+        
+            
+            
+            <section class="card history-widget" id="historyWidget">
             <div class="history-widget-head">
                 <div>
                     <div class="eyebrow">АКТИВНОСТЬ</div>
@@ -1249,6 +1258,34 @@
                 </div>
             </article>
             {% endif %}
+            <article class="card module-card">
+                <div class="module-head">
+                    <div class="head-pills">
+                        <span class="pill primary">ИИ</span>
+                        <span class="pill primary">Сводки</span>
+                    </div>
+                    <span class="status-badge status-stable">НОВОЕ</span>
+                </div>
+
+                <h2 class="module-title">Сумматор</h2>
+
+                <div class="module-description is-collapsed">
+                    Оперативный сводчик: вставь переписку — получи сжатый отчёт в стиле
+                    ЖКХ-Центра. Утверждение по BPMN: минимум 2 из 3 ролей, отклонение
+                    только с комментарием, доработка через GigaChat.
+                </div>
+
+                <div class="tag-row">
+                    <span class="tag">/summary</span>
+                    <span class="tag">GigaChat</span>
+                    <span class="tag">Утверждение</span>
+                </div>
+
+                <div class="action-panel">
+                    <a href="/summarizer" class="module-link">Открыть модуль →</a>
+                </div>
+            </article>
+            
 
             {% if 'cds' in user_modules %}
             <article class="card module-card module-card-appeals-beta">
@@ -1366,7 +1403,13 @@
             {% endif %}
         
 
-        {% if 'water-dashboard' in user_modules %}
+        
+            
+
+        </section>
+
+        <div class="wide-pair">
+{% if 'water-dashboard' in user_modules %}
 <article class="card module-card module-card-municipality-report highlight-premium-card">
     <div class="module-head">
         <div class="head-pills">
@@ -1399,7 +1442,7 @@
     </div>
 </article>
 {% endif %}
-            {% if 'municipality-report' in user_modules %}
+{% if 'municipality-report' in user_modules %}
             <article class="card module-card module-card-municipality-report highlight-premium-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1431,44 +1474,8 @@
                 </div>
             </article>
             {% endif %}
-
-        </section>
-
-        <section class="card">
-            <h2 class="section-title">О платформе</h2>
-
-            <div class="info-grid" style="margin-top: 18px;">
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Локальный контур</h3>
-
-                    <div class="info-text">
-                        Работа без внешних облачных сервисов: данные, отчёты, скриншоты,
-                        таблицы, документы и промежуточные результаты обрабатываются
-                        внутри локальной инфраструктуры.
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Автоматизация сценариев</h3>
-
-                    <div class="info-text">
-                        Используются автоматизированные сценарии открытия панелей,
-                        авторизации на целевых сайтах, получения снимков экрана,
-                        анализа таблиц, проверки видеопотоков и формирования итоговых материалов.
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Единый интерфейс</h3>
-
-                    <div class="info-text">
-                        Все направления сведены в одно приложение:
-                        можно быстро переключаться между модулями,
-                        запускать проверки и развивать систему без дублирования общей инфраструктуры.
-                    </div>
-                </div>
             </div>
-        </section>
+    
     </div>
 
     <!-- Модальное окно "Что нового" -->
@@ -2217,6 +2224,42 @@
     })();
     </script>
 
+    
+    <section class="card">
+            <h2 class="section-title">О платформе</h2>
+
+            <div class="info-grid" style="margin-top: 18px;">
+                <div class="soft-card">
+                    <h3 style="margin: 0 0 12px;">Локальный контур</h3>
+
+                    <div class="info-text">
+                        Работа без внешних облачных сервисов: данные, отчёты, скриншоты,
+                        таблицы, документы и промежуточные результаты обрабатываются
+                        внутри локальной инфраструктуры.
+                    </div>
+                </div>
+
+                <div class="soft-card">
+                    <h3 style="margin: 0 0 12px;">Автоматизация сценариев</h3>
+
+                    <div class="info-text">
+                        Используются автоматизированные сценарии открытия панелей,
+                        авторизации на целевых сайтах, получения снимков экрана,
+                        анализа таблиц, проверки видеопотоков и формирования итоговых материалов.
+                    </div>
+                </div>
+
+                <div class="soft-card">
+                    <h3 style="margin: 0 0 12px;">Единый интерфейс</h3>
+
+                    <div class="info-text">
+                        Все направления сведены в одно приложение:
+                        можно быстро переключаться между модулями,
+                        запускать проверки и развивать систему без дублирования общей инфраструктуры.
+                    </div>
+                </div>
+            </div>
+        </section>
     <script>
     (function () {
         const cards = document.querySelectorAll(".module-card");

@@ -2773,6 +2773,99 @@ async def tools_delete_template(request: Request):
     print(f"[tools] шаблон удалён: {name}")
     return {"ok": True, "templates": pptx_conv.list_templates()}
 
+@app.post("/tools/emblem")
+async def tools_upload_emblem(request: Request):
+    form = await request.form()
+    file = form.get("emblem_file")
+    if file is None or not getattr(file, "filename", ""):
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет файла"})
+    low = file.filename.lower()
+    if not (low.endswith(".png") or low.endswith(".jpg") or low.endswith(".jpeg")):
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Нужен .png или .jpg"})
+    pptx_conv.TOOLS_DIR.mkdir(parents=True, exist_ok=True)
+    dest = pptx_conv.TOOLS_DIR / ("emblem.png" if low.endswith(".png") else "emblem.jpg")
+    dest.write_bytes(await file.read())
+    print(f"[tools] герб загружен: {dest.name}")
+    return {"ok": True}
+
+
+
+
+
+
+# =========================
+# SUMMARIZER / СУММАТОР
+# =========================
+from services.summarizer import engine as sum_engine
+from services.summarizer import storage as sum_store
+
+
+@app.get("/summarizer", response_class=HTMLResponse)
+async def summarizer_page(request: Request):
+    user = get_user_from_token(request.cookies.get("access_token")) or {}
+    return templates.TemplateResponse(request, "summarizer.html", {
+        "request": request,
+        "user_username": user.get("username", ""),
+        "reports": sum_store.list_reports(10),
+    })
+
+
+@app.post("/summarizer/api/summary")
+async def summarizer_summary(request: Request):
+    user = get_user_from_token(request.cookies.get("access_token")) or {}
+    payload = await request.json()
+    text = str(payload.get("text") or "").strip()
+    if len(text) < 50:
+        return JSONResponse(status_code=400,
+                            content={"ok": False, "message": "Текст слишком короткий (мин. 50 символов)"})
+    result = sum_engine.summarize(text)
+    if not result.get("ok"):
+        return JSONResponse(status_code=400, content=result)
+    item = sum_store.create_report(text, result, user.get("username", "—"))
+    return {"ok": True, "report": item}
+
+
+@app.post("/summarizer/api/approve")
+async def summarizer_approve(request: Request):
+    user = get_user_from_token(request.cookies.get("access_token")) or {}
+    payload = await request.json()
+    it = sum_store.approve(str(payload.get("id") or ""), user.get("username", "—"))
+    if not it:
+        return JSONResponse(status_code=404, content={"ok": False, "message": "Отчёт не найден"})
+    return {"ok": True, "report": it}
+
+
+@app.post("/summarizer/api/reject")
+async def summarizer_reject(request: Request):
+    """BPMN: статус 'отклонить' не присваивается без комментария."""
+    user = get_user_from_token(request.cookies.get("access_token")) or {}
+    payload = await request.json()
+    comment = str(payload.get("comment") or "").strip()
+    if not comment:
+        return JSONResponse(status_code=400,
+                            content={"ok": False, "message": "Отклонение без комментария невозможно (правило BPMN)"})
+    it = sum_store.reject(str(payload.get("id") or ""), user.get("username", "—"), comment)
+    if not it:
+        return JSONResponse(status_code=404, content={"ok": False, "message": "Отчёт не найден"})
+    return {"ok": True, "report": it}
+
+
+@app.post("/summarizer/api/regenerate")
+async def summarizer_regenerate(request: Request):
+    payload = await request.json()
+    rid = str(payload.get("id") or "")
+    it = sum_store.get_report(rid)
+    if not it:
+        return JSONResponse(status_code=404, content={"ok": False, "message": "Отчёт не найден"})
+    src = it["source"]
+    if it.get("revision_comment"):
+        src += "\n\nКомментарий для корректировки: " + it["revision_comment"]
+    result = sum_engine.summarize(src)
+    if not result.get("ok"):
+        return JSONResponse(status_code=400, content=result)
+    it["result"] = result
+    sum_store.to_pending(rid)
+    return {"ok": True, "report": sum_store.get_report(rid)}
 
 
 @app.get('/favicon.ico', include_in_schema=False)
