@@ -42,7 +42,8 @@ def _gigachat_chat(messages, creds=None, model=None, max_tokens=2000):
 
 
 def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
-    """OpenAI-совместимый прокси aiplatform.mosreg.ru."""
+    """OpenAI-совместимый прокси aiplatform.mosreg.ru.
+    Автоматически отключает «размышления» Qwen3, иначе content=None."""
     import httpx
     base = (base or os.getenv("QWEN_API_BASE",
                               "https://aiplatform.mosreg.ru/api/user-models/v1")).strip().rstrip("/")
@@ -55,36 +56,48 @@ def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {key}",
     }
+
+    def _post(payload):
+        resp = httpx.post(f"{base}/chat/completions", json=payload,
+                          headers=headers, timeout=180, verify=True)
+        # прокси может не знать chat_template_kwargs — повторяем без него
+        if resp.status_code == 400 and "chat_template_kwargs" in payload:
+            payload = {k: v for k, v in payload.items()
+                       if k != "chat_template_kwargs"}
+            resp = httpx.post(f"{base}/chat/completions", json=payload,
+                              headers=headers, timeout=180, verify=True)
+        return resp
+
     payload = {
         "model": model,
         "messages": messages,
         "temperature": 0.4,
         "max_tokens": max_tokens,
         "stream": False,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
 
-    try:
-        r = httpx.post(
-            f"{base}/chat/completions",
-            json=payload,
-            headers=headers,
-            timeout=120,
-            verify=True,
-        )
-    except Exception as e:
-        raise RuntimeError(f"Qwen: сетевая ошибка — {e}")
-
+    r = _post(payload)
     if r.status_code == 401:
         raise RuntimeError("Qwen: невалидный umk_-ключ (401)")
     if r.status_code == 403:
         raise RuntimeError(f"Qwen: нет доступа к модели {model} (403)")
     if r.status_code == 404:
         raise RuntimeError(f"Qwen: модель {model} не найдена (404)")
-
     r.raise_for_status()
     data = r.json()
     msg = (data.get("choices") or [{}])[0].get("message") or {}
     content = msg.get("content") or msg.get("text") or ""
+
+    if not content and msg.get("reasoning"):
+        # размышления съели токены — повтор с удвоенным лимитом
+        payload["max_tokens"] = min(int(max_tokens) * 2, 16000)
+        r = _post(payload)
+        r.raise_for_status()
+        data = r.json()
+        msg = (data.get("choices") or [{}])[0].get("message") or {}
+        content = msg.get("content") or msg.get("text") or ""
+
     if not content:
         print(f"[qwen] пустой content, raw: {str(data)[:600]}", flush=True)
         raise RuntimeError("Qwen вернул пустой content")
