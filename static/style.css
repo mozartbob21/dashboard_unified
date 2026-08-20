@@ -6233,3 +6233,20 @@ MOBILE TOPBAR SIMPLE — шапка выше, контролы в поток, б
         display: none !important;
     }
 }
+
+/* ── GLASS BUTTON NORMALIZE — пилюля в шапке рядом с темой ── */
+#glassToggle{
+  position: static !important;
+  right: auto !important; bottom: auto !important; z-index: 1 !important;
+  appearance: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px !important; min-width: 44px; height: 44px; padding: 0 !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--border) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card) !important;
+  color: var(--text); font-size: 17px; line-height: 1; cursor: pointer;
+  box-shadow: 0 12px 34px rgba(0,0,0,.08); transition: all .18s ease;
+  opacity: .9; flex: 0 0 auto !important;
+}
+#glassToggle:hover{transform: translateY(-2px); border-color: var(--border-strong); opacity: 1;}
+#glassToggle.on{opacity: 1; border-color: rgba(139,92,246,.55) !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,.18);}

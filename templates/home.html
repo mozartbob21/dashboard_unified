@@ -2347,6 +2347,11 @@
 (function(){
     var b = document.getElementById("glassToggle");
     if (!b) return;
+    var host2 = document.querySelector(".top-actions") || document.querySelector(".topbar-right") || document.querySelector(".topbar");
+    if (host2 && !host2.contains(b)) {
+        var an2 = host2.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
+        if (an2) { an2.parentNode.insertBefore(b, an2); } else { host2.appendChild(b); }
+    }
     function paint(){
         var on = document.documentElement.getAttribute("data-glass") === "on";
             var SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>';
@@ -2374,10 +2379,11 @@
         var b = document.createElement("button");
         b.id = "glassToggle";
         b.type = "button";
-        host.insertBefore(b, host.firstChild);
+        var anchor = host.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
+        if (anchor) { anchor.parentNode.insertBefore(b, anchor); } else { host.appendChild(b); }
         function paint(){
             var on = document.documentElement.getAttribute("data-glass") === "on";
-            b.textContent = on ? "💧" : "🪟";
+            b.innerHTML = on ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>' : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
             b.classList.toggle("on", on);
             b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
         }
