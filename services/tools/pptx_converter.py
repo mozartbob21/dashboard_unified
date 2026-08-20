@@ -1,3 +1,4 @@
+from services.shot_stabilizer import stabilize_page
 """HTML -> PPTX конвертер с поддержкой корпоративных шаблонов."""
 import base64
 import copy
@@ -619,6 +620,7 @@ def render_slides_images(html: str, stem: str) -> list:
         page = browser.new_page(viewport={"width": 1280, "height": 720})
         page.set_content(html, wait_until="load")
         page.wait_for_timeout(700)
+        stabilize_page(page)
         els = page.query_selector_all("div.pf")
         if els:
             for i, el in enumerate(els):

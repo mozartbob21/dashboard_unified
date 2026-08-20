@@ -1,3 +1,4 @@
+from services.shot_stabilizer import stabilize_page
 import json
 import os
 import re
@@ -473,6 +474,7 @@ def save_table_screenshots(page, base_name="table_part", max_parts=8):
     if scrollable_locator is None or scrollable_handle is None:
         file_name = f"{base_name}_1.png"
         file_path = SCREENSHOTS_DIR / file_name
+        stabilize_page(page)
         page.screenshot(path=str(file_path), full_page=True)
         return [f"data/edo/screenshots/{file_name}"]
 

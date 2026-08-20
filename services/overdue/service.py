@@ -1,3 +1,4 @@
+from services.shot_stabilizer import stabilize_page
 import html
 import json
 import re
@@ -230,6 +231,7 @@ def fetch_dashboard_data():
             pass
 
         try:
+            stabilize_page(page)
             page.screenshot(path=str(screenshot_file), full_page=True)
             print(f"[saved] screenshot: {screenshot_file}")
         except Exception:
