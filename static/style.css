@@ -6250,3 +6250,331 @@ MOBILE TOPBAR SIMPLE — шапка выше, контролы в поток, б
 #glassToggle:hover{transform: translateY(-2px); border-color: var(--border-strong); opacity: 1;}
 #glassToggle.on{opacity: 1; border-color: rgba(139,92,246,.55) !important;
   box-shadow: 0 0 0 3px rgba(139,92,246,.18);}
+
+/* =========================================================
+MOBILE APP POLISH v3 — шапка в 2 строки, метрики 2×2
+========================================================= */
+/* Кнопка стекла — пилюля в шапке, не FAB */
+#glassToggle{
+  position: static !important;
+  right: auto !important; bottom: auto !important; z-index: 1 !important;
+  width: 40px !important; height: 40px !important; min-width: 40px;
+  padding: 0 !important; border-radius: 999px !important;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card) !important;
+  color: var(--text); cursor: pointer; opacity: .9; flex: 0 0 auto !important;
+  font-size: 0 !important; /* гасим случайный эмодзи-текст */
+}
+#glassToggle svg { width: 18px; height: 18px; }
+#glassToggle.on { opacity: 1; border-color: rgba(139,92,246,.55) !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,.18); }
+
+@media (max-width: 900px) {
+  /* Шапка: бренд сверху, контролы второй строкой, без наездов */
+  .topbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    position: sticky !important;
+    top: 10px !important;
+  }
+  .topbar .top-actions,
+  .topbar .topbar-right {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+  }
+  .topbar .top-actions > *,
+  .topbar .topbar-right > * {
+    width: auto !important;
+    flex: 0 1 auto !important;
+    position: relative !important;
+    justify-content: flex-start !important;
+  }
+  .topbar .theme-toggle,
+  .topbar .theme-toggle-btn {
+    max-width: 100% !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .topbar .top-actions .badge,
+  .topbar .top-actions a.badge {
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+  }
+
+  /* Метрики — компактная плитка 2×2, как в мобильном приложении */
+  .metrics-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+  .metric-card {
+    padding: 14px 16px !important;
+    border-radius: 18px !important;
+  }
+  .metric-label { font-size: 11px !important; }
+  .metric-value { font-size: 30px !important; margin-top: 6px !important; }
+}
+@media (max-width: 400px) {
+  .metric-value { font-size: 26px !important; }
+}
+
+/* =========================================================
+GLASS v3 — стекло ТОЛЬКО на плитках, текст остаётся читаемым
+========================================================= */
+html[data-glass="on"] .card,
+html[data-glass="on"] .metric-card,
+html[data-glass="on"] .module-card {
+  background: linear-gradient(150deg, rgba(255,255,255,.30), rgba(255,255,255,.12)) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%) !important;
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  border: 1px solid rgba(255,255,255,.5) !important;
+  box-shadow: 0 10px 40px rgba(31,38,135,.10), inset 0 1px 0 rgba(255,255,255,.7) !important;
+}
+html[data-theme="dark"][data-glass="on"] .card,
+html[data-theme="dark"][data-glass="on"] .metric-card,
+html[data-theme="dark"][data-glass="on"] .module-card {
+  background: linear-gradient(150deg, rgba(30,41,59,.40), rgba(15,23,42,.24)) !important;
+  border-color: rgba(148,163,184,.22) !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+/* Шапка — чуть плотнее, чтобы меню и бренд читались, и не резались дропдауны */
+html[data-glass="on"] .topbar {
+  position: sticky !important;
+  overflow: visible !important;
+  background: linear-gradient(150deg, rgba(255,255,255,.55), rgba(255,255,255,.35)), var(--card) !important;
+}
+html[data-theme="dark"][data-glass="on"] .topbar {
+  background: linear-gradient(150deg, rgba(30,41,59,.65), rgba(15,23,42,.5)), var(--card) !important;
+}
+/* Текст и цифры полностью непрозрачны — читабельность превыше всего */
+html[data-glass="on"] .card > *,
+html[data-glass="on"] .metric-card > * {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+/* =========================================================
+TOPBAR BURGER MOBILE — бренд + бургер, контролы по тапу
+========================================================= */
+#glassToggle{
+  position: static !important; right: auto !important; bottom: auto !important; z-index: 1 !important;
+  width: 40px !important; height: 40px !important; min-width: 40px;
+  border-radius: 999px !important; padding: 0 !important;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card) !important;
+  color: var(--text); cursor: pointer; opacity: .9; flex: 0 0 auto !important;
+  font-size: 0 !important;
+}
+#glassToggle svg { width: 18px; height: 18px; }
+#glassToggle.on { opacity: 1; border-color: rgba(139,92,246,.55) !important;
+  box-shadow: 0 0 0 3px rgba(139,92,246,.18); }
+
+#topbarBurger {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card);
+  color: var(--text); cursor: pointer; flex: 0 0 auto;
+  margin-left: auto;
+}
+@media (max-width: 900px) {
+  /* Шапка: бренд слева, бургер справа — и всё */
+  #topbarBurger { display: inline-flex; }
+  .topbar {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+  .topbar .brand, .topbar .brand-link {
+    width: auto !important; flex: 1 1 auto !important; min-width: 0 !important;
+  }
+  .topbar .top-actions, .topbar .topbar-right {
+    display: none !important;
+    width: 100% !important;
+  }
+  /* По тапу — выпадающая панель со всеми контролами */
+  .topbar.menu-open .top-actions,
+  .topbar.menu-open .topbar-right {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 12px 4px 4px !important;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .topbar.menu-open .top-actions > *,
+  .topbar.menu-open .topbar-right > * {
+    width: auto !important;
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+    position: relative !important;
+  }
+  .topbar.menu-open .theme-toggle .theme-toggle-text {
+    display: inline !important;
+  }
+}
+
+/* =========================================================
+TOPBAR MENU FINAL v2 — бургер справа от бренда, меню столбиком,
+только значки, без надписей, без имени пользователя
+========================================================= */
+#topbarBurger {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card);
+  color: var(--text); cursor: pointer; flex: 0 0 auto; margin-left: auto;
+}
+.tb-icon { font-size: 18px; line-height: 1; }
+@media (max-width: 900px) {
+  #topbarBurger { display: inline-flex; }
+  /* Бренд + бургер на одной строке */
+  .topbar {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+  .topbar .brand, .topbar .brand-link {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+  .topbar .top-actions, .topbar .topbar-right {
+    display: none !important;
+    width: 100% !important;
+  }
+  /* Меню: столбик строк, каждая во всю ширину */
+  .topbar.menu-open .top-actions,
+  .topbar.menu-open .topbar-right {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    padding-top: 10px !important;
+    border-top: 1px solid var(--border);
+  }
+  .topbar.menu-open .top-actions > *,
+  .topbar.menu-open .topbar-right > * {
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    justify-content: center !important;
+    min-height: 46px !important;
+  }
+  .topbar.menu-open .theme-dropdown { width: 100% !important; }
+  .topbar.menu-open .theme-dropdown .theme-toggle { width: 100% !important; }
+  /* Только значки — никаких надписей */
+  .topbar.menu-open .tb-label,
+  .topbar.menu-open .theme-toggle-text,
+  .topbar.menu-open .theme-toggle-arrow { display: none !important; }
+  /* Имя пользователя и выход убираем совсем */
+  .topbar.menu-open .top-actions > .badge,
+  .topbar.menu-open .top-actions > a.badge { display: none !important; }
+}
+
+/* =========================================================
+HOME BURGER FINAL — бургер только на home, меню столбиком из иконок
+========================================================= */
+#glassToggle{
+  position: static !important; right:auto !important; bottom:auto !important; z-index:1 !important;
+  width:40px !important; height:40px !important; min-width:40px; padding:0 !important;
+  border-radius:999px !important; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card) !important;
+  color:var(--text); cursor:pointer; opacity:.9; flex:0 0 auto !important; font-size:0 !important;
+}
+#glassToggle svg{width:18px;height:18px;}
+#glassToggle.on{opacity:1;border-color:rgba(139,92,246,.55) !important;box-shadow:0 0 0 3px rgba(139,92,246,.18);}
+#topbarBurger{
+  display:none; align-items:center; justify-content:center;
+  width:44px;height:44px;border-radius:999px;border:1px solid var(--border);
+  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card);
+  color:var(--text); cursor:pointer; flex:0 0 auto; margin-left:auto;
+}
+@media (max-width: 900px) {
+  body.has-burger #topbarBurger{display:inline-flex;}
+  body.has-burger .topbar{
+    flex-direction: row !important; flex-wrap: wrap !important;
+    align-items:center !important; gap:10px !important;
+  }
+  body.has-burger .topbar .brand,
+  body.has-burger .topbar .brand-link{flex:1 1 auto !important; width:auto !important; min-width:0 !important;}
+  body.has-burger .top-actions,
+  body.has-burger .topbar-right{display:none !important; width:100% !important;}
+  body.has-burger .topbar.menu-open .top-actions,
+  body.has-burger .topbar.menu-open .topbar-right{
+    display:flex !important; flex-direction:column !important; align-items:stretch !important;
+    gap:6px !important; padding-top:10px !important; border-top:1px solid var(--border);
+  }
+  body.has-burger .topbar.menu-open .top-actions > *,
+  body.has-burger .topbar.menu-open .topbar-right > *{
+    width:100% !important; flex:0 0 auto !important; justify-content:center !important;
+    min-height:46px !important;
+  }
+  body.has-burger .topbar.menu-open .tb-label,
+  body.has-burger .topbar.menu-open .theme-toggle-text,
+  body.has-burger .topbar.menu-open .theme-toggle-arrow{display:none !important;}
+  body.has-burger .topbar.menu-open .tb-icon{font-size:18px;}
+  body.has-burger .topbar.menu-open .top-actions > .badge,
+  body.has-burger .topbar.menu-open .top-actions > a.badge{display:none !important;}
+  body.has-burger .topbar.menu-open .theme-dropdown{width:100% !important;}
+  body.has-burger .topbar.menu-open .theme-dropdown .theme-toggle{width:100% !important;}
+}
+
+/* =========================================================
+HOME MOBILE MINIMAL — только капля, тема и авто-запуск
+========================================================= */
+#glassToggle{
+  position: static !important; right:auto !important; bottom:auto !important; z-index:1 !important;
+  width:40px !important; height:40px !important; min-width:40px; padding:0 !important;
+  border-radius:999px !important; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card) !important;
+  color:var(--text); cursor:pointer; opacity:.9; font-size:0 !important;
+}
+#glassToggle svg{width:18px;height:18px;}
+#glassToggle.on{opacity:1;border-color:rgba(139,92,246,.55) !important;box-shadow:0 0 0 3px rgba(139,92,246,.18);}
+#topbarBurger{display:none !important;}
+@media (max-width: 900px) {
+  body.home-page .topbar{
+    flex-direction: row !important; flex-wrap: wrap !important;
+    align-items:center !important; gap:8px !important;
+  }
+  body.home-page .topbar .brand,
+  body.home-page .topbar .brand-link{flex:1 1 auto !important; width:auto !important; min-width:0 !important;}
+  body.home-page .top-actions{
+    display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important;
+    align-items:center !important; gap:8px !important; width:100% !important;
+  }
+  /* скрываем ВСЁ, кроме капли, темы и авто-запуска */
+  body.home-page .top-actions > *{display:none !important;}
+  body.home-page .top-actions > #glassToggle,
+  body.home-page .top-actions > .theme-dropdown,
+  body.home-page .top-actions > .primary-button{display:inline-flex !important;}
+  body.home-page .top-actions > #glassToggle{flex:0 0 auto; width:44px !important; height:44px !important;}
+  body.home-page .top-actions > .theme-dropdown{flex:0 0 auto;}
+  body.home-page .theme-toggle{width:44px !important; min-width:44px; padding:0 !important; justify-content:center !important;}
+  body.home-page .theme-toggle .theme-toggle-text,
+  body.home-page .theme-toggle .theme-toggle-arrow{display:none !important;}
+  body.home-page .top-actions > .primary-button{flex:1 1 auto !important; justify-content:center !important;}
+  /* список тем — листом во всю ширину */
+  body.home-page .theme-dropdown{position:static !important;}
+  body.home-page .theme-menu{
+    position:fixed !important; top:84px !important; left:12px !important; right:12px !important;
+    min-width:0 !important; max-height:70vh !important; overflow-y:auto !important; z-index:3000 !important;
+  }
+}
