@@ -966,7 +966,9 @@
         host.insertBefore(b, host.firstChild);
         function paint(){
             var on = document.documentElement.getAttribute("data-glass") === "on";
-            b.textContent = on ? "💧" : "🪟";
+            var SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>';
+            var SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
+            b.innerHTML = on ? SVG_ON : SVG_OFF;
             b.classList.toggle("on", on);
             b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
         }
