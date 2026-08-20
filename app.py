@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 import re
+import asyncio
 import time
 from typing import Any
 from datetime import datetime
@@ -2718,7 +2719,7 @@ async def tools_preview(request: Request):
         html = (await file.read()).decode("utf-8", errors="replace")
     if not html.strip():
         return JSONResponse(status_code=400, content={"ok": False, "message": "Нет HTML"})
-    return {"ok": True, "slides": pptx_conv.parse_html_to_slides(html)}
+    return {"ok": True, "slides": pptx_conv.parse_html_to_slides_pro(html)}
 
 
 @app.post("/tools/html2pptx")
@@ -2734,8 +2735,21 @@ async def tools_convert(request: Request):
         out_name += ".pptx"
     if not html.strip():
         return JSONResponse(status_code=400, content={"ok": False, "message": "Нет HTML"})
+    mode = str(form.get("mode") or "smart")
+    if mode == "shots":
+        try:
+            imgs = await asyncio.to_thread(pptx_conv.render_slides_images, html, Path(out_name).stem)
+            if not imgs:
+                return JSONResponse(status_code=500, content={"ok": False, "message": "Не удалось отрендерить слайды"})
+            out = pptx_conv.build_pptx_from_images(imgs, out_name)
+            rel = out.relative_to(BASE_DIR)
+            return {"ok": True, "url": "/" + rel.as_posix(), "slides": len(imgs)}
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JSONResponse(status_code=500, content={"ok": False, "message": str(e)})
     try:
-        slides = pptx_conv.parse_html_to_slides(html)
+        slides = pptx_conv.parse_html_to_slides_pro(html)
         out = pptx_conv.build_pptx(slides, template_name, out_name)
         rel = out.relative_to(BASE_DIR)
         return {"ok": True, "url": "/" + rel.as_posix(), "slides": len(slides)}

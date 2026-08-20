@@ -1002,7 +1002,7 @@
                 <div id="quickActionsContainer" class="quick-actions-links">
                 </div>
             </div>
-            <a href="/tools" title="HTML → PPTX, корпоративные шаблоны, предпросмотр" style="display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;background:var(--bg-card,#fff);border:1px solid var(--border-color,#e2e8f0);font-size:13px;font-weight:700;color:var(--text-color,#334155);text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:all .2s;" onmouseover="this.style.borderColor='#8b5cf6';this.style.color='#8b5cf6'" onmouseout="this.style.borderColor='';this.style.color=''">🧰 <span>Полезные инструменты</span></a>
+            <a href="/tools" class="quick-glass">🧰 <span>Полезные инструменты</span></a>
             <button id="configureQuickActionsBtn" class="quick-actions-configure-btn" type="button">
                 <span>⚙️</span> Настроить
             </button>
@@ -2342,5 +2342,54 @@
         });
     })();
     </script>
+
+<script>
+(function(){
+    var b = document.getElementById("glassToggle");
+    if (!b) return;
+    function paint(){
+        var on = document.documentElement.getAttribute("data-glass") === "on";
+        b.textContent = on ? "💧" : "🪟";
+        b.style.opacity = on ? "1" : ".55";
+        b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
+    }
+    b.addEventListener("click", function(){
+        var on = document.documentElement.getAttribute("data-glass") === "on";
+        document.documentElement.setAttribute("data-glass", on ? "off" : "on");
+        localStorage.setItem("neurona-glass", on ? "off" : "on");
+        paint();
+    });
+    paint();
+})();
+</script>
+
+<script>
+(function(){
+    function make(){
+        var host = document.querySelector(".top-actions") || document.querySelector(".topbar");
+        if (!host) { setTimeout(make, 300); return; }
+        if (document.getElementById("glassToggle")) return;
+        var b = document.createElement("button");
+        b.id = "glassToggle";
+        b.type = "button";
+        host.insertBefore(b, host.firstChild);
+        function paint(){
+            var on = document.documentElement.getAttribute("data-glass") === "on";
+            b.textContent = on ? "💧" : "🪟";
+            b.classList.toggle("on", on);
+            b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
+        }
+        b.addEventListener("click", function(){
+            var on = document.documentElement.getAttribute("data-glass") === "on";
+            document.documentElement.setAttribute("data-glass", on ? "off" : "on");
+            localStorage.setItem("neurona-glass", on ? "off" : "on");
+            paint();
+        });
+        paint();
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", make);
+    else make();
+})();
+</script>
 </body>
 </html>

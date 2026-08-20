@@ -15,6 +15,7 @@
                 t = (h >= sr && h < ss) ? "light" : "dark";
             }
             document.documentElement.setAttribute("data-theme", t);
+            document.documentElement.setAttribute("data-glass", localStorage.getItem("neurona-glass") || "off");
         })();
     </script>
     <meta charset="UTF-8">
@@ -135,6 +136,13 @@
             </div>
 
             <div class="tl-options">
+                <div class="tl-field">
+                    <label>Режим разбора</label>
+                    <select id="modeSelect">
+                        <option value="smart">Умный (структура)</option>
+                        <option value="shots">Скриншоты (сложный HTML / PDF)</option>
+                    </select>
+                </div>
                 <div class="tl-field">
                     <label>Шаблон оформления</label>
                     <select id="tplSelect"></select>
@@ -262,6 +270,7 @@ $("convertBtn").addEventListener("click", async () => {
     $("convertBtn").disabled = true;
     const fd = new FormData();
     fd.append("html", html);
+    fd.append("mode", $("modeSelect").value);
     fd.append("template", $("tplSelect").value);
     fd.append("out_name", $("outName").value || "presentation.pptx");
     try {
@@ -324,6 +333,35 @@ $("emblemFile").addEventListener("change", async e => {
     else setStatus("error", d.message || "Ошибка");
 });
 refreshTemplates({{ templates | tojson }});
+</script>
+
+<script>
+(function(){
+    function make(){
+        var host = document.querySelector(".top-actions") || document.querySelector(".topbar");
+        if (!host) { setTimeout(make, 300); return; }
+        if (document.getElementById("glassToggle")) return;
+        var b = document.createElement("button");
+        b.id = "glassToggle";
+        b.type = "button";
+        host.insertBefore(b, host.firstChild);
+        function paint(){
+            var on = document.documentElement.getAttribute("data-glass") === "on";
+            b.textContent = on ? "💧" : "🪟";
+            b.classList.toggle("on", on);
+            b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
+        }
+        b.addEventListener("click", function(){
+            var on = document.documentElement.getAttribute("data-glass") === "on";
+            document.documentElement.setAttribute("data-glass", on ? "off" : "on");
+            localStorage.setItem("neurona-glass", on ? "off" : "on");
+            paint();
+        });
+        paint();
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", make);
+    else make();
+})();
 </script>
 </body>
 </html>

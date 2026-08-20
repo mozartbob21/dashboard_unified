@@ -43,8 +43,11 @@ def _extract_slide(container) -> dict:
             slide["subtitle"] = _clean(el.get_text())
         elif name in ("ul", "ol"):
             slide["bullets"].extend(_clean(li.get_text()) for li in el.find_all("li"))
-        elif name == "p":
-            t = _clean(el.get_text())
+        elif name in ("p", "div"):
+            if name == "p":
+                t = _clean(el.get_text())
+            else:
+                t = _clean(" ".join(c for c in el.children if isinstance(c, str)))
             if t:
                 slide["texts"].append(t)
         elif name == "blockquote":
@@ -52,31 +55,92 @@ def _extract_slide(container) -> dict:
             if t:
                 slide["texts"].append("\u00ab" + t + "\u00bb")
         elif name == "table":
-            rows = [[_clean(td.get_text()) for td in tr.find_all(["td", "th"])]
-                    for tr in el.find_all("tr")]
-            if rows:
-                slide["tables"].append(rows)
+            if _is_layout_table(el):
+                for cell in el.find_all(["td", "th"]):
+                    if not cell.find("table"):
+                        t = _clean(cell.get_text())
+                        if t:
+                            slide["texts"].append(t)
+            else:
+                rows = [[_clean(td.get_text()) for td in tr.find_all(["td", "th"])]
+                        for tr in el.find_all("tr")]
+                if rows:
+                    slide["tables"].append(rows)
         elif name in ("aside", "div") and "notes" in " ".join(el.get("class", [])):
             slide["notes"] = _clean(el.get_text())
-    root = container if not isinstance(container, list) else None
-    if root is not None:
-        slide["images"] = [img.get("src", "") for img in root.find_all("img") if img.get("src")]
+    if not slide["images"]:
+        roots = container if isinstance(container, list) else [container]
+        imgs = []
+        for r in roots:
+            imgs += [img.get("src", "") for img in r.find_all("img") if img.get("src")]
+        slide["images"] = imgs
     return slide
+
+
+def _is_layout_table(tbl) -> bool:
+    """Таблица-вёрстка: вложенные таблицы, одна колонка или простыня."""
+    if tbl.find("table"):
+        return True
+    rows = tbl.find_all("tr")
+    if not rows:
+        return False
+    widths = {len(tr.find_all(["td", "th"])) for tr in rows}
+    if widths <= {1}:
+        return True
+    if len(rows) == 1 and len(_clean(rows[0].get_text())) > 300:
+        return True
+    return False
+
+
+def _unwrap_layout_tables(soup):
+    """Разворачивает таблицы-вёрстки в обычные div-блоки (до 6 уровней)."""
+    for _ in range(6):
+        layouts = [t for t in soup.find_all("table") if _is_layout_table(t)]
+        if not layouts:
+            break
+        for t in layouts:
+            div = soup.new_tag("div")
+            for cell in t.find_all(["td", "th"]):
+                if cell.find("table"):
+                    continue
+                inner = soup.new_tag("div")
+                for ch in list(cell.children):
+                    inner.append(ch.extract())
+                div.append(inner)
+            t.replace_with(div)
+
+
+def _flatten_unstyled(soup):
+    """Снимает div-обёртки без class/id/style и без прямого текста,
+    чтобы заголовки и блоки вышли на верхний уровень и разбивка работала."""
+    for _ in range(8):
+        changed = False
+        for div in soup.find_all("div"):
+            if div.get("class") or div.get("id") or div.get("style"):
+                continue
+            direct = "".join(c for c in div.children if isinstance(c, str)).strip()
+            if not direct:
+                div.unwrap()
+                changed = True
+        if not changed:
+            break
 
 
 def parse_html_to_slides(html: str) -> list:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style"]):
         tag.decompose()
+    _flatten_unstyled(soup)
 
     sections = soup.find_all("section")
     if sections:
         slides = [_extract_slide(s) for s in sections]
     else:
         body = soup.body or soup
+        split_tag = "h2" if body.find("h2") else "h3"
         groups, cur = [], []
         for el in body.find_all(True, recursive=False):
-            if getattr(el, "name", "") == "h2" and cur:
+            if getattr(el, "name", "") == split_tag and cur:
                 groups.append(cur)
                 cur = []
             cur.append(el)
@@ -87,8 +151,9 @@ def parse_html_to_slides(html: str) -> list:
     slides = [s for s in slides
               if any([s["title"], s["bullets"], s["texts"], s["images"], s["tables"]])]
     if not slides:
+        lines = [ln.strip() for ln in soup.get_text().splitlines() if ln.strip()][:8]
         slides = [{"title": "Презентация", "subtitle": "", "bullets": [],
-                   "texts": [_clean(soup.get_text())[:400]], "images": [],
+                   "texts": lines, "images": [],
                    "tables": [], "notes": ""}]
     return slides
 
@@ -293,7 +358,10 @@ def _fill_slide(slide, s, is_first, prs=None, emblem=None):
     tb = slide.shapes.add_textbox(Inches(0.55), Inches(0.25), bar_w - Inches(0.9), Inches(0.85))
     tf = tb.text_frame
     tf.word_wrap = True
-    tf.text = s["title"] or ""
+    title = s["title"] or ""
+    if len(title) > 90:
+        title = title[:87] + "…"
+    tf.text = title
     _style(tf, 28, True, WHITE, PP_ALIGN.LEFT, MSO_ANCHOR.MIDDLE)
 
     # Удаляем битые клонированные картинки/группы справа (квадрат с ×)
@@ -334,10 +402,23 @@ def _fill_slide(slide, s, is_first, prs=None, emblem=None):
     for src in s["images"][:2]:
         _add_image(slide, src)
     for rows in s["tables"][:1]:
-        row_h = Inches(0.9) if len(rows) <= 5 else Inches(0.65)
-        _add_table(slide, rows, left=Inches(0.3), top=Inches(1.45),
-                   width=bar_w, row_h=row_h,
-                   head_size=20, body_size=18, body_bold=True)
+        n_cols = max(len(r) for r in rows)
+        if n_cols > 4 or len(rows) > 10:
+            # не влезет в шаблон таблицей — отдаём аккуратными строками
+            lines = [" | ".join(c for c in r if c) for r in rows]
+            tbb = slide.shapes.add_textbox(Inches(0.6), Inches(1.35),
+                                           bar_w - Inches(0.9), Inches(5.3))
+            tfb = tbb.text_frame
+            tfb.word_wrap = True
+            tfb.text = lines[0] if lines else ""
+            for ln in lines[1:]:
+                tfb.add_paragraph().text = ln
+            _style(tfb, 16, False, RGBColor(0x33, 0x33, 0x33), PP_ALIGN.LEFT)
+        else:
+            row_h = Inches(0.9) if len(rows) <= 5 else Inches(0.65)
+            _add_table(slide, rows, left=Inches(0.3), top=Inches(1.45),
+                       width=bar_w, row_h=row_h,
+                       head_size=20, body_size=18, body_bold=True)
 
     if s["notes"]:
         try:
@@ -420,6 +501,161 @@ def build_pptx(slides: list, template_name, output_name: str) -> Path:
             sldIdLst.remove(last)
             sldIdLst.append(last)
 
+    out = OUTPUT_DIR / output_name
+    prs.save(str(out))
+    return out
+
+
+# ═══════════════ PRO-РАЗБОР СЛОЖНЫХ HTML ═══════════════
+
+def _promote_styled_headings(soup):
+    """div/p/span с крупным шрифтом в style -> заголовки h2/h3."""
+    for el in soup.find_all(["div", "p", "span"]):
+        style = el.get("style") or ""
+        text = el.get_text(strip=True)
+        if not text or len(text) > 120:
+            continue
+        fs = re.search(r"font-size:\s*([\d.]+)\s*(px|pt|em)", style)
+        fw = re.search(r"font-weight:\s*(bold|[6-9]00)", style)
+        size = 0.0
+        if fs:
+            v = float(fs.group(1))
+            size = {"px": v, "pt": v * 1.33, "em": v * 16}[fs.group(2)]
+        if size >= 24 or (fw and size >= 16):
+            el.name = "h2" if size >= 28 else "h3"
+            continue
+        # strong/b, занимающие весь блок, = заголовок (табличная верстка, PDF)
+        inner = [c for c in el.children if getattr(c, "name", None) in ("strong", "b")]
+        if inner and len(text) < 70:
+            own = "".join(c for c in el.children if isinstance(c, str)).strip(" :—-·")
+            if not own:
+                el.name = "h3"
+
+
+def parse_html_to_slides_pro(html: str) -> list:
+    """Умный разбор: стили, pdf2htmlEX (.pf), fallback markdownify."""
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    _promote_styled_headings(soup)
+    _unwrap_layout_tables(soup)
+
+    # pdf2htmlEX: каждая .pf = слайд
+    pages = soup.find_all("div", class_="pf")
+    if pages:
+        slides = []
+        for pg in pages:
+            seen, bullets = set(), []
+            for t in pg.find_all(["h1", "h2", "h3", "p", "li", "div"]):
+                # пропускаем обёртки — берём только листовые текстовые блоки
+                if t.find(["h1", "h2", "h3", "p", "li", "div"]):
+                    continue
+                ln = _clean(t.get_text())
+                if ln and ln not in seen:
+                    seen.add(ln)
+                    bullets.append(ln)
+            if bullets:
+                if len(bullets[0]) <= 90:
+                    title, rest = bullets[0], bullets[1:8]
+                else:
+                    title, rest = "Страница отчёта", bullets[:8]
+                slides.append({"title": title, "subtitle": "",
+                               "bullets": rest, "texts": [],
+                               "images": [], "tables": [], "notes": ""})
+        if slides:
+            return slides
+
+    slides = parse_html_to_slides(str(soup))
+    if len(slides) >= 2:
+        return slides
+
+    # fallback: markdownify (любая вложенность)
+    try:
+        import markdownify
+        md = markdownify.markdown(str(soup), heading_style="ATX")
+    except Exception:
+        return slides
+
+    out, cur = [], None
+    for line in md.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("#") and " " in s[:8]:
+            level = len(s) - len(s.lstrip("#"))
+            title = s.lstrip("#").strip()
+            cur = {"title": title, "subtitle": "", "bullets": [], "texts": [],
+                   "images": [], "tables": [], "notes": ""}
+            out.append(cur)
+            continue
+        if cur is None:
+            cur = {"title": "Презентация", "subtitle": "", "bullets": [],
+                   "texts": [], "images": [], "tables": [], "notes": ""}
+            out.append(cur)
+        if s.startswith(("- ", "* ")):
+            cur["bullets"].append(s[2:])
+        elif s.startswith("|"):
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if any(cells) and not all(set(c) <= set("-: ") for c in cells):
+                cur["tables"].append(cells)
+        else:
+            cur["texts"].append(s)
+    for sl in out:
+        if sl["tables"]:
+            sl["tables"] = [sl["tables"]]
+    return out or slides
+
+
+def render_slides_images(html: str, stem: str) -> list:
+    """Рендер сложного HTML в Chromium: страницы .pf или вертикальные полосы."""
+    from playwright.sync_api import sync_playwright
+    img_dir = OUTPUT_DIR / f"{stem}_shots"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    for old in img_dir.glob("*.png"):
+        old.unlink()
+    paths = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(viewport={"width": 1280, "height": 720})
+        page.set_content(html, wait_until="load")
+        page.wait_for_timeout(700)
+        els = page.query_selector_all("div.pf")
+        if els:
+            for i, el in enumerate(els):
+                p = img_dir / f"slide_{i:02d}.png"
+                el.screenshot(path=str(p))
+                paths.append(p)
+        else:
+            h = page.evaluate("document.body.scrollHeight")
+            y, i = 0, 0
+            while y < h and i < 60:
+                page.evaluate(f"window.scrollTo(0, {y})")
+                page.wait_for_timeout(200)
+                p = img_dir / f"slide_{i:02d}.png"
+                page.screenshot(path=str(p))
+                paths.append(p)
+                y += 720
+                i += 1
+        browser.close()
+    return paths
+
+
+def build_pptx_from_images(images: list, output_name: str) -> Path:
+    """Слайды-скриншоты 16:9 во всю площадь."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    blank = prs.slide_layouts[6]
+    for p in images:
+        sl = prs.slides.add_slide(blank)
+        pic = sl.shapes.add_picture(str(p), 0, 0)
+        sw, sh = prs.slide_width, prs.slide_height
+        scale = min(sw / pic.width, sh / pic.height) * 0.96
+        pic.width = int(pic.width * scale)
+        pic.height = int(pic.height * scale)
+        pic.left = int((sw - pic.width) / 2)
+        pic.top = int((sh - pic.height) / 2)
     out = OUTPUT_DIR / output_name
     prs.save(str(out))
     return out

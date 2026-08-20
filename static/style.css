@@ -5539,3 +5539,79 @@ html[data-theme="kreml"] body::before {
         padding: 5px 10px !important;
     }
 }
+
+
+/* ═══════════════ ЖИДКОЕ СТЕКЛО (liquid glass) ═══════════════ */
+html[data-glass="on"] .topbar,
+html[data-glass="on"] .card {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(255,255,255,.62), rgba(255,255,255,.38));
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255,255,255,.55);
+    box-shadow: 0 8px 32px rgba(31,38,135,.12), inset 0 1px 0 rgba(255,255,255,.6);
+}
+html[data-theme="dark"][data-glass="on"] .topbar,
+html[data-theme="dark"][data-glass="on"] .card {
+    background: linear-gradient(135deg, rgba(30,41,59,.60), rgba(15,23,42,.45));
+    border: 1px solid rgba(148,163,184,.22);
+    box-shadow: 0 8px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+}
+/* живой блик, медленно "плывёт" по стеклу */
+html[data-glass="on"] .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(120% 60% at 20% 0%, rgba(255,255,255,.35), transparent 60%);
+    mix-blend-mode: soft-light;
+    animation: glass-sheen 9s ease-in-out infinite alternate;
+}
+html[data-theme="dark"][data-glass="on"] .card::after {
+    background: radial-gradient(120% 60% at 20% 0%, rgba(255,255,255,.14), transparent 60%);
+}
+@keyframes glass-sheen {
+    from { transform: translateX(-8%); }
+    to   { transform: translateX(8%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    html[data-glass="on"] .card::after { animation: none; }
+}
+
+/* Кнопка жидкого стекла в верхней панели */
+#glassToggle{width:38px;height:38px;border-radius:12px;border:1px solid var(--border-color,#e2e8f0);
+    background:var(--bg-card,#fff);font-size:17px;cursor:pointer;transition:all .2s;
+    display:inline-flex;align-items:center;justify-content:center;opacity:.7;flex:none;}
+#glassToggle.on{opacity:1;border-color:#8b5cf6;box-shadow:0 0 0 2px rgba(139,92,246,.25);}
+#glassToggle:hover{opacity:1;transform:translateY(-1px);}
+html[data-theme="dark"] #glassToggle{background:rgba(30,41,59,.6);border-color:rgba(148,163,184,.25);}
+
+
+/* ── стекло v2: сильнее прозрачность ── */
+html[data-glass="on"] .topbar,
+html[data-glass="on"] .card {
+    background: linear-gradient(135deg, rgba(255,255,255,.34), rgba(255,255,255,.16));
+    -webkit-backdrop-filter: blur(26px) saturate(200%);
+    backdrop-filter: blur(26px) saturate(200%);
+    border: 1px solid rgba(255,255,255,.4);
+}
+html[data-theme="dark"][data-glass="on"] .topbar,
+html[data-theme="dark"][data-glass="on"] .card {
+    background: linear-gradient(135deg, rgba(30,41,59,.40), rgba(15,23,42,.24));
+    border: 1px solid rgba(148,163,184,.18);
+}
+
+/* ── кнопка быстрых ссылок с поддержкой тем ── */
+a.quick-glass{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;
+    background:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.65);
+    font-size:13px;font-weight:700;color:#334155;text-decoration:none;
+    box-shadow:0 1px 3px rgba(0,0,0,.06);transition:all .2s;}
+a.quick-glass:hover{border-color:#8b5cf6;color:#8b5cf6;}
+html[data-theme="dark"] a.quick-glass{background:rgba(30,41,59,.6);border-color:rgba(148,163,184,.25);color:#e2e8f0;}
+html[data-theme="dark"] a.quick-glass:hover{color:#a78bfa;border-color:#a78bfa;}
+html[data-glass="on"] a.quick-glass{
+    -webkit-backdrop-filter: blur(14px);backdrop-filter: blur(14px);
+    background:rgba(255,255,255,.4);}
+html[data-theme="dark"][data-glass="on"] a.quick-glass{background:rgba(30,41,59,.35);}
