@@ -1,12 +1,4 @@
-"""Сумматор: GigaChat + Qwen (с выбором движка) + алгоритмический фолбэк.
-
-Переменные .env:
-  SUMMARIZER_BACKEND: qwen | gigachat | algo
-  SUMMARIZER_GIGACHAT_CREDENTIALS (fallback GIGACHAT_CREDENTIALS)
-  SUMMARIZER_QWEN_API_KEY (fallback QWEN_API_KEY)
-  QWEN_API_BASE, QWEN_MODEL
-  GIGACHAT_MODEL
-"""
+"""Сумматор: GigaChat + Qwen (с выбором движка) + алгоритмический фолбэк."""
 import os
 import re
 import datetime
@@ -50,36 +42,53 @@ def _gigachat_chat(messages, creds=None, model=None, max_tokens=2000):
 
 
 def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
+    """OpenAI-совместимый прокси aiplatform.mosreg.ru."""
     import httpx
-    base = (base or os.getenv("QWEN_API_BASE", "")).strip().rstrip("/")
+    base = (base or os.getenv("QWEN_API_BASE",
+                              "https://aiplatform.mosreg.ru/api/user-models/v1")).strip().rstrip("/")
     key = (key or os.getenv("QWEN_API_KEY", "")).strip()
     model = (model or os.getenv("QWEN_MODEL", "qwen3.8-27b-fp8")).strip()
-    if not base:
-        raise RuntimeError("QWEN_API_BASE не задан в .env")
-    headers = {"Content-Type": "application/json"}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
-    paths = ["/v1/chat/completions", "/chat/completions", "/api/v1/chat/completions"]
-    if base.endswith("/chat/completions"):
-        paths = [""]
-    last = None
-    for p in paths:
-        try:
-            r = httpx.post(base + p,
-                           json={"model": model, "messages": messages,
-                                 "temperature": 0.4, "max_tokens": max_tokens},
-                           headers=headers, timeout=120, verify=False)
-            if r.status_code == 404:
-                last = RuntimeError(f"404 на {base + p}")
-                continue
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            if "404" in str(e):
-                last = e
-                continue
-            raise
-    raise last or RuntimeError("Qwen: эндпоинт не найден")
+    if not key:
+        raise RuntimeError("QWEN_API_KEY (umk_...) не задан в .env")
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {key}",
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+
+    try:
+        r = httpx.post(
+            f"{base}/chat/completions",
+            json=payload,
+            headers=headers,
+            timeout=120,
+            verify=True,
+        )
+    except Exception as e:
+        raise RuntimeError(f"Qwen: сетевая ошибка — {e}")
+
+    if r.status_code == 401:
+        raise RuntimeError("Qwen: невалидный umk_-ключ (401)")
+    if r.status_code == 403:
+        raise RuntimeError(f"Qwen: нет доступа к модели {model} (403)")
+    if r.status_code == 404:
+        raise RuntimeError(f"Qwen: модель {model} не найдена (404)")
+
+    r.raise_for_status()
+    data = r.json()
+    msg = (data.get("choices") or [{}])[0].get("message") or {}
+    content = msg.get("content") or msg.get("text") or ""
+    if not content:
+        print(f"[qwen] пустой content, raw: {str(data)[:600]}", flush=True)
+        raise RuntimeError("Qwen вернул пустой content")
+    return content
 
 
 SYSTEM_PROMPT = """Ты — старший оперативный дежурный ЖКХ-Центра Московской области.
@@ -145,7 +154,6 @@ TECH_RE = re.compile(r"(\d+)\s*ед\.\s*техник", re.IGNORECASE)
 DEADLINE_RE = re.compile(r"(?:до|к|план[^\n]{0,30})\s*([01]?\d|2[0-3]):([0-5]\d)", re.IGNORECASE)
 
 
-# ═══════════════ ЭКСТРАКТОРЫ ═══════════════
 def _clean(text):
     return re.sub(r"\s+", " ", text or "").strip()
 
@@ -182,13 +190,13 @@ STOP_PLACES = {"ХВС", "ГВС", "МКД", "СЗО", "МО", "РФ", "АО", "
 
 def _extract_resources(text):
     low = text.lower()
-    found = []
     mapping = {
         "хвс": "ХВС", "гвс": "ГВС",
         "отоплени": "отопления", "электроснабжен": "электроснабжения",
         "электричеств": "электроснабжения", "газоснабжен": "газоснабжения",
         "водоснабжен": "водоснабжения", "теплоснабжен": "теплоснабжения",
     }
+    found = []
     for key, val in mapping.items():
         if key in low:
             found.append(val)
@@ -335,7 +343,6 @@ def _extract_info_provided(text):
     return any(k in low for k in ["информир", "оповещ", "жителям сообщ", "рассылк"])
 
 
-# ═══════════════ АЛГОРИТМИЧЕСКИЙ СБОРЩИК ═══════════════
 def _summarize_algo(text: str) -> dict:
     time = _extract_time(text)
     event = _extract_event(text)
@@ -408,7 +415,6 @@ def _summarize_algo(text: str) -> dict:
     }
 
 
-# ═══════════════ ТОЧКА ВХОДА ═══════════════
 def summarize(text, max_points=7, backend=None, creds=None, qwen_key=None):
     if len(text.strip()) < 30:
         return {"ok": False, "error": "Слишком короткий текст"}
@@ -422,9 +428,9 @@ def summarize(text, max_points=7, backend=None, creds=None, qwen_key=None):
             authors = _extract_authors(text)
             msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}]
             if backend == "gigachat":
-                ai_text = _gigachat_chat(msgs, creds=creds)
+                ai_text = _gigachat_chat(msgs, creds=creds, max_tokens=4000)
             else:
-                ai_text = _qwen_chat(msgs, key=qwen_key)
+                ai_text = _qwen_chat(msgs, max_tokens=8000, key=qwen_key)
             return {
                 "ok": True, "backend": backend, "report_text": ai_text,
                 "stats": {
