@@ -2748,6 +2748,18 @@ async def tools_convert(request: Request):
             import traceback
             traceback.print_exc()
             return JSONResponse(status_code=500, content={"ok": False, "message": str(e)})
+    if mode == "ai":
+        engine = str(form.get("engine") or "").strip() or None
+        try:
+            slides = pptx_conv.parse_html_to_slides_ai(html, engine)
+        except Exception as e:
+            print(f"[tools] AI-разбор ошибка: {e} → pro", flush=True)
+            slides = []
+        if not slides:
+            slides = pptx_conv.parse_html_to_slides_pro(html)
+        out = pptx_conv.build_pptx(slides, template_name, out_name)
+        rel = out.relative_to(BASE_DIR)
+        return {"ok": True, "url": "/" + rel.as_posix(), "slides": len(slides)}
     try:
         slides = pptx_conv.parse_html_to_slides_pro(html)
         out = pptx_conv.build_pptx(slides, template_name, out_name)
@@ -2832,7 +2844,7 @@ async def summarizer_summary(request: Request):
     if len(text) < 50:
         return JSONResponse(status_code=400,
                             content={"ok": False, "message": "Текст слишком короткий (мин. 50 символов)"})
-    result = sum_engine.summarize(text)
+    result = sum_engine.summarize(text, backend=(str(payload.get("backend") or "").strip() or None))
     if not result.get("ok"):
         return JSONResponse(status_code=400, content=result)
     item = sum_store.create_report(text, result, user.get("username", "—"))

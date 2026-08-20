@@ -141,6 +141,7 @@
                     <select id="modeSelect">
                         <option value="smart">Умный (структура)</option>
                         <option value="shots">Скриншоты (сложный HTML / PDF)</option>
+                        <option value="ai">ИИ — любая сложность</option>
                     </select>
                 </div>
                 <div class="tl-field">
@@ -271,6 +272,7 @@ $("convertBtn").addEventListener("click", async () => {
     const fd = new FormData();
     fd.append("html", html);
     fd.append("mode", $("modeSelect").value);
+    fd.append("engine", $("aiEngineSelect").value);
     fd.append("template", $("tplSelect").value);
     fd.append("out_name", $("outName").value || "presentation.pptx");
     try {

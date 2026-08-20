@@ -87,6 +87,12 @@
             <div style="display:flex;gap:10px;align-items:center;">
                 <button class="sm-btn primary" id="summaryBtn" type="button">⚡ /summary</button>
                 <button class="sm-btn ghost" id="demoBtn" type="button">✨ Пример</button>
+                <select id="engineSelect" class="sm-btn ghost" style="min-height:40px;">
+                    <option value="">Движок: авто</option>
+                    <option value="gigachat">GigaChat</option>
+                    <option value="qwen">Госчат</option>
+                    <option value="algo">Алгоритм</option>
+                </select>
             </div>
             <div class="sm-status" id="statusLine"></div>
         </section>
@@ -125,7 +131,7 @@ $("summaryBtn").addEventListener("click", async () => {
     if (text.length < 50) return setStatus("Нужно минимум 50 символов текста.", "err");
     setStatus("⏳ Анализирую переписку…");
     const r = await fetch("/summarizer/api/summary", {
-        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text})
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, backend: $("engineSelect").value})
     });
     const d = await r.json();
     if (!d.ok) return setStatus("❌ " + (d.message || d.error || "Ошибка"), "err");

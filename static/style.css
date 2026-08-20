@@ -5541,24 +5541,20 @@ html[data-theme="kreml"] body::before {
 }
 
 
+
 /* ═══════════════ ЖИДКОЕ СТЕКЛО (liquid glass) ═══════════════ */
 html[data-glass="on"] .topbar,
 html[data-glass="on"] .card {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(135deg, rgba(255,255,255,.62), rgba(255,255,255,.38));
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255,255,255,.55);
-    box-shadow: 0 8px 32px rgba(31,38,135,.12), inset 0 1px 0 rgba(255,255,255,.6);
+    background: linear-gradient(135deg, rgba(255,255,255,.34), rgba(255,255,255,.16));
+    -webkit-backdrop-filter: blur(26px) saturate(200%);
+    backdrop-filter: blur(26px) saturate(200%);
+    border: 1px solid rgba(255,255,255,.4);
 }
 html[data-theme="dark"][data-glass="on"] .topbar,
 html[data-theme="dark"][data-glass="on"] .card {
-    background: linear-gradient(135deg, rgba(30,41,59,.60), rgba(15,23,42,.45));
-    border: 1px solid rgba(148,163,184,.22);
-    box-shadow: 0 8px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    background: linear-gradient(135deg, rgba(30,41,59,.40), rgba(15,23,42,.24));
+    border: 1px solid rgba(148,163,184,.18);
 }
-/* живой блик, медленно "плывёт" по стеклу */
 html[data-glass="on"] .card::after {
     content: "";
     position: absolute;
@@ -5574,44 +5570,666 @@ html[data-theme="dark"][data-glass="on"] .card::after {
 }
 @keyframes glass-sheen {
     from { transform: translateX(-8%); }
-    to   { transform: translateX(8%); }
+    to { transform: translateX(8%); }
 }
 @media (prefers-reduced-motion: reduce) {
     html[data-glass="on"] .card::after { animation: none; }
 }
 
-/* Кнопка жидкого стекла в верхней панели */
-#glassToggle{width:38px;height:38px;border-radius:12px;border:1px solid var(--border-color,#e2e8f0);
-    background:var(--bg-card,#fff);font-size:17px;cursor:pointer;transition:all .2s;
-    display:inline-flex;align-items:center;justify-content:center;opacity:.7;flex:none;}
-#glassToggle.on{opacity:1;border-color:#8b5cf6;box-shadow:0 0 0 2px rgba(139,92,246,.25);}
-#glassToggle:hover{opacity:1;transform:translateY(-1px);}
-html[data-theme="dark"] #glassToggle{background:rgba(30,41,59,.6);border-color:rgba(148,163,184,.25);}
-
-
-/* ── стекло v2: сильнее прозрачность ── */
-html[data-glass="on"] .topbar,
-html[data-glass="on"] .card {
-    background: linear-gradient(135deg, rgba(255,255,255,.34), rgba(255,255,255,.16));
-    -webkit-backdrop-filter: blur(26px) saturate(200%);
-    backdrop-filter: blur(26px) saturate(200%);
-    border: 1px solid rgba(255,255,255,.4);
-}
-html[data-theme="dark"][data-glass="on"] .topbar,
-html[data-theme="dark"][data-glass="on"] .card {
-    background: linear-gradient(135deg, rgba(30,41,59,.40), rgba(15,23,42,.24));
-    border: 1px solid rgba(148,163,184,.18);
-}
-
 /* ── кнопка быстрых ссылок с поддержкой тем ── */
-a.quick-glass{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;
-    background:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.65);
-    font-size:13px;font-weight:700;color:#334155;text-decoration:none;
-    box-shadow:0 1px 3px rgba(0,0,0,.06);transition:all .2s;}
-a.quick-glass:hover{border-color:#8b5cf6;color:#8b5cf6;}
-html[data-theme="dark"] a.quick-glass{background:rgba(30,41,59,.6);border-color:rgba(148,163,184,.25);color:#e2e8f0;}
-html[data-theme="dark"] a.quick-glass:hover{color:#a78bfa;border-color:#a78bfa;}
-html[data-glass="on"] a.quick-glass{
-    -webkit-backdrop-filter: blur(14px);backdrop-filter: blur(14px);
-    background:rgba(255,255,255,.4);}
-html[data-theme="dark"][data-glass="on"] a.quick-glass{background:rgba(30,41,59,.35);}
+a.quick-glass {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.75);
+    border: 1px solid rgba(255,255,255,.65);
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+    text-decoration: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    transition: all .2s;
+}
+a.quick-glass:hover {
+    border-color: #8b5cf6;
+    color: #8b5cf6;
+}
+html[data-theme="dark"] a.quick-glass {
+    background: rgba(30,41,59,.6);
+    border-color: rgba(148,163,184,.25);
+    color: #e2e8f0;
+}
+html[data-theme="dark"] a.quick-glass:hover {
+    color: #a78bfa;
+    border-color: #a78bfa;
+}
+html[data-glass="on"] a.quick-glass {
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    background: rgba(255,255,255,.4);
+}
+html[data-theme="dark"][data-glass="on"] a.quick-glass {
+    background: rgba(30,41,59,.35);
+}
+
+/* ═══════════════ МОБИЛЬНЫЙ АДАПТИВ СУММАТОРА ═══════════════ */
+@media (max-width: 768px) {
+    .sm-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    .sm-card {
+        padding: 16px !important;
+    }
+    .sm-card h2 {
+        font-size: 15px !important;
+    }
+    .sm-card textarea {
+        min-height: 240px !important;
+        font-size: 13px !important;
+    }
+    .sm-btn {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    .sm-report {
+        padding: 12px !important;
+    }
+    .sm-stats {
+        flex-direction: column !important;
+        gap: 6px !important;
+    }
+    .sm-stat {
+        width: 100% !important;
+        text-align: center !important;
+    }
+    .sm-approve {
+        flex-direction: column !important;
+    }
+    .sm-approve button {
+        width: 100% !important;
+    }
+    .sm-comment {
+        min-height: 100px !important;
+    }
+    .sm-history .sm-hitem {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 6px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .sm-hero {
+        padding: 16px !important;
+    }
+    .sm-title {
+        font-size: 17px !important;
+    }
+    .sm-sub {
+        font-size: 12px !important;
+    }
+    .sm-card textarea {
+        min-height: 180px !important;
+    }
+    .sm-report .sm-doc {
+        font-size: 12px !important;
+        padding: 12px !important;
+    }
+}
+
+/* =========================================================
+HOME PAGE MOBILE — Сумматор, модули, широкие карточки
+========================================================= */
+
+/* Планшеты: до 1100px — модули в 2 колонки */
+@media (max-width: 1100px) {
+    .modules-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 14px !important;
+    }
+}
+
+/* Планшеты вертикально: до 900px — модули в 1 колонку */
+@media (max-width: 900px) {
+    .modules-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    
+    /* Карточки модулей компактные */
+    .module-card {
+        padding: 20px !important;
+    }
+    .module-title {
+        font-size: 20px !important;
+        margin-bottom: 10px !important;
+    }
+    .module-description {
+        font-size: 13.5px !important;
+        line-height: 1.5 !important;
+        margin-bottom: 14px !important;
+    }
+    .tag-row {
+        gap: 6px !important;
+        margin-bottom: 14px !important;
+    }
+    .action-panel {
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+    .module-link {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+    
+    /* Широкие карточки (wide-pair) в колонку */
+    .wide-pair {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    .wide-pair .module-card {
+        grid-column: auto !important;
+    }
+    
+    /* Быстрые действия (quick-actions-bar) */
+    .quick-actions-bar {
+        padding: 16px !important;
+    }
+    .quick-actions-title {
+        font-size: 15px !important;
+    }
+    .quick-actions-links {
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+    .quick-action-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        padding: 10px 16px !important;
+        font-size: 13px !important;
+    }
+}
+
+/* Телефоны: до 640px — всё максимально компактно */
+@media (max-width: 640px) {
+    .modules-grid {
+        gap: 10px !important;
+    }
+    .module-card {
+        padding: 16px !important;
+    }
+    .module-head {
+        margin-bottom: 10px !important;
+    }
+    .module-title {
+        font-size: 18px !important;
+    }
+    .module-description {
+        font-size: 13px !important;
+    }
+    .head-pills {
+        gap: 4px !important;
+    }
+    .pill {
+        font-size: 11px !important;
+        padding: 5px 9px !important;
+    }
+    .status-badge {
+        font-size: 10px !important;
+        padding: 3px 8px !important;
+    }
+    .tag {
+        font-size: 11px !important;
+        padding: 5px 9px !important;
+    }
+    
+    /* Wide-pair ещё компактнее */
+    .wide-pair {
+        gap: 10px !important;
+    }
+    .wide-pair .module-card {
+        padding: 16px !important;
+    }
+    
+    /* История запусков */
+    .launch-history-item {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 6px !important;
+    }
+    .launch-history-item button {
+        width: 100% !important;
+        justify-content: center !important;
+    }
+}
+
+/* Очень узкие: до 400px */
+@media (max-width: 400px) {
+    .module-card {
+        padding: 14px !important;
+    }
+    .module-title {
+        font-size: 17px !important;
+    }
+    .quick-action-btn {
+        font-size: 12px !important;
+        padding: 9px 14px !important;
+    }
+}
+
+/* =========================================================
+MOBILE POLISH v2 — компактная шапка и аккуратные блоки
+========================================================= */
+@media (max-width: 640px) {
+    /* Шапка: контролы иконками в одну строку, без пустых полос */
+    .top-actions,
+    .topbar-right {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        grid-template-columns: none !important;
+    }
+    .top-actions > *,
+    .topbar-right > * {
+        width: auto !important;
+    }
+    #glassToggle,
+    .theme-toggle,
+    .theme-toggle-btn {
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        padding: 0 !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+    }
+    .top-actions .badge,
+    .top-actions a.badge {
+        flex: 1 1 auto !important;
+        justify-content: center !important;
+        min-height: 44px !important;
+    }
+
+    /* Быстрые действия — сеткой 2 колонки, а не простынёй */
+    .quick-actions-links {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+        flex-direction: row !important;
+    }
+    .quick-action-btn {
+        width: 100% !important;
+        font-size: 12.5px !important;
+        padding: 10px 12px !important;
+        justify-content: flex-start !important;
+    }
+
+    /* Hero: крупнее заголовок, плотнее */
+    .hero h1 {
+        font-size: clamp(28px, 7.5vw, 40px) !important;
+        line-height: 1.08 !important;
+    }
+
+    /* Карточки модулей: аккуратные отступы */
+    .module-card {
+        padding: 18px !important;
+    }
+    .action-panel {
+        flex-direction: column !important;
+    }
+    .action-panel .module-link,
+    .action-panel .secondary-button {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 400px) {
+    .quick-actions-links {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ── FINAL: кнопка стекла = пилюля в стиле шапки ── */
+#glassToggle{
+  position:static !important; right:auto !important; bottom:auto !important; z-index:1 !important;
+  appearance:none; display:inline-flex; align-items:center; justify-content:center;
+  width:44px !important; min-width:44px; height:38px; padding:0 !important;
+  border-radius:999px !important;
+  border:1px solid var(--border) !important;
+  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card) !important;
+  color:var(--text); font-size:16px; line-height:1; cursor:pointer;
+  box-shadow:0 12px 34px rgba(0,0,0,.08); transition:all .18s ease; opacity:.9;
+  -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+}
+#glassToggle:hover{transform:translateY(-2px); border-color:var(--border-strong); opacity:1;}
+#glassToggle.on{opacity:1; border-color:rgba(139,92,246,.55) !important;
+  box-shadow:0 0 0 3px rgba(139,92,246,.18);}
+@media (max-width:760px){
+  #glassToggle{width:44px !important; flex:0 0 auto !important;}
+}
+
+/* =========================================================
+MOBILE TOPBAR FINAL — тема иконкой, меню тем листом
+========================================================= */
+@media (max-width: 900px) {
+    /* Шапка в колонку: бренд, затем контролы */
+    .topbar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+    .topbar .top-actions {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        justify-content: flex-start !important;
+        grid-template-columns: none !important;
+    }
+    .topbar .top-actions > * {
+        width: auto !important;
+    }
+
+    /* Тема — ТОЛЬКО иконка, без обрезанного текста */
+    .topbar .top-actions .theme-toggle,
+    .topbar .top-actions .theme-toggle-btn {
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        padding: 0 !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+    }
+    .topbar .top-actions .theme-toggle .theme-toggle-text,
+    .topbar .top-actions .theme-toggle .theme-toggle-arrow,
+    .topbar .top-actions .theme-toggle-btn .theme-toggle-text,
+    .topbar .top-actions .theme-toggle-btn .theme-toggle-arrow {
+        display: none !important;
+    }
+
+    /* Стекло — тоже компактная иконка в строке */
+    #glassToggle {
+        position: static !important;
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Авто-запуск и пользователь растягиваются на остаток строки */
+    .topbar .top-actions .primary-button,
+    .topbar .top-actions .badge,
+    .topbar .top-actions a.badge {
+        flex: 1 1 auto !important;
+        justify-content: center !important;
+        min-height: 44px !important;
+    }
+
+    /* Меню тем — полноширинный лист, не вылезает за экран */
+    .topbar .theme-dropdown {
+        position: static !important;
+    }
+    .topbar .theme-menu {
+        position: fixed !important;
+        top: 76px !important;
+        left: 12px !important;
+        right: 12px !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        z-index: 1000 !important;
+    }
+    .topbar .theme-menu-item {
+        font-size: 15px !important;
+        padding: 12px 14px !important;
+    }
+}
+
+/* =========================================================
+MOBILE THEME MENU FINAL — все 4 темы видны
+========================================================= */
+@media (max-width: 900px) {
+    /* Тема — только иконка, без длинного текста */
+    .topbar .top-actions .theme-toggle .theme-toggle-text,
+    .topbar .top-actions .theme-toggle .theme-toggle-arrow {
+        display: none !important;
+    }
+    .topbar .top-actions .theme-toggle {
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        padding: 0 !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Меню тем — полноширинный лист, ничего не обрезается */
+    .topbar .theme-dropdown {
+        position: static !important;
+    }
+    .topbar .theme-menu {
+        position: fixed !important;
+        top: 74px !important;
+        left: 12px !important;
+        right: 12px !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: calc(100vh - 90px) !important;
+        overflow-y: auto !important;
+        z-index: 2000 !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    .topbar .theme-menu[hidden] {
+        display: none !important;
+    }
+    .topbar .theme-menu-item {
+        width: 100% !important;
+        font-size: 15px !important;
+        padding: 12px 14px !important;
+        white-space: normal !important;
+    }
+
+    /* Стекло — компактная иконка в строке */
+    #glassToggle {
+        position: static !important;
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        flex: 0 0 auto !important;
+    }
+}
+
+/* =========================================================
+THEME MENU ABSOLUTE FINAL — меню поверх всего, 4 темы всегда
+========================================================= */
+/* Шапка и её выпадающие меню — выше любых карточек */
+.topbar {
+    z-index: 40 !important;
+}
+.topbar .theme-dropdown {
+    position: relative;
+    z-index: 9999;
+}
+.topbar .theme-menu {
+    z-index: 9999 !important;
+    overflow: visible !important;
+}
+.topbar .theme-menu[hidden] {
+    display: none !important;
+}
+.topbar .theme-menu-item {
+    white-space: normal !important;
+}
+
+/* Мобильные: меню = фиксированный лист во всю ширину */
+@media (max-width: 900px) {
+    .topbar .theme-dropdown {
+        position: static !important;
+    }
+    .topbar .theme-menu {
+        position: fixed !important;
+        top: 84px !important;
+        left: 12px !important;
+        right: 12px !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: 70vh !important;
+        overflow-y: auto !important;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35) !important;
+    }
+    .topbar .theme-menu-item {
+        padding: 12px 14px !important;
+        font-size: 15px !important;
+    }
+}
+
+/* =========================================================
+MOBILE MENUS ABSOLUTE FINAL — шапка поверх hero, меню листами
+ПРИЧИНА: на мобильных .topbar получал position:static → z-index
+умирал → раскрытые меню рендерились ПОД карточкой hero.
+========================================================= */
+.topbar {
+    position: relative !important;
+    z-index: 60 !important;
+}
+
+@media (max-width: 900px) {
+    .topbar {
+        position: relative !important;
+        z-index: 60 !important;
+    }
+
+    /* Тема — только иконка */
+    .topbar .theme-toggle .theme-toggle-text,
+    .topbar .theme-toggle .theme-toggle-arrow {
+        display: none !important;
+    }
+    .topbar .theme-toggle {
+        width: 44px !important;
+        min-width: 44px !important;
+        height: 44px !important;
+        padding: 0 !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Стекло — компактно в строке */
+    #glassToggle {
+        position: static !important;
+        width: 44px !important;
+        height: 44px !important;
+        flex: 0 0 auto !important;
+    }
+
+    /* Все выпадашки шапки (темы, уведомления) — листами поверх всего */
+    .topbar [class$="dropdown"] {
+        position: static !important;
+    }
+    .topbar [class$="menu"],
+    .topbar [class$="panel"] {
+        position: fixed !important;
+        top: 84px !important;
+        left: 12px !important;
+        right: 12px !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: 70vh !important;
+        overflow-y: auto !important;
+        z-index: 3000 !important;
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35) !important;
+    }
+    .topbar [hidden] {
+        display: none !important;
+    }
+}
+
+/* =========================================================
+TOPBAR ULTIMATE — кнопка стекла пилюлей + мобильная шапка без наездов
+========================================================= */
+#glassToggle{
+    appearance:none; display:inline-flex; align-items:center; justify-content:center;
+    width:44px; height:44px; border-radius:999px;
+    border:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.02)), var(--card);
+    color:var(--text); font-size:17px; line-height:1; cursor:pointer;
+    transition:all .18s ease; opacity:.9; flex:0 0 auto;
+}
+#glassToggle:hover{transform:translateY(-2px); border-color:var(--border-strong); opacity:1;}
+#glassToggle.on{opacity:1; border-color:rgba(139,92,246,.55); box-shadow:0 0 0 3px rgba(139,92,246,.18);}
+
+@media (max-width: 900px) {
+    .topbar{
+        display:flex !important; flex-direction:column !important;
+        align-items:stretch !important; gap:10px !important;
+        position:relative !important; z-index:60 !important;
+    }
+    .topbar .top-actions{
+        display:flex !important; flex-wrap:wrap !important;
+        align-items:center !important; justify-content:flex-start !important;
+        gap:8px !important; width:100% !important;
+    }
+    /* НИ ОДИН ребёнок не растягивается и не наезжает */
+    .topbar .top-actions > *{
+        width:auto !important; flex:0 0 auto !important;
+        position:relative !important;
+    }
+    #glassToggle{
+        position:static !important; width:44px !important; height:44px !important;
+    }
+    .topbar .theme-dropdown{flex:0 0 auto !important;}
+    .topbar .theme-toggle{
+        width:44px !important; min-width:44px !important; height:44px !important;
+        padding:0 !important; justify-content:center !important;
+    }
+    .topbar .theme-toggle .theme-toggle-text,
+    .topbar .theme-toggle .theme-toggle-arrow{display:none !important;}
+    .topbar .top-actions .primary-button{flex:1 1 auto !important;}
+    .topbar .top-actions .badge,
+    .topbar .top-actions a.badge{flex:0 1 auto !important; max-width:100% !important;}
+    .topbar .theme-menu{
+        position:fixed !important; top:84px !important; left:12px !important; right:12px !important;
+        min-width:0 !important; max-height:70vh !important; overflow-y:auto !important;
+        z-index:3000 !important;
+    }
+    .topbar .theme-menu[hidden]{display:none !important;}
+}
+
+/* =========================================================
+MOBILE TOPBAR SIMPLE — шапка выше, контролы в поток, без наездов
+========================================================= */
+@media (max-width: 900px) {
+    .topbar {
+        padding: 14px !important;
+        gap: 12px !important;
+        min-height: auto !important;
+    }
+    .topbar .top-actions {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 10px !important;
+        row-gap: 10px !important;
+        width: 100% !important;
+        justify-content: flex-start !important;
+    }
+    /* ВСЕ контролы — в обычный поток: никаких fixed/absolute наездов */
+    .topbar .top-actions > * {
+        position: static !important;
+        margin: 0 !important;
+        inset: auto !important;
+    }
+    /* Меню тем — листом поверх всего */
+    .topbar .theme-menu {
+        position: fixed !important;
+        top: 90px !important;
+        left: 12px !important;
+        right: 12px !important;
+        min-width: 0 !important;
+        max-height: 70vh !important;
+        overflow-y: auto !important;
+        z-index: 3000 !important;
+    }
+    .topbar .theme-menu[hidden] {
+        display: none !important;
+    }
+}

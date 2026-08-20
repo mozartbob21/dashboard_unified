@@ -1,9 +1,11 @@
-"""Сумматор v3: GigaChat + структурный парсер + fallback.
+"""Сумматор: GigaChat + Qwen (с выбором движка) + алгоритмический фолбэк.
 
-- SUMMARIZER_BACKEND=gigachat → сначала GigaChat, при ошибке — алгоритм
-- SUMMARIZER_BACKEND=algo → только алгоритм
-- Автоподбор модели (Pro/Max/Plus/GigaChat) если указанная недоступна
-- Структурный парсер собирает отчёт в стиле оперативных сводок ЖКХ-Центра
+Переменные .env:
+  SUMMARIZER_BACKEND: qwen | gigachat | algo
+  SUMMARIZER_GIGACHAT_CREDENTIALS (fallback GIGACHAT_CREDENTIALS)
+  SUMMARIZER_QWEN_API_KEY (fallback QWEN_API_KEY)
+  QWEN_API_BASE, QWEN_MODEL
+  GIGACHAT_MODEL
 """
 import os
 import re
@@ -11,19 +13,73 @@ import datetime
 from collections import Counter, OrderedDict
 
 
-# ──────────── GigaChat: ленивая инициализация ────────────
-_giga = None
+# ═══════════════ КЛИЕНТЫ ═══════════════
+_giga_cache = {}
+GIGA_FALLBACKS = ["GigaChat-2-Pro", "GigaChat-2-Max", "GigaChat-2", "GigaChat-3-Ultra"]
+
+
+def _giga_client(credentials):
+    if not credentials:
+        raise RuntimeError("GigaChat credentials не заданы в .env")
+    if credentials not in _giga_cache:
+        from gigachat import GigaChat
+        _giga_cache[credentials] = GigaChat(credentials=credentials, verify_ssl_certs=False)
+    return _giga_cache[credentials]
 
 
 def _get_giga():
-    global _giga
-    if _giga is None:
-        creds = os.getenv("GIGACHAT_CREDENTIALS", "").strip()
-        if not creds:
-            raise RuntimeError("GIGACHAT_CREDENTIALS не задан в .env")
-        from gigachat import GigaChat
-        _giga = GigaChat(credentials=creds, verify_ssl_certs=False)
-    return _giga
+    return _giga_client(os.getenv("GIGACHAT_CREDENTIALS", "").strip())
+
+
+def _gigachat_chat(messages, creds=None, model=None, max_tokens=2000):
+    giga = _giga_client((creds or os.getenv("GIGACHAT_CREDENTIALS", "")).strip())
+    preferred = (model or os.getenv("GIGACHAT_MODEL", "GigaChat-2-Pro")).strip()
+    models = [preferred] + [m for m in GIGA_FALLBACKS if m != preferred]
+    last = None
+    for m in models:
+        try:
+            resp = giga.chat({"model": m, "messages": messages,
+                              "temperature": 0.4, "max_tokens": max_tokens})
+            return resp.choices[0].message.content
+        except Exception as e:
+            last = e
+            if "No such model" in str(e) or "404" in str(e):
+                continue
+            raise
+    raise last or RuntimeError("GigaChat: модель недоступна")
+
+
+def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
+    import httpx
+    base = (base or os.getenv("QWEN_API_BASE", "")).strip().rstrip("/")
+    key = (key or os.getenv("QWEN_API_KEY", "")).strip()
+    model = (model or os.getenv("QWEN_MODEL", "qwen3.8-27b-fp8")).strip()
+    if not base:
+        raise RuntimeError("QWEN_API_BASE не задан в .env")
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    paths = ["/v1/chat/completions", "/chat/completions", "/api/v1/chat/completions"]
+    if base.endswith("/chat/completions"):
+        paths = [""]
+    last = None
+    for p in paths:
+        try:
+            r = httpx.post(base + p,
+                           json={"model": model, "messages": messages,
+                                 "temperature": 0.4, "max_tokens": max_tokens},
+                           headers=headers, timeout=120, verify=False)
+            if r.status_code == 404:
+                last = RuntimeError(f"404 на {base + p}")
+                continue
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            if "404" in str(e):
+                last = e
+                continue
+            raise
+    raise last or RuntimeError("Qwen: эндпоинт не найден")
 
 
 SYSTEM_PROMPT = """Ты — старший оперативный дежурный ЖКХ-Центра Московской области.
@@ -53,49 +109,7 @@ SYSTEM_PROMPT = """Ты — старший оперативный дежурны
 время в формате 24ч; без лишних слов и воды; сохраняй официально-деловой стиль."""
 
 
-def _summarize_ai_once(giga, model: str, user: str) -> str:
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user},
-        ],
-        "temperature": 0.4,
-        "max_tokens": 2000,
-    }
-    response = giga.chat(payload)
-    return response.choices[0].message.content
-
-
-def summarize_ai(text: str, revision_comment: str = "") -> str:
-    """Генерация отчёта через GigaChat с автоподбором модели."""
-    giga = _get_giga()
-    user = text
-    if revision_comment:
-        user += "\n\nКомментарий для корректировки: " + revision_comment
-
-    preferred = os.getenv("GIGACHAT_MODEL", "GigaChat-Pro").strip()
-    fallbacks = ["GigaChat-Pro", "GigaChat-Max", "GigaChat-Plus", "GigaChat"]
-    if preferred not in fallbacks:
-        fallbacks.insert(0, preferred)
-
-    last_err = None
-    for m in fallbacks:
-        try:
-            out = _summarize_ai_once(giga, m, user)
-            if m != preferred:
-                print(f"[summarizer] использована модель {m} (вместо {preferred})", flush=True)
-            return out
-        except Exception as e:
-            last_err = e
-            if "No such model" in str(e) or "404" in str(e):
-                print(f"[summarizer] модель {m} недоступна, пробуем следующую", flush=True)
-                continue
-            raise
-    raise last_err or RuntimeError("Ни одна модель GigaChat не доступна")
-
-
-# ──────────── Словари и регулярки для структурного парсера ────────────
+# ═══════════════ СЛОВАРИ И РЕГУЛЯРКИ ═══════════════
 RESOURCES = ["ХВС", "ГВС", "отоплени", "электроснабжен", "электричеств",
              "газоснабжен", "водоснабжен", "теплоснабжен"]
 EVENTS = [
@@ -131,30 +145,24 @@ TECH_RE = re.compile(r"(\d+)\s*ед\.\s*техник", re.IGNORECASE)
 DEADLINE_RE = re.compile(r"(?:до|к|план[^\n]{0,30})\s*([01]?\d|2[0-3]):([0-5]\d)", re.IGNORECASE)
 
 
+# ═══════════════ ЭКСТРАКТОРЫ ═══════════════
 def _clean(text):
     return re.sub(r"\s+", " ", text or "").strip()
 
 
 def _clean_text(text):
-    """Удаляет эмодзи и служебные блоки (хронология, заявка и т.п.)."""
-    text = re.sub(r"[🛁🚰👥🏢🏪🕑📅☎📍⚡⏳✅❌🔄📋📄📨🗜]", "", text)
-    text = re.sub(r"🛎|📆|📊|📈|📉|📌|📎|📝|🔍|🔎|💡|⚠️|🚨|🔥|❄️|💧|🌡️|🏠|🏘️|🏗️", "", text)
-    # Удаляем блоки "ХРОНОЛОГИЯ" и подобное
+    text = re.sub(r"[🛁🚰👥🏢🏪🕑📅☎📍⚡⏳✅❌🔄📋📄📨🗜🛎📆📊📈📉📌📎📝🔍🔎💡⚠️🚨🔥❄️💧🌡️🏠🏘️🏗️]", "", text)
     text = re.sub(r"ХРОНОЛОГИЯ.*?(?=Заявка:|Источник:|$)", "", text, flags=re.IGNORECASE | re.DOTALL)
     return text
 
 
 def _extract_time(text):
-    """Ищем время начала события (первое после "в ЧЧ:ММ" или "Начало")."""
-    # Сначала ищем явное указание времени события
     m = re.search(r"(?:в|около|примерно)\s+([01]?\d|2[0-3]):([0-5]\d)", text)
     if m:
         return f"{m.group(1).zfill(2)}:{m.group(2)}"
-    # Ищем "Начало события: ЧЧ:ММ"
     m = re.search(r"Начал[оа][^\n]*?([01]?\d|2[0-3]):([0-5]\d)", text, re.IGNORECASE)
     if m:
         return f"{m.group(1).zfill(2)}:{m.group(2)}"
-    # Fallback: первое время в тексте
     matches = TIME_RE.findall(text)
     if matches:
         return f"{matches[0][0].zfill(2)}:{matches[0][1]}"
@@ -169,26 +177,22 @@ def _extract_event(text):
     return "инцидент"
 
 
+STOP_PLACES = {"ХВС", "ГВС", "МКД", "СЗО", "МО", "РФ", "АО", "ООО", "МУП", "ВС"}
+
+
 def _extract_resources(text):
     low = text.lower()
     found = []
     mapping = {
-        "хвс": "ХВС",
-        "гвс": "ГВС",
-        "отоплени": "отопления",
-        "электроснабжен": "электроснабжения",
-        "электричеств": "электроснабжения",
-        "газоснабжен": "газоснабжения",
-        "водоснабжен": "водоснабжения",
-        "теплоснабжен": "теплоснабжения",
+        "хвс": "ХВС", "гвс": "ГВС",
+        "отоплени": "отопления", "электроснабжен": "электроснабжения",
+        "электричеств": "электроснабжения", "газоснабжен": "газоснабжения",
+        "водоснабжен": "водоснабжения", "теплоснабжен": "теплоснабжения",
     }
     for key, val in mapping.items():
         if key in low:
             found.append(val)
     return list(OrderedDict.fromkeys(found)) or ["ресурсов"]
-
-
-STOP_PLACES = {"ХВС", "ГВС", "МКД", "СЗО", "МО", "РФ", "АО", "ООО", "МУП", "ВС"}
 
 
 def _extract_place(text):
@@ -208,7 +212,6 @@ def _extract_cause(text, event):
             continue
         if re.search(r"причин[аы]|связан|из-за|вследствие", s, re.IGNORECASE):
             cleaned = _clean(s)
-            # Убираем мусор типа "🛁ГВС+🚰 ВС | 👥2517"
             if "|" in cleaned or re.search(r"\d{4,}", cleaned):
                 continue
             return cleaned
@@ -314,10 +317,11 @@ def _extract_informed(text):
     return list(OrderedDict.fromkeys(found))[:6]
 
 
+STOP_AUTHORS = {"причина", "заявка", "исполнитель", "адрес", "объект", "описание",
+                "комментарий", "статус", "источник", "примечание", "хронология"}
+
+
 def _extract_authors(text):
-    """Авторы сообщений, исключая служебные заголовки типа 'Причина:', 'Заявка:'."""
-    STOP_AUTHORS = {"причина", "заявка", "исполнитель", "адрес", "объект", "описание",
-                    "комментарий", "статус", "источник", "примечание", "хронология"}
     authors = []
     for m in AUTHOR_RE.finditer(text):
         name = m.group(1).strip()
@@ -331,6 +335,7 @@ def _extract_info_provided(text):
     return any(k in low for k in ["информир", "оповещ", "жителям сообщ", "рассылк"])
 
 
+# ═══════════════ АЛГОРИТМИЧЕСКИЙ СБОРЩИК ═══════════════
 def _summarize_algo(text: str) -> dict:
     time = _extract_time(text)
     event = _extract_event(text)
@@ -387,63 +392,51 @@ def _summarize_algo(text: str) -> dict:
                     break
 
     return {
-        "ok": True,
-        "backend": "algo",
-        "report_text": report_text,
+        "ok": True, "backend": "algo", "report_text": report_text,
         "stats": {
-            "lines": len(text.splitlines()),
-            "authors": len(authors),
+            "lines": len(text.splitlines()), "authors": len(authors),
             "words": len(re.findall(r"\S+", text)),
             "compression": round(100 - 100 * len(report_text) / max(1, len(text)), 1),
-            "time": time,
-            "event": event,
-            "place": place,
+            "time": time, "event": event, "place": place,
         },
-        "key_points": key_points,
-        "facts": [],
+        "key_points": key_points, "facts": [],
         "top_authors": Counter(authors).most_common(5),
         "extracted": {
-            "resources": resources,
-            "affected": affected,
-            "coverage": coverage,
-            "team": team,
-            "deadline": deadline,
-            "informed": informed,
-            "sources": authors,
+            "resources": resources, "affected": affected, "coverage": coverage,
+            "team": team, "deadline": deadline, "informed": informed, "sources": authors,
         },
     }
 
 
-def summarize(text: str, max_points: int = 7) -> dict:
+# ═══════════════ ТОЧКА ВХОДА ═══════════════
+def summarize(text, max_points=7, backend=None, creds=None, qwen_key=None):
     if len(text.strip()) < 30:
         return {"ok": False, "error": "Слишком короткий текст"}
-
     text = _clean_text(text)
-    backend = os.getenv("SUMMARIZER_BACKEND", "algo").strip()
+    backend = (backend or os.getenv("SUMMARIZER_BACKEND", "algo")).strip()
+    creds = creds or os.getenv("SUMMARIZER_GIGACHAT_CREDENTIALS", "").strip() or None
+    qwen_key = qwen_key or os.getenv("SUMMARIZER_QWEN_API_KEY", "").strip() or None
 
-    if backend == "gigachat":
+    if backend in ("gigachat", "qwen"):
         try:
             authors = _extract_authors(text)
-            ai_text = summarize_ai(text)
+            msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}]
+            if backend == "gigachat":
+                ai_text = _gigachat_chat(msgs, creds=creds)
+            else:
+                ai_text = _qwen_chat(msgs, key=qwen_key)
             return {
-                "ok": True,
-                "backend": "gigachat",
-                "report_text": ai_text,
+                "ok": True, "backend": backend, "report_text": ai_text,
                 "stats": {
-                    "lines": len(text.splitlines()),
-                    "authors": len(authors),
+                    "lines": len(text.splitlines()), "authors": len(authors),
                     "words": len(re.findall(r"\S+", text)),
                     "compression": round(100 - 100 * len(ai_text) / max(1, len(text)), 1),
-                    "time": _extract_time(text),
-                    "event": _extract_event(text),
+                    "time": _extract_time(text), "event": _extract_event(text),
                     "place": _extract_place(text),
                 },
-                "key_points": [],
-                "facts": [],
-                "top_authors": Counter(authors).most_common(5),
-                "extracted": {},
+                "key_points": [], "facts": [],
+                "top_authors": Counter(authors).most_common(5), "extracted": {},
             }
         except Exception as e:
-            print(f"[summarizer] GigaChat error: {e} → fallback на алгоритм", flush=True)
-
+            print(f"[summarizer] {backend} error: {e} → fallback на алгоритм", flush=True)
     return _summarize_algo(text)

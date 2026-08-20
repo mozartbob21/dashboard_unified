@@ -659,3 +659,47 @@ def build_pptx_from_images(images: list, output_name: str) -> Path:
     out = OUTPUT_DIR / output_name
     prs.save(str(out))
     return out
+
+
+# ═══════════════ AI-РАЗБОР (QWEN) ПРЕЗЕНТАЦИЙ ═══════════════
+
+AI_PARSE_PROMPT = (
+    "Ты — ассистент-разметчик презентаций. Из данного HTML или текста составь "
+    "список слайдов СТРОГО в JSON (без markdown и комментариев):\n"
+    '[{"title": "заголовок слайда", "bullets": ["пункт"], '
+    '"texts": ["абзац"], "tables": [[["кол1","кол2"],["з1","з2"]]]}]\n'
+    "Правила: 2–8 слайдов; заголовок ≤ 90 символов; буллеты короткие; "
+    "таблицы только там, где есть табличные данные; цифры и факты сохраняй точно."
+)
+
+
+def parse_html_to_slides_ai(html: str, engine=None) -> list:
+    """Qwen строит структуру слайдов из HTML любой сложности."""
+    import json as _json
+    from services.summarizer.engine import _qwen_chat
+    raw = _qwen_chat([
+        {"role": "system", "content": AI_PARSE_PROMPT},
+        {"role": "user", "content": html[:20000]},
+    ], max_tokens=4000)
+    m = re.search(r"\[.*\]", raw, re.S)
+    if not m:
+        return []
+    data = _json.loads(m.group(0))
+    slides = []
+    for it in data:
+        if not isinstance(it, dict):
+            continue
+        tables = []
+        for t in (it.get("tables") or []):
+            if isinstance(t, list) and t and all(isinstance(r, list) for r in t):
+                tables.append([[str(c) for c in r] for r in t][:12])
+        slides.append({
+            "title": str(it.get("title", ""))[:90],
+            "subtitle": "",
+            "bullets": [str(x)[:200] for x in (it.get("bullets") or [])][:10],
+            "texts": [str(x)[:300] for x in (it.get("texts") or [])][:6],
+            "images": [],
+            "tables": tables,
+            "notes": "",
+        })
+    return slides
