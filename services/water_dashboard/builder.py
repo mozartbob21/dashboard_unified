@@ -35,7 +35,7 @@ def build_table(extractions):
     for src_id, data in (extractions or {}).items():
         for t in data.get("tables", []):
             headers = t.get("headers", [])
-            if not headers or not ("омсу" in headers[0] or "муниципал" in headers[0]):
+            if not headers or not ("РѕРјСЃСѓ" in headers[0] or "РјСѓРЅРёС†РёРїР°Р»" in headers[0]):
                 continue
 
             def col(*keys):
@@ -45,10 +45,10 @@ def build_table(extractions):
                 return None
 
             idx = {
-                "resVS": col("резонанс"),
-                "sysVS": col("систем"),
-                "tasks": col("кол-во", "задач"),
-                "att": col("явка"),
+                "resVS": col("СЂРµР·РѕРЅР°РЅСЃ"),
+                "sysVS": col("СЃРёСЃС‚РµРј"),
+                "tasks": col("РєРѕР»-РІРѕ", "Р·Р°РґР°С‡"),
+                "att": col("СЏРІРєР°"),
             }
             if src_id == "sys_kr":
                 idx["resKR"], idx["sysKR"] = idx.pop("resVS"), idx.pop("sysVS")
@@ -61,7 +61,7 @@ def build_table(extractions):
 
             for cells in t.get("rows", []):
                 name = norm_name(cells[0])
-                if not name or name.lower().startswith("итого"):
+                if not name or name.lower().startswith("РёС‚РѕРіРѕ"):
                     continue
                 r = row(name)
                 for field, i in idx.items():
@@ -90,78 +90,78 @@ def top5(table, field):
 
 
 def bottom5(table, field):
-    """Топ-5 лучших (минимальные значения = лучшие показатели)."""
+    """РўРѕРї-5 Р»СѓС‡С€РёС… (РјРёРЅРёРјР°Р»СЊРЅС‹Рµ Р·РЅР°С‡РµРЅРёСЏ = Р»СѓС‡С€РёРµ РїРѕРєР°Р·Р°С‚РµР»Рё)."""
     rows = sorted(table, key=lambda r: r[field])[:5]
     return [{"name": r["name"], "value": r[field]} for r in rows if r[field] >= 0]
 
 
 
 def extract_refresh_info(text):
-    """Достаёт строку вида «Дашборд автоматически обновляется каждые 30 мин.»
-    Хвосты после времени/минут обрезаем (лишние пояснения про кликабельность)."""
+    """Р”РѕСЃС‚Р°С‘С‚ СЃС‚СЂРѕРєСѓ РІРёРґР° В«Р”Р°С€Р±РѕСЂРґ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РѕР±РЅРѕРІР»СЏРµС‚СЃСЏ РєР°Р¶РґС‹Рµ 30 РјРёРЅ.В»
+    РҐРІРѕСЃС‚С‹ РїРѕСЃР»Рµ РІСЂРµРјРµРЅРё/РјРёРЅСѓС‚ РѕР±СЂРµР·Р°РµРј (Р»РёС€РЅРёРµ РїРѕСЏСЃРЅРµРЅРёСЏ РїСЂРѕ РєР»РёРєР°Р±РµР»СЊРЅРѕСЃС‚СЊ)."""
     if not text:
         return ""
-    m = re.search(r"[^\n]*каждые\s+[\d\s–-]+мин", text, re.IGNORECASE)
+    m = re.search(r"[^\n]*РєР°Р¶РґС‹Рµ\s+[\d\sвЂ“-]+РјРёРЅ", text, re.IGNORECASE)
     if m:
         return m.group(0).strip().rstrip(".,;:")
-    # «…обновляется ежедневно с 9:00 до 10:30» — стоп после времени
-    m = re.search(r"[^\n]*обновляетс[^\n]*?\d{1,2}:\d{2}(?:\s*до\s*\d{1,2}:\d{2})?",
+    # В«вЂ¦РѕР±РЅРѕРІР»СЏРµС‚СЃСЏ РµР¶РµРґРЅРµРІРЅРѕ СЃ 9:00 РґРѕ 10:30В» вЂ” СЃС‚РѕРї РїРѕСЃР»Рµ РІСЂРµРјРµРЅРё
+    m = re.search(r"[^\n]*РѕР±РЅРѕРІР»СЏРµС‚СЃ[^\n]*?\d{1,2}:\d{2}(?:\s*РґРѕ\s*\d{1,2}:\d{2})?",
                   text, re.IGNORECASE)
     if m:
         return m.group(0).strip().rstrip(".,;:")
-    m = re.search(r"[^\n]*обновляетс[^\n]*", text, re.IGNORECASE)
+    m = re.search(r"[^\n]*РѕР±РЅРѕРІР»СЏРµС‚СЃ[^\n]*", text, re.IGNORECASE)
     return m.group(0).strip().rstrip(".,;:") if m else ""
 
 
 def parse_nvos_kpis(text):
-    """Вытаскивает живые показатели НВОС из innerText дашборда.
-    Формат виджета: «Заголовок → Еще 0 → Значение → (подпись)»."""
+    """Р’С‹С‚Р°СЃРєРёРІР°РµС‚ Р¶РёРІС‹Рµ РїРѕРєР°Р·Р°С‚РµР»Рё РќР’РћРЎ РёР· innerText РґР°С€Р±РѕСЂРґР°.
+    Р¤РѕСЂРјР°С‚ РІРёРґР¶РµС‚Р°: В«Р—Р°РіРѕР»РѕРІРѕРє в†’ Р•С‰Рµ 0 в†’ Р—РЅР°С‡РµРЅРёРµ в†’ (РїРѕРґРїРёСЃСЊ)В»."""
     if not text:
         return {}
     out = {}
 
-    # Собираемость: «Доля (%) / Еще 0 / 80,00 / собираемости...»
+    # РЎРѕР±РёСЂР°РµРјРѕСЃС‚СЊ: В«Р”РѕР»СЏ (%) / Р•С‰Рµ 0 / 80,00 / СЃРѕР±РёСЂР°РµРјРѕСЃС‚Рё...В»
     m = re.search(
-        r"Доля\s*\(%\)[^\n]*\s*(?:\n\s*Еще\s+\d+)?\s*\n\s*([\d.,\s]+?)\s*собираемости",
+        r"Р”РѕР»СЏ\s*\(%\)[^\n]*\s*(?:\n\s*Р•С‰Рµ\s+\d+)?\s*\n\s*([\d.,\s]+?)\s*СЃРѕР±РёСЂР°РµРјРѕСЃС‚Рё",
         text,
     )
     if m:
         out["sbor"] = m.group(1).strip()
 
-    # % от НВВ: «% от НВВ / Еще 0 / 5,76»
-    m = re.search(r"% от НВВ\s*(?:\n\s*Еще\s+\d+)?\s*\n\s*([\d.,]+)", text)
+    # % РѕС‚ РќР’Р’: В«% РѕС‚ РќР’Р’ / Р•С‰Рµ 0 / 5,76В»
+    m = re.search(r"% РѕС‚ РќР’Р’\s*(?:\n\s*Р•С‰Рµ\s+\d+)?\s*\n\s*([\d.,]+)", text)
     if m:
         out["nvv_pct"] = m.group(1).strip()
 
-    # Сумма НВВ: «Сумма НВВ / Еще 0 / 24 491M»
-    m = re.search(r"Сумма НВВ\s*(?:\n\s*Еще\s+\d+)?\s*\n\s*([\d\s]+[MКМ])", text)
+    # РЎСѓРјРјР° РќР’Р’: В«РЎСѓРјРјР° РќР’Р’ / Р•С‰Рµ 0 / 24 491MВ»
+    m = re.search(r"РЎСѓРјРјР° РќР’Р’\s*(?:\n\s*Р•С‰Рµ\s+\d+)?\s*\n\s*([\d\s]+[MРљРњ])", text)
     if m:
         out["sum_nvv"] = m.group(1).strip()
 
-    # План отборов проб (год)
-    m = re.search(r"План отборов проб\s*(?:\n\s*Еще\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(год\)", text)
+    # РџР»Р°РЅ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР± (РіРѕРґ)
+    m = re.search(r"РџР»Р°РЅ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР±\s*(?:\n\s*Р•С‰Рµ\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(РіРѕРґ\)", text)
     if m:
         out["plan_year"] = m.group(1).strip()
 
-    # Факт отборов проб (год)
-    m = re.search(r"Факт отборов проб\s*(?:\n\s*Еще\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(год\)", text)
+    # Р¤Р°РєС‚ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР± (РіРѕРґ)
+    m = re.search(r"Р¤Р°РєС‚ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР±\s*(?:\n\s*Р•С‰Рµ\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(РіРѕРґ\)", text)
     if m:
         out["fact_year"] = m.group(1).strip()
 
-    # План отборов проб (неделя)
-    m = re.search(r"План отборов проб\s*(?:\n\s*Еще\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(неделя\)", text)
+    # РџР»Р°РЅ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР± (РЅРµРґРµР»СЏ)
+    m = re.search(r"РџР»Р°РЅ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР±\s*(?:\n\s*Р•С‰Рµ\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(РЅРµРґРµР»СЏ\)", text)
     if m:
         out["plan_week"] = m.group(1).strip()
 
-    # Факт отборов проб (неделя)
-    m = re.search(r"Факт отборов проб\s*(?:\n\s*Еще\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(неделя\)", text)
+    # Р¤Р°РєС‚ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР± (РЅРµРґРµР»СЏ)
+    m = re.search(r"Р¤Р°РєС‚ РѕС‚Р±РѕСЂРѕРІ РїСЂРѕР±\s*(?:\n\s*Р•С‰Рµ\s+\d+)?\s*\n\s*([\d\s]+?)\s*\(РЅРµРґРµР»СЏ\)", text)
     if m:
         out["fact_week"] = m.group(1).strip()
 
-    # Получено / начислено из графика «Плата за негативное воздействие, руб»
-    # В тексте: «1 644 284,84K» (начислено) и «1 249 134,34K» (получено)
+    # РџРѕР»СѓС‡РµРЅРѕ / РЅР°С‡РёСЃР»РµРЅРѕ РёР· РіСЂР°С„РёРєР° В«РџР»Р°С‚Р° Р·Р° РЅРµРіР°С‚РёРІРЅРѕРµ РІРѕР·РґРµР№СЃС‚РІРёРµ, СЂСѓР±В»
+    # Р’ С‚РµРєСЃС‚Рµ: В«1 644 284,84KВ» (РЅР°С‡РёСЃР»РµРЅРѕ) Рё В«1 249 134,34KВ» (РїРѕР»СѓС‡РµРЅРѕ)
     m = re.search(
-        r"Плата за негативное воздействие, руб(.*?)Организация",
+        r"РџР»Р°С‚Р° Р·Р° РЅРµРіР°С‚РёРІРЅРѕРµ РІРѕР·РґРµР№СЃС‚РІРёРµ, СЂСѓР±(.*?)РћСЂРіР°РЅРёР·Р°С†РёСЏ",
         text, re.DOTALL,
     )
     if m:
@@ -170,8 +170,8 @@ def parse_nvos_kpis(text):
             def to_mln(s):
                 v = float(s.replace(" ", "").replace("\u00a0", "").replace(",", ".")) / 1000.0
                 return "{:,.1f}".format(v).replace(",", " ").replace(".", ",")
-            out["pay_str"] = f"{to_mln(vals[1])} / {to_mln(vals[0])} млн ₽"
-                # неразрывные пробелы DataLens → обычные
+            out["pay_str"] = f"{to_mln(vals[1])} / {to_mln(vals[0])} РјР»РЅ в‚Ѕ"
+                # РЅРµСЂР°Р·СЂС‹РІРЅС‹Рµ РїСЂРѕР±РµР»С‹ DataLens в†’ РѕР±С‹С‡РЅС‹Рµ
     for k, v in list(out.items()):
         if isinstance(v, str):
             out[k] = v.replace("\u00a0", " ").strip()
@@ -182,7 +182,7 @@ def parse_nvos_kpis(text):
 
 
 def _merge_live(prev_live, new_live):
-    """Новые значения побеждают; пустой парсинг НЕ затирает прошлые хорошие."""
+    """РќРѕРІС‹Рµ Р·РЅР°С‡РµРЅРёСЏ РїРѕР±РµР¶РґР°СЋС‚; РїСѓСЃС‚РѕР№ РїР°СЂСЃРёРЅРі РќР• Р·Р°С‚РёСЂР°РµС‚ РїСЂРѕС€Р»С‹Рµ С…РѕСЂРѕС€РёРµ."""
     merged = dict(prev_live or {})
     for k, v in (new_live or {}).items():
         if v:
@@ -238,10 +238,6 @@ def build_snapshot(extractions):
         },
     }
 
-        try:
-        print("[wd] nvos sbor parsed:", (snap["kpi_live"].get("nvos") or {}).get("sbor"), flush=True)
-    except Exception:
-        pass
-SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_FILE.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
     return snap

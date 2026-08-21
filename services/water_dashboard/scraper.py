@@ -36,18 +36,18 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _select_penultimate_date(page, sid):
-    """Открывает фильтр «Дата» и выбирает предпоследнюю дату (для НВОС)."""
+    """РћС‚РєСЂС‹РІР°РµС‚ С„РёР»СЊС‚СЂ В«Р”Р°С‚Р°В» Рё РІС‹Р±РёСЂР°РµС‚ РїСЂРµРґРїРѕСЃР»РµРґРЅСЋСЋ РґР°С‚Сѓ (РґР»СЏ РќР’РћРЎ)."""
     def emit(msg):
         print(f"[{sid}] {msg}", flush=True)
 
-    # 1. Находим контрол даты по лейблу «Дата» и помечаем его data-pw-id
-    emit("Открываю фильтр «Дата»...")
+    # 1. РќР°С…РѕРґРёРј РєРѕРЅС‚СЂРѕР» РґР°С‚С‹ РїРѕ Р»РµР№Р±Р»Сѓ В«Р”Р°С‚Р°В» Рё РїРѕРјРµС‡Р°РµРј РµРіРѕ data-pw-id
+    emit("РћС‚РєСЂС‹РІР°СЋ С„РёР»СЊС‚СЂ В«Р”Р°С‚Р°В»...")
     try:
         control_id = page.evaluate(
             """
             () => {
                 const labels = Array.from(document.querySelectorAll('[data-qa="chartkit-control-title"]'));
-                const dateLabel = labels.find(l => (l.textContent || '').trim().toLowerCase().startsWith('дата'));
+                const dateLabel = labels.find(l => (l.textContent || '').trim().toLowerCase().startsWith('РґР°С‚Р°'));
                 if (!dateLabel) return null;
                 let node = dateLabel.parentElement;
                 for (let i = 0; i < 5 && node; i++) {
@@ -64,27 +64,27 @@ def _select_penultimate_date(page, sid):
             """
         )
         if not control_id:
-            emit("⚠️ Контрол даты не найден")
+            emit("вљ пёЏ РљРѕРЅС‚СЂРѕР» РґР°С‚С‹ РЅРµ РЅР°Р№РґРµРЅ")
             return
-        emit(f"Контрол найден")
+        emit(f"РљРѕРЅС‚СЂРѕР» РЅР°Р№РґРµРЅ")
     except Exception as e:
-        emit(f"⚠️ Ошибка поиска контрола: {e}")
+        emit(f"вљ пёЏ РћС€РёР±РєР° РїРѕРёСЃРєР° РєРѕРЅС‚СЂРѕР»Р°: {e}")
         return
 
-    # 2. Кликаем по контролу — открывается дропдаун
+    # 2. РљР»РёРєР°РµРј РїРѕ РєРѕРЅС‚СЂРѕР»Сѓ вЂ” РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ РґСЂРѕРїРґР°СѓРЅ
     try:
         page.locator('[data-pw-id="nvos-date"]').first.click(timeout=5000)
         page.wait_for_timeout(2000)
-        emit("Dropdown открыт")
+        emit("Dropdown РѕС‚РєСЂС‹С‚")
     except Exception as e:
-        emit(f"⚠️ Не удалось кликнуть контрол: {e}")
+        emit(f"вљ пёЏ РќРµ СѓРґР°Р»РѕСЃСЊ РєР»РёРєРЅСѓС‚СЊ РєРѕРЅС‚СЂРѕР»: {e}")
         return
 
-    # 3. Собираем опции дат — ищем в .yc-select-popup (работает в DataLens)
+    # 3. РЎРѕР±РёСЂР°РµРј РѕРїС†РёРё РґР°С‚ вЂ” РёС‰РµРј РІ .yc-select-popup (СЂР°Р±РѕС‚Р°РµС‚ РІ DataLens)
     options = []
     seen = set()
 
-    # Стратегия A: yc-select-popup
+    # РЎС‚СЂР°С‚РµРіРёСЏ A: yc-select-popup
     try:
         portals = page.locator('.yc-select-popup')
         for p in range(min(portals.count(), 5)):
@@ -101,7 +101,7 @@ def _select_penultimate_date(page, sid):
     except Exception:
         pass
 
-    # Стратегия B: фолбэк по всему документу
+    # РЎС‚СЂР°С‚РµРіРёСЏ B: С„РѕР»Р±СЌРє РїРѕ РІСЃРµРјСѓ РґРѕРєСѓРјРµРЅС‚Сѓ
     if not options:
         for sel in ('[role="option"]', '.yc-select-option', '.popup *', 'li'):
             try:
@@ -120,42 +120,42 @@ def _select_penultimate_date(page, sid):
             if options:
                 break
 
-    emit(f"Найдено опций дат: {len(options)}")
+    emit(f"РќР°Р№РґРµРЅРѕ РѕРїС†РёР№ РґР°С‚: {len(options)}")
     if len(options) < 2:
-        emit("⚠️ Недостаточно опций — оставляю фильтр как есть")
+        emit("вљ пёЏ РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РѕРїС†РёР№ вЂ” РѕСЃС‚Р°РІР»СЏСЋ С„РёР»СЊС‚СЂ РєР°Рє РµСЃС‚СЊ")
         return
 
-    # 4. Сортируем по дате и берём ПРЕДПОСЛЕДНЮЮ
+    # 4. РЎРѕСЂС‚РёСЂСѓРµРј РїРѕ РґР°С‚Рµ Рё Р±РµСЂС‘Рј РџР Р•Р”РџРћРЎР›Р•Р”РќР®Р®
     options.sort(key=lambda x: x[0])
     target_text, target_item = options[-2]
-    emit(f"Выбираю предпоследнюю дату: {target_text}")
+    emit(f"Р’С‹Р±РёСЂР°СЋ РїСЂРµРґРїРѕСЃР»РµРґРЅСЋСЋ РґР°С‚Сѓ: {target_text}")
 
-    # 5. Клик (обычный + fallback по bounding_box)
+    # 5. РљР»РёРє (РѕР±С‹С‡РЅС‹Р№ + fallback РїРѕ bounding_box)
     try:
         target_item.scroll_into_view_if_needed(timeout=3000)
         page.wait_for_timeout(200)
         target_item.click(timeout=3000)
-        emit("✓ Клик по опции сработал")
+        emit("вњ“ РљР»РёРє РїРѕ РѕРїС†РёРё СЃСЂР°Р±РѕС‚Р°Р»")
     except Exception:
         try:
             box = target_item.bounding_box()
             if box:
                 page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-                emit("✓ Клик по bounding_box сработал")
+                emit("вњ“ РљР»РёРє РїРѕ bounding_box СЃСЂР°Р±РѕС‚Р°Р»")
             else:
-                emit("⚠️ У опции нет bounding_box")
+                emit("вљ пёЏ РЈ РѕРїС†РёРё РЅРµС‚ bounding_box")
                 return
         except Exception as e:
-            emit(f"⚠️ Не удалось выбрать дату: {e}")
+            emit(f"вљ пёЏ РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹Р±СЂР°С‚СЊ РґР°С‚Сѓ: {e}")
             return
 
-    # 6. Ждём пересчёт виджетов
+    # 6. Р–РґС‘Рј РїРµСЂРµСЃС‡С‘С‚ РІРёРґР¶РµС‚РѕРІ
     page.wait_for_timeout(3000)
-    emit("✓ Пересчёт данных завершён")
+    emit("вњ“ РџРµСЂРµСЃС‡С‘С‚ РґР°РЅРЅС‹С… Р·Р°РІРµСЂС€С‘РЅ")
 
 
 def _wait_for_content(page):
-    """Ждём реальную готовность виджетов: сеть спокойна, спиннеры исчезли, пауза."""
+    """Р–РґС‘Рј СЂРµР°Р»СЊРЅСѓСЋ РіРѕС‚РѕРІРЅРѕСЃС‚СЊ РІРёРґР¶РµС‚РѕРІ: СЃРµС‚СЊ СЃРїРѕРєРѕР№РЅР°, СЃРїРёРЅРЅРµСЂС‹ РёСЃС‡РµР·Р»Рё, РїР°СѓР·Р°."""
     try:
         page.wait_for_load_state("networkidle", timeout=20000)
     except Exception:
@@ -191,26 +191,17 @@ def scrape_all():
             try:
                 page.goto(src["url"], wait_until="domcontentloaded", timeout=90000)
 
-                # Умное ожидание появления контента
+                # РЈРјРЅРѕРµ РѕР¶РёРґР°РЅРёРµ РїРѕСЏРІР»РµРЅРёСЏ РєРѕРЅС‚РµРЅС‚Р°
                 _wait_for_content(page)
 
-                # Специальная обработка для НВОС: выбор предпоследней даты
+                # РЎРїРµС†РёР°Р»СЊРЅР°СЏ РѕР±СЂР°Р±РѕС‚РєР° РґР»СЏ РќР’РћРЎ: РІС‹Р±РѕСЂ РїСЂРµРґРїРѕСЃР»РµРґРЅРµР№ РґР°С‚С‹
                 if sid == "nvos":
                     _select_penultimate_date(page, sid)
-try:  # stab-wait: ждём применения фильтра даты — читаем до стабилизации
-                    try:      page.wait_for_load_state("networkidle", timeout=15000)
-                    try:  except Exception:
-                    try:      pass
-                    try:  _prev_txt = None
-                    try:  for _i in range(12):
-                    try:      page.wait_for_timeout(2000)
-                    try:      try:
-                    try:          _cur_txt = page.evaluate("document.body.innerText")
-                    try:      except Exception:
-                    try:          _cur_txt = None
-                    try:      if _cur_txt and _cur_txt == _prev_txt:
-                    try:          break
-                    try:      _prev_txt = _cur_txt
+                    try:  # stab-wait: Р¶РґС‘Рј РїСЂРёРјРµРЅРµРЅРёСЏ С„РёР»СЊС‚СЂР° РґР°С‚С‹
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
+                    page.wait_for_timeout(5000)
 
                 tables = page.evaluate(TABLES_JS)
                 text = page.evaluate("() => document.body.innerText")
@@ -221,7 +212,7 @@ try:  # stab-wait: ждём применения фильтра даты — ч�
                     json.dump({"url": src["url"], "tables": tables, "text": text},
                               f, ensure_ascii=False, indent=2)
 
-                print(f"[saved] {sid}: таблиц={len(tables)}")
+                print(f"[saved] {sid}: С‚Р°Р±Р»РёС†={len(tables)}")
             except Exception as e:
                 print(f"[warn] {sid}: {e}")
                 extractions[sid] = {"tables": [], "text": ""}
