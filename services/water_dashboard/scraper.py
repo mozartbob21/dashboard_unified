@@ -197,11 +197,20 @@ def scrape_all():
                 # Специальная обработка для НВОС: выбор предпоследней даты
                 if sid == "nvos":
                     _select_penultimate_date(page, sid)
-                    try:  # stab-wait: ждём применения фильтра даты
-                        page.wait_for_load_state("networkidle", timeout=15000)
-                    except Exception:
-                        pass
-                    page.wait_for_timeout(5000)
+try:  # stab-wait: ждём применения фильтра даты — читаем до стабилизации
+                    try:      page.wait_for_load_state("networkidle", timeout=15000)
+                    try:  except Exception:
+                    try:      pass
+                    try:  _prev_txt = None
+                    try:  for _i in range(12):
+                    try:      page.wait_for_timeout(2000)
+                    try:      try:
+                    try:          _cur_txt = page.evaluate("document.body.innerText")
+                    try:      except Exception:
+                    try:          _cur_txt = None
+                    try:      if _cur_txt and _cur_txt == _prev_txt:
+                    try:          break
+                    try:      _prev_txt = _cur_txt
 
                 tables = page.evaluate(TABLES_JS)
                 text = page.evaluate("() => document.body.innerText")

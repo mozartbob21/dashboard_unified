@@ -1489,6 +1489,15 @@ async def watercontrol_page(request: Request):
         },
     )
 
+
+def _load_best5():
+    """Читает топ-5 лучших для ZULUGIS и РСО из best5.json."""
+    p = BASE_DIR / "data" / "water_dashboard" / "best5.json"
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
 @app.get("/water-dashboard", response_class=HTMLResponse)
 async def water_dashboard_page(request: Request):
     token = request.cookies.get("access_token")
@@ -1510,6 +1519,7 @@ async def water_dashboard_page(request: Request):
                 "updated_at": snap.get("updated_at", ""),
                 "refresh": snap.get("sources_refresh", {}),
                 "kpi_live": snap.get("kpi_live", {}),
+                "best5": _load_best5(),
                 "bottoms": snap.get("bottoms", {}),
             }, ensure_ascii=False),
         },

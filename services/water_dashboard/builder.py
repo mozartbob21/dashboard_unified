@@ -238,6 +238,10 @@ def build_snapshot(extractions):
         },
     }
 
-    SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        try:
+        print("[wd] nvos sbor parsed:", (snap["kpi_live"].get("nvos") or {}).get("sbor"), flush=True)
+    except Exception:
+        pass
+SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_FILE.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
     return snap
