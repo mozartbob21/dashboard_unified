@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Нейрона — Пользователи</title>
+<style>
+:root{--bg:#f2f4fb;--card:#fff;--text:#0b1220;--muted:#6b7a90;--border:#e3e8f4;
+  --acc1:#4f6df5;--acc2:#8b5cf6;--danger:#ef4444;--ok:#10b981;--shadow:0 10px 34px rgba(23,37,84,.10)}
+html[data-theme="dark"]{--bg:#0a0f1e;--card:#121a30;--text:#e6ecf8;--muted:#8fa0ba;--border:#1d2a47}
+*{box-sizing:border-box;margin:0}
+body{font-family:"Inter","Segoe UI",system-ui,sans-serif;color:var(--text);min-height:100vh;
+  background:radial-gradient(1100px 480px at 88% -10%, rgba(139,92,246,.14), transparent 60%), var(--bg)}
+.top{display:flex;align-items:center;gap:14px;padding:14px 26px;position:sticky;top:0;z-index:5;
+  background:color-mix(in srgb, var(--card) 82%, transparent);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border)}
+.logo{width:44px;height:44px;border-radius:14px;filter:drop-shadow(0 5px 14px rgba(79,109,245,.25))}
+.logo img{width:100%;height:100%;border-radius:inherit}
+.top h1{font-size:17px;font-weight:800}
+.top .sub{font-size:11.5px;color:var(--muted)}
+.badge-super{margin-left:10px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;
+  font-size:10px;font-weight:800;padding:4px 10px;border-radius:999px;letter-spacing:.06em}
+.top .nav{margin-left:auto}
+.top .nav a{text-decoration:none;color:var(--acc1);font-weight:700;font-size:13px;
+  padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card)}
+.wrap{max-width:1120px;margin:0 auto;padding:26px 20px 70px}
+.grid{display:grid;grid-template-columns:360px 1fr;gap:20px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:20px;
+  box-shadow:var(--shadow);padding:20px;animation:fadeUp .3s both}
+.card h2{font-size:15px;font-weight:800;margin-bottom:12px}
+.note{font-size:11.5px;color:var(--muted);line-height:1.55;margin-bottom:10px;
+  padding:10px 12px;border:1px dashed var(--border);border-radius:12px}
+label{display:block;font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;margin:10px 0 5px}
+input,select{width:100%;border:1px solid var(--border);border-radius:12px;background:var(--bg);
+  color:var(--text);font:inherit;font-size:13px;padding:10px 12px;outline:none}
+.btn{margin-top:14px;width:100%;border:none;border-radius:12px;padding:12px;cursor:pointer;
+  background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;font:inherit;
+  font-weight:700;font-size:13.5px;box-shadow:0 8px 20px rgba(99,102,241,.35)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+  text-align:left;padding:8px 10px;border-bottom:2px solid var(--border)}
+td{padding:10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.role{border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);
+  font-size:11.5px;padding:5px 8px;cursor:pointer}
+.role.dev{border-color:#f59e0b;color:#f59e0b;font-weight:800}
+.ib{border:1px solid var(--border);background:var(--bg);border-radius:8px;cursor:pointer;
+  font-size:12px;padding:5px 9px;margin:2px;color:var(--muted);white-space:nowrap}
+.ib:hover{border-color:var(--acc1);color:var(--acc1)}
+.ib.del:hover{border-color:var(--danger);color:var(--danger)}
+.accrow td{background:color-mix(in srgb, var(--acc1) 6%, transparent);padding:14px}
+.accbox{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.accbox label{display:flex;align-items:center;gap:7px;margin:0;font-size:12px;
+  text-transform:none;letter-spacing:0;color:var(--text);font-weight:600;
+  border:1px solid var(--border);border-radius:10px;padding:7px 11px;cursor:pointer;background:var(--card)}
+.accbox input{width:auto}
+.accsave{border:none;border-radius:10px;padding:8px 16px;cursor:pointer;font-weight:700;
+  background:var(--ok);color:#fff;font-size:12px}
+.count{font-size:12px;color:var(--muted);margin-bottom:10px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:var(--text);color:var(--bg);padding:11px 18px;border-radius:12px;font-size:13px;
+  opacity:0;pointer-events:none;transition:.3s;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo"><img src="{{ logo_url }}" alt="Нейрона"></div>
+  <div><h1>Пользователи <span class="badge-super">SUPER-ДОСТУП</span></h1>
+    <div class="sub">выдача доступов к модулям · только разработчик</div></div>
+  <div class="nav"><a href="/">Главная</a></div>
+</div>
+<div class="wrap"><div class="grid">
+  <div class="card">
+    <h2>➕ Добавить пользователя</h2>
+    <div class="note">Пользователь создаётся <b>без доступов</b> — модули выдаются кнопкой 🔓 в таблице. Без выдачи он не увидит ничего.</div>
+    <label>Логин</label><input id="uLogin" placeholder="ivanov_ii">
+    <label>Пароль</label><input id="uPass" type="password" placeholder="Минимум 6 символов">
+    <label>Роль</label>
+    <select id="uRole">
+      <option value="user">user</option><option value="operator">operator</option>
+      <option value="admin">admin</option><option value="developer">developer</option>
+    </select>
+    <button class="btn" id="addBtn">Создать</button>
+  </div>
+  <div class="card">
+    <h2>👥 Пользователи и доступы</h2>
+    <div class="count" id="cnt"></div>
+    <div style="overflow-x:auto"><table id="tbl"></table></div>
+  </div>
+</div></div>
+<div class="toast" id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const api = (u,o) => fetch(u,o).then(r=>r.json());
+function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("show");
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"),3500); }
+
+async function load(){
+  const r = await api("/users/api/list");
+  if (r.error){ toast(r.error); return; }
+  $("cnt").textContent = "Всего: " + r.users.length + " · доступы выдаёт только разработчик";
+  $("tbl").innerHTML = "<tr><th>Логин</th><th>Роль</th><th>Действия</th></tr>" +
+    r.users.map(u => `<tr data-u="${esc(u.username)}">
+      <td><b>${esc(u.username)}</b>${u.email?`<div style="font-size:11px;color:var(--muted)">${esc(u.email)}</div>`:""}</td>
+      <td><select class="role ${u.role==="developer"?"dev":""}" data-role="${esc(u.username)}">
+        ${["user","operator","admin","developer"].map(x=>
+          `<option ${x===u.role?"selected":""}>${x}</option>`).join("")}</select></td>
+      <td><button class="ib" data-acc="${esc(u.username)}">🔓 доступ</button>
+          <button class="ib" data-pass="${esc(u.username)}">🔑</button>
+          <button class="ib del" data-del="${esc(u.username)}">✕</button></td>
+    </tr>`).join("");
+}
+async function openAccess(uname, row){
+  if (row.nextElementSibling && row.nextElementSibling.classList.contains("accrow")){
+    row.nextElementSibling.remove(); return; }
+  const r = await api("/users/api/access/" + encodeURIComponent(uname));
+  if (r.error){ toast(r.error); return; }
+  const tr = document.createElement("tr");
+  tr.className = "accrow";
+  tr.innerHTML = `<td colspan="3">
+    <div class="accbox">${Object.entries(r.modules).map(([k,v]) =>
+      `<label><input type="checkbox" value="${k}" ${r.allowed.includes(k)?"checked":""}> ${v}</label>`).join("")}
+    </div>
+    <button class="accsave" data-saveacc="${esc(uname)}">💾 Сохранить доступы</button>
+  </td>`;
+  row.after(tr);
+}
+$("tbl").addEventListener("click", async e => {
+  const acc = e.target.closest("[data-acc]");
+  if (acc){ openAccess(acc.dataset.acc, acc.closest("tr")); return; }
+  const save = e.target.closest("[data-saveacc]");
+  if (save){
+    const mods = [...save.closest(".accrow").querySelectorAll("input:checked")].map(i=>i.value);
+    const r = await api("/users/api/" + encodeURIComponent(save.dataset.saveacc) + "/access",
+      {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({modules:mods})});
+    toast(r.ok ? "🔓 Доступы сохранены: " + mods.length : ("⚠️ " + (r.error||""))); return; }
+  const d = e.target.closest("[data-del]");
+  if (d){ if(!confirm("Удалить пользователя " + d.dataset.del + "?")) return;
+    const r = await api("/users/api/" + d.dataset.del, {method:"DELETE"});
+    toast(r.ok?"🗑 Удалён":("⚠️ "+(r.error||""))); load(); return; }
+  const p = e.target.closest("[data-pass]");
+  if (p){ const np = prompt("Новый пароль для " + p.dataset.pass + ":"); if(!np) return;
+    const r = await api("/users/api/" + p.dataset.pass + "/password", {method:"POST",
+      headers:{"Content-Type":"application/json"}, body:JSON.stringify({password:np})});
+    toast(r.ok?"🔑 Пароль изменён":("⚠️ "+(r.error||""))); }
+});
+$("tbl").addEventListener("change", async e => {
+  const s = e.target.closest("[data-role]"); if(!s) return;
+  const r = await api("/users/api/" + s.dataset.role + "/role", {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify({role:s.value})});
+  toast(r.ok?"✅ Роль обновлена":("⚠️ "+(r.error||""))); load();
+});
+$("addBtn").onclick = async () => {
+  const r = await api("/users/api/add",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username:$("uLogin").value.trim(), password:$("uPass").value,
+      role:$("uRole").value})});
+  toast(r.ok ? "✅ Создан. Теперь выдай доступы 🔓" : ("⚠️ " + (r.error||"")));
+  if (r.ok){ $("uLogin").value=""; $("uPass").value=""; }
+  load();
+};
+load();
+</script>
+</body>
+</html>
