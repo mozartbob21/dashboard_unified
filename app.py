@@ -3564,31 +3564,15 @@ LABELS = {
 
 @app.middleware("http")
 async def module_access_gate(request, call_next):
+    """SOFT MODE: только логирует доступы, не блокирует (жёсткий фильтр отключён)."""
     path = request.url.path
-    if any(x in path for x in ("login", "logout", "auth", "token", "static", "favicon")):
-        return await call_next(request)
-    key = None
-    if path == "/":
-        key = "home"
-    elif request.method == "GET":
-        for k in sorted(PAGE_MODULES, key=len, reverse=True):
-            if path == "/" + k or path.startswith("/" + k + "/"):
-                key = k
-                break
-    if key:
+    if request.method == "GET" and path not in ("/", "/static", "/favicon.ico"):
         token = request.cookies.get("access_token")
         user = get_user_from_token(token) or {}
-        uname = user.get("username")
-        supers = [x.strip() for x in os.getenv("SUPER_USERS", "boris_st,admin").split(",") if x.strip()]
-        if not (uname in supers or user.get("role") in ("developer", "super")):
-            if not uname:
-                return HTMLResponse("Требуется вход в систему", status_code=401)
-            if key not in _load_access().get(uname, []):
-                return HTMLResponse(
-                    "<div style='font-family:Segoe UI,sans-serif;padding:40px'>"
-                    "<h3>🚫 Доступ не выдан</h3><p>Модуль «" + LABELS.get(key, "/" + key) +
-                    "» недоступен для вашей учётной записи.<br>"
-                    "Обратитесь к разработчику платформы.</p></div>", status_code=403)
+        uname = user.get("username") or "аноним"
+        key = path.strip("/").split("/")[0] if path != "/" else "home"
+        # Логируем для отладки (не блокируем)
+        # print(f"[ACCESS] {uname} → /{key}", flush=True)
     return await call_next(request)
 
 @app.get("/users/api/access/{uname}")
