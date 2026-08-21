@@ -147,6 +147,12 @@
         .wd-refresh-card:disabled{opacity:.5;cursor:not-allowed}
         .wd-refresh-card.spin{animation:wdspin .8s linear infinite}
 
+    
+        .wd-best-toggle{background:none;border:none;padding:0;color:#059669;font-weight:700;
+            font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:14px}
+        .wd-best-toggle:hover{text-decoration:underline}
+    
+        .wd-toggle-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:2px 0}
     </style>
 </head>
 <body class="compact-module-page">
@@ -248,7 +254,7 @@
 <script>
 const KPI_CARDS = [
     {
-        src: "ZULUGIS", status: "warn", statusText: "Ниже цели 100%",
+        src: "ZULUGIS", status: "warn", statusText: "Ниже цели",
         name: "Внесение замены задвижек",
         num: "1 185", sub: " / 1 865",
         unit: "внесено на 2026 из плана · 63%",
@@ -643,70 +649,144 @@ if (refreshBtn) {
 
 
 
+
+
+<script>
+(function(){
+    function fill(){
+        var tb = document.querySelector('#omsu tbody');
+        if (!tb || tb.rows.length) return;
+        var data = [];
+        try { data = JSON.parse(document.getElementById('omsuData').textContent || '[]'); } catch(e){ return; }
+        if (!data.length) return;
+        var S = {resVS:0, sysVS:0, tasks:0, sysKR:0, resKR:0, att:0, attN:0};
+        var rowsHtml = data.map(function(r){
+            S.resVS += r.resVS||0; S.sysVS += r.sysVS||0; S.tasks += r.tasks||0;
+            S.sysKR += r.sysKR||0; S.resKR += r.resKR||0;
+            if (r.att) { S.att += r.att; S.attN++; }
+            function c(v){ return (v||0) > 0 ? ' class="cell-hi"' : ''; }
+            return '<tr><td>' + r.name + '</td><td' + c(r.resVS) + '>' + (r.resVS||0) + '</td><td>' + (r.sysVS||0) +
+                '</td><td' + c(r.tasks) + '>' + (r.tasks||0) + '</td><td>' + (r.sysKR||0) + '</td><td' + c(r.resKR) + '>' +
+                (r.resKR||0) + '</td><td>' + (r.att ? r.att : '—') + '</td></tr>';
+        }).join('');
+        tb.innerHTML = rowsHtml;
+        function set(id, v){ var el = document.getElementById(id); if (el) el.textContent = v; }
+        set('sumResVS', S.resVS); set('sumSysVS', S.sysVS); set('sumTasks', S.tasks);
+        set('sumSysKR', S.sysKR); set('sumResKR', S.resKR);
+        set('sumAtt', S.attN ? Math.round(S.att / S.attN) + '%' : '—');
+        console.log('[wd] таблица заполнена аварийно:', data.length, 'строк');
+    }
+    setTimeout(fill, 900);
+    setTimeout(fill, 2500);
+})();
+</script>
+
+
+
+
+
+
+
 <script>
 (function(){
     function getMeta(){ try { return JSON.parse(document.getElementById('wdMeta').textContent || '{}'); } catch(e){ return {}; } }
     function el(tag, cls, html){ var n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; }
-    function bestBlock(items){
-        if (!items || !items.length) return null;
-        var lis = items.slice(0,5).map(function(it,i){
+    function findToggle(card){
+        var best = null, all = card.querySelectorAll('*');
+        for (var i = 0; i < all.length; i++){
+            var t = (all[i].textContent || '').trim();
+            if (t.indexOf('Топ-5 отстающих') === 0 && t.length <= 30) best = all[i];
+        }
+        return best;
+    }
+    function addBest(card, items){
+        if (!items || !items.length) return;
+        var orig = findToggle(card);
+        var btn = el('button', 'wd-best-toggle', 'Топ-5 лучших ▾');
+        btn.type = 'button';
+        var wrap = el('div', 'wd-best-wrap');
+        wrap.style.display = 'none';
+        var lis = items.slice(0, 5).map(function(it, i){
             var nm = Array.isArray(it) ? it[0] : it.name;
             var v  = Array.isArray(it) ? it[1] : it.value;
-            return '<li><span class="n">'+(i+1)+'</span><span class="nm">'+nm+'</span><span class="v">'+v+'</span></li>';
+            return '<li><span class="n">' + (i+1) + '</span><span class="nm">' + nm + '</span><span class="v">' + v + '</span></li>';
         }).join('');
-        return el('div','wd-best-wrap','<h5 class="wd-best-title">Топ-5 лучших</h5><ul class="wd-top5-best">'+lis+'</ul>');
+        wrap.innerHTML = '<ul class="wd-top5-best">' + lis + '</ul>';
+
+        /* ── Аккордеон: один открыт — второй закрыт ── */
+        function closeBest(){
+            wrap.style.display = 'none';
+            btn.textContent = 'Топ-5 лучших ▾';
+        }
+        function closeWorst(){
+            card.classList.remove('open');
+            var dets = card.querySelectorAll('.wd-detail');
+            for (var d = 0; d < dets.length; d++) dets[d].style.display = 'none';
+        }
+        function reopenWorst(){
+            var dets = card.querySelectorAll('.wd-detail');
+            for (var d = 0; d < dets.length; d++) dets[d].style.display = '';
+        }
+        btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            var willOpen = wrap.style.display === 'none';
+            if (willOpen) closeWorst();          /* открыли лучших → закрыли отстающих */
+            wrap.style.display = willOpen ? 'block' : 'none';
+            btn.textContent = willOpen ? 'Топ-5 лучших ▴' : 'Топ-5 лучших ▾';
+        });
+        if (orig) orig.addEventListener('click', function(){
+            closeBest();                          /* открыли отстающих → закрыли лучших */
+            reopenWorst();
+        });
+
+        var rowDiv = el('div', 'wd-toggle-row');
+        if (orig && orig.parentNode){
+            orig.parentNode.insertBefore(rowDiv, orig);
+            rowDiv.appendChild(orig);
+        }
+        rowDiv.appendChild(btn);
+        if (!rowDiv.parentNode) card.appendChild(rowDiv);
+        card.insertBefore(wrap, rowDiv.nextSibling);
     }
-    var SRC_MAP = [
-        [/ZULUGIS/i, 'ZULUGIS', 'valves'],
-        [/РСО|ЭДО/i, 'РСО', 'edo_rso'],
-        [/РМ МИНЖКХ/i, null, 'tasks'],
-        [/КАПРЕМОНТ/i, null, 'sys_kr'],
-        [/ДИСЦИПЛИНА/i, null, 'meetings'],
-        [/КВЦ/i, null, 'nvos'],
-        [/ПРОМЫВК/i, null, 'flush'],
-        [/ВОДОСНАБЖЕНИЕ/i, null, 'sys_vs']
-    ];
+    function pollAndReload(btn){
+        var n = 0;
+        var t = setInterval(function(){
+            n++;
+            fetch('/water-dashboard/run-status').then(function(r){ return r.json(); }).then(function(st){
+                if (!st.running || n > 100) { clearInterval(t); location.reload(); }
+            }).catch(function(){});
+        }, 3000);
+    }
     function run(){
         var m = getMeta(), best = m.best5 || {};
         var grid = document.getElementById('kpiGrid');
         if (!grid) return;
         Array.prototype.forEach.call(grid.children, function(card){
-            if (card.dataset.enh2) return;
+            if (card.dataset.enh6) return;
             var txt = card.textContent || '';
-            var bestKey = null, srcKey = null;
-            for (var i = 0; i < SRC_MAP.length; i++){
-                if (SRC_MAP[i][0].test(txt)) { bestKey = SRC_MAP[i][1]; srcKey = SRC_MAP[i][2]; break; }
-            }
-            if (!srcKey) return;
-            card.dataset.enh2 = '1';
-            /* ТОЛЬКО appendChild — не убиваем существующие обработчики! */
-            var b = bestKey ? bestBlock(best[bestKey]) : null;
-            if (b) card.appendChild(b);
+            var bestKey = /ZULUGIS/i.test(txt) ? 'ZULUGIS' : (/РСО|ЭДО/i.test(txt) ? 'РСО' : null);
+            if (!bestKey && !/МИНЖКХ|КАПРЕМОНТ|ДИСЦИПЛИНА|КВЦ|ВОДОСНАБЖЕНИЕ|ПРОМЫВК/i.test(txt)) return;
+            card.dataset.enh6 = '1';
+            if (bestKey) addBest(card, best[bestKey]);
             if (m.updated_at) {
                 var p = m.updated_at.split(/[- :]/);
-                card.appendChild(el('div','wd-card-updated',
-                    '🕒 Обновлено: '+p[2]+'.'+p[1]+'.'+p[0]+', '+p[3]+':'+p[4]));
+                card.appendChild(el('div', 'wd-card-updated',
+                    '🕒 Обновлено: ' + p[2] + '.' + p[1] + '.' + p[0] + ', ' + p[3] + ':' + p[4]));
             }
-            var btn = el('button','wd-refresh-card','↻');
-            btn.type = 'button';
-            btn.title = 'Обновить источник';
-            btn.dataset.source = srcKey;
-            card.appendChild(btn);
+            var rbtn = el('button', 'wd-refresh-card', '↻');
+            rbtn.type = 'button'; rbtn.title = 'Обновить снимок данных';
+            rbtn.addEventListener('click', function(e){
+                e.stopPropagation();
+                rbtn.disabled = true; rbtn.classList.add('spin');
+                fetch('/water-dashboard/run-check', {method: 'POST'})
+                    .then(function(r){ if (!r.ok) throw 0; pollAndReload(rbtn); })
+                    .catch(function(){ alert('Не удалось запустить обновление'); rbtn.disabled = false; rbtn.classList.remove('spin'); });
+            });
+            card.appendChild(rbtn);
         });
     }
     setTimeout(run, 600);
     setTimeout(run, 1600);
-    document.addEventListener('click', function(e){
-        var btn = e.target.closest('.wd-refresh-card');
-        if (!btn || btn.disabled) return;
-        btn.disabled = true; btn.classList.add('spin');
-        fetch('/water-dashboard/refresh-source/' + btn.dataset.source, {method:'POST'})
-            .then(function(r){
-                if (r.ok) { setTimeout(function(){ location.reload(); }, 1200); }
-                else { alert('Ошибка обновления источника'); btn.disabled = false; btn.classList.remove('spin'); }
-            })
-            .catch(function(){ alert('Сетевая ошибка'); btn.disabled = false; btn.classList.remove('spin'); });
-    });
 })();
 </script>
 </body>

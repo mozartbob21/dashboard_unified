@@ -3277,31 +3277,9 @@ async def water_dashboard_run_check():
 
 @app.post("/water-dashboard/refresh-source/{source_key}")
 async def refresh_single_source(source_key: str):
-    """Обновляет только один источник данных (например, valves или edo_rso)."""
-    import sys
-    from pathlib import Path
-    
-    # Проверяем, что источник существует
-    valid_sources = ["valves", "flush", "tasks", "sys_vs", "edo_rso", "nvos", "meetings", "sys_kr"]
-    if source_key not in valid_sources:
-        return {"error": f"Неизвестный источник: {source_key}"}, 400
-    
-    # Запускаем scraper только для этого источника
-    from services.water_dashboard.scraper import scrape_all
-    extractions = scrape_all(sources=[source_key])
-    
-    # Пересобираем snapshot
-    from services.water_dashboard.builder import build_snapshot
-    snap = build_snapshot(extractions)
-    
-    return {
-        "ok": True,
-        "source": source_key,
-        "updated_at": snap.get("updated_at"),
-    }
-
-
-
+    """Кнопка ↻: штатное фоновое обновление снимка."""
+    command = [sys.executable, "-m", "services.water_dashboard.runner"]
+    return start_background_service("water_dashboard", command)
 @app.get("/water-dashboard/run-status")
 async def water_dashboard_run_status():
     return run_status["water_dashboard"]
