@@ -747,6 +747,7 @@ if (refreshBtn) {
         rowDiv.appendChild(btn);
         if (!rowDiv.parentNode) card.appendChild(rowDiv);
         card.insertBefore(wrap, rowDiv.nextSibling);
+            wrap.style.top = (rowDiv.offsetTop + rowDiv.offsetHeight + 6) + 'px';
     }
     function pollAndReload(btn){
         var n = 0;
