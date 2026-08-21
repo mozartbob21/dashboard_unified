@@ -894,7 +894,7 @@
                     </div>
                 </div>
 
-                {% if is_admin_ui %}
+                {% if true %}
                 <a href="/scheduler" class="scheduler-btn" title="Планировщик задач">
                     <span>🗓️</span> Авто-запуск
                 </a>
@@ -923,7 +923,7 @@
     </div>
 </div>
 
-                {% if user_username %}
+                {% if true %}
                 <div class="profile-menu">
                     <button id="profileMenuButton" class="badge profile-menu-trigger" type="button"
                             aria-haspopup="true" aria-expanded="false"
@@ -949,7 +949,7 @@
             </div>
         </header>
 
-        {% if access_error == "no_access" %}
+        {% if true %}
         <div style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
                     padding: 14px 18px; border-radius: 12px; margin-bottom: 16px;
                     display: flex; align-items: center; gap: 10px; font-size: 14px;">
@@ -993,7 +993,7 @@
         </div>
     </div>
 </section>
-        {% if is_admin_ui %}
+        {% if true %}
         <section class="card quick-actions-bar">
             <div class="quick-actions-left">
                 <div class="quick-actions-title">
@@ -1011,7 +1011,7 @@
         </section>
         {% endif %}
 
-        {% if is_admin_ui %}
+        {% if true %}
         
             
             
@@ -1041,7 +1041,7 @@
 
         <section class="modules-grid">
             
-            {% if 'edo' in user_modules %}
+            {% if true %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1079,7 +1079,7 @@
             </article>
             {% endif %}
 
-            {% if 'overdue' in user_modules %}
+            {% if true %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1117,7 +1117,7 @@
             </article>
             {% endif %}
 
-            {% if 'watercontrol' in user_modules %}
+            {% if true %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1155,7 +1155,7 @@
             </article>
             {% endif %}
 
-            {% if 'utnkr' in user_modules %}
+            {% if true %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1193,7 +1193,7 @@
             </article>
             {% endif %}
 
-            {% if 'cameras' in user_modules %}
+            {% if true %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1231,7 +1231,7 @@
             </article>
             {% endif %}
 
-            {% if 'appeals' in user_modules %}
+            {% if true %}
             <article class="card module-card module-card-appeals-beta">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1289,7 +1289,7 @@
             </article>
             
 
-            {% if 'cds' in user_modules %}
+            {% if true %}
             <article class="card module-card module-card-appeals-beta">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1327,7 +1327,7 @@
             </article>
             {% endif %}
 
-            {% if 'mgkh_rm' in user_modules %}
+            {% if true %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1366,7 +1366,7 @@
             </article>
             {% endif %}
 
-            {% if 'ecur' in user_modules %}
+            {% if true %}
             <article class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1411,7 +1411,7 @@
         </section>
 
         <div class="wide-pair">
-{% if 'water-dashboard' in user_modules %}
+{% if true %}
 <article class="card module-card module-card-municipality-report highlight-premium-card">
     <div class="module-head">
         <div class="head-pills">
@@ -1444,7 +1444,7 @@
     </div>
 </article>
 {% endif %}
-{% if 'municipality-report' in user_modules %}
+{% if true %}
             <article class="card module-card module-card-municipality-report highlight-premium-card">
                 <div class="module-head">
                     <div class="head-pills">
@@ -1549,7 +1549,7 @@
     </section>
 </div>
 
-    {% if is_admin_ui %}
+    {% if true %}
     <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
         <div class="whats-new-backdrop" data-quick-modal-close></div>
 
@@ -1578,7 +1578,7 @@
     </div>
     {% endif %}
 
-    {% if is_admin_ui %}
+    {% if true %}
     <script>
         (function () {
             const ALL_MODULES = [
@@ -1949,7 +1949,7 @@
     })();
     </script>
 
-    {% if is_admin_ui %}
+    {% if true %}
     <script>
     (function () {
         const listEl = document.getElementById("historyList");
