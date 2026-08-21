@@ -6,181 +6,306 @@
 <title>Нейрона — AI-чат</title>
 <style>
 :root{
-  --bg:#eef1f8; --card:#ffffff; --text:#0f172a; --muted:#64748b;
-  --border:#e2e8f0; --acc1:#6366f1; --acc2:#8b5cf6;
-  --user-bg:linear-gradient(135deg,#6366f1,#8b5cf6);
+  --bg:#f2f4fb; --bg2:#e9ecf7; --card:#ffffff; --text:#0b1220; --muted:#6b7a90;
+  --border:#e3e8f4; --acc1:#4f6df5; --acc2:#8b5cf6; --ok:#10b981; --danger:#ef4444;
+  --shadow:0 10px 34px rgba(23,37,84,.10);
 }
 html[data-theme="dark"]{
-  --bg:#0b1220; --card:#111a2e; --text:#e2e8f0; --muted:#94a3b8; --border:#1e293b;
+  --bg:#0a0f1e; --bg2:#0d1426; --card:#121a30; --text:#e6ecf8; --muted:#8fa0ba;
+  --border:#1d2a47; --shadow:0 10px 34px rgba(0,0,0,.45);
 }
-*{box-sizing:border-box}
-body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column}
-.ac-top{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--card);border-bottom:1px solid var(--border)}
-.ac-logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--acc1),var(--acc2));display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
-.ac-top h1{font-size:16px;margin:0}
-.ac-top .sub{font-size:11px;color:var(--muted)}
-.ac-top a{margin-left:auto;color:var(--acc1);text-decoration:none;font-weight:700;font-size:13px}
-.ac-body{flex:1;display:flex;min-height:0}
-.ac-side{width:280px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column}
-.ac-new{margin:12px;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;font-weight:700;cursor:pointer;font-size:14px}
-.ac-new:hover{filter:brightness(1.1)}
-.ac-list{flex:1;overflow-y:auto;padding:0 8px 12px}
-.ac-item{padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:4px;position:relative}
-.ac-item:hover{background:rgba(99,102,241,.08)}
-.ac-item.on{background:rgba(99,102,241,.14);border:1px solid rgba(99,102,241,.35)}
-.ac-item .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:22px}
-.ac-item .p{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ac-item .del{position:absolute;right:8px;top:8px;border:none;background:none;color:var(--muted);cursor:pointer;font-size:13px;display:none}
-.ac-item:hover .del{display:block}
-.ac-main{flex:1;display:flex;flex-direction:column;min-width:0}
-.ac-msgs{flex:1;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:14px}
-.ac-empty{margin:auto;text-align:center;color:var(--muted)}
-.ac-empty .big{font-size:44px}
-.msg{max-width:76%;padding:12px 16px;border-radius:16px;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word;box-shadow:0 4px 14px rgba(15,23,42,.08)}
-.msg.user{align-self:flex-end;background:var(--user-bg);color:#fff;border-bottom-right-radius:4px}
-.msg.ai{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
-.msg .file{display:block;margin-top:6px;font-size:11px;opacity:.8}
-.msg .ts{display:block;margin-top:6px;font-size:10px;opacity:.55;text-align:right}
-.typing{align-self:flex-start;display:flex;gap:5px;padding:14px 18px;background:var(--card);border:1px solid var(--border);border-radius:16px}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:
+  radial-gradient(1200px 500px at 85% -10%, rgba(139,92,246,.14), transparent 60%),
+  radial-gradient(900px 420px at -10% 110%, rgba(79,109,245,.12), transparent 60%),
+  var(--bg); color:var(--text); display:flex; flex-direction:column; overflow:hidden}
+::-webkit-scrollbar{width:9px}
+::-webkit-scrollbar-thumb{background:rgba(120,134,170,.35);border-radius:99px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ── Шапка ── */
+.top{display:flex;align-items:center;gap:14px;padding:14px 22px;
+  background:color-mix(in srgb, var(--card) 82%, transparent);
+  backdrop-filter:blur(14px); border-bottom:1px solid var(--border); z-index:5}
+.logo{width:46px;height:46px;border-radius:16px;position:relative;flex:none;
+  background:linear-gradient(135deg,var(--acc1),var(--acc2));
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  box-shadow:0 6px 18px rgba(99,102,241,.35)}
+.logo::after{content:"";position:absolute;inset:-3px;border-radius:19px;
+  background:conic-gradient(from 0deg, var(--acc1), var(--acc2), var(--acc1));
+  z-index:-1;filter:blur(6px);opacity:.55;animation:spin 6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.top h1{font-size:17px;font-weight:800;letter-spacing:.01em}
+.top .sub{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);
+  box-shadow:0 0 0 3px rgba(16,185,129,.18);animation:blink 2.4s infinite}
+@keyframes blink{50%{opacity:.5}}
+.top .home{margin-left:auto;text-decoration:none;color:var(--acc1);font-weight:700;font-size:13px;
+  padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card)}
+.top .home:hover{border-color:var(--acc1)}
+
+.body{flex:1;display:flex;min-height:0}
+
+/* ── Сайдбар ── */
+.side{width:292px;flex:none;display:flex;flex-direction:column;
+  border-right:1px solid var(--border);background:var(--bg2)}
+.newchat{margin:14px;padding:13px;border:none;border-radius:14px;cursor:pointer;
+  background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;
+  font:inherit;font-weight:700;font-size:14px;letter-spacing:.02em;
+  box-shadow:0 8px 20px rgba(99,102,241,.35);transition:.2s}
+.newchat:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.list{flex:1;overflow-y:auto;padding:2px 10px 14px}
+.item{padding:11px 12px;border-radius:12px;cursor:pointer;margin-bottom:4px;
+  border:1px solid transparent;position:relative;transition:.15s;animation:fadeUp .25s both}
+.item:hover{background:color-mix(in srgb, var(--card) 70%, transparent)}
+.item.on{background:var(--card);border-color:color-mix(in srgb, var(--acc1) 40%, transparent);
+  box-shadow:var(--shadow)}
+.item .t{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;padding-right:24px}
+.item .p{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.item .del{position:absolute;right:8px;top:9px;border:none;background:none;color:var(--muted);
+  cursor:pointer;font-size:12px;opacity:0;transition:.15s}
+.item:hover .del{opacity:1}
+.item .del:hover{color:var(--danger)}
+
+/* ── Чат ── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.msgs{flex:1;overflow-y:auto;padding:26px 8%;display:flex;flex-direction:column;gap:18px}
+.empty{margin:auto;text-align:center;color:var(--muted);animation:fadeUp .4s both}
+.empty .robot{font-size:56px;filter:drop-shadow(0 8px 18px rgba(139,92,246,.35))}
+.empty h2{font-size:19px;color:var(--text);margin:14px 0 6px;font-weight:800}
+.empty p{font-size:13px;max-width:380px;line-height:1.6}
+.row{display:flex;gap:12px;max-width:86%;animation:fadeUp .3s both}
+.row.user{align-self:flex-end;flex-direction:row-reverse}
+.ava{width:38px;height:38px;border-radius:12px;flex:none;display:flex;align-items:center;
+  justify-content:center;font-size:17px;background:var(--card);border:1px solid var(--border)}
+.row.ai .ava{background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;
+  box-shadow:0 4px 14px rgba(99,102,241,.3)}
+.bubble{padding:13px 17px;border-radius:18px;font-size:14px;line-height:1.62;
+  white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)}
+.row.ai .bubble{background:var(--card);border:1px solid var(--border);
+  border-top-left-radius:6px}
+.row.user .bubble{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;
+  border-top-right-radius:6px}
+.bubble .file{display:inline-block;margin-top:8px;padding:4px 10px;border-radius:999px;
+  font-size:11px;background:rgba(255,255,255,.16)}
+.row.ai .bubble .file{background:var(--bg2);color:var(--muted)}
+.bubble .ts{display:block;margin-top:7px;font-size:10px;opacity:.5;text-align:right}
+.typing{display:flex;gap:5px;padding:16px 20px}
 .typing i{width:7px;height:7px;border-radius:50%;background:var(--acc2);animation:tp 1s infinite}
-.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
-@keyframes tp{0%,100%{opacity:.25}50%{opacity:1}}
-.ac-input{display:flex;gap:8px;align-items:flex-end;padding:14px 18px;background:var(--card);border-top:1px solid var(--border)}
-.ac-input textarea{flex:1;resize:none;border:1px solid var(--border);border-radius:12px;padding:11px 14px;font:inherit;font-size:14px;background:var(--bg);color:var(--text);max-height:140px;outline:none}
-.ac-input textarea:focus{border-color:var(--acc1)}
-.ibtn{width:44px;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}
-.ibtn:hover{border-color:var(--acc1);color:var(--acc1)}
-.ibtn.send{background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;color:#fff}
-.ibtn.mic.on{background:#ef4444;border-color:#ef4444;color:#fff;animation:pulse 1.2s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
-.chips{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 10px;background:var(--card)}
-.chip{font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:999px;padding:3px 10px}
-@media(max-width:800px){.ac-side{display:none}}
+.typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
+@keyframes tp{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── Ввод ── */
+.composer{padding:12px 8% 18px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.chips:empty{display:none}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);
+  background:var(--card);border:1px solid var(--border);border-radius:999px;
+  padding:5px 6px 5px 11px;animation:fadeUp .2s both}
+.chip b{color:var(--text);font-weight:600;max-width:180px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.chip button{border:none;background:var(--bg2);color:var(--muted);width:18px;height:18px;
+  border-radius:50%;cursor:pointer;font-size:10px;line-height:1}
+.chip button:hover{background:var(--danger);color:#fff}
+.bar{display:flex;align-items:flex-end;gap:8px;padding:9px;border-radius:20px;
+  background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow)}
+.bar textarea{flex:1;border:none;background:transparent;color:var(--text);resize:none;
+  font:inherit;font-size:14px;padding:10px 8px;max-height:150px;outline:none}
+.ibtn{width:42px;height:42px;border-radius:14px;border:1px solid var(--border);flex:none;
+  background:var(--bg2);color:var(--text);font-size:17px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:.18s}
+.ibtn:hover{border-color:var(--acc1);color:var(--acc1);transform:translateY(-1px)}
+.ibtn.plus{font-size:20px;font-weight:700}
+.ibtn.mic.on{background:var(--danger);border-color:var(--danger);color:#fff;
+  animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+.ibtn.send{background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;color:#fff;
+  box-shadow:0 6px 16px rgba(99,102,241,.35)}
+.ibtn.send:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.hint{margin-top:7px;font-size:10.5px;color:var(--muted);text-align:center}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:var(--text);color:var(--bg);padding:11px 18px;border-radius:12px;font-size:13px;
+  opacity:0;pointer-events:none;transition:.3s;z-index:50;box-shadow:var(--shadow)}
+.toast.show{opacity:1;transform:translateX(-50%)}
+@media(max-width:860px){.side{display:none}.msgs,.composer{padding-left:4%;padding-right:4%}}
 </style>
 </head>
 <body>
-<div class="ac-top">
-  <div class="ac-logo">🤖</div>
-  <div><h1>Нейрона AI-чат</h1><div class="sub">Нейрона ИИ · локальный контур Подмосковья</div></div>
-  <a href="/">← Главная</a>
+<div class="top">
+  <div class="logo">🤖</div>
+  <div>
+    <h1>Нейрона AI-чат</h1>
+    <div class="sub"><span class="dot"></span> локальный контур Подмосковья · файлы · диктовка</div>
+  </div>
+  <a class="home" href="/">← Главная</a>
 </div>
-<div class="ac-body">
-  <aside class="ac-side">
-    <button class="ac-new" id="newBtn">＋ Новый чат</button>
-    <div class="ac-list" id="dlgList"></div>
+<div class="body">
+  <aside class="side">
+    <button class="newchat" id="newBtn">＋&nbsp; Новый чат</button>
+    <div class="list" id="dlgList"></div>
   </aside>
-  <main class="ac-main">
-    <div class="ac-msgs" id="msgs"></div>
-    <div class="chips" id="chips"></div>
-    <div class="ac-input">
-      <input type="file" id="file" multiple hidden accept=".txt,.docx,.pdf,.csv,.md,.xls,.xlsx,.pptx">
-      <button class="ibtn" id="attachBtn" title="Прикрепить файл (txt, docx, pdf, xls, xlsx, pptx)">📎</button>
-      <textarea id="inp" rows="1" placeholder="Сообщение… (Enter — отправить, Shift+Enter — перенос)"></textarea>
-      <button class="ibtn mic" id="micBtn" title="Диктовка голосом">🎤</button>
-      <button class="ibtn send" id="sendBtn" title="Отправить">➤</button>
+  <main class="main">
+    <div class="msgs" id="msgs"></div>
+    <div class="composer">
+      <div class="chips" id="chips"></div>
+      <div class="bar">
+        <input type="file" id="file" multiple hidden
+               accept=".txt,.docx,.pdf,.csv,.md,.xls,.xlsx,.pptx,.webm,.mp3,.wav,.m4a,.ogg">
+        <button class="ibtn plus" id="attachBtn" title="Прикрепить файл или аудио">＋</button>
+        <textarea id="inp" rows="1" placeholder="Напишите сообщение…"></textarea>
+        <button class="ibtn mic" id="micBtn" title="Диктовка (микрофон или аудиофайл)">🎤</button>
+        <button class="ibtn send" id="sendBtn" title="Отправить">➤</button>
+      </div>
+      <div class="hint">Enter — отправить · Shift+Enter — перенос · 🎤 — диктовка · ＋ — файлы (txt, docx, pdf, xls, xlsx, pptx, аудио)</div>
     </div>
   </main>
 </div>
+<div class="toast" id="toast"></div>
 <script>
-let cur = null, busy = false;
+let cur = null, busy = false, attached = [], rec = null, recording = false;
 const $ = id => document.getElementById(id);
 const api = (u, o) => fetch(u, o).then(r => r.json());
-function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function fmt(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>"); }
+const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>");
+function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("show");
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"), 4200); }
 
 async function loadList(){
   const r = await api("/aichat/api/dialogs");
   $("dlgList").innerHTML = (r.items||[]).map(d =>
-    `<div class="ac-item ${d.id===cur?"on":""}" data-id="${d.id}">
+    `<div class="item ${d.id===cur?"on":""}" data-id="${d.id}">
        <div class="t">${esc(d.title)}</div><div class="p">${esc(d.preview)}</div>
-       <button class="del" data-del="${d.id}" title="Удалить">✕</button>
-     </div>`).join("") || '<div style="padding:12px;color:var(--muted);font-size:12px">История пуста</div>';
+       <button class="del" data-del="${d.id}" title="Удалить диалог">✕</button></div>`).join("")
+    || '<div style="padding:14px;font-size:12px;color:var(--muted)">История пуста</div>';
 }
 $("dlgList").addEventListener("click", e => {
   const del = e.target.closest("[data-del]");
-  if (del){ e.stopPropagation(); api("/aichat/api/dialogs/"+del.dataset.del, {method:"DELETE"}).then(()=>{ if(cur===del.dataset.del){cur=null;renderMsgs([]);} loadList(); }); return; }
-  const it = e.target.closest(".ac-item");
-  if (it) open(it.dataset.id);
+  if (del){ e.stopPropagation();
+    api("/aichat/api/dialogs/"+del.dataset.del,{method:"DELETE"}).then(()=>{
+      if(cur===del.dataset.del){cur=null;renderMsgs([]);} loadList(); }); return; }
+  const it = e.target.closest(".item"); if (it) open(it.dataset.id);
 });
-async function open(id){
-  cur = id;
-  const d = await api("/aichat/api/dialogs/"+id);
-  renderMsgs(d.messages||[]);
-  loadList();
-}
+async function open(id){ cur=id; const d=await api("/aichat/api/dialogs/"+id);
+  renderMsgs(d.messages||[]); loadList(); }
 function renderMsgs(msgs){
   $("msgs").innerHTML = msgs.length ? msgs.map(m =>
-    `<div class="msg ${m.role==="user"?"user":"ai"}">${fmt(m.content)}
-       ${m.file?`<span class="file">📎 ${esc(m.file)}</span>`:""}
-       <span class="ts">${(m.ts||"").slice(11,16)}</span></div>`).join("")
-    : `<div class="ac-empty"><div class="big">🤖</div>Начни диалог — история сохранится<br>и будет доступна с любого устройства сети.</div>`;
+    `<div class="row ${m.role==="user"?"user":"ai"}">
+       <div class="ava">${m.role==="user"?"👤":"🤖"}</div>
+       <div class="bubble">${fmt(m.content)}
+         ${m.file?`<span class="file">📎 ${esc(m.file)}</span>`:""}
+         <span class="ts">${(m.ts||"").slice(11,16)}</span></div></div>`).join("")
+    : `<div class="empty"><div class="robot">🤖</div>
+       <h2>Чем помочь?</h2>
+       <p>Я — Нейрона. Отвечаю на вопросы, разбираю прикреплённые файлы и понимаю диктовку. История диалогов сохраняется.</p></div>`;
   $("msgs").scrollTop = 1e9;
 }
-function addBubble(role, content, file){
+function addMsg(role, content, file){
   const el = document.createElement("div");
-  el.className = "msg " + (role==="user"?"user":"ai");
-  el.innerHTML = fmt(content) + (file?`<span class="file">📎 ${esc(file)}</span>`:"");
+  el.className = "row " + (role==="user"?"user":"ai");
+  el.innerHTML = `<div class="ava">${role==="user"?"👤":""}</div>
+    <div class="bubble">${fmt(content)}${file?`<span class="file">📎 ${esc(file)}</span>`:""}</div>`;
   $("msgs").appendChild(el); $("msgs").scrollTop = 1e9;
 }
-function typing(on){
-  let t = $("typing");
-  if (on && !t){ t = document.createElement("div"); t.id="typing"; t.className="typing"; t.innerHTML="<i></i><i></i><i></i>"; $("msgs").appendChild(t); $("msgs").scrollTop=1e9; }
-  if (!on && t) t.remove();
+function typing(on){ let t=$("typing");
+  if(on&&!t){ t=document.createElement("div"); t.id="typing"; t.className="row ai";
+    t.innerHTML='<div class="ava">🤖</div><div class="bubble typing"><i></i><i></i><i></i></div>';
+    $("msgs").appendChild(t); $("msgs").scrollTop=1e9; }
+  if(!on&&t) t.remove(); }
+
+/* ── файлы: чипы с удалением ── */
+function renderChips(){
+  $("chips").innerHTML = attached.map((f,i)=>{
+    const audio = /\.(webm|mp3|wav|m4a|ogg)$/i.test(f.name);
+    return `<span class="chip">${audio?"🎤":"📄"}<b>${esc(f.name)}</b>
+      <button data-rm="${i}" title="Убрать файл">✕</button></span>`; }).join("");
 }
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("[data-rm]"); if(!b) return;
+  attached.splice(+b.dataset.rm, 1); renderChips();
+});
+$("attachBtn").onclick = () => $("file").click();
+$("file").onchange = () => { attached.push(...$("file").files); $("file").value=""; renderChips(); };
+
 async function send(){
   if (busy) return;
   const text = $("inp").value.trim();
-  const files = $("file").files;
-  if (!text && !files.length) return;
+  if (!text && !attached.length) return;
   const fd = new FormData();
-  fd.append("dialog_id", cur||"");
-  fd.append("text", text);
-  for (const f of files) fd.append("file", f);
-  const fname = files.length ? [...files].map(f=>f.name).join(", ") : null;
-  addBubble("user", text || "Приложены файлы: " + (fname||""), fname);
-  $("inp").value = ""; $("file").value = ""; chips();
-  busy = true; typing(true);
-  try {
+  fd.append("dialog_id", cur||""); fd.append("text", text);
+  attached.forEach(f => fd.append("file", f));
+  const names = attached.map(f=>f.name).join(", ");
+  addMsg("user", text || ("Приложены файлы: " + names), names || null);
+  $("inp").value=""; attached=[]; renderChips();
+  busy=true; typing(true);
+  try{
     const r = await api("/aichat/api/send", {method:"POST", body:fd});
     typing(false);
-    if (r.error){ addBubble("ai", "⚠️ " + r.error); }
-    else { cur = r.dialog_id; addBubble("ai", r.answer); }
-  } catch(e){ typing(false); addBubble("ai", "⚠️ Сетевая ошибка: " + e.message); }
-  busy = false; loadList();
-}
-function chips(){
-  const n = $("file").files.length;
-  $("chips").innerHTML = n ? [...$("file").files].map(f=>`<span class="chip">📎 ${esc(f.name)}</span>`).join("") : "";
+    if (r.error) addMsg("ai", "⚠️ " + r.error);
+    else { cur=r.dialog_id; addMsg("ai", r.answer); }
+  }catch(e){ typing(false); addMsg("ai", "⚠️ Сетевая ошибка: " + e.message); }
+  busy=false; loadList();
 }
 $("sendBtn").onclick = send;
-$("newBtn").onclick = async () => { const d = await api("/aichat/api/dialogs", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"}); cur = d.id; renderMsgs([]); loadList(); };
-$("attachBtn").onclick = () => $("file").click();
-$("file").onchange = chips;
-$("inp").addEventListener("keydown", e => { if (e.key==="Enter" && !e.shiftKey){ e.preventDefault(); send(); } });
-$("inp").addEventListener("input", () => { $("inp").style.height="auto"; $("inp").style.height=Math.min(140,$("inp").scrollHeight)+"px"; });
+$("newBtn").onclick = async () => {
+  const d = await api("/aichat/api/dialogs",{method:"POST",
+    headers:{"Content-Type":"application/json"},body:"{}"});
+  cur=d.id; renderMsgs([]); loadList(); };
+$("inp").addEventListener("keydown", e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();} });
+$("inp").addEventListener("input", () => { $("inp").style.height="auto";
+  $("inp").style.height=Math.min(150,$("inp").scrollHeight)+"px"; });
 
-/* ── Диктовка голосом ── */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SR){
-  const rec = new SR(); rec.lang = "ru-RU"; rec.interimResults = true; rec.continuous = false;
-  let base = "";
-  rec.onresult = e => { let t = ""; for (const r of e.results) t += r[0].transcript; $("inp").value = (base ? base + " " : "") + t; };
-  rec.onend = () => $("micBtn").classList.remove("on");
-  rec.onerror = (e) => {
-    $("micBtn").classList.remove("on");
-    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-      alert("🎤 Диктовка запрещена политикой организации: браузер блокирует микрофон.\n" +
-            "Обратитесь к системному администратору или откройте чат в браузере без корпоративных ограничений.");
-    }
+/* ── диктовка: микрофон, а при блоке — аудиофайл ── */
+function audioFallback(){
+  const i = document.createElement("input");
+  i.type="file"; i.accept="audio/*,.webm,.mp3,.wav,.m4a,.ogg";
+  i.onchange = async () => {
+    const f = i.files[0]; if(!f) return;
+    $("micBtn").textContent="⏳";
+    const fd = new FormData(); fd.append("audio", f);
+    try{
+      const r = await fetch("/aichat/api/transcribe",{method:"POST",body:fd});
+      const j = await r.json();
+      if (j.text) { $("inp").value = ($("inp").value? $("inp").value+" ": "") + j.text;
+        toast("🎤 Распознано: " + j.text.slice(0,60) + "…"); }
+      else toast("Не удалось распознать: " + (j.error||"пустой ответ"));
+    }catch(e){ toast("Ошибка распознавания: " + e.message); }
+    $("micBtn").textContent="🎤"; $("inp").focus();
   };
-  $("micBtn").onclick = () => {
-    if ($("micBtn").classList.contains("on")) rec.stop();
-    else { base = $("inp").value.trim(); rec.start(); $("micBtn").classList.add("on"); }
-  };
-} else {
-  $("micBtn").title = "Диктовка не поддерживается этим браузером";
-  $("micBtn").style.opacity = .4;
+  i.click();
 }
+$("micBtn").onclick = async () => {
+  if (recording){ rec.stop(); return; }
+  const MIME = window.MediaRecorder && MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+  if (!navigator.mediaDevices || !MIME) return audioFallback();
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    let base = $("inp").value.trim(), chunks = [];
+    rec = new MediaRecorder(stream, {mimeType:MIME});
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t=>t.stop());
+      recording=false; $("micBtn").classList.remove("on"); $("micBtn").textContent="⏳";
+      const fd = new FormData();
+      fd.append("audio", new Blob(chunks,{type:MIME}), "voice.webm");
+      try{
+        const r = await fetch("/aichat/api/transcribe",{method:"POST",body:fd});
+        const j = await r.json();
+        if (j.text) $("inp").value = (base? base+" ": "") + j.text;
+        else toast("Не удалось распознать: " + (j.error||""));
+      }catch(e){ toast("Ошибка: " + e.message); }
+      $("micBtn").textContent="🎤";
+    };
+    rec.start(); recording=true;
+    $("micBtn").classList.add("on"); $("micBtn").textContent="⏹";
+  }catch(e){
+    toast("🎤 Микрофон заблокирован политикой — выберите аудиофайл, я распознаю его");
+    audioFallback();
+  }
+};
 loadList();
 </script>
 </body>

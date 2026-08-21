@@ -90,6 +90,14 @@ def extract_pdf(data: bytes) -> str:
 def extract_any(name: str, data: bytes) -> str:
     low = (name or "").lower()
     try:
+        if low.endswith((".webm", ".mp3", ".wav", ".m4a", ".ogg", ".opus")):
+            from services.aichat.engine import transcribe
+            ext = low.rsplit(".", 1)[-1]
+            mime = {"webm": "audio/webm", "mp3": "audio/mpeg", "wav": "audio/wav",
+                    "m4a": "audio/mp4", "ogg": "audio/ogg",
+                    "opus": "audio/opus"}.get(ext, "audio/webm")
+            t = transcribe(data, mime)
+            return f"🎤 Распознанная диктовка: {t}" if t else "[не удалось распознать аудио]"
         if low.endswith((".xlsx",)):
             return extract_xlsx(data) or "[пустая книга]"
         if low.endswith((".xls",)):
