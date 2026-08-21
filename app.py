@@ -3338,7 +3338,9 @@ async def aichat_send(request: Request):
             data = await up.read()
             from services.aichat.extract import extract_any
             ftext = extract_any(name, data)
-            file_parts.append(f"── ФАЙЛ: {name} ──\n{ftext[:12000]}")
+            if len(ftext) > 60000:
+                ftext = ftext[:60000] + "\n…[файл обрезан — показаны первые 60 000 символов]"
+            file_parts.append(f"── ФАЙЛ: {name} ──\n{ftext}")
         except Exception as e:
             file_parts.append(f"── ФАЙЛ: {name} ──\n[не удалось извлечь текст: {e}]")
 
