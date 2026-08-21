@@ -89,15 +89,28 @@ def top5(table, field):
     return [{"name": r["name"], "value": r[field]} for r in rows if r[field] > 0]
 
 
+def bottom5(table, field):
+    """Топ-5 лучших (минимальные значения = лучшие показатели)."""
+    rows = sorted(table, key=lambda r: r[field])[:5]
+    return [{"name": r["name"], "value": r[field]} for r in rows if r[field] >= 0]
+
+
+
 def extract_refresh_info(text):
-    """Достаёт строку вида «Дашборд автоматически обновляется каждые 30 мин.»"""
+    """Достаёт строку вида «Дашборд автоматически обновляется каждые 30 мин.»
+    Хвосты после времени/минут обрезаем (лишние пояснения про кликабельность)."""
     if not text:
         return ""
-    m = re.search(r"[^\n]*каждые\s+[\d\s–-]+мин[^\n]*", text, re.IGNORECASE)
+    m = re.search(r"[^\n]*каждые\s+[\d\s–-]+мин", text, re.IGNORECASE)
     if m:
-        return m.group(0).strip()
+        return m.group(0).strip().rstrip(".,;:")
+    # «…обновляется ежедневно с 9:00 до 10:30» — стоп после времени
+    m = re.search(r"[^\n]*обновляетс[^\n]*?\d{1,2}:\d{2}(?:\s*до\s*\d{1,2}:\d{2})?",
+                  text, re.IGNORECASE)
+    if m:
+        return m.group(0).strip().rstrip(".,;:")
     m = re.search(r"[^\n]*обновляетс[^\n]*", text, re.IGNORECASE)
-    return m.group(0).strip() if m else ""
+    return m.group(0).strip().rstrip(".,;:") if m else ""
 
 
 def parse_nvos_kpis(text):
@@ -206,6 +219,14 @@ def build_snapshot(extractions):
             "sysKR": top5(table, "sysKR"),
             "resKR": top5(table, "resKR"),
             "att_low": sorted([r for r in table if r["att"] > 0], key=lambda r: r["att"])[:5],
+        },
+        "bottoms": {
+            "resVS": bottom5(table, "resVS"),
+            "sysVS": bottom5(table, "sysVS"),
+            "tasks": bottom5(table, "tasks"),
+            "sysKR": bottom5(table, "sysKR"),
+            "resKR": bottom5(table, "resKR"),
+            "att_high": sorted([r for r in table if r["att"] > 0], key=lambda r: -r["att"])[:5],
         },
         "sources_updated": {sid: bool(d.get("tables")) for sid, d in (extractions or {}).items()},
         "kpi_cards": prev.get("kpi_cards", {}),

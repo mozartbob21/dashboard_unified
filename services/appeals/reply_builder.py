@@ -2,6 +2,187 @@ from __future__ import annotations
 import re
 import hashlib
 
+# ═══════════════════════════════════════════════════════════════════════
+# AI-ЭМПАТИЯ v2 — Qwen АНАЛИЗИРУЕТ обращение и ГЕНЕРИРУЕТ эмпатичный блок
+# ═══════════════════════════════════════════════════════════════════════
+# Логика:
+#   1. Алгоритм по-прежнему вычисляет метрики (для приоритета и статистики)
+#   2. Qwen АНАЛИЗИРУЕТ оригинальное обращение
+#   3. Qwen ГЕНЕРИРУЕТ готовый эмпатичный блок (JSON)
+#   4. Валидация → если ок, идём в шаблон; если нет — fallback на алгоритм
+
+import os as _os
+import hashlib as _hashlib
+import json as _json
+
+_AI_CACHE = {}
+
+# Запрещённые формулировки — субординация госструктуры
+_AI_FORBIDDEN = [
+    r"приносим\s+извинени\w*", r"просим\s+прощени\w*", r"простите",
+    r"извинит(?:е|есь)", r"приношу\s+извинени\w*", r"нам\s+очень\s+жаль",
+    r"наша\s+вина", r"мы\s+виноват\w*", r"по\s+нашей\s+вине",
+    r"халатност\w*\s+с\s+нашей", r"наш\w*\s+упущени\w*",
+    r"обеща(?:ем|ю)\s+(?:завтра|через\s+\d|к\s+\d|до\s+\w+а)",
+    r"завтра\s+(?:утром|днём|вечером)", r"в\s+ближайшие\s+\d\s+(?:дн|час)",
+    r"до\s+(?:конца\s+дня|пятницы|завтра)",
+    r"обязуемс\w+", r"гарантиру\w+\s+(?:исправ|устран|почин)",
+]
+
+_AI_SYSTEM_PROMPT = (
+    "Ты — помощник специалиста по работе с обращениями граждан в государственной "
+    "структуре (Администрация городского округа / министерство Московской области).\n\n"
+    "Тебе дано ОРИГИНАЛЬНОЕ ОБРАЩЕНИЕ гражданина и метаданные о ситуации.\n\n"
+    "ТВОЯ ЗАДАЧА:\n"
+    "1. Определи доминирующую эмоцию гражданина из списка: "
+    "ГНЕВ, ОТЧАЯНИЕ, СТРАХ, ОТВРАЩЕНИЕ, СКОРБЬ, РАЗДРАЖЕНИЕ, АПАТИЯ, NEUTRAL.\n"
+    "2. Сгенерируй ОДИН эмпатичный абзац (2-4 предложения), который будет вставлен "
+    "в официальный ответ сразу после обращения 'Уважаемый...'.\n\n"
+    "СТРОГИЕ ПРАВИЛА СУБОРДИНАЦИИ (неукоснительно):\n"
+    "• Признавай СОСТОЯНИЕ гражданина и ОБЪЕКТИВНУЮ ситуацию.\n"
+    "• НЕ ИЗВИНЯЙСЯ за организацию. Запрещены: «приносим извинения», "
+    "«просим прощения», «простите», «извините», «нам очень жаль», «по нашей вине».\n"
+    "• НЕ ОБЕЩАЙ конкретных сроков («завтра», «через 3 дня», «до пятницы»). "
+    "Допустимо: «в кратчайшие сроки», «оперативно», «в приоритетном порядке».\n"
+    "• НЕ ПРИЗНАВАЙ вину, халатность или упущения организации.\n"
+    "• Учитывай соцгруппу (если есть): для семей с детьми — про безопасность детей, "
+    "для пенсионеров — про уважение к старшему поколению и т.д.\n"
+    "• Учитывай критичность ситуации: при МАКСИМАЛЬНОМ/ВЫСОКОМ уровне — "
+    "подчеркни первоочередное реагирование.\n"
+    "• Пиши ТЕПЛО, ПО-ЧЕЛОВЕЧЕСКИ, но сохраняй официально-деловой подтон. "
+    "Без сленга, смайлов, «на ты».\n"
+    "• НЕ начинай с обращения «Уважаемый...» — оно уже есть в шаблоне.\n"
+    "• Язык — русский.\n\n"
+    "ВЕРНИ СТРОГО JSON без markdown-обёрток и комментариев:\n"
+    '{"emotion": "ОТЧАЯНИЕ", "empathy_block": "готовый эмпатичный абзац"}'
+)
+
+
+def _ai_empathy_forbidden(text):
+    """Проверка на запрещённые формулировки."""
+    if not text:
+        return True
+    tl = text.lower()
+    for pat in _AI_FORBIDDEN:
+        if re.search(pat, tl, flags=re.IGNORECASE):
+            return True
+    return False
+
+
+def _ai_empathy_cache_key(original_text, meta):
+    raw = (original_text or "") + "|" + _json.dumps(meta, sort_keys=True, ensure_ascii=False)
+    return _hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def _ai_empathy_call(original_text, subject, meta):
+    """Вызов Qwen: анализ обращения + генерация эмпатичного блока."""
+    try:
+        from services.summarizer.engine import _qwen_chat
+    except Exception as e:
+        print(f"[empathy-ai] импорт _qwen_chat не удался: {e}", flush=True)
+        return None
+
+    user_prompt = (
+        f"ОБРАЩЕНИЕ ГРАЖДАНИНА:\n"
+        f"Тема: {subject or '—'}\n"
+        f"Текст:\n{original_text or '—'}\n\n"
+        f"МЕТАДАННЫЕ:\n"
+        f"- Социальная группа: {meta.get('social_class', 'Житель')}\n"
+        f"- Критичность ситуации: {meta.get('criticality', 'НИЗКИЙ')}\n"
+        f"- Приоритет реагирования: {meta.get('priority', 'planned')}\n"
+        f"- Длительность проблемы: {meta.get('duration', '—')}\n"
+        f"- Повторное обращение: {meta.get('is_repeated', False)}\n"
+        f"- Коллективное: {meta.get('is_collective', False)}\n\n"
+        f"Верни JSON с emotion и empathy_block."
+    )
+
+    try:
+        raw = _qwen_chat(
+            messages=[
+                {"role": "system", "content": _AI_SYSTEM_PROMPT},
+                {"role": "user",   "content": user_prompt},
+            ],
+            max_tokens=700,
+        )
+    except Exception as e:
+        print(f"[empathy-ai] ошибка Qwen: {e}", flush=True)
+        return None
+
+    # Парсим JSON (с очисткой от возможных markdown-обёрток)
+    cleaned = (raw or "").strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    # Ищем JSON-объект в ответе
+    m = re.search(r"\{[^{}]*\"emotion\"[^{}]*\}", cleaned, re.S)
+    if not m:
+        print(f"[empathy-ai] JSON не найден в ответе: {cleaned[:200]}", flush=True)
+        return None
+
+    try:
+        data = _json.loads(m.group(0))
+    except Exception as e:
+        print(f"[empathy-ai] невалидный JSON: {e}", flush=True)
+        return None
+
+    emotion = str(data.get("emotion", "NEUTRAL")).strip().upper()
+    block = str(data.get("empathy_block", "")).strip()
+
+    # Валидация
+    if _ai_empathy_forbidden(block):
+        print("[empathy-ai] блок забракован (извинения/вина/сроки) → algo", flush=True)
+        return None
+    if len(block) < 80:
+        print(f"[empathy-ai] блок слишком короткий ({len(block)}) → algo", flush=True)
+        return None
+    if len(block) > 700:
+        print(f"[empathy-ai] блок слишком длинный ({len(block)}) → algo", flush=True)
+        return None
+
+    return {"emotion": emotion, "empathy_block": block}
+
+
+def build_empathy_block_ai(original_text, subject, meta):
+    """
+    Пытается сгенерировать эмпатичный блок через Qwen (анализ обращения).
+    Возвращает строку-блок ИЛИ None, если нужно использовать algo fallback.
+    """
+    if not original_text:
+        return None
+
+    cache_key = _ai_empathy_cache_key(original_text, meta or {})
+    if cache_key in _AI_CACHE:
+        return _AI_CACHE[cache_key]
+
+    result = _ai_empathy_call(original_text, subject, meta or {})
+    if result and result.get("empathy_block"):
+        block = result["empathy_block"]
+        _AI_CACHE[cache_key] = block
+        print(f"[empathy-ai] ✅ emotion={result['emotion']}, "
+              f"блок ({len(block)} симв.)", flush=True)
+        return block
+
+    _AI_CACHE[cache_key] = None
+    return None
+
+
+
+    cache_key = _ai_empathy_cache_key(algo_block, meta or {})
+    if cache_key in _AI_CACHE:
+        return _AI_CACHE[cache_key]
+
+    live = _ai_empathy_call(algo_block, meta or {})
+    if live:
+        _AI_CACHE[cache_key] = live
+        print(f"[empathy-ai] ✅ живой блок ({len(live)} симв.)", flush=True)
+        return live
+
+    # Любой сбой → возвращаем алгоритмический блок (он уже корректен юридически)
+    _AI_CACHE[cache_key] = algo_block
+    return algo_block
+
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # КОНТЕКСТНО-СОБИРАЕМАЯ ЭМПАТИЯ (алгоритмическая, без ИИ)
 #
@@ -236,10 +417,12 @@ def _capitalize_first(s: str) -> str:
 # СБОРКА ЭМПАТИЧНОГО БЛОКА
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def build_empathy_block(analysis: dict, item_id: str = "") -> str:
+def build_empathy_block(analysis: dict, item_id: str = "", mode: str = None,
+                                   original_text: str = "", subject: str = "") -> str:
     """
-    Собирает эмпатичный абзац из слоёв на основе данных анализа.
-    Полностью алгоритмический подход (без ИИ).
+    Собирает эмпатичный абзац.
+    - algo: только алгоритм
+    - qwen/auto: Qwen анализирует обращение и генерирует блок (с fallback на algo)
     """
     analysis = analysis or {}
     seed = _seed_from_id(item_id)
@@ -302,17 +485,42 @@ def build_empathy_block(analysis: dict, item_id: str = "") -> str:
     # Для NEUTRAL без критичности закрывающая фраза мягче — оставляем planned-тон
     parts.append(_pick(ACTION_CLOSERS[priority], seed // 19))
 
-    return " ".join(p.strip() for p in parts if p.strip())
+    algo_block = " ".join(p.strip() for p in parts if p.strip())
+
+    # ── Режим: algo / qwen / auto ──
+    resolved_mode = (mode or _os.getenv("EMPATHY_BACKEND", "auto")).strip().lower()
+    if resolved_mode == "algo":
+        return algo_block
+
+    # Метаданные для Qwen (уже вычислены алгоритмом)
+    meta = {
+        "algo_emotion": analysis.get("emotion_class", "NEUTRAL"),
+        "social_class": analysis.get("social_class", "Житель"),
+        "criticality": analysis.get("criticality_level", "НИЗКИЙ"),
+        "priority": analysis.get("priority_level", "planned"),
+        "duration": analysis.get("duration_days") or "—",
+        "is_repeated": bool(analysis.get("is_repeated")),
+        "is_collective": bool(analysis.get("isCollective")),
+    }
+
+    # Qwen АНАЛИЗИРУЕТ обращение и ГЕНЕРИРУЕТ блок
+    ai_block = build_empathy_block_ai(original_text, subject, meta)
+    if ai_block:
+        return ai_block
+
+    # Любой сбой Qwen → алгоритмический блок (всегда корректен)
+    return algo_block
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ГЛАВНЫЕ ФУНКЦИИ (совместимый интерфейс)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def get_empathy_block(emotion_class: str, item: dict = None) -> str:
+def get_empathy_block(emotion_class: str, item: dict = None, mode: str = None,
+                                  original_text: str = "", subject: str = "") -> str:
     """
-    Совместимая обёртка. Теперь собирает контекстный блок,
-    используя весь analysis_data, если он доступен в item.
+    Совместимая обёртка. Передаёт mode в build_empathy_block.
+    mode: "algo" | "qwen" | "auto" | None (None — из env EMPATHY_BACKEND).
     """
     item = item or {}
     analysis = {}
@@ -322,11 +530,16 @@ def get_empathy_block(emotion_class: str, item: dict = None) -> str:
         analysis = dict(item.get("analysis_data") or {})
         item_id = str(item.get("request_id") or item.get("id") or "")
 
-    # Если эмоция передана явно, а в анализе её нет — подставим
     if emotion_class and not analysis.get("emotion_class"):
         analysis["emotion_class"] = emotion_class
 
-    return build_empathy_block(analysis, item_id=item_id)
+    # Извлекаем оригинальный текст и тему из item, если не переданы явно
+    if not original_text and isinstance(item, dict):
+        original_text = str(item.get('original_text') or '')
+    if not subject and isinstance(item, dict):
+        subject = str(item.get('subject') or '')
+    return build_empathy_block(analysis, item_id=item_id, mode=mode,
+                               original_text=original_text, subject=subject)
 
 
 def generate_reply_from_template(template_text, facts_text, item):
@@ -336,8 +549,11 @@ def generate_reply_from_template(template_text, facts_text, item):
     item = item or {}
     analysis = item.get("analysis_data") or {}
     item_id = str(item.get("request_id") or item.get("id") or "")
+    original_text = str(item.get("original_text") or "")
+    subject = str(item.get("subject") or "")
 
-    empathy = build_empathy_block(analysis, item_id=item_id)
+    empathy = build_empathy_block(analysis, item_id=item_id,
+                                   original_text=original_text, subject=subject)
 
     text = template_text or ""
 

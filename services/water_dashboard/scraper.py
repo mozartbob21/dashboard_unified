@@ -155,17 +155,19 @@ def _select_penultimate_date(page, sid):
 
 
 def _wait_for_content(page):
-    """Умное ожидание: ждём появления таблиц/виджетов или fallback на таймер."""
+    """Ждём реальную готовность виджетов: сеть спокойна, спиннеры исчезли, пауза."""
+    try:
+        page.wait_for_load_state("networkidle", timeout=20000)
+    except Exception:
+        pass
     try:
         page.wait_for_selector(
-            'table, .dl-widget, [class*="chart"], [class*="widget"]',
-            timeout=15000,
-        )
-        # + небольшой буфер для финальной отрисовки чисел
-        page.wait_for_timeout(1500)
+            ".dc-loader, .loader, [class*='spinner'], [class*='loading'], [class*='progress']",
+            state="detached", timeout=8000)
     except Exception:
-        # fallback: ждём фиксированное время
-        page.wait_for_timeout(PAGE_WAIT_SECONDS * 1000)
+        pass
+    page.wait_for_timeout(3500)
+
 
 
 def scrape_all():
@@ -195,6 +197,11 @@ def scrape_all():
                 # Специальная обработка для НВОС: выбор предпоследней даты
                 if sid == "nvos":
                     _select_penultimate_date(page, sid)
+                    try:  # stab-wait: ждём применения фильтра даты
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
+                    page.wait_for_timeout(5000)
 
                 tables = page.evaluate(TABLES_JS)
                 text = page.evaluate("() => document.body.innerText")

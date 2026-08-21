@@ -135,6 +135,18 @@
         .wd-card.open .wd-detail{display:block;animation:wdpop .15s ease}
         @keyframes wdpop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
         /* ===== /ОДИНАКОВЫЙ РАЗМЕР ===== */
+    
+        .wd-top5-best{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;margin-top:8px}
+        .wd-top5-best li{display:flex;align-items:baseline;gap:8px;font-size:12px}
+        .wd-top5-best .n{color:var(--muted-color,#64748b);width:12px;flex:none;font-weight:700}
+        .wd-top5-best .nm{flex:1;color:var(--text-color,#1e293b)}
+        .wd-top5-best .v{font-weight:800;color:#10b981;white-space:nowrap}
+        .wd-card-updated{font-size:10px;color:var(--muted-color,#94a3b8);margin-top:8px;text-align:right;opacity:.7}
+        .wd-refresh-card{width:28px;height:28px;border-radius:50%;border:1px solid var(--border-color,#e2e8f0);background:var(--bg-card,#fff);cursor:pointer;font-size:14px;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;margin-top:6px}
+        .wd-refresh-card:hover{background:var(--bg-neutral-100,#f1f5f9);border-color:#6366f1;transform:rotate(90deg)}
+        .wd-refresh-card:disabled{opacity:.5;cursor:not-allowed}
+        .wd-refresh-card.spin{animation:wdspin .8s linear infinite}
+
     </style>
 </head>
 <body class="compact-module-page">
@@ -621,6 +633,198 @@ if (refreshBtn) {
 })();
 </script>
 
+
+
+<script>
+// Обновляем KPI_CARDS: добавляем bottom5 для ZULUGIS и РСО
+const KPI_CARDS_UPDATED = KPI_CARDS.map(card => {
+    if (card.src === "ZULUGIS") {
+        card.bottom5 = (window.wdBottoms && wdBottoms.resVS) || [];
+    }
+    if (card.src === "РСО" || card.src === "ЭДО") {
+        card.bottom5 = (window.wdBottoms && wdBottoms.att_high) || [];
+    }
+    return card;
+});
+
+// Перезаписываем оригинальный KPI_CARDS
+window.KPI_CARDS = KPI_CARDS_UPDATED;
+
+// Функция рендера топ-5 лучших (зелёный список)
+function renderBottom5(bottom5) {
+    if (!bottom5 || !bottom5.length) return "";
+    const items = bottom5.slice(0, 5).map((item, i) => 
+        `<li><span class="n">${i + 1}</span><span class="nm">${item.name || item[0]}</span><span class="v">${item.value || item[1]}</span></li>`
+    ).join("");
+    return `<ul class="wd-top5-best">${items}</ul>`;
+}
+
+// Функция рендера подписи обновления
+function renderUpdatedAt(sourceKey) {
+    const meta = window.wdMeta || {};
+    const updated = meta.updated_at || "";
+    if (!updated) return "";
+    const [date, time] = updated.split(" ");
+    const formatted = date.split("-").reverse().join(".") + ", " + time.slice(0, 5);
+    return `<div class="wd-card-updated">🕒 Обновлено: ${formatted}</div>`;
+}
+
+// Функция рендера кнопки ↻
+function renderRefreshButton(sourceKey) {
+    return `<button class="wd-refresh-card" data-source="${sourceKey}" title="Обновить этот источник">↻</button>`;
+}
+
+// Обновляем функцию renderCard (если она есть)
+if (typeof renderCard === "function") {
+    const originalRenderCard = renderCard;
+    renderCard = function(card, i) {
+        const html = originalRenderCard(card, i);
+        // Вставляем bottom5 после top5
+        const top5End = html.indexOf("</ul>", html.indexOf("wd-top5"));
+        if (top5End !== -1 && card.bottom5) {
+            const before = html.slice(0, top5End + 5);
+            const after = html.slice(top5End + 5);
+            return before + renderBottom5(card.bottom5) + after;
+        }
+        return html;
+    };
+}
+
+// Обработчик клика на кнопку ↻
+document.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".wd-refresh-card");
+    if (!btn || btn.disabled) return;
+    
+    const sourceKey = btn.dataset.source;
+    btn.disabled = true;
+    btn.classList.add("spin");
+    
+    try {
+        const resp = await fetch(`/water-dashboard/refresh-source/${sourceKey}`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"}
+        });
+        if (resp.ok) {
+            // Перезагружаем страницу
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            alert("Ошибка обновления: " + await resp.text());
+        }
+    } catch (err) {
+        alert("Сетевая ошибка: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.classList.remove("spin");
+    }
+});
+
+console.log("✅ Dashboard enhancements loaded: bottom5 + updated + refresh");
+</script>
+
+
+<script>
+// Функция для рендера топ-5 лучших (зелёный список)
+function renderTop5Best(best) {
+    if (!best || !best.length) return "";
+    const items = best.slice(0, 5).map((item, i) => 
+        `<li><span class="n">${i + 1}</span><span class="nm">${item.name || item[0]}</span><span class="v">${item.value || item[1]}</span></li>`
+    ).join("");
+    return `<ul class="wd-top5-best">${items}</ul>`;
+}
+
+// Функция для рендера подписи обновления
+function renderCardUpdated(meta) {
+    const updated = meta.updated_at || "";
+    if (!updated) return "";
+    const [date, time] = updated.split(" ");
+    const formatted = date.split("-").reverse().join(".") + ", " + time.slice(0, 5);
+    return `<div class="wd-card-updated">🕒 Обновлено: ${formatted}</div>`;
+}
+
+// Функция для рендера кнопки ↻
+function renderRefreshButton(sourceKey) {
+    return `<button class="wd-refresh-card" data-source="${sourceKey}" title="Обновить этот источник">↻</button>`;
+}
+
+// Маппинг: какие карточки получают bottom5
+const BOTTOM5_MAP = {
+    "ZULUGIS": "resVS",    // Топ-5 лучших по резонансным ВС (минимум = хорошо)
+    "РСО": "att_high",     // Топ-5 лучших по явке (максимум = хорошо)
+};
+
+// Модифицируем карточки после рендера
+function enhanceKPICards() {
+    const meta = window.wdMeta || {};
+    const bottoms = meta.bottoms || {};
+    const cards = document.querySelectorAll(".wd-card");
+    
+    cards.forEach((card, i) => {
+        // Определяем источник (из KPI_CARDS или из data-атрибута)
+        const srcMatch = card.querySelector(".wd-src");
+        if (!srcMatch) return;
+        
+        const src = srcMatch.textContent.trim();
+        
+        // 1. Добавляем топ-5 лучших (если есть для этого источника)
+        if (BOTTOM5_MAP[src] && bottoms[BOTTOM5_MAP[src]]) {
+            const detail = card.querySelector(".wd-detail");
+            if (detail) {
+                detail.innerHTML += renderTop5Best(bottoms[BOTTOM5_MAP[src]]);
+            }
+        }
+        
+        // 2. Добавляем подпись обновления
+        if (meta.updated_at) {
+            card.innerHTML += renderCardUpdated(meta);
+        }
+        
+        // 3. Добавляем кнопку ↻
+        const refreshBtn = renderRefreshButton(src.toLowerCase().replace(/\s+/g, "_"));
+        card.innerHTML += refreshBtn;
+    });
+}
+
+// Запускаем после загрузки DOM
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(enhanceKPICards, 500));
+} else {
+    setTimeout(enhanceKPICards, 500);
+}
+
+// Обработчик клика на кнопку ↻
+document.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".wd-refresh-card");
+    if (!btn || btn.disabled) return;
+    
+    const sourceKey = btn.dataset.source;
+    btn.disabled = true;
+    btn.classList.add("spin");
+    btn.textContent = "⟳";
+    
+    try {
+        const resp = await fetch(`/water-dashboard/refresh-source/${sourceKey}`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"}
+        });
+        if (resp.ok) {
+            // Перезагружаем страницу
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            alert("Ошибка обновления: " + await resp.text());
+            btn.disabled = false;
+            btn.classList.remove("spin");
+            btn.textContent = "↻";
+        }
+    } catch (err) {
+        alert("Сетевая ошибка: " + err.message);
+        btn.disabled = false;
+        btn.classList.remove("spin");
+        btn.textContent = "↻";
+    }
+});
+
+console.log("✅ Dashboard KPI enhancements loaded");
+</script>
 
 </body>
 </html>
