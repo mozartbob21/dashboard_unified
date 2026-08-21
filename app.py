@@ -3336,15 +3336,8 @@ async def aichat_send(request: Request):
         names.append(name)
         try:
             data = await up.read()
-            low = name.lower()
-            if low.endswith((".txt", ".docx", ".pdf")):
-                try:
-                    from services.appeals.files import extract_text_from_file
-                    ftext = extract_text_from_file(name, data)
-                except Exception:
-                    ftext = data.decode("utf-8", errors="ignore")
-            else:
-                ftext = data.decode("utf-8", errors="ignore")
+            from services.aichat.extract import extract_any
+            ftext = extract_any(name, data)
             file_parts.append(f"── ФАЙЛ: {name} ──\n{ftext[:12000]}")
         except Exception as e:
             file_parts.append(f"── ФАЙЛ: {name} ──\n[не удалось извлечь текст: {e}]")
