@@ -70,3 +70,40 @@ def append_message(did, role, content, file_name=None):
         _save(items)
         return d
     return None
+
+
+# ── ПромтХаб ──
+PROMPTS_FILE = DATA_DIR / "prompts.json"
+
+def _load_prompts():
+    if not PROMPTS_FILE.exists():
+        return []
+    try:
+        data = json.loads(PROMPTS_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def _save_prompts(items):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    PROMPTS_FILE.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def list_prompts():
+    return sorted(_load_prompts(), key=lambda p: p.get("likes") or 0, reverse=True)
+
+def add_prompt(text, desc):
+    p = {"id": str(uuid.uuid4())[:8], "text": text, "desc": desc or text[:60],
+         "likes": 0, "created_at": now_iso()}
+    items = _load_prompts()
+    items.append(p)
+    _save_prompts(items)
+    return p
+
+def like_prompt(pid):
+    items = _load_prompts()
+    for p in items:
+        if p.get("id") == pid:
+            p["likes"] = (p.get("likes") or 0) + 1
+            _save_prompts(items)
+            return {"ok": True, "likes": p["likes"]}
+    return None

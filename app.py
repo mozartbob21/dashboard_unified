@@ -3363,3 +3363,22 @@ async def aichat_send(request: Request):
         answer = f"⚠️ Нейрона ИИ временно недоступна ({e}). Проверь подключение и попробуй ещё раз."
     aichat_store.append_message(did, "assistant", answer)
     return {"dialog_id": did, "answer": answer}
+
+
+@app.get("/aichat/api/prompts")
+async def aichat_prompts():
+    return {"items": aichat_store.list_prompts()}
+
+@app.post("/aichat/api/prompts")
+async def aichat_add_prompt(payload: dict = None):
+    payload = payload or {}
+    return aichat_store.add_prompt(payload.get("text") or "", payload.get("desc") or "")
+
+@app.post("/aichat/api/prompts/{pid}/like")
+async def aichat_like_prompt(pid: str):
+    return aichat_store.like_prompt(pid) or {"ok": False}
+
+@app.get("/prompthub", response_class=HTMLResponse)
+async def prompthub_page(request: Request):
+    return templates.TemplateResponse(request, "prompthub.html",
+                                      {"request": request, "logo_url": "/static/logo.svg"})
