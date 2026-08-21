@@ -3291,3 +3291,82 @@ async def list_notifications(request: Request):
         return JSONResponse(status_code=401, content={"detail": "Требуется авторизация"})
     items = notif_store.list_all()
     return JSONResponse(content=items)
+
+
+# ===============================
+# AI CHAT — имитатор общения с ИИ (Qwen)
+# ===============================
+from services.aichat import storage as aichat_store
+from services.aichat.engine import ask as aichat_ask, GREETING
+
+@app.get("/aichat", response_class=HTMLResponse)
+async def aichat_page(request: Request):
+    return templates.TemplateResponse(request, "aichat.html", {"request": request})
+
+@app.get("/aichat/api/dialogs")
+async def aichat_dialogs():
+    return {"items": aichat_store.list_dialogs()}
+
+@app.post("/aichat/api/dialogs")
+async def aichat_create(payload: dict = None):
+    d = aichat_store.create_dialog((payload or {}).get("title") or "Новый чат")
+    aichat_store.append_message(d["id"], "assistant", GREETING)
+    return d
+
+@app.get("/aichat/api/dialogs/{did}")
+async def aichat_get(did: str):
+    d = aichat_store.get_dialog(did)
+    return d or {"error": "не найден"}
+
+@app.delete("/aichat/api/dialogs/{did}")
+async def aichat_del(did: str):
+    return {"ok": aichat_store.delete_dialog(did)}
+
+@app.post("/aichat/api/send")
+async def aichat_send(request: Request):
+    form = await request.form()
+    did = form.get("dialog_id") or ""
+    text = (form.get("text") or "").strip()
+    uploads = form.getlist("file")
+
+    file_parts = []
+    names = []
+    for up in uploads:
+        name = up.filename or "file"
+        names.append(name)
+        try:
+            data = await up.read()
+            low = name.lower()
+            if low.endswith((".txt", ".docx", ".pdf")):
+                try:
+                    from services.appeals.files import extract_text_from_file
+                    ftext = extract_text_from_file(name, data)
+                except Exception:
+                    ftext = data.decode("utf-8", errors="ignore")
+            else:
+                ftext = data.decode("utf-8", errors="ignore")
+            file_parts.append(f"── ФАЙЛ: {name} ──\n{ftext[:12000]}")
+        except Exception as e:
+            file_parts.append(f"── ФАЙЛ: {name} ──\n[не удалось извлечь текст: {e}]")
+
+    if not text and not file_parts:
+        return {"error": "пустое сообщение"}
+
+    d = aichat_store.get_dialog(did) if did else None
+    if not d:
+        d = aichat_store.create_dialog((text or ("Файл: " + ", ".join(names)))[:60])
+        did = d["id"]
+
+    aichat_store.append_message(
+        did, "user",
+        text or ("Приложены файлы: " + ", ".join(names)),
+        file_name=", ".join(names) or None)
+
+    full_user = "\n\n".join(([text] if text else []) + file_parts)
+    history = (d.get("messages") or []) + [{"role": "user", "content": full_user}]
+    try:
+        answer = aichat_ask(history)
+    except Exception as e:
+        answer = f"⚠️ Нейрона ИИ временно недоступна ({e}). Проверь подключение и попробуй ещё раз."
+    aichat_store.append_message(did, "assistant", answer)
+    return {"dialog_id": did, "answer": answer}
