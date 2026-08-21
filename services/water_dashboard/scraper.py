@@ -1,12 +1,22 @@
 import json
 import re
+import sys
 import time
+import datetime as _dt
 
 from playwright.sync_api import sync_playwright
 
 from services.water_dashboard.config import (
     DEBUG_DIR, HEADLESS, PAGE_WAIT_SECONDS, PLAYWRIGHT_PROFILE_DIR, SOURCES,
 )
+
+# Серверная консоль Windows (cp1251) не переживает символы вроде "✓" —
+# переводим stdout в UTF-8, иначе этап nvos прерывался UnicodeEncodeError.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 TABLES_JS = """
 () => {
@@ -36,9 +46,12 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _select_penultimate_date(page, sid):
-    """Открывает фильтр «Дата» и выбирает предпоследнюю дату (для НВОС)."""
+    """Открывает фильтр «Дата» и выбирает предпоследнюю НАСТУПИВШУЮ дату (для НВОС)."""
     def emit(msg):
-        print(f"[{sid}] {msg}", flush=True)
+        try:
+            print(f"[{sid}] {msg}", flush=True)
+        except Exception:
+            print(f"[{sid}] {msg}".encode("cp1251", "replace").decode("cp1251"), flush=True)
 
     # 1. Находим контрол даты по лейблу «Дата» и помечаем его data-pw-id
     emit("Открываю фильтр «Дата»...")
@@ -64,11 +77,11 @@ def _select_penultimate_date(page, sid):
             """
         )
         if not control_id:
-            emit("⚠️ Контрол даты не найден")
+            emit("Контрол даты не найден")
             return
-        emit(f"Контрол найден")
+        emit("Контрол найден")
     except Exception as e:
-        emit(f"⚠️ Ошибка поиска контрола: {e}")
+        emit(f"Ошибка поиска контроля: {e}")
         return
 
     # 2. Кликаем по контролу — открывается дропдаун
@@ -77,14 +90,12 @@ def _select_penultimate_date(page, sid):
         page.wait_for_timeout(2000)
         emit("Dropdown открыт")
     except Exception as e:
-        emit(f"⚠️ Не удалось кликнуть контрол: {e}")
+        emit(f"Не удалось кликнуть контрол: {e}")
         return
 
-    # 3. Собираем опции дат — ищем в .yc-select-popup (работает в DataLens)
+    # 3. Собираем опции дат
     options = []
     seen = set()
-
-    # Стратегия A: yc-select-popup
     try:
         portals = page.locator('.yc-select-popup')
         for p in range(min(portals.count(), 5)):
@@ -101,7 +112,6 @@ def _select_penultimate_date(page, sid):
     except Exception:
         pass
 
-    # Стратегия B: фолбэк по всему документу
     if not options:
         for sel in ('[role="option"]', '.yc-select-option', '.popup *', 'li'):
             try:
@@ -122,36 +132,45 @@ def _select_penultimate_date(page, sid):
 
     emit(f"Найдено опций дат: {len(options)}")
     if len(options) < 2:
-        emit("⚠️ Недостаточно опций — оставляю фильтр как есть")
+        emit("Недостаточно опций — оставляю фильтр как есть")
         return
 
-    # 4. Сортируем по дате и берём ПРЕДПОСЛЕДНЮЮ
+    # 4. Даты, которые НАСТУПИЛИ (<= сегодня); берём предпоследнюю наступившую
     options.sort(key=lambda x: x[0])
-    target_text, target_item = options[-2]
-    emit(f"Выбираю предпоследнюю дату: {target_text}")
+    today = _dt.date.today().isoformat()
+    passed = [o for o in options if o[0] <= today]
+    if len(passed) >= 2:
+        target_text, target_item = passed[-2]
+        emit(f"Наступивших дат: {len(passed)}; выбираю предпоследнюю наступившую: {target_text}")
+    elif passed:
+        target_text, target_item = passed[-1]
+        emit(f"Выбираю единственную наступившую дату: {target_text}")
+    else:
+        target_text, target_item = options[-2]
+        emit(f"Выбираю предпоследнюю дату: {target_text}")
 
     # 5. Клик (обычный + fallback по bounding_box)
     try:
         target_item.scroll_into_view_if_needed(timeout=3000)
         page.wait_for_timeout(200)
         target_item.click(timeout=3000)
-        emit("✓ Клик по опции сработал")
+        emit("Клик по опции сработал")
     except Exception:
         try:
             box = target_item.bounding_box()
             if box:
                 page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-                emit("✓ Клик по bounding_box сработал")
+                emit("Клик по bounding_box сработал")
             else:
-                emit("⚠️ У опции нет bounding_box")
+                emit("У опции нет bounding_box")
                 return
         except Exception as e:
-            emit(f"⚠️ Не удалось выбрать дату: {e}")
+            emit(f"Не удалось выбрать дату: {e}")
             return
 
     # 6. Ждём пересчёт виджетов
     page.wait_for_timeout(3000)
-    emit("✓ Пересчёт данных завершён")
+    emit("Пересчёт данных завершён")
 
 
 def _wait_for_content(page):
@@ -168,6 +187,25 @@ def _wait_for_content(page):
         pass
     page.wait_for_timeout(3500)
 
+
+def stab_wait_after_date(page, max_rounds=15):
+    """Ждём пересчёта виджета после выбора даты: текст страницы стабилен."""
+    try:
+        page.wait_for_load_state("networkidle", timeout=20000)
+    except Exception:
+        pass
+    print("[nvos-stab] дата выбрана, жду пересчёта...", flush=True)
+    prev = None
+    for _ in range(max_rounds):
+        page.wait_for_timeout(2000)
+        try:
+            cur = page.evaluate("document.body.innerText")
+        except Exception:
+            cur = None
+        if cur and cur == prev:
+            break
+        prev = cur
+    print("[nvos-stab] пересчёт стабилен", flush=True)
 
 
 def scrape_all():
@@ -187,21 +225,15 @@ def scrape_all():
 
         for src in SOURCES:
             sid = src["id"]
-            print(f"STAGE: {src['name']}")
+            print(f"STAGE: {src['name']}", flush=True)
             try:
                 page.goto(src["url"], wait_until="domcontentloaded", timeout=90000)
 
-                # Умное ожидание появления контента
                 _wait_for_content(page)
 
-                # Специальная обработка для НВОС: выбор предпоследней даты
                 if sid == "nvos":
                     _select_penultimate_date(page, sid)
-                    try:  # stab-wait: ждём применения фильтра даты
-                        page.wait_for_load_state("networkidle", timeout=15000)
-                    except Exception:
-                        pass
-                    page.wait_for_timeout(5000)
+                    stab_wait_after_date(page)
 
                 tables = page.evaluate(TABLES_JS)
                 text = page.evaluate("() => document.body.innerText")
@@ -212,9 +244,9 @@ def scrape_all():
                     json.dump({"url": src["url"], "tables": tables, "text": text},
                               f, ensure_ascii=False, indent=2)
 
-                print(f"[saved] {sid}: таблиц={len(tables)}")
+                print(f"[saved] {sid}: таблиц={len(tables)}", flush=True)
             except Exception as e:
-                print(f"[warn] {sid}: {e}")
+                print(f"[warn] {sid}: {e}", flush=True)
                 extractions[sid] = {"tables": [], "text": ""}
 
         context.close()
