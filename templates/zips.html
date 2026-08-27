@@ -882,26 +882,6 @@
                 🏠 На главную
             </a>
 
-
-            <div class="profile-menu">
-                <button id="profileMenuButton" class="badge profile-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer;" title="{{ user_role or '' }}">
-                    👤 {{ user_username }} ▾
-                </button>
-                <div id="profileMenuDropdown" class="profile-menu-dropdown" hidden>
-                    <div class="profile-menu-header">
-                        <div class="profile-menu-name">{{ user_username }}</div>
-                        <div class="profile-menu-role">{{ user_role or '' }}</div>
-                    </div>
-                    <div class="profile-menu-divider"></div>
-                    <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
-                    <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
-                    <div class="profile-menu-divider"></div>
-                    <div class="profile-menu-info">Окружение: Локально</div>
-                    <div class="profile-menu-divider"></div>
-                    <a href="/logout" class="profile-menu-item profile-menu-logout">🚪 Выйти</a>
-                </div>
-            </div>
-        </div>
     </header>
 
     <!-- ===== СОДЕРЖИМОЕ ДАШБОРДА ===== -->
