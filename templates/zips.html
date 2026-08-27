@@ -836,6 +836,51 @@
             color: #60a5fa;
         }
 
+        /* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ (верхняя панель и body) ===== */
+        [data-theme="dark"] body {
+            background: #0f172a;
+        }
+        [data-theme="dark"] .topbar {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+        }
+        [data-theme="dark"] .brand-title {
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .brand-subtitle {
+            color: #94a3b8;
+        }
+        [data-theme="dark"] .theme-toggle {
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.15);
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .theme-toggle:hover {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: #8b5cf6;
+        }
+        [data-theme="dark"] .scheduler-btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+        [data-theme="dark"] .scheduler-btn:hover {
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.5);
+            transform: translateY(-1px);
+        }
+        [data-theme="dark"] .theme-menu {
+            background: #1e293b;
+            border-color: rgba(255,255,255,0.1);
+        }
+        [data-theme="dark"] .theme-menu-item {
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .theme-menu-item:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        [data-theme="dark"] .theme-menu-check {
+            color: #8b5cf6;
+        }
+
         @media (max-width: 768px) {
             .topbar { flex-direction: column; align-items: stretch; }
             .top-actions { justify-content: center; flex-wrap: wrap; }
@@ -877,11 +922,10 @@
                 </div>
             </div>
 
-
             <a href="/" class="scheduler-btn" style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);">
                 🏠 На главную
             </a>
-
+        </div>
     </header>
 
     <!-- ===== СОДЕРЖИМОЕ ДАШБОРДА ===== -->
