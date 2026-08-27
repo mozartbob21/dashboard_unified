@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import json
 import os
 import subprocess
@@ -2702,7 +2702,21 @@ async def health():
     }
 
 
-
+# В разделе с другими роутами, например, после @app.get("/appeals")
+@app.get("/zips", response_class=HTMLResponse)
+async def zips_page(request: Request):
+    token = request.cookies.get("access_token")
+    user = get_user_from_token(token) or {}
+    return templates.TemplateResponse(
+        request,
+        "zips.html",
+        {
+            "request": request,
+            "user": user,
+            "user_username": user.get("username", ""),
+            "user_role": user.get("role", ""),
+        },
+    )
 
 # =========================
 # TOOLS / ПОЛЕЗНЫЕ ИНСТРУМЕНТЫ

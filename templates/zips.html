@@ -1,0 +1,1838 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <script>
+        (function() {
+            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            let activeTheme = savedThemeMode;
+            if (savedThemeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
+                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            document.documentElement.setAttribute("data-theme", activeTheme);
+            document.documentElement.dataset.theme = activeTheme;
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Остатки ЗиП РСО — Дашборд</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        /* ===== Общие стили (как в home.html) ===== */
+        .profile-menu { position: relative; display: inline-block; }
+        .profile-menu-trigger { user-select: none; }
+        .profile-menu-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 220px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            padding: 6px;
+            z-index: 1000;
+        }
+        .profile-menu-dropdown[hidden] { display: none; }
+        .profile-menu-header { padding: 8px 12px 4px; }
+        .profile-menu-name { font-weight: 600; font-size: 14px; color: #111827; }
+        .profile-menu-role { font-size: 12px; color: #6b7280; }
+        .profile-menu-divider { height: 1px; background: #f0f0f3; margin: 6px 4px; }
+        .profile-menu-info { padding: 4px 12px; font-size: 12px; color: #6b7280; }
+        .profile-menu-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            box-sizing: border-box;
+            padding: 9px 12px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #111827;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .profile-menu-item:hover { background: #f3f4f6; }
+        .profile-menu-logout { color: #b91c1c; }
+        .profile-menu-logout:hover { background: #fef2f2; }
+
+        .theme-dropdown { position: relative; display: inline-block; }
+        .theme-toggle { 
+            background: var(--bg-neutral-100, rgba(0,0,0,0.03));
+            border: 1px solid var(--border-color, #cbd5e1);
+            color: var(--text-color, #475569);
+            border-radius: 10px;
+            padding: 7px 11px;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .theme-toggle:hover {
+            background: rgba(139, 92, 246, 0.08);
+            border-color: #8b5cf6;
+        }
+        [data-theme="dark"] .theme-toggle {
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.15);
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .theme-toggle:hover {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: #8b5cf6;
+        }
+        .theme-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            min-width: 200px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            padding: 6px;
+            z-index: 1000;
+        }
+        .theme-menu[hidden] { display: none; }
+        [data-theme="dark"] .theme-menu {
+            background: #1e293b;
+            border-color: rgba(255,255,255,0.1);
+        }
+        .theme-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #111827;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        [data-theme="dark"] .theme-menu-item { color: #e2e8f0; }
+        .theme-menu-item:hover { background: #f3f4f6; }
+        [data-theme="dark"] .theme-menu-item:hover { background: rgba(255,255,255,0.05); }
+        .theme-menu-check { margin-left: auto; opacity: 0; }
+        .theme-menu-item.active .theme-menu-check { opacity: 1; color: #8b5cf6; }
+
+        .notifications-bell { position: relative; display: inline-block; }
+        .bell-trigger {
+            background: var(--bg-neutral-100, rgba(0,0,0,0.03));
+            border: 1px solid var(--border-color, #cbd5e1);
+            color: var(--text-color, #475569);
+            border-radius: 10px;
+            padding: 7px 11px;
+            font-size: 16px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            transition: all 0.2s ease;
+        }
+        .bell-trigger:hover {
+            background: rgba(139, 92, 246, 0.08);
+            border-color: #8b5cf6;
+            transform: translateY(-1px);
+        }
+        [data-theme="dark"] .bell-trigger {
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.15);
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .bell-trigger:hover {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: #8b5cf6;
+        }
+        .bell-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+            line-height: 1;
+        }
+        .bell-badge[hidden] { display: none; }
+        .notifications-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: 360px;
+            max-width: 90vw;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            z-index: 1000;
+            overflow: hidden;
+        }
+        [data-theme="dark"] .notifications-dropdown {
+            background: #1e293b;
+            border-color: rgba(255,255,255,0.1);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .notifications-dropdown[hidden] { display: none; }
+        .notifications-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid #f0f0f3;
+        }
+        [data-theme="dark"] .notifications-head { border-color: rgba(255,255,255,0.08); }
+        .notifications-title { font-weight: 700; font-size: 14px; color: #1e293b; }
+        [data-theme="dark"] .notifications-title { color: #e2e8f0; }
+        .notifications-mark-all {
+            background: none;
+            border: none;
+            color: #8b5cf6;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .notifications-mark-all:hover { background: rgba(139, 92, 246, 0.08); }
+        .notifications-list { max-height: 380px; overflow-y: auto; padding: 6px; }
+        .notifications-empty { text-align: center; padding: 28px 16px; color: #94a3b8; font-size: 13px; }
+        .notif-item {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .notif-item:hover { background: rgba(0,0,0,0.03); }
+        [data-theme="dark"] .notif-item:hover { background: rgba(255,255,255,0.05); }
+        .notif-item.unread { background: rgba(139, 92, 246, 0.06); }
+        [data-theme="dark"] .notif-item.unread { background: rgba(139, 92, 246, 0.15); }
+        .notif-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; padding-top: 2px; }
+        .notif-body { min-width: 0; }
+        .notif-title { font-weight: 600; font-size: 13px; color: #1e293b; margin: 0 0 2px; }
+        [data-theme="dark"] .notif-title { color: #e2e8f0; }
+        .notif-text { font-size: 12px; color: #64748b; margin: 0; line-height: 1.4; }
+        [data-theme="dark"] .notif-text { color: #94a3b8; }
+        .notif-time { font-size: 10.5px; color: #94a3b8; margin-top: 3px; }
+        .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: #8b5cf6; flex-shrink: 0; margin-top: 6px; }
+        .notif-item:not(.unread) .notif-dot { visibility: hidden; }
+        .notifications-foot { padding: 10px 16px; border-top: 1px solid #f0f0f3; text-align: center; }
+        [data-theme="dark"] .notifications-foot { border-color: rgba(255,255,255,0.08); }
+
+        .scheduler-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            text-decoration: none;
+        }
+        .scheduler-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 18px;
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: var(--panel, #fff);
+            border-bottom: 1px solid var(--line, #d8e2ee);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .brand img { height: 32px; }
+        .brand-title { font-weight: 700; font-size: 16px; }
+        .brand-subtitle { font-size: 11px; color: var(--ink3, #8193a8); }
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            background: #667eea;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ===== Стили дашборда ===== */
+        .zips-dashboard {
+            --blue: #2563eb;
+            --blue-d: #1d4ed8;
+            --green: #059669;
+            --green-d: #15803d;
+            --ink: #132a45;
+            --ink2: #42597a;
+            --ink3: #8193a8;
+            --line: #d8e2ee;
+            --bg: #eef2f7;
+            --panel: #fff;
+            --teal: #059669;
+            --teal-bg: rgba(5,150,105,.12);
+            --r: 10px;
+            --rose: #dc2626;
+            --info-soft: #e0f2fe;
+            --info: #0369a1;
+            --ok: #16a36a;
+            --ok-soft: #d1fae5;
+            --risk: #d97706;
+            --risk-soft: #fef3c7;
+            --danger: #dc2626;
+            --danger-soft: #fee2e2;
+            --violet: #8b5cf6;
+            --violet-soft: #ede9fe;
+            --warning-bg: #fff5e9;
+        }
+        .zips-dashboard * { box-sizing: border-box; }
+        .zips-dashboard {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: "Segoe UI", system-ui, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.45;
+            padding: 18px 0;
+        }
+        .zips-dashboard .wrap {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 18px;
+        }
+        .zips-dashboard h2 {
+            font-size: 18px;
+            margin: 0 0 10px;
+        }
+        .zips-dashboard .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--r);
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+        .zips-dashboard .chips {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .zips-dashboard .stat {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            padding: 9px 14px;
+            min-width: 96px;
+        }
+        .zips-dashboard .stat .n {
+            font-size: 22px;
+            font-weight: 700;
+        }
+        .zips-dashboard .stat .l {
+            color: var(--ink3);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+        .zips-dashboard .stat.green .n { color: var(--green-d); }
+        .zips-dashboard .stat.blue .n { color: var(--blue-d); }
+        .zips-dashboard .stat .d {
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        .zips-dashboard .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .zips-dashboard .field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .zips-dashboard .field label {
+            font-size: 11px;
+            color: var(--ink2);
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            font-weight: 600;
+        }
+        .zips-dashboard select,
+        .zips-dashboard input {
+            font-family: inherit;
+            font-size: 13px;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            padding: 7px 9px;
+            color: var(--ink);
+            background: #fff;
+            outline: none;
+        }
+        .zips-dashboard select:focus,
+        .zips-dashboard input:focus {
+            border-color: var(--blue);
+        }
+        .zips-dashboard .btn {
+            background: #fff;
+            border: 1px solid var(--line);
+            color: var(--ink);
+            border-radius: 8px;
+            padding: 8px 13px;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 500;
+        }
+        .zips-dashboard .btn:hover {
+            border-color: var(--blue);
+            color: var(--blue-d);
+        }
+        .zips-dashboard .btn.primary {
+            background: var(--blue-d);
+            border-color: var(--blue-d);
+            color: #fff;
+        }
+        .zips-dashboard .btn.primary:hover {
+            background: var(--blue);
+        }
+        .zips-dashboard .spacer { flex: 1; }
+        .zips-dashboard .tblbox {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--r);
+            overflow: hidden;
+        }
+        .zips-dashboard .grp {
+            border-bottom: 1px solid var(--line);
+        }
+        .zips-dashboard .grp:last-child {
+            border-bottom: none;
+        }
+        .zips-dashboard .ghead {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 15px;
+            cursor: pointer;
+            background: #f5f8fc;
+            user-select: none;
+        }
+        .zips-dashboard .ghead:hover {
+            background: #eef4fa;
+        }
+        .zips-dashboard .gcaret {
+            color: var(--ink3);
+            transition: .15s;
+            font-size: 11px;
+            width: 10px;
+        }
+        .zips-dashboard .grp.open .gcaret {
+            transform: rotate(90deg);
+        }
+        .zips-dashboard .gname {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .zips-dashboard .gcount {
+            color: var(--ink3);
+            font-size: 12px;
+        }
+        .zips-dashboard .gq {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .zips-dashboard .qb {
+            background: #f3f7fb;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 11px;
+            color: var(--ink2);
+        }
+        .zips-dashboard .qb b {
+            color: var(--ink);
+        }
+        .zips-dashboard .gbody {
+            display: none;
+        }
+        .zips-dashboard .grp.open .gbody {
+            display: block;
+        }
+        .zips-dashboard .grp .grp {
+            border-bottom: 1px solid #eef2f8;
+        }
+        .zips-dashboard .grp.d1>.ghead {
+            padding-left: 34px;
+            background: #f8fafd;
+        }
+        .zips-dashboard .grp.d2>.ghead {
+            padding-left: 54px;
+            background: #fbfcfe;
+        }
+        .zips-dashboard .grp.d3>.ghead {
+            padding-left: 74px;
+            background: #fff;
+        }
+        .zips-dashboard .grp.d1>.ghead .gname {
+            font-size: 13.5px;
+        }
+        .zips-dashboard .grp.d2>.ghead .gname {
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .zips-dashboard .grp.d1>.gbody>.leaf,
+        .zips-dashboard .grp.d2>.gbody>.leaf,
+        .zips-dashboard .grp.d3>.gbody>.leaf {
+            border-top: 1px solid #eef2f8;
+        }
+        .zips-dashboard table.leaf th:first-child,
+        .zips-dashboard table.leaf td:first-child {
+            padding-left: 20px;
+        }
+        .zips-dashboard table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .zips-dashboard th {
+            text-align: left;
+            color: var(--ink3);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            padding: 7px 14px;
+            border-bottom: 1px solid var(--line);
+            white-space: nowrap;
+        }
+        .zips-dashboard td {
+            padding: 7px 14px;
+            border-bottom: 1px solid #eef2f8;
+        }
+        .zips-dashboard td.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .zips-dashboard .tag {
+            display: inline-block;
+            background: #f3f7fb;
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            padding: 1px 7px;
+            font-size: 11px;
+            color: var(--ink2);
+        }
+        .zips-dashboard .tag.wtr {
+            background: var(--teal-bg);
+            border-color: var(--teal);
+            color: var(--teal);
+        }
+        .zips-dashboard .empty {
+            padding: 30px;
+            text-align: center;
+            color: var(--ink3);
+        }
+        .zips-dashboard .ms {
+            position: relative;
+        }
+        .zips-dashboard .ms-btn {
+            background: #fff;
+            border: 1px solid var(--line);
+            color: var(--ink);
+            border-radius: 7px;
+            padding: 7px 10px;
+            font-size: 13px;
+            cursor: pointer;
+            min-width: 170px;
+            text-align: left;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+        }
+        .zips-dashboard .ms-btn:hover {
+            border-color: var(--blue);
+        }
+        .zips-dashboard .ms-btn .cnt {
+            background: #e7efff;
+            color: var(--blue-d);
+            border-radius: 20px;
+            padding: 1px 8px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .zips-dashboard .ms-pop {
+            position: absolute;
+            z-index: 40;
+            top: calc(100% + 4px);
+            left: 0;
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px;
+            min-width: 240px;
+            max-height: 280px;
+            overflow: auto;
+            display: none;
+            box-shadow: 0 10px 30px rgba(19,42,69,.18);
+        }
+        .zips-dashboard .ms-pop.open {
+            display: block;
+        }
+        .zips-dashboard .ms-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .zips-dashboard .ms-item:hover {
+            background: #f3f7fb;
+        }
+        .zips-dashboard .ms-item input {
+            accent-color: var(--blue-d);
+        }
+        .zips-dashboard .ms-item .c {
+            margin-left: auto;
+            color: var(--ink3);
+            font-size: 11px;
+        }
+        .zips-dashboard .ms-clear {
+            display: block;
+            width: 100%;
+            margin-top: 6px;
+            text-align: center;
+            border: none;
+            background: #f3f7fb;
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 12px;
+            color: var(--blue-d);
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .zips-dashboard .dynhead {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 22px 0 10px;
+        }
+        .zips-dashboard .up {
+            color: var(--green-d);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .zips-dashboard .down {
+            color: var(--rose);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .zips-dashboard .flat {
+            color: var(--ink3);
+            white-space: nowrap;
+        }
+        .zips-dashboard .dq {
+            display: inline-block;
+            background: #f3f7fb;
+            border: 1px solid var(--line);
+            border-radius: 5px;
+            padding: 1px 6px;
+            font-size: 11px;
+            margin: 1px 3px 1px 0;
+            white-space: nowrap;
+        }
+        .zips-dashboard .dq.p {
+            background: #e3f6ec;
+            border-color: #b7e4cb;
+            color: var(--green-d);
+        }
+        .zips-dashboard .dq.m {
+            background: #fde8e8;
+            border-color: #f5c2c2;
+            color: var(--rose);
+        }
+        .zips-dashboard .st {
+            display: inline-block;
+            border-radius: 5px;
+            padding: 1px 7px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .zips-dashboard .st-new {
+            background: #e3f6ec;
+            color: var(--green-d);
+        }
+        .zips-dashboard .st-gone {
+            background: #fde8e8;
+            color: var(--rose);
+        }
+        .zips-dashboard .st-chg {
+            background: #e7efff;
+            color: var(--blue-d);
+        }
+        .zips-dashboard .st-same {
+            background: #eef2f8;
+            color: var(--ink3);
+        }
+        .zips-dashboard .note {
+            background: #fff5e9;
+            border: 1px solid #f4d9b4;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            font-size: 12.5px;
+            color: #7c3a06;
+        }
+        .zips-dashboard .warn {
+            background: #fff5e9;
+            border: 1px solid #f4d9b4;
+            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: #7c3a06;
+        }
+        .zips-dashboard .mini {
+            color: var(--ink3);
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        [data-theme="dark"] .zips-dashboard {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --line: #334155;
+            --ink: #e2e8f0;
+            --ink2: #94a3b8;
+            --ink3: #64748b;
+            --teal-bg: rgba(5,150,105,.25);
+            --info-soft: #172554;
+            --ok-soft: #064e3b;
+            --risk-soft: #451a03;
+            --danger-soft: #450a0a;
+            --violet-soft: #2e1065;
+            --warning-bg: #3b1c0a;
+        }
+        [data-theme="dark"] .zips-dashboard .ghead {
+            background: #1e293b;
+        }
+        [data-theme="dark"] .zips-dashboard .ghead:hover {
+            background: #2d3748;
+        }
+        [data-theme="dark"] .zips-dashboard .grp.d1>.ghead {
+            background: #1a2332;
+        }
+        [data-theme="dark"] .zips-dashboard .grp.d2>.ghead {
+            background: #161e2b;
+        }
+        [data-theme="dark"] .zips-dashboard .grp.d3>.ghead {
+            background: #111827;
+        }
+        [data-theme="dark"] .zips-dashboard .ms-btn,
+        [data-theme="dark"] .zips-dashboard select,
+        [data-theme="dark"] .zips-dashboard input {
+            background: #0f172a;
+            color: #e2e8f0;
+            border-color: #334155;
+        }
+        [data-theme="dark"] .zips-dashboard .ms-pop {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        [data-theme="dark"] .zips-dashboard .ms-item:hover {
+            background: #2d3748;
+        }
+        [data-theme="dark"] .zips-dashboard .qb {
+            background: #1e293b;
+            border-color: #334155;
+            color: #94a3b8;
+        }
+        [data-theme="dark"] .zips-dashboard .qb b {
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .zips-dashboard .stat {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        [data-theme="dark"] .zips-dashboard .card {
+            background: #1e293b;
+            border-color: #334155;
+        }
+        [data-theme="dark"] .zips-dashboard .btn {
+            background: #0f172a;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .zips-dashboard .btn:hover {
+            border-color: var(--blue);
+            color: #60a5fa;
+        }
+
+        @media (max-width: 768px) {
+            .topbar { flex-direction: column; align-items: stretch; }
+            .top-actions { justify-content: center; flex-wrap: wrap; }
+            .brand { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="topbar">
+        <div class="brand">
+            <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+            <div>
+                <div class="brand-title">Нейрона ИИ</div>
+                <div class="brand-subtitle">Подмосковная Нейрона Роботовна</div>
+            </div>
+        </div>
+        <div class="top-actions">
+            <div class="theme-dropdown">
+                <button id="themeToggle" class="theme-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Выбрать тему">
+                    <span class="theme-toggle-icon">☀️</span>
+                    <span class="theme-toggle-text">Тема</span>
+                    <span class="theme-toggle-arrow" aria-hidden="true">▾</span>
+                </button>
+                <div id="themeMenu" class="theme-menu" role="menu" aria-label="Выбор темы" hidden>
+                    <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="light">
+                        <span class="theme-menu-icon">☀️</span><span class="theme-menu-label">Светлая</span><span class="theme-menu-check">✓</span>
+                    </button>
+                    <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="dark">
+                        <span class="theme-menu-icon">🌙</span><span class="theme-menu-label">Тёмная</span><span class="theme-menu-check">✓</span>
+                    </button>
+                    <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="kreml">
+                        <span class="theme-menu-icon">🏛️</span><span class="theme-menu-label">Московская</span><span class="theme-menu-check">✓</span>
+                    </button>
+                    <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="auto-moscow">
+                        <span class="theme-menu-icon">🛰️</span><span class="theme-menu-label">Подмосковное солнце (авто)</span><span class="theme-menu-check">✓</span>
+                    </button>
+                </div>
+            </div>
+
+
+            <a href="/" class="scheduler-btn" style="background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);">
+                🏠 На главную
+            </a>
+
+
+            <div class="profile-menu">
+                <button id="profileMenuButton" class="badge profile-menu-trigger" type="button" aria-haspopup="true" aria-expanded="false" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer;" title="{{ user_role or '' }}">
+                    👤 {{ user_username }} ▾
+                </button>
+                <div id="profileMenuDropdown" class="profile-menu-dropdown" hidden>
+                    <div class="profile-menu-header">
+                        <div class="profile-menu-name">{{ user_username }}</div>
+                        <div class="profile-menu-role">{{ user_role or '' }}</div>
+                    </div>
+                    <div class="profile-menu-divider"></div>
+                    <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
+                    <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
+                    <div class="profile-menu-divider"></div>
+                    <div class="profile-menu-info">Окружение: Локально</div>
+                    <div class="profile-menu-divider"></div>
+                    <a href="/logout" class="profile-menu-item profile-menu-logout">🚪 Выйти</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===== СОДЕРЖИМОЕ ДАШБОРДА ===== -->
+    <div class="zips-dashboard">
+        <div class="wrap">
+            <!-- Блок статуса и кнопки обновления -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <span id="upd" class="mini">загрузка…</span>
+                <button class="btn" id="refresh" style="padding:4px 10px; font-size:12px;">🔄 Обновить</button>
+            </div>
+
+            <div id="warnBox"></div>
+
+            <div class="chips" id="kpi"></div>
+            <div class="card">
+                <div class="row" id="periodBar" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line);display:none">
+                    <div class="field"><label>Период</label><select id="period"></select></div>
+                    <div class="field"><label>Сравнить с</label><select id="prevPeriod"></select></div>
+                    <div class="field"><label>&nbsp;</label><span class="mini" id="periodNote"></span></div>
+                </div>
+                <div class="row">
+                    <div class="field"><label>Группировка</label>
+                        <select id="group"><option value="cat">По категории</option><option value="okrug">По округу</option><option value="rso">По РСО</option><option value="grp">По группе</option></select></div>
+                    <div class="field"><label>Округ</label><div class="ms" data-k="okrug"></div></div>
+                    <div class="field"><label>РСО</label><div class="ms" data-k="rso"></div></div>
+                    <div class="field"><label>Категория</label><div class="ms" data-k="cat"></div></div>
+                    <div class="field"><label>Поиск</label><input id="search" placeholder="наименование…" style="min-width:200px"></div>
+                    <div class="spacer"></div>
+                    <div class="field"><label>&nbsp;</label>
+                        <button class="btn" id="export">⬇ Скачать (CSV)</button>
+                    </div>
+                </div>
+            </div>
+            <div id="dynWrap" style="display:none">
+                <div class="dynhead">
+                    <h2 style="margin:0">Динамика <span class="mini" id="dynSub"></span></h2>
+                    <label class="mini" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                        <input type="checkbox" id="dynOnly" checked> показывать только изменения</label>
+                </div>
+                <div id="dynNote"></div>
+                <div class="tblbox" id="dyn"></div>
+            </div>
+            <h2 id="curHead" style="display:none">Остатки за период</h2>
+            <div class="tblbox" id="tbl"><div class="empty">Загрузка данных…</div></div>
+            <div class="mini">Суммы количества — только внутри одной единицы измерения; основная метрика — число позиций.</div>
+
+            <div class="dynhead">
+                <h2 style="margin:0">Давно не обновляли</h2>
+                <label class="mini" style="display:flex;align-items:center;gap:6px">
+                    показывать РСО без обновления более
+                    <input id="staleDays" type="number" min="1" max="999" value="30" style="width:72px;text-align:center">
+                    дней</label>
+            </div>
+            <div class="tblbox" id="stale"></div>
+            <div class="mini">Считается по дате остатков относительно сегодняшнего дня. Показываются все РСО из данных, независимо от фильтров выше.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== СКРИПТЫ ===== -->
+<script>
+    (function() {
+        const root = document.documentElement;
+        const themeToggle = document.getElementById("themeToggle");
+        const menu = document.getElementById("themeMenu");
+
+        function applyTheme(themeMode) {
+            let activeTheme = themeMode;
+            if (themeMode === "auto-moscow") {
+                const MOSCOW_LAT = 55.7558;
+                const MOSCOW_LON = 37.6173;
+                const MOSCOW_TZ = 3;
+                const now = new Date();
+                const start = new Date(now.getFullYear(), 0, 0);
+                const diff = now - start;
+                const oneDay = 1000 * 60 * 60 * 24;
+                const dayOfYear = Math.floor(diff / oneDay);
+                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
+                const latRad = MOSCOW_LAT * Math.PI / 180;
+                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
+                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
+                const sunriseLocal = ((12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15)) + MOSCOW_TZ + 24) % 24;
+                const sunsetLocal = ((12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15)) + MOSCOW_TZ + 24) % 24;
+                const currentHour = now.getHours() + now.getMinutes() / 60;
+                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
+            }
+            root.setAttribute("data-theme", activeTheme);
+            root.dataset.theme = activeTheme;
+            if (themeToggle) {
+                const icon = themeToggle.querySelector(".theme-toggle-icon");
+                const text = themeToggle.querySelector(".theme-toggle-text");
+                if (themeMode === "dark") { if (icon) icon.textContent = "🌙"; if (text) text.textContent = "Тёмная"; }
+                else if (themeMode === "light") { if (icon) icon.textContent = "☀️"; if (text) text.textContent = "Светлая"; }
+                else if (themeMode === "kreml") { if (icon) icon.textContent = "🏛️"; if (text) text.textContent = "Московская"; }
+                else { if (icon) icon.textContent = "🛰️"; if (text) text.textContent = "Подмосковное солнце"; }
+            }
+            if (menu) {
+                menu.querySelectorAll(".theme-menu-item").forEach(function(btn) {
+                    btn.classList.toggle("active", btn.dataset.themeMode === themeMode);
+                    btn.setAttribute("aria-checked", btn.dataset.themeMode === themeMode ? "true" : "false");
+                });
+            }
+        }
+
+        const savedMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+        applyTheme(savedMode);
+
+        if (themeToggle && menu) {
+            themeToggle.addEventListener("click", function(e) {
+                e.stopPropagation();
+                menu.hidden = !menu.hidden;
+                themeToggle.setAttribute("aria-expanded", !menu.hidden);
+            });
+            menu.querySelectorAll(".theme-menu-item").forEach(function(btn) {
+                btn.addEventListener("click", function(e) {
+                    e.stopPropagation();
+                    const mode = btn.dataset.themeMode;
+                    if (mode) {
+                        localStorage.setItem("neurona-theme-mode", mode);
+                        applyTheme(mode);
+                        menu.hidden = true;
+                        themeToggle.setAttribute("aria-expanded", "false");
+                    }
+                });
+            });
+            document.addEventListener("click", function(e) {
+                if (!e.target.closest(".theme-dropdown")) {
+                    menu.hidden = true;
+                    themeToggle.setAttribute("aria-expanded", "false");
+                }
+            });
+        }
+
+        setInterval(function() {
+            const cur = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
+            if (cur === "auto-moscow") {
+                applyTheme("auto-moscow");
+            }
+        }, 60000);
+    })();
+</script>
+
+<script>
+    (function() {
+        const bellBtn = document.getElementById("notificationsBellBtn");
+        const dropdown = document.getElementById("notificationsDropdown");
+        const badge = document.getElementById("notificationsBadge");
+        const list = document.getElementById("notificationsList");
+        const markAllBtn = document.getElementById("notificationsMarkAllBtn");
+        if (!bellBtn || !dropdown || !list) return;
+
+        const READ_KEY = "neurona-notifications-read";
+
+        function getReadIds() {
+            try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]")); }
+            catch { return new Set(); }
+        }
+        function saveReadIds(set) {
+            try { localStorage.setItem(READ_KEY, JSON.stringify([...set])); } catch {}
+        }
+
+        function escapeHtml(s) {
+            return String(s || "").replace(/[&<>"']/g, c =>
+                ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+        }
+
+        function formatTime(unixTs) {
+            if (!unixTs) return "";
+            const sec = Math.max(0, Math.floor(Date.now() / 1000 - unixTs));
+            if (sec < 60) return "только что";
+            const min = Math.floor(sec / 60);
+            if (min < 60) return min + " мин назад";
+            const hr = Math.floor(min / 60);
+            if (hr < 24) return hr + " ч назад";
+            const d = Math.floor(hr / 24);
+            if (d < 7) return d + " дн назад";
+            return new Date(unixTs * 1000).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+        }
+
+        let items = [];
+
+        function renderBadge() {
+            const readIds = getReadIds();
+            const unread = items.filter(n => !readIds.has(n.id)).length;
+            if (unread > 0) {
+                badge.hidden = false;
+                badge.textContent = unread > 99 ? "99+" : String(unread);
+            } else {
+                badge.hidden = true;
+            }
+        }
+
+        function renderList() {
+            const readIds = getReadIds();
+            if (!items.length) {
+                list.innerHTML = '<div class="notifications-empty">Пока нет уведомлений</div>';
+                return;
+            }
+            list.innerHTML = items.slice(0, 20).map(n => {
+                const unread = !readIds.has(n.id);
+                return `
+                    <div class="notif-item ${unread ? 'unread' : ''}" data-id="${n.id}">
+                        <span class="notif-icon">${escapeHtml(n.icon || '🔔')}</span>
+                        <div class="notif-body">
+                            <div class="notif-title">${escapeHtml(n.title)}</div>
+                            <div class="notif-text">${escapeHtml(n.text)}</div>
+                            <div class="notif-time">${formatTime(n.time)}${n.author ? ' · ' + escapeHtml(n.author) : ''}</div>
+                        </div>
+                        <span class="notif-dot" aria-hidden="true"></span>
+                    </div>
+                `;
+            }).join("");
+
+            list.querySelectorAll(".notif-item").forEach(el => {
+                el.addEventListener("click", () => {
+                    const id = Number(el.getAttribute("data-id"));
+                    const readIds = getReadIds();
+                    readIds.add(id);
+                    saveReadIds(readIds);
+                    renderBadge();
+                    renderList();
+                });
+            });
+        }
+
+        async function reload() {
+            try {
+                const r = await fetch("/api/notifications");
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                items = await r.json();
+            } catch (e) {
+                console.warn("[notifications]", e);
+                items = [];
+            }
+            renderBadge();
+            renderList();
+        }
+
+        function openMenu() {
+            dropdown.hidden = false;
+            bellBtn.setAttribute("aria-expanded", "true");
+            reload();
+        }
+        function closeMenu() {
+            dropdown.hidden = true;
+            bellBtn.setAttribute("aria-expanded", "false");
+        }
+
+        bellBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (dropdown.hidden) openMenu(); else closeMenu();
+        });
+
+        if (markAllBtn) {
+            markAllBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const readIds = getReadIds();
+                items.forEach(n => readIds.add(n.id));
+                saveReadIds(readIds);
+                renderBadge();
+                renderList();
+            });
+        }
+
+        document.addEventListener("click", (e) => {
+            if (!dropdown.hidden && !e.target.closest(".notifications-bell")) closeMenu();
+        });
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && !dropdown.hidden) closeMenu();
+        });
+        setInterval(reload, 60000);
+        reload();
+    })();
+</script>
+
+<script>
+    (function() {
+        const btn = document.getElementById("profileMenuButton");
+        const dropdown = document.getElementById("profileMenuDropdown");
+        if (!btn || !dropdown) return;
+
+        function openMenu() {
+            dropdown.hidden = false;
+            btn.setAttribute("aria-expanded", "true");
+        }
+        function closeMenu() {
+            dropdown.hidden = true;
+            btn.setAttribute("aria-expanded", "false");
+        }
+        btn.addEventListener("click", function(e) {
+            e.stopPropagation();
+            if (dropdown.hidden) openMenu(); else closeMenu();
+        });
+
+        document.addEventListener("click", function(e) {
+            if (!dropdown.hidden && !dropdown.contains(e.target) && e.target !== btn) {
+                closeMenu();
+            }
+        });
+        document.addEventListener("keydown", function(e) {
+            if (e.key === "Escape") closeMenu();
+        });
+    })();
+</script>
+
+<!-- ===== СКРИПТ ДАШБОРДА ===== -->
+<script>
+    // ================== НАСТРОЙКА ==================
+    const YANDEX_PUBLIC_URL = "https://disk.yandex.ru/i/cSXcB5AMqJ81pQ";
+    const AUTO_REFRESH_MIN = 5;    // автообновление, минут (0 — выключить)
+    // ===============================================
+
+    let ROWS = [];
+    let state = {
+        group: 'cat',
+        okrug: new Set(),
+        rso: new Set(),
+        cat: new Set(),
+        search: '',
+        open: new Set(),
+        period: '',
+        prev: '',
+        dynOpen: new Set(),
+        dynOnly: true
+    };
+    const $ = s => document.querySelector(s);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } [c]));
+    const fmt = n => n == null || isNaN(n) ? '—' : (Math.round(n * 100) / 100).toLocaleString('ru-RU');
+    const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е').trim();
+
+    function normName(s) {
+        s = String(s).toLowerCase().trim();
+        s = s.replace(/^\(\d+[.\d]*\)/, '');
+        s = s.replace(/^\d+[а-яё]?\s/, '');
+        s = s.replace(/[,\s]+$/, '');
+        s = s.replace(/\s+/g, ' ').trim();
+        return s;
+    }
+
+    // ---------- периоды (месяц) ----------
+    const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+    function pKey(d) {
+        const p = String(d || '').split('.');
+        return p.length === 3 ? p[2] + '-' + p[1] : '';
+    }
+
+    function pLabel(k) {
+        const [y, m] = String(k || '').split('-');
+        return (MONTHS[+m - 1] || m) + ' ' + y;
+    }
+
+    function dNum(d) {
+        const p = String(d || '').split('.');
+        return p.length === 3 ? +(p[2] + p[1] + p[0]) : 0;
+    }
+
+    function allPeriods() {
+        return [...new Set(ROWS.map(r => pKey(r.date)).filter(Boolean))].sort().reverse();
+    }
+
+    function rowsOfPeriod(k) {
+        if (!k) return ROWS.slice();
+        const inP = ROWS.filter(r => pKey(r.date) === k),
+            best = {};
+        inP.forEach(r => { const n = dNum(r.date); if (!best[r.rso] || n > best[r.rso]) best[r.rso] = n; });
+        return inP.filter(r => dNum(r.date) === best[r.rso]);
+    }
+
+    // ---------- сравнение двух периодов ----------
+    function keyOf(r) { return r.rso + '|' + normName(r.name) + '|' + (r.unit || ''); }
+
+    function rollup(rows) {
+        const m = new Map();
+        rows.forEach(r => {
+            const k = keyOf(r);
+            const e = m.get(k);
+            if (e) { e.qty = (e.qty || 0) + (r.qty || 0); } else m.set(k, Object.assign({}, r));
+        });
+        return m;
+    }
+
+    function diffPeriods(cur, prev) {
+        const rsoC = new Set(cur.map(r => r.rso)),
+            rsoP = new Set(prev.map(r => r.rso));
+        const both = new Set([...rsoC].filter(x => rsoP.has(x)));
+        const firstTime = [...rsoC].filter(x => !rsoP.has(x));
+        const missing = [...rsoP].filter(x => !rsoC.has(x));
+        const mc = rollup(cur.filter(r => both.has(r.rso))),
+            mp = rollup(prev.filter(r => both.has(r.rso)));
+        const items = [];
+        new Set([...mc.keys(), ...mp.keys()]).forEach(k => {
+            const a = mp.get(k),
+                b = mc.get(k);
+            const st = !a ? 'new' : !b ? 'gone' : (((b.qty || 0) - (a.qty || 0)) === 0 ? 'same' : 'chg');
+            items.push({ row: b || a, prev: a ? (a.qty || 0) : null, cur: b ? (b.qty || 0) : null, st });
+        });
+        return { items, firstTime, missing, both };
+    }
+
+    function dynAgg(items, gk) {
+        const g = new Map();
+        items.forEach(it => {
+            const key = field(it.row, gk) || '—';
+            let e = g.get(key);
+            if (!e) { e = { name: key, curN: 0, prevN: 0, q: {}, items: [] };
+                g.set(key, e); }
+            const u = it.row.unit || '';
+            if (!e.q[u]) e.q[u] = { cur: 0, prev: 0 };
+            if (it.cur != null) { e.curN++;
+                e.q[u].cur += it.cur; }
+            if (it.prev != null) { e.prevN++;
+                e.q[u].prev += it.prev; }
+            e.items.push(it);
+        });
+        return [...g.values()];
+    }
+
+    function deltaBadges(q) {
+        return Object.entries(q).map(([u, v]) => {
+            const d = v.cur - v.prev;
+            if (Math.abs(d) < 1e-9) return '';
+            return `<span class="dq ${d > 0 ? 'p' : 'm'}">${d > 0 ? '+' : '−'}${fmt(Math.abs(d))} ${esc(u || '—')}</span>`;
+        }).filter(Boolean).join('') || '<span class="flat mini">без изменений</span>';
+    }
+
+    function deltaNum(cur, prev) {
+        const d = cur - prev;
+        if (d === 0) return '<span class="flat">0</span>';
+        return `<span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '↑ +' : '↓ −'}${Math.abs(d)}</span>`;
+    }
+
+    function parseCSV(text) {
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+        const rows = [];
+        let f = '',
+            row = [],
+            q = false;
+        for (let i = 0; i < text.length; i++) {
+            const c = text[i];
+            if (q) {
+                if (c === '"') {
+                    if (text[i + 1] === '"') { f += '"';
+                        i++; } else q = false;
+                } else f += c;
+            } else {
+                if (c === '"') q = true;
+                else if (c === ',') { row.push(f);
+                    f = ''; } else if (c === '\n') { row.push(f);
+                    rows.push(row);
+                    row = [];
+                    f = ''; } else if (c === '\r') {} else f += c;
+            }
+        }
+        if (f.length || row.length) { row.push(f);
+            rows.push(row); }
+        return rows;
+    }
+
+    function toObjects(rows) {
+        if (!rows.length) return [];
+        const H = rows[0].map(h => norm(h));
+        const idx = name => H.findIndex(h => h.includes(name));
+        const iR = idx('рсо'),
+            iO = idx('округ'),
+            iN = idx('наимен'),
+            iC = idx('категор'),
+            iG = idx('групп'),
+            iQ = idx('кол'),
+            iU = idx('ед'),
+            iW = idx('вод'),
+            iD = idx('дата');
+        const out = [];
+        for (let r = 1; r < rows.length; r++) {
+            const c = rows[r];
+            if (!c || c.every(x => !String(x).trim())) continue;
+            let q = iQ >= 0 ? c[iQ] : '';
+            q = parseFloat(String(q).replace(',', '.'));
+            q = isNaN(q) ? null : q;
+            out.push({
+                rso: (c[iR] || '').trim(),
+                okrug: (c[iO] || '').trim(),
+                name: (c[iN] || '').trim(),
+                cat: (c[iC] || '').trim() || 'не указано',
+                grp: (c[iG] || '').trim() || '—',
+                qty: q,
+                unit: (c[iU] || '').trim(),
+                water: iW >= 0 && String(c[iW] || '').trim() !== '',
+                date: iD >= 0 ? normDate(c[iD]) : ''
+            });
+        }
+        return out;
+    }
+
+    function field(x, k) { return k === 'rso' ? x.rso : k === 'okrug' ? x.okrug : k === 'cat' ? x.cat : x.grp; }
+
+    function pass(x) {
+        if (state.okrug.size && !state.okrug.has(x.okrug)) return false;
+        if (state.rso.size && !state.rso.has(x.rso)) return false;
+        if (state.cat.size && !state.cat.has(x.cat)) return false;
+        if (state.search && !norm(x.name).includes(state.search)) return false;
+        return true;
+    }
+
+    function buildMS() {
+        document.querySelectorAll('.zips-dashboard .ms').forEach(ms => {
+            const k = ms.dataset.k;
+            const m = new Map();
+            ROWS.forEach(x => { const v = field(x, k); if (!v) return;
+                m.set(v, (m.get(v) || 0) + 1); });
+            const opts = [...m.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'ru'));
+            [...state[k]].forEach(v => { if (!m.has(v)) state[k].delete(v); });
+            ms.innerHTML =
+                `<button class="ms-btn" type="button"><span class="t"></span><span class="cnt" style="display:none"></span></button>
+      <div class="ms-pop"><div class="list"></div><button class="ms-clear" type="button">сбросить выбор</button></div>`;
+            const btn = ms.querySelector('.ms-btn'),
+                pop = ms.querySelector('.ms-pop'),
+                list = ms.querySelector('.list');
+
+            function upd() {
+                const n = state[k].size;
+                btn.querySelector('.t').textContent = n ? [...state[k]].slice(0, 2).join(', ') + (n > 2 ? '…' : '') :
+                    `все (${opts.length})`;
+                const c = btn.querySelector('.cnt');
+                c.style.display = n ? '' : 'none';
+                c.textContent = n;
+            }
+            opts.forEach(([v, c]) => {
+                const row = document.createElement('label');
+                row.className = 'ms-item';
+                row.innerHTML =
+                    `<input type="checkbox" ${state[k].has(v)?'checked':''}><span>${esc(v)}</span><span class="c">${c}</span>`;
+                row.querySelector('input').onchange = e => { e.target.checked ? state[k].add(v) : state[k].delete(v);
+                    upd();
+                    render(); };
+                list.appendChild(row);
+            });
+            ms.querySelector('.ms-clear').onclick = () => { state[k].clear();
+                list.querySelectorAll('input').forEach(i => i.checked = false);
+                upd();
+                render(); };
+            btn.onclick = () => {
+                document.querySelectorAll('.zips-dashboard .ms-pop').forEach(p => { if (p !== pop) p.classList.remove(
+                    'open'); });
+                pop.classList.toggle('open');
+            };
+            upd();
+        });
+    }
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.zips-dashboard .ms')) document.querySelectorAll('.zips-dashboard .ms-pop').forEach(p =>
+            p.classList.remove('open'));
+    });
+
+    function render() {
+        const periods = allPeriods();
+        const multi = periods.length > 1;
+        $('#periodBar').style.display = multi ? '' : 'none';
+        $('#curHead').style.display = multi ? '' : 'none';
+        if (multi) {
+            if (!periods.includes(state.period)) state.period = periods[0];
+            if (state.prev !== '' && (!periods.includes(state.prev) || state.prev === state.period))
+                state.prev = periods.find(p => p < state.period) || '';
+            if (state.prevTouched !== state.period) { state.prev = periods.find(p => p < state.period) || '';
+                state.prevTouched = state.period; }
+            $('#period').innerHTML = periods.map(p =>
+                `<option value="${p}" ${p===state.period?'selected':''}>${pLabel(p)}</option>`).join('');
+            $('#prevPeriod').innerHTML = '<option value="">— не сравнивать —</option>' +
+                periods.filter(p => p !== state.period).map(p =>
+                    `<option value="${p}" ${p===state.prev?'selected':''}>${pLabel(p)}</option>`).join('');
+            $('#periodNote').textContent = state.prev ? '' : 'нет более раннего периода для сравнения';
+            $('#curHead').textContent = 'Остатки · ' + pLabel(state.period);
+        }
+        const base = multi ? rowsOfPeriod(state.period) : ROWS;
+        const rows = base.filter(pass);
+        const rso = new Set(),
+            okrug = new Set();
+        rows.forEach(x => { rso.add(x.rso);
+            okrug.add(x.okrug); });
+        let dRso = '',
+            dOkr = '';
+        if (multi && state.prev) {
+            const pr = rowsOfPeriod(state.prev).filter(pass);
+            const pRso = new Set(pr.map(x => x.rso)),
+                pOkr = new Set(pr.map(x => x.okrug));
+            dRso = `<div class="d">${deltaNum(rso.size,pRso.size)}</div>`;
+            dOkr = `<div class="d">${deltaNum(okrug.size,pOkr.size)}</div>`;
+        }
+        $('#kpi').innerHTML = [
+            ['green', 'РСО', rso.size, dRso],
+            ['blue', 'ОМСУ', okrug.size, dOkr]
+        ].map(([c, l, v, d]) =>
+            `<div class="stat ${c}"><div class="n">${v}</div><div class="l">${l}</div>${d||''}</div>`).join('');
+        renderDyn(multi);
+        renderStale();
+        const tbl = $('#tbl');
+        if (!ROWS.length) { tbl.innerHTML = '<div class="empty">Нет данных.</div>'; return; }
+        if (!rows.length) { tbl.innerHTML = '<div class="empty">Нет позиций под фильтры.</div>'; return; }
+        tbl.innerHTML = '';
+        buildGroups(tbl, rows, HIER[state.group] || [state.group], [], '');
+    }
+
+    const HIER = { okrug: ['okrug', 'rso', 'cat'], rso: ['rso', 'okrug', 'cat'], cat: ['cat', 'rso'], grp: ['grp', 'rso'] };
+
+    function qBadges(gr) {
+        const qm = new Map();
+        gr.forEach(x => { if (x.qty != null && x.unit) qm.set(x.unit, (qm.get(x.unit) || 0) + x.qty); });
+        return [...qm.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([u, v]) =>
+            `<span class="qb"><b>${fmt(v)}</b> ${esc(u)}</span>`).join('') || '<span class="qb" style="opacity:.5">—</span>';
+    }
+
+    function buildGroups(container, rows, levels, ancFields, path) {
+        if (!levels.length) { container.appendChild(grTable(rows, ancFields)); return; }
+        const k = levels[0],
+            rest = levels.slice(1),
+            depth = ancFields.length;
+        const gm = new Map();
+        rows.forEach(x => { const g = field(x, k) || '—';
+            (gm.get(g) || gm.set(g, []).get(g)).push(x); });
+        [...gm.entries()].sort((a, b) => b[1].length - a[1].length).forEach(([g, gr]) => {
+            const pathKey = path + '' + g,
+                open = state.open.has(pathKey);
+            const w = gr.filter(x => x.water).length;
+            const d = document.createElement('div');
+            d.className = 'grp d' + depth + (open ? ' open' : '');
+            d.innerHTML =
+                `<div class="ghead"><span class="gcaret">▶</span><span class="gname">${esc(g)}</span>
+      <span class="gcount">· ${gr.length} поз.${w?` · <span style="color:var(--green-d)">${w} вода</span>`:''}</span>
+      <span class="gq">${qBadges(gr)}</span></div><div class="gbody"></div>`;
+            const body = d.querySelector('.gbody');
+            d.querySelector('.ghead').onclick = () => {
+                if (state.open.has(pathKey)) { state.open.delete(pathKey);
+                    d.classList.remove('open');
+                    body.innerHTML = ''; } else { state.open.add(pathKey);
+                    d.classList.add('open');
+                    buildGroups(body, gr, rest, ancFields.concat(k), pathKey); }
+            };
+            if (open) buildGroups(body, gr, rest, ancFields.concat(k), pathKey);
+            container.appendChild(d);
+        });
+    }
+
+    function parseDate(d) {
+        const p = String(d || '').split('.');
+        return p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]) : null;
+    }
+
+    function daysWord(n) {
+        const a = Math.abs(n) % 100,
+            b = a % 10;
+        if (a > 10 && a < 20) return 'дней';
+        if (b === 1) return 'день';
+        if (b >= 2 && b <= 4) return 'дня';
+        return 'дней';
+    }
+
+    function renderStale() {
+        const box = $('#stale');
+        let N = parseInt($('#staleDays').value, 10);
+        if (!(N > 0)) N = 30;
+        const last = {};
+        ROWS.forEach(r => {
+            const n = dNum(r.date);
+            if (!n) return;
+            if (!last[r.rso] || n > last[r.rso].n) last[r.rso] = { n, date: r.date, okrug: r.okrug };
+        });
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const all = Object.entries(last).map(([rso, v]) => {
+            const d = parseDate(v.date);
+            return { rso, okrug: v.okrug || '', date: v.date, days: d ? Math.floor((today - d) / 86400000) : null };
+        }).filter(x => x.days != null);
+        const stale = all.filter(x => x.days > N).sort((a, b) => b.days - a.days);
+        if (!all.length) { box.innerHTML = '<div class="empty">Нет данных о датах.</div>'; return; }
+        if (!stale.length) {
+            box.innerHTML =
+                `<div class="empty"><span class="st st-new" style="font-size:13px;padding:4px 12px">✓ Все РСО обновлялись не позднее ${N} ${daysWord(N)} назад</span></div>`;
+            return;
+        }
+        box.innerHTML =
+            `<table><thead><tr><th>РСО</th><th>Округ</th><th>Дата остатков</th><th class="num">Без обновления</th></tr></thead>
+    <tbody>${stale.map(x=>`<tr>
+      <td><b>${esc(x.rso)}</b></td><td>${esc(x.okrug||'—')}</td><td>${esc(x.date)}</td>
+      <td class="num"><span class="${x.days>N*2?'down':''}">${x.days} ${daysWord(x.days)}</span></td></tr>`).join('')}</tbody></table>
+    <div class="mini" style="padding:8px 14px">Отстают: <b>${stale.length}</b> из ${all.length} РСО.</div>`;
+    }
+
+    function renderDyn(multi) {
+        const wrap = $('#dynWrap');
+        if (!multi || !state.prev) { wrap.style.display = 'none'; return; }
+        wrap.style.display = '';
+        const cur = rowsOfPeriod(state.period).filter(pass);
+        const prv = rowsOfPeriod(state.prev).filter(pass);
+        const df = diffPeriods(cur, prv);
+        $('#dynSub').textContent = `${pLabel(state.period)} против ${pLabel(state.prev)}`;
+        const notes = [];
+        if (df.missing.length) notes.push(
+            `<b>Не сдали в периоде «${pLabel(state.period)}»:</b> ${df.missing.map(esc).join(', ')} — исключены из расчёта, чтобы не выглядело как списание склада.`
+            );
+        if (df.firstTime.length) notes.push(
+            `<b>Впервые в данных:</b> ${df.firstTime.map(esc).join(', ')} — сравнивать не с чем, в динамику не включены.`
+            );
+        $('#dynNote').innerHTML = notes.length ? `<div class="note">${notes.join('<br>')}</div>` : '';
+        const box = $('#dyn');
+        if (!df.both.size) { box.innerHTML = '<div class="empty">Нет РСО, присутствующих в обоих периодах.</div>'; return; }
+        const groups = dynAgg(df.items, state.group)
+            .filter(g => !state.dynOnly || g.items.some(i => i.st !== 'same'))
+            .sort((a, b) => Math.abs(b.curN - b.prevN) - Math.abs(a.curN - a.prevN) || b.curN - a.curN);
+        if (!groups.length) { box.innerHTML = '<div class="empty">Изменений между периодами нет.</div>'; return; }
+        box.innerHTML = '';
+        const head = document.createElement('table');
+        head.innerHTML =
+            '<thead><tr><th style="width:34%">Разрез</th><th class="num">Было</th><th class="num">Стало</th><th class="num">Δ позиций</th><th>Δ количества</th></tr></thead>';
+        box.appendChild(head);
+        groups.forEach(g => {
+            const open = state.dynOpen.has(g.name);
+            const d = document.createElement('div');
+            d.className = 'grp' + (open ? ' open' : '');
+            d.innerHTML =
+                `<div class="ghead"><span class="gcaret">▶</span><span class="gname">${esc(g.name)}</span>
+      <span class="gq" style="margin-left:auto;gap:14px;align-items:center">
+        <span class="mini" style="min-width:44px;text-align:right">${g.prevN}</span>
+        <span class="mini" style="min-width:44px;text-align:right"><b style="color:var(--ink)">${g.curN}</b></span>
+        <span style="min-width:70px;text-align:right">${deltaNum(g.curN,g.prevN)}</span>
+        <span style="min-width:210px;text-align:right">${deltaBadges(g.q)}</span></span></div><div class="gbody"></div>`;
+            d.querySelector('.ghead').onclick = () => {
+                if (state.dynOpen.has(g.name)) { state.dynOpen.delete(g.name);
+                    d.classList.remove('open');
+                    d.querySelector('.gbody').innerHTML = ''; } else { state.dynOpen.add(g.name);
+                    d.classList.add('open');
+                    d.querySelector('.gbody').appendChild(dynTable(g)); }
+            };
+            if (open) d.querySelector('.gbody').appendChild(dynTable(g));
+            box.appendChild(d);
+        });
+    }
+
+    function dynTable(g) {
+        const order = { new: 0, gone: 1, chg: 2, same: 3 };
+        const label = { new: 'появилось', gone: 'ушло', chg: 'изменилось', same: 'без изменений' };
+        let items = g.items.filter(i => !state.dynOnly || i.st !== 'same')
+            .sort((a, b) => order[a.st] - order[b.st] || String(a.row.name).localeCompare(String(b.row.name), 'ru'));
+        const t = document.createElement('table');
+        t.innerHTML =
+            '<thead><tr><th>Наименование</th><th>РСО</th><th class="num">Было</th><th class="num">Стало</th><th class="num">Δ</th><th>Ед.</th><th>Статус</th></tr></thead><tbody></tbody>';
+        const tb = t.querySelector('tbody');
+        items.slice(0, 400).forEach(i => {
+            const d = (i.cur == null ? 0 : i.cur) - (i.prev == null ? 0 : i.prev);
+            const dTxt = i.st === 'new' ? '<span class="up">новая</span>' : i.st === 'gone' ?
+                '<span class="down">списана</span>' :
+                (d === 0 ? '<span class="flat">0</span>' :
+                    `<span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}</span>`);
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                `<td>${i.row.water?'<span class="tag wtr">вода</span> ':''}${esc(i.row.name)}</td>
+      <td>${esc(i.row.rso)}</td>
+      <td class="num">${i.prev==null?'—':fmt(i.prev)}</td>
+      <td class="num">${i.cur==null?'—':fmt(i.cur)}</td>
+      <td class="num">${dTxt}</td><td>${esc(i.row.unit||'—')}</td>
+      <td><span class="st st-${i.st}">${label[i.st]}</span></td>`;
+            tb.appendChild(tr);
+        });
+        if (items.length > 400) {
+            const w = document.createElement('div');
+            w.appendChild(t);
+            const m = document.createElement('div');
+            m.className = 'mini';
+            m.style.padding = '6px 14px';
+            m.textContent = 'первые 400 из ' + items.length;
+            w.appendChild(m);
+            return w;
+        }
+        return t;
+    }
+
+    function grTable(gr, anc) {
+        anc = anc || [];
+        const sRso = !anc.includes('rso'),
+            sOkr = !anc.includes('okrug'),
+            sGrp = !anc.includes('grp');
+        const t = document.createElement('table');
+        t.className = 'leaf';
+        let th = '<th>Наименование</th>';
+        if (sRso) th += '<th>РСО</th>';
+        if (sOkr) th += '<th>Округ</th>';
+        if (sGrp) th += '<th>Группа</th>';
+        th += '<th class="num">Кол-во</th><th>Ед.</th>';
+        t.innerHTML = '<thead><tr>' + th + '</tr></thead><tbody></tbody>';
+        const tb = t.querySelector('tbody');
+        gr.slice(0, 400).forEach(x => {
+            const tr = document.createElement('tr');
+            let td = `<td>${x.water?'<span class="tag wtr">вода</span> ':''}${esc(x.name)}</td>`;
+            if (sRso) td += `<td>${esc(x.rso)}</td>`;
+            if (sOkr) td += `<td>${esc(x.okrug)}</td>`;
+            if (sGrp) td += `<td><span class="tag">${esc(x.grp)}</span></td>`;
+            td += `<td class="num">${fmt(x.qty)}</td><td>${esc(x.unit||'—')}</td>`;
+            tr.innerHTML = td;
+            tb.appendChild(tr);
+        });
+        if (gr.length > 400) {
+            const w = document.createElement('div');
+            w.appendChild(t);
+            const m = document.createElement('div');
+            m.className = 'mini';
+            m.style.padding = '6px 14px';
+            m.textContent = 'первые 400 из ' + gr.length;
+            w.appendChild(m);
+            return w;
+        }
+        return t;
+    }
+
+    function exportCSV() {
+        const rows = (allPeriods().length > 1 ? rowsOfPeriod(state.period) : ROWS).filter(pass);
+        const head = ['РСО', 'Округ', 'Наименование', 'Категория', 'Группа', 'Количество', 'Ед.', 'Водоподготовка', 'Дата'];
+        const q = v => { v = String(v == null ? '' : v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+        const csv = [head.join(';')].concat(rows.map(x => [x.rso, x.okrug, x.name, x.cat, x.grp, x.qty == null ? '' :
+            String(x.qty).replace('.', ','), x.unit, x.water ? 'да' : '', x.date
+        ].map(q).join(';'))).join('\r\n');
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'Остатки_ЗиП_РСО_' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.click();
+    }
+
+    function wbToRows(buf) {
+        const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null, raw: true });
+        return aoa.map(r => (r || []).map(x => x instanceof Date ? fmtDMY(x) : (x == null ? '' : String(x))));
+    }
+
+    const pad2 = n => String(n).padStart(2, '0');
+    const fmtDMY = d => pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear();
+    const fmtDMYUTC = d => pad2(d.getUTCDate()) + '.' + pad2(d.getUTCMonth() + 1) + '.' + d.getUTCFullYear();
+
+    function normDate(v) {
+        if (v == null) return '';
+        if (v instanceof Date) return fmtDMY(v);
+        const s = String(v).trim();
+        if (!s) return '';
+        if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return s;
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+        if (/^\d{4,6}(\.\d+)?$/.test(s)) {
+            const n = parseFloat(s);
+            if (n > 20000 && n < 80000) return fmtDMYUTC(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000));
+        }
+        return s;
+    }
+
+    function manualBox(msg) {
+        const updEl = document.getElementById('upd');
+        if (updEl) updEl.textContent = 'источник не задан';
+        document.getElementById('warnBox').innerHTML =
+            '<div class="warn">' + msg +
+            '</div><div class="card"><input type="file" id="fi" accept=".csv,.xlsx,.xls"> <span class="mini">загрузить файл вручную (для проверки)</span></div>';
+        const fi = document.getElementById('fi');
+        if (fi) {
+            fi.onchange = async e => {
+                const f = e.target.files[0];
+                if (!f) return;
+                if (/\.csv$/i.test(f.name)) ROWS = toObjects(parseCSV(await f.text()));
+                else ROWS = toObjects(wbToRows(await f.arrayBuffer()));
+                const updEl2 = document.getElementById('upd');
+                if (updEl2) updEl2.textContent = 'из файла: ' + f.name;
+                buildMS();
+                render();
+            };
+        }
+        render();
+    }
+
+    async function load() {
+        document.getElementById('warnBox').innerHTML = '';
+        if (!YANDEX_PUBLIC_URL) {
+            manualBox('Ссылка на таблицу Яндекс.Диска не указана. Впишите её в <b>YANDEX_PUBLIC_URL</b> в начале файла.');
+            return;
+        }
+        try {
+            const api = 'https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=' + encodeURIComponent(
+                YANDEX_PUBLIC_URL);
+            const r = await fetch(api, { cache: 'no-store' });
+            const d = await r.json();
+            if (!r.ok || !d.href) throw new Error(d.message || d.description || ('HTTP ' + r.status));
+            const rr = await fetch(d.href, { cache: 'no-store' });
+            if (!rr.ok) throw new Error('скачивание: HTTP ' + rr.status);
+            ROWS = toObjects(wbToRows(await rr.arrayBuffer()));
+            const updEl = document.getElementById('upd');
+            if (updEl) updEl.textContent = 'обновлено: ' + new Date().toLocaleString('ru-RU');
+            buildMS();
+            render();
+        } catch (e) {
+            const updEl = document.getElementById('upd');
+            if (updEl) updEl.textContent = 'ошибка загрузки';
+            const msg = 'Не удалось получить таблицу с Яндекс.Диска: ' + esc(e.message) +
+                '. Проверьте: файл доступен по ссылке, есть интернет, файл не удалён (обновлять — перезаписью того же файла).';
+            manualBox(msg);
+        }
+    }
+
+    // события
+    $('#group').onchange = e => { state.group = e.target.value;
+        state.open.clear();
+        state.dynOpen.clear();
+        render(); };
+    $('#period').onchange = e => { state.period = e.target.value;
+        state.open.clear();
+        state.dynOpen.clear();
+        render(); };
+    $('#prevPeriod').onchange = e => { state.prev = e.target.value;
+        state.prevTouched = state.period;
+        state.dynOpen.clear();
+        render(); };
+    $('#dynOnly').onchange = e => { state.dynOnly = e.target.checked;
+        render(); };
+    try { const sv = localStorage.getItem('ostatki_stale_days'); if (sv) $('#staleDays').value = sv; } catch (e) {}
+    $('#staleDays').oninput = e => { try { localStorage.setItem('ostatki_stale_days', e.target.value); } catch (err) {}
+        renderStale(); };
+    let t;
+    $('#search').oninput = e => { clearTimeout(t);
+        t = setTimeout(() => { state.search = norm(e.target.value);
+            render(); }, 200); };
+    $('#export').onclick = exportCSV;
+    const refreshBtn = document.getElementById('refresh');
+    if (refreshBtn) refreshBtn.onclick = load;
+
+    buildMS();
+    load();
+    if (AUTO_REFRESH_MIN > 0 && YANDEX_PUBLIC_URL) setInterval(load, AUTO_REFRESH_MIN * 60000);
+</script>
+
+</body>
+</html>

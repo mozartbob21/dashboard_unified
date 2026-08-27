@@ -64,6 +64,18 @@
     
 
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
+<style>
+/* ── Кнопка копирования в углу уведомления ── */
+.message-block{position:relative}
+.copy-btn{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:10px;
+  border:1px solid var(--border, #2d3748);background:var(--card-bg, #1a202c);
+  color:var(--text, #e2e8f0);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .18s;z-index:2;padding:0}
+.copy-btn:hover{border-color:var(--acc1, #4f6df5);color:var(--acc1, #4f6df5);
+  transform:translateY(-1px);box-shadow:0 4px 12px rgba(79,109,245,.25)}
+.copy-btn.ok{background:var(--ok, #10b981);border-color:var(--ok, #10b981);color:#fff}
+.copy-btn svg{width:16px;height:16px}
+</style>
 </head>
 
 <body class="compact-module-page">
@@ -1081,6 +1093,48 @@
 })();
 </script>
 
+
+
+<script>
+(function(){
+    const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    const OK_ICON   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+    function attach(block){
+        if (block.dataset.copyAttached) return;
+        block.dataset.copyAttached = "1";
+        const pre = block.querySelector(".editable-message") || block.querySelector("pre");
+        if (!pre) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "copy-btn";
+        btn.title = "Скопировать уведомление";
+        btn.innerHTML = COPY_ICON;
+        btn.addEventListener("click", function(e){
+            e.stopPropagation();
+            const text = pre.textContent.trim();
+            function legacy(){
+                const r = document.createRange(); r.selectNode(pre);
+                const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+                document.execCommand("copy"); sel.removeAllRanges();
+            }
+            function done(){
+                btn.innerHTML = OK_ICON; btn.classList.add("ok");
+                setTimeout(function(){ btn.innerHTML = COPY_ICON; btn.classList.remove("ok"); }, 1400);
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(function(){ legacy(); done(); });
+            } else { legacy(); done(); }
+        });
+        block.insertBefore(btn, block.firstChild);
+    }
+    function scan(){ document.querySelectorAll(".message-block").forEach(attach); }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scan);
+    else scan();
+    new MutationObserver(scan).observe(document.body || document.documentElement,
+        {childList:true, subtree:true});
+})();
+</script>
 
 </body>
 </html>

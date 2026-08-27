@@ -362,101 +362,185 @@
                 justify-content: center !important;
             }
         }
-    
-        .history-widget { margin-bottom: 20px; }
-        .history-widget-head {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 16px; margin-bottom: 16px; flex-wrap: wrap;
-        }
-        .history-widget-actions { display: flex; align-items: center; gap: 10px; }
-        .live-dot {
-            display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-            background: #10b981; margin-right: 4px;
-            animation: live-pulse 1.6s ease-in-out infinite; vertical-align: middle;
-        }
-        @keyframes live-pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50%      { opacity: 0.5; transform: scale(1.3); }
-        }
-        .history-list { display: flex; flex-direction: column; gap: 8px; }
-        .history-item {
-            display: grid;
-            grid-template-columns: auto 1fr auto auto;
-            align-items: center; gap: 14px;
-            padding: 12px 16px;
-            background: rgba(0, 0, 0, 0.025);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            border-radius: 12px;
-            transition: all 0.2s ease;
-        }
-        [data-theme="dark"] .history-item {
-            background: rgba(255, 255, 255, 0.03);
-            border-color: rgba(255, 255, 255, 0.08);
-        }
-        .history-item:hover { background: rgba(0, 0, 0, 0.045); transform: translateX(2px); }
-        [data-theme="dark"] .history-item:hover { background: rgba(255, 255, 255, 0.05); }
-        .history-status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-        .history-status-dot.status-running {
-            background: #3b82f6;
-            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6);
-            animation: status-running-pulse 1.4s ease-in-out infinite;
-        }
-        @keyframes status-running-pulse {
-            0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6); }
-            70%  { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-        }
-        .history-status-dot.status-success { background: #10b981; }
-        .history-status-dot.status-error   { background: #ef4444; }
-        .history-status-dot.status-unknown { background: #94a3b8; }
-        .history-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-        .history-module-name {
-            font-weight: 600; font-size: 14px;
-            color: var(--text-color, #1e293b);
-            display: flex; align-items: center; gap: 8px;
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        [data-theme="dark"] .history-module-name {
-            color: #e2e8f0;
-        }
-        [data-theme="dark"] .history-meta,
-        [data-theme="dark"] .history-duration,
-        [data-theme="dark"] .history-empty {
-            color: #94a3b8;
-        }
-        .history-module-icon { font-size: 16px; }
-        .history-meta {
-            font-size: 12px; color: var(--muted-color, #94a3b8);
-            display: flex; align-items: center; gap: 8px;
-        }
-        .history-user-tag {
-            display: inline-flex; align-items: center; gap: 4px;
-            background: rgba(139, 92, 246, 0.1); color: #8b5cf6;
-            padding: 1px 8px; border-radius: 10px;
-            font-weight: 500; font-size: 11px;
-        }
-        [data-theme="dark"] .history-user-tag { background: rgba(139, 92, 246, 0.2); }
-        .history-duration {
-            font-size: 12px; color: var(--muted-color, #94a3b8);
-            font-variant-numeric: tabular-nums; white-space: nowrap;
-        }
-        .history-status-label {
-            font-size: 12px; font-weight: 600;
-            padding: 3px 10px; border-radius: 8px; white-space: nowrap;
-        }
-        .history-status-label.status-running { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
-        .history-status-label.status-success { background: rgba(16, 185, 129, 0.12); color: #10b981; }
-        .history-status-label.status-error   { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
-        .history-status-label.status-unknown { background: rgba(148, 163, 184, 0.15); color: #64748b; }
-        .history-empty { text-align: center; padding: 32px 16px; color: var(--muted-color, #94a3b8); }
-        .history-empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.6; }
-        .history-empty-title { font-size: 14px; font-weight: 500; }
-        @media (max-width: 768px) {
-            .history-item { grid-template-columns: auto 1fr auto; gap: 10px; }
-            .history-duration { display: none; }
-            .history-module-name { font-size: 13px; }
-        }
-    
+        /* Контейнер всего виджета */
+.history-widget {
+    margin-bottom: 20px;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .history-widget {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Шапка: заголовок + кнопка "Дата" */
+.history-widget-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.history-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4);
+    flex-shrink: 0;
+}
+
+.history-widget-head strong {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color, #1e293b);
+}
+
+[data-theme="dark"] .history-widget-head strong {
+    color: #e2e8f0;
+}
+
+/* Кнопка "Дата" */
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    background: #f8fafc;
+    color: var(--text-color, #1e293b);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .btn-sm {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #cbd5e1;
+}
+
+.btn-sm:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+[data-theme="dark"] .btn-sm:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Тело виджета */
+.history-body {
+    min-height: 120px; /* Чтобы блок не «схлопывался» при ошибке */
+    position: relative;
+}
+
+/* Список истории (если данные есть) */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.history-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.025);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .history-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.history-item:hover {
+    background: rgba(0, 0, 0, 0.045);
+    transform: translateX(2px);
+}
+
+[data-theme="dark"] .history-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Заглушка при ошибке */
+.history-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    text-align: center;
+    color: var(--muted-color, #94a3b8);
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 12px;
+}
+
+[data-theme="dark"] .history-empty-state {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.history-empty-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    opacity: 0.6;
+}
+
+.history-empty-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color, #1e293b);
+    margin-bottom: 4px;
+}
+
+[data-theme="dark"] .history-empty-title {
+    color: #e2e8f0;
+}
+
+.history-empty-hint {
+    font-size: 12px;
+}
+
+/* Адаптив */
+@media (max-width: 768px) {
+    .history-widget {
+        padding: 12px;
+    }
+
+    .history-widget-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .btn-sm {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .history-item {
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+    }
+}
+
         .profile-menu { position: relative; display: inline-block; }
         .profile-menu-trigger { user-select: none; }
         .profile-menu-dropdown {
@@ -1004,28 +1088,30 @@
         {% if true %}
         
             
-            
             <section class="card history-widget" id="historyWidget">
-            <div class="history-widget-head">
-                <div>
-                    <div class="eyebrow">АКТИВНОСТЬ</div>
-                    <h2 class="section-title">История запусков</h2>
-                </div>
-                <div class="history-widget-actions">
-                    <span class="pill primary" id="historyLiveIndicator">
-                        <span class="live-dot"></span> Авто
-                    </span>
-                    <button id="historyRefreshBtn" class="quick-actions-configure-btn" type="button" title="Обновить">
-                        <span>🔄</span> Обновить
-                    </button>
-                </div>
-            </div>
-            <div class="history-list" id="historyList" aria-live="polite">
-                <div class="history-empty">
-                    <div class="history-empty-icon">⏳</div>
-                    <div class="history-empty-title">Загружаю историю запусков…</div>
-                </div>
-            </div>
+            <div class="history-widget">
+    <!-- Шапка: заголовок + кнопка "Дата" -->
+    <div class="history-widget-head">
+        <div class="history-title-group">
+            <span class="live-dot"></span>
+            <strong>История запусков</strong>
+        </div>
+    </div>
+
+    <!-- Тело: либо список, либо заглушка с ошибкой -->
+    <div class="history-body">
+        <!-- Сюда JS будет рендерить список .history-list -->
+        <div id="historyList" class="history-list"></div>
+
+        <!-- Заглушка, если данных нет или ошибка -->
+        <div id="historyEmptyState" class="history-empty-state">
+            <div class="history-empty-icon">⚠️</div>
+            <div class="history-empty-title">Не удалось загрузить историю</div>
+            <div class="history-empty-hint">Проверьте соединение с сервером или логи.</div>
+        </div>
+    </div>
+</div>
+
         </section>
         {% endif %}
 
@@ -1355,7 +1441,33 @@
                 </div>
             </article>
             {% endif %}
+            {% if true %}
 
+            <article class="card module-card">
+    <div class="module-head">
+        <div class="head-pills">
+            <span class="pill primary">Склад</span>
+            <span class="pill primary">Аналитика</span>
+        </div>
+        <span class="status-badge status-stable">Новое</span>
+    </div>
+    <h2 class="module-title">Остатки ЗиП РСО</h2>
+    <div class="module-description is-collapsed">
+        Дашборд для анализа остатков товарно-материальных ценностей по РСО.
+        Сравнение периодов, фильтрация по округам, категориям, поиск.
+    </div>
+    <div class="tag-row">
+        <span class="tag">Сравнение периодов</span>
+        <span class="tag">Группировка</span>
+        <span class="tag">Динамика</span>
+        <span class="tag">Экспорт CSV</span>
+    </div>
+    <div class="action-panel">
+        <a href="/zips" class="module-link">Открыть дашборд →</a>
+    </div>
+</article>
+            {% endif %}
+            
             {% if true %}
             <article class="card module-card">
                 <div class="module-head">
