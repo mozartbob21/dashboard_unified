@@ -45,8 +45,8 @@
         .tl-drop-text span{color:#6366f1;font-weight:700}
         .tl-drop-name{font-size:12.5px;font-weight:700;color:var(--text-color,#1e293b)}
         .tl-pane textarea{width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border-color,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-color,#1e293b);font-family:Consolas,monospace;font-size:12.5px;line-height:1.5;resize:vertical;box-sizing:border-box}
-        .tl-options{display:flex;gap:12px;flex-wrap:wrap}
-        .tl-field{flex:1;min-width:180px;display:flex;flex-direction:column;gap:5px}
+        .tl-options{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;}
+        .tl-field{display:flex;flex-direction:column;gap:5px}
         .tl-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-color,#64748b)}
         .tl-field select,.tl-field input{padding:9px 12px;border-radius:10px;border:1px solid var(--border-color,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-color,#1e293b);font-size:13px;font-family:inherit}
         .tl-actions{display:flex;gap:10px}
@@ -80,7 +80,6 @@
         .tl-tpl-item.muted{color:var(--muted-color,#94a3b8);font-style:italic}
         .tl-rules{margin:0;padding-left:18px;font-size:12.5px;line-height:1.8;color:var(--muted-color,#64748b)}
         .tl-rules code{background:rgba(139,92,246,.1);color:#8b5cf6;border-radius:5px;padding:1px 6px;font-size:11.5px}
-    
         .tl-tpl-item{display:flex;align-items:center;justify-content:space-between;gap:8px}
         .tl-del{flex:none;background:rgba(239,68,68,.1);color:#ef4444;border:none;border-radius:6px;width:20px;height:20px;font-size:14px;line-height:1;cursor:pointer;transition:all .15s}
         .tl-del:hover{background:#ef4444;color:#fff;transform:scale(1.1)}
@@ -142,6 +141,14 @@
                         <option value="smart">Умный (структура)</option>
                         <option value="shots">Скриншоты (сложный HTML / PDF)</option>
                         <option value="ai">ИИ — любая сложность</option>
+                    </select>
+                </div>
+                <div class="tl-field">
+                    <label>ИИ-модель</label>
+                    <select id="aiEngineSelect">
+                        <option value="qwen">ГосЧат (по умолчанию)</option>
+                        <option value="gigachat">GigaChat</option>
+                        <option value="goschat">ГосЧат</option>
                     </select>
                 </div>
                 <div class="tl-field">
@@ -269,22 +276,35 @@ $("convertBtn").addEventListener("click", async () => {
     if (!html.trim()) return setStatus("error", "Укажи HTML: файлом или кодом.");
     setStatus("info", "⏳ Собираю PPTX…");
     $("convertBtn").disabled = true;
-    const fd = new FormData();
-    fd.append("html", html);
-    fd.append("mode", $("modeSelect").value);
-    fd.append("engine", $("aiEngineSelect").value);
-    fd.append("template", $("tplSelect").value);
-    fd.append("out_name", $("outName").value || "presentation.pptx");
+    
     try {
+        const fd = new FormData();
+        fd.append("html", html);
+        fd.append("mode", $("modeSelect").value);
+        
+        // Безопасное получение модели ИИ
+        const engineEl = $("aiEngineSelect");
+        if (engineEl) {
+            fd.append("engine", engineEl.value);
+        }
+        
+        fd.append("template", $("tplSelect").value);
+        fd.append("out_name", $("outName").value || "presentation.pptx");
+
         const r = await fetch("/tools/html2pptx", { method: "POST", body: fd });
         const d = await r.json();
-        if (!d.ok) return setStatus("error", d.message || "Ошибка");
+        if (!d.ok) throw new Error(d.message || "Ошибка сервера");
+        
         setStatus("done", "✅ Готово! Слайдов: " + d.slides);
         const res = $("resultArea");
         res.hidden = false;
         res.innerHTML = `<a href="${d.url}" class="tl-download">⬇️ Скачать PPTX</a>`;
-    } catch (e) { setStatus("error", "Сетевая ошибка: " + e.message); }
-    finally { $("convertBtn").disabled = false; }
+    } catch (e) { 
+        setStatus("error", "Ошибка: " + e.message); 
+    } finally { 
+        // Гарантированно разблокируем кнопку даже при ошибке
+        $("convertBtn").disabled = false; 
+    }
 });
 
 $("tplFile").addEventListener("change", async e => {
@@ -325,7 +345,6 @@ $("sampleBtn").addEventListener("click", () => {
     setStatus("info", "✨ Пример вставлен — жми «Предпросмотр» или «Конвертировать»");
 });
 
-
 $("emblemFile").addEventListener("change", async e => {
     const f = e.target.files[0]; if (!f) return;
     const fd = new FormData(); fd.append("emblem_file", f);
@@ -334,6 +353,7 @@ $("emblemFile").addEventListener("change", async e => {
     if (d.ok) setStatus("done", "✅ Герб загружен — будет на всех контентных слайдах");
     else setStatus("error", d.message || "Ошибка");
 });
+
 refreshTemplates({{ templates | tojson }});
 </script>
 
@@ -368,7 +388,6 @@ refreshTemplates({{ templates | tojson }});
     else make();
 })();
 </script>
-
 
 </body>
 </html>

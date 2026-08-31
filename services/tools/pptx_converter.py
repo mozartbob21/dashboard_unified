@@ -662,6 +662,7 @@ def build_pptx_from_images(images: list, output_name: str) -> Path:
     prs.save(str(out))
     return out
 
+# ... (предыдущий код без изменений) ...
 
 # ═══════════════ AI-РАЗБОР (QWEN) ПРЕЗЕНТАЦИЙ ═══════════════
 
@@ -675,17 +676,35 @@ AI_PARSE_PROMPT = (
 )
 
 
-def parse_html_to_slides_ai(html: str, engine=None) -> list:
-    """Qwen строит структуру слайдов из HTML любой сложности."""
+def parse_html_to_slides_ai(html: str, engine: str = None) -> list:
+    """ИИ строит структуру слайдов из HTML любой сложности с поддержкой выбора модели."""
     import json as _json
     from services.summarizer.engine import _qwen_chat
-    raw = _qwen_chat([
+    
+    messages = [
         {"role": "system", "content": AI_PARSE_PROMPT},
         {"role": "user", "content": html[:20000]},
-    ], max_tokens=4000)
+    ]
+    
+    raw = None
+    # Пробуем разные способы передачи модели (engine/model), чтобы адаптироваться под _qwen_chat
+    attempts = [{"engine": engine}, {"model": engine}, {}] if engine else [{}]
+    
+    for kwargs in attempts:
+        try:
+            raw = _qwen_chat(messages, max_tokens=4000, **kwargs)
+            break
+        except TypeError:
+            continue
+            
+    if not raw:
+        # Fallback, если ничего не сработало
+        raw = _qwen_chat(messages, max_tokens=4000)
+        
     m = re.search(r"\[.*\]", raw, re.S)
     if not m:
         return []
+        
     data = _json.loads(m.group(0))
     slides = []
     for it in data:
@@ -704,4 +723,4 @@ def parse_html_to_slides_ai(html: str, engine=None) -> list:
             "tables": tables,
             "notes": "",
         })
-    return slides
+    return slides 
