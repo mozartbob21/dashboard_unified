@@ -35,45 +35,7 @@
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
-        /* ===== Общие стили (как в home.html) ===== */
-        .profile-menu { position: relative; display: inline-block; }
-        .profile-menu-trigger { user-select: none; }
-        .profile-menu-dropdown {
-            position: absolute;
-            top: calc(100% + 8px);
-            right: 0;
-            min-width: 220px;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-            padding: 6px;
-            z-index: 1000;
-        }
-        .profile-menu-dropdown[hidden] { display: none; }
-        .profile-menu-header { padding: 8px 12px 4px; }
-        .profile-menu-name { font-weight: 600; font-size: 14px; color: #111827; }
-        .profile-menu-role { font-size: 12px; color: #6b7280; }
-        .profile-menu-divider { height: 1px; background: #f0f0f3; margin: 6px 4px; }
-        .profile-menu-info { padding: 4px 12px; font-size: 12px; color: #6b7280; }
-        .profile-menu-item {
-            display: block;
-            width: 100%;
-            text-align: left;
-            box-sizing: border-box;
-            padding: 9px 12px;
-            border: none;
-            background: transparent;
-            border-radius: 8px;
-            font-size: 14px;
-            color: #111827;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .profile-menu-item:hover { background: #f3f4f6; }
-        .profile-menu-logout { color: #b91c1c; }
-        .profile-menu-logout:hover { background: #fef2f2; }
-
+        /* ===== Общие стили ===== */
         .theme-dropdown { position: relative; display: inline-block; }
         .theme-toggle { 
             background: var(--bg-neutral-100, rgba(0,0,0,0.03));
@@ -139,120 +101,6 @@
         .theme-menu-check { margin-left: auto; opacity: 0; }
         .theme-menu-item.active .theme-menu-check { opacity: 1; color: #8b5cf6; }
 
-        .notifications-bell { position: relative; display: inline-block; }
-        .bell-trigger {
-            background: var(--bg-neutral-100, rgba(0,0,0,0.03));
-            border: 1px solid var(--border-color, #cbd5e1);
-            color: var(--text-color, #475569);
-            border-radius: 10px;
-            padding: 7px 11px;
-            font-size: 16px;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-            transition: all 0.2s ease;
-        }
-        .bell-trigger:hover {
-            background: rgba(139, 92, 246, 0.08);
-            border-color: #8b5cf6;
-            transform: translateY(-1px);
-        }
-        [data-theme="dark"] .bell-trigger {
-            background: rgba(255,255,255,0.05);
-            border-color: rgba(255,255,255,0.15);
-            color: #e2e8f0;
-        }
-        [data-theme="dark"] .bell-trigger:hover {
-            background: rgba(139, 92, 246, 0.2);
-            border-color: #8b5cf6;
-        }
-        .bell-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            min-width: 18px;
-            height: 18px;
-            padding: 0 5px;
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            border-radius: 9px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
-            line-height: 1;
-        }
-        .bell-badge[hidden] { display: none; }
-        .notifications-dropdown {
-            position: absolute;
-            top: calc(100% + 10px);
-            right: 0;
-            width: 360px;
-            max-width: 90vw;
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
-            z-index: 1000;
-            overflow: hidden;
-        }
-        [data-theme="dark"] .notifications-dropdown {
-            background: #1e293b;
-            border-color: rgba(255,255,255,0.1);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        }
-        .notifications-dropdown[hidden] { display: none; }
-        .notifications-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 16px;
-            border-bottom: 1px solid #f0f0f3;
-        }
-        [data-theme="dark"] .notifications-head { border-color: rgba(255,255,255,0.08); }
-        .notifications-title { font-weight: 700; font-size: 14px; color: #1e293b; }
-        [data-theme="dark"] .notifications-title { color: #e2e8f0; }
-        .notifications-mark-all {
-            background: none;
-            border: none;
-            color: #8b5cf6;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .notifications-mark-all:hover { background: rgba(139, 92, 246, 0.08); }
-        .notifications-list { max-height: 380px; overflow-y: auto; padding: 6px; }
-        .notifications-empty { text-align: center; padding: 28px 16px; color: #94a3b8; font-size: 13px; }
-        .notif-item {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .notif-item:hover { background: rgba(0,0,0,0.03); }
-        [data-theme="dark"] .notif-item:hover { background: rgba(255,255,255,0.05); }
-        .notif-item.unread { background: rgba(139, 92, 246, 0.06); }
-        [data-theme="dark"] .notif-item.unread { background: rgba(139, 92, 246, 0.15); }
-        .notif-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; padding-top: 2px; }
-        .notif-body { min-width: 0; }
-        .notif-title { font-weight: 600; font-size: 13px; color: #1e293b; margin: 0 0 2px; }
-        [data-theme="dark"] .notif-title { color: #e2e8f0; }
-        .notif-text { font-size: 12px; color: #64748b; margin: 0; line-height: 1.4; }
-        [data-theme="dark"] .notif-text { color: #94a3b8; }
-        .notif-time { font-size: 10.5px; color: #94a3b8; margin-top: 3px; }
-        .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: #8b5cf6; flex-shrink: 0; margin-top: 6px; }
-        .notif-item:not(.unread) .notif-dot { visibility: hidden; }
-        .notifications-foot { padding: 10px 16px; border-top: 1px solid #f0f0f3; text-align: center; }
-        [data-theme="dark"] .notifications-foot { border-color: rgba(255,255,255,0.08); }
-
         .scheduler-btn {
             background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
             color: white;
@@ -305,14 +153,6 @@
             align-items: center;
             gap: 8px;
             flex-wrap: wrap;
-        }
-        .badge {
-            background: #667eea;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
         }
 
         /* ===== Стили дашборда ===== */
@@ -368,6 +208,7 @@
             border-radius: var(--r);
             padding: 14px;
             margin-bottom: 14px;
+            overflow: visible; /* чтобы выпадающие списки не обрезались */
         }
         .zips-dashboard .chips {
             display: flex;
@@ -408,6 +249,8 @@
             display: flex;
             flex-direction: column;
             gap: 4px;
+            flex: 0 1 auto;
+            min-width: 120px;
         }
         .zips-dashboard .field label {
             font-size: 11px;
@@ -597,6 +440,7 @@
         }
         .zips-dashboard .ms {
             position: relative;
+            z-index: 1000; /* повышаем контекст наложения */
         }
         .zips-dashboard .ms-btn {
             background: #fff;
@@ -627,7 +471,7 @@
         }
         .zips-dashboard .ms-pop {
             position: absolute;
-            z-index: 40;
+            z-index: 10000; /* гарантированно поверх всего */
             top: calc(100% + 4px);
             left: 0;
             background: #fff;
@@ -635,8 +479,8 @@
             border-radius: 8px;
             padding: 8px;
             min-width: 240px;
-            max-height: 280px;
-            overflow: auto;
+            max-height: 300px;
+            overflow-y: auto;
             display: none;
             box-shadow: 0 10px 30px rgba(19,42,69,.18);
         }
@@ -836,7 +680,7 @@
             color: #60a5fa;
         }
 
-        /* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ (верхняя панель и body) ===== */
+        /* ===== ДОПОЛНИТЕЛЬНЫЕ СТИЛИ ДЛЯ ТЁМНОЙ ТЕМЫ (верхняя панель) ===== */
         [data-theme="dark"] body {
             background: #0f172a;
         }
@@ -849,15 +693,6 @@
         }
         [data-theme="dark"] .brand-subtitle {
             color: #94a3b8;
-        }
-        [data-theme="dark"] .theme-toggle {
-            background: rgba(255,255,255,0.05);
-            border-color: rgba(255,255,255,0.15);
-            color: #e2e8f0;
-        }
-        [data-theme="dark"] .theme-toggle:hover {
-            background: rgba(139, 92, 246, 0.2);
-            border-color: #8b5cf6;
         }
         [data-theme="dark"] .scheduler-btn {
             background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
@@ -877,14 +712,14 @@
         [data-theme="dark"] .theme-menu-item:hover {
             background: rgba(255,255,255,0.05);
         }
-        [data-theme="dark"] .theme-menu-check {
-            color: #8b5cf6;
-        }
 
         @media (max-width: 768px) {
             .topbar { flex-direction: column; align-items: stretch; }
             .top-actions { justify-content: center; flex-wrap: wrap; }
             .brand { justify-content: center; }
+            .zips-dashboard .row { flex-direction: column; align-items: stretch; }
+            .zips-dashboard .field { min-width: unset; }
+            .zips-dashboard .ms-btn { min-width: unset; width: 100%; }
         }
     </style>
 </head>
@@ -1065,169 +900,6 @@
                 applyTheme("auto-moscow");
             }
         }, 60000);
-    })();
-</script>
-
-<script>
-    (function() {
-        const bellBtn = document.getElementById("notificationsBellBtn");
-        const dropdown = document.getElementById("notificationsDropdown");
-        const badge = document.getElementById("notificationsBadge");
-        const list = document.getElementById("notificationsList");
-        const markAllBtn = document.getElementById("notificationsMarkAllBtn");
-        if (!bellBtn || !dropdown || !list) return;
-
-        const READ_KEY = "neurona-notifications-read";
-
-        function getReadIds() {
-            try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]")); }
-            catch { return new Set(); }
-        }
-        function saveReadIds(set) {
-            try { localStorage.setItem(READ_KEY, JSON.stringify([...set])); } catch {}
-        }
-
-        function escapeHtml(s) {
-            return String(s || "").replace(/[&<>"']/g, c =>
-                ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-        }
-
-        function formatTime(unixTs) {
-            if (!unixTs) return "";
-            const sec = Math.max(0, Math.floor(Date.now() / 1000 - unixTs));
-            if (sec < 60) return "только что";
-            const min = Math.floor(sec / 60);
-            if (min < 60) return min + " мин назад";
-            const hr = Math.floor(min / 60);
-            if (hr < 24) return hr + " ч назад";
-            const d = Math.floor(hr / 24);
-            if (d < 7) return d + " дн назад";
-            return new Date(unixTs * 1000).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
-        }
-
-        let items = [];
-
-        function renderBadge() {
-            const readIds = getReadIds();
-            const unread = items.filter(n => !readIds.has(n.id)).length;
-            if (unread > 0) {
-                badge.hidden = false;
-                badge.textContent = unread > 99 ? "99+" : String(unread);
-            } else {
-                badge.hidden = true;
-            }
-        }
-
-        function renderList() {
-            const readIds = getReadIds();
-            if (!items.length) {
-                list.innerHTML = '<div class="notifications-empty">Пока нет уведомлений</div>';
-                return;
-            }
-            list.innerHTML = items.slice(0, 20).map(n => {
-                const unread = !readIds.has(n.id);
-                return `
-                    <div class="notif-item ${unread ? 'unread' : ''}" data-id="${n.id}">
-                        <span class="notif-icon">${escapeHtml(n.icon || '🔔')}</span>
-                        <div class="notif-body">
-                            <div class="notif-title">${escapeHtml(n.title)}</div>
-                            <div class="notif-text">${escapeHtml(n.text)}</div>
-                            <div class="notif-time">${formatTime(n.time)}${n.author ? ' · ' + escapeHtml(n.author) : ''}</div>
-                        </div>
-                        <span class="notif-dot" aria-hidden="true"></span>
-                    </div>
-                `;
-            }).join("");
-
-            list.querySelectorAll(".notif-item").forEach(el => {
-                el.addEventListener("click", () => {
-                    const id = Number(el.getAttribute("data-id"));
-                    const readIds = getReadIds();
-                    readIds.add(id);
-                    saveReadIds(readIds);
-                    renderBadge();
-                    renderList();
-                });
-            });
-        }
-
-        async function reload() {
-            try {
-                const r = await fetch("/api/notifications");
-                if (!r.ok) throw new Error("HTTP " + r.status);
-                items = await r.json();
-            } catch (e) {
-                console.warn("[notifications]", e);
-                items = [];
-            }
-            renderBadge();
-            renderList();
-        }
-
-        function openMenu() {
-            dropdown.hidden = false;
-            bellBtn.setAttribute("aria-expanded", "true");
-            reload();
-        }
-        function closeMenu() {
-            dropdown.hidden = true;
-            bellBtn.setAttribute("aria-expanded", "false");
-        }
-
-        bellBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            if (dropdown.hidden) openMenu(); else closeMenu();
-        });
-
-        if (markAllBtn) {
-            markAllBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                const readIds = getReadIds();
-                items.forEach(n => readIds.add(n.id));
-                saveReadIds(readIds);
-                renderBadge();
-                renderList();
-            });
-        }
-
-        document.addEventListener("click", (e) => {
-            if (!dropdown.hidden && !e.target.closest(".notifications-bell")) closeMenu();
-        });
-        document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && !dropdown.hidden) closeMenu();
-        });
-        setInterval(reload, 60000);
-        reload();
-    })();
-</script>
-
-<script>
-    (function() {
-        const btn = document.getElementById("profileMenuButton");
-        const dropdown = document.getElementById("profileMenuDropdown");
-        if (!btn || !dropdown) return;
-
-        function openMenu() {
-            dropdown.hidden = false;
-            btn.setAttribute("aria-expanded", "true");
-        }
-        function closeMenu() {
-            dropdown.hidden = true;
-            btn.setAttribute("aria-expanded", "false");
-        }
-        btn.addEventListener("click", function(e) {
-            e.stopPropagation();
-            if (dropdown.hidden) openMenu(); else closeMenu();
-        });
-
-        document.addEventListener("click", function(e) {
-            if (!dropdown.hidden && !dropdown.contains(e.target) && e.target !== btn) {
-                closeMenu();
-            }
-        });
-        document.addEventListener("keydown", function(e) {
-            if (e.key === "Escape") closeMenu();
-        });
     })();
 </script>
 
@@ -1799,31 +1471,48 @@
         render();
     }
 
-    async function load() {
+        async function load() {
         document.getElementById('warnBox').innerHTML = '';
+        const updEl = document.getElementById('upd');
+        if (updEl) updEl.textContent = 'загрузка…';
+
+        // ── 1) Локально из системы: таблица, опубликованная куратором ──
+        try {
+            const rp = await fetch('/zip_curator/api/published', { cache: 'no-store' });
+            if (rp.ok) {
+                const d = await rp.json();
+                if (d && Array.isArray(d.rows) && d.rows.length > 1) {
+                    ROWS = toObjects(d.rows);
+                    const when = d.published_at ? new Date(d.published_at).toLocaleString('ru-RU') : new Date().toLocaleString('ru-RU');
+                    if (updEl) updEl.textContent = 'обновлено из системы (куратор): ' + when;
+                    buildMS();
+                    render();
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('Локальная публикация недоступна, переход на Яндекс.Диск:', e);
+        }
+
+        // ── 2) Фолбэк: Яндекс.Диск (Диск B) ──
         if (!YANDEX_PUBLIC_URL) {
-            manualBox('Ссылка на таблицу Яндекс.Диска не указана. Впишите её в <b>YANDEX_PUBLIC_URL</b> в начале файла.');
+            manualBox('В системе пока нет опубликованной таблицы, а ссылка на Яндекс.Диск не указана.');
             return;
         }
         try {
-            const api = 'https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=' + encodeURIComponent(
-                YANDEX_PUBLIC_URL);
+            const api = 'https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=' + encodeURIComponent(YANDEX_PUBLIC_URL);
             const r = await fetch(api, { cache: 'no-store' });
             const d = await r.json();
             if (!r.ok || !d.href) throw new Error(d.message || d.description || ('HTTP ' + r.status));
             const rr = await fetch(d.href, { cache: 'no-store' });
             if (!rr.ok) throw new Error('скачивание: HTTP ' + rr.status);
             ROWS = toObjects(wbToRows(await rr.arrayBuffer()));
-            const updEl = document.getElementById('upd');
-            if (updEl) updEl.textContent = 'обновлено: ' + new Date().toLocaleString('ru-RU');
+            if (updEl) updEl.textContent = 'обновлено с Яндекс.Диска: ' + new Date().toLocaleString('ru-RU');
             buildMS();
             render();
         } catch (e) {
-            const updEl = document.getElementById('upd');
             if (updEl) updEl.textContent = 'ошибка загрузки';
-            const msg = 'Не удалось получить таблицу с Яндекс.Диска: ' + esc(e.message) +
-                '. Проверьте: файл доступен по ссылке, есть интернет, файл не удалён (обновлять — перезаписью того же файла).';
-            manualBox(msg);
+            manualBox('Не удалось получить данные ни из системы, ни с Яндекс.Диска: ' + esc(e.message) + '.');
         }
     }
 
@@ -1855,8 +1544,9 @@
 
     buildMS();
     load();
-    if (AUTO_REFRESH_MIN > 0 && YANDEX_PUBLIC_URL) setInterval(load, AUTO_REFRESH_MIN * 60000);
+    if (AUTO_REFRESH_MIN > 0) setInterval(load, AUTO_REFRESH_MIN * 60000);
 </script>
 
+<a href="/zip_curator_original.html" class="topbar-redmine-btn" style="position:fixed;right:18px;bottom:18px;z-index:99" style="margin-right:10px">🧰 Куратор ЗиП</a>
 </body>
 </html>

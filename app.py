@@ -3399,3 +3399,114 @@ async def prompthub_page(request: Request):
     return templates.TemplateResponse(request, "prompthub.html",
                                       {"request": request, "logo_url": "/static/logo.svg"})
 
+
+@app.get("/zip", response_class=HTMLResponse)
+async def zip_curator_page(request: Request):
+    """Куратор: проверка и согласование остатков ЗиП РСО."""
+    return HTMLResponse((BASE_DIR / "templates" / "zip_curator_original.html").read_text(encoding="utf-8"))
+
+
+@app.get("/zip_curator", response_class=HTMLResponse)
+@app.get("/zip_curator_original.html", response_class=HTMLResponse)
+async def zip_curator_page(request: Request):
+    """Куратор ЗиП: проверка и согласование остатков РСО."""
+    return HTMLResponse((BASE_DIR / "templates" / "zip_curator_original.html").read_text(encoding="utf-8"))
+
+
+# ===============================
+# КУРАТОР ЗиП (локально, без облака)
+# ===============================
+from services.zip_curator import core as zc
+
+@app.get("/zip-curator", response_class=HTMLResponse)
+async def zip_curator_page(request: Request):
+    return templates.TemplateResponse(request, "zip_curator_original.html", {"request": request})
+
+@app.get("/zip_curator/api/state")
+async def zc_state():
+    return zc.load_state()
+
+@app.post("/zip_curator/api/scan")
+async def zc_scan():
+    added, skipped = zc.scan_folder()
+    return {"added": added, "skipped": skipped}
+
+@app.post("/zip_curator/api/upload")
+async def zc_upload(request: Request):
+    form = await request.form()
+    parsed = []
+    for up in form.getlist("file"):
+        try:
+            rows = zc.read_xlsx_rows(await up.read())
+            p = zc.parse_reestr(rows, up.filename)
+            p["fname"] = up.filename; p["uploaded"] = 0
+            parsed.append(p)
+        except Exception:
+            continue
+    return {"added": zc.ingest(parsed)}
+
+@app.post("/zip_curator/api/approve")
+async def zc_approve(payload: dict = None):
+    return {"ok": zc.approve(int((payload or {}).get("idx", -1)))}
+
+@app.post("/zip_curator/api/reject")
+async def zc_reject(payload: dict = None):
+    return {"ok": zc.reject(int((payload or {}).get("idx", -1)))}
+
+@app.post("/zip_curator/api/edit")
+async def zc_edit(payload: dict = None):
+    p = payload or {}
+    return {"ok": zc.edit_item(int(p.get("pi", -1)), int(p.get("ii", -1)), p.get("cat"), p.get("grp"))}
+
+@app.get("/zip_curator/api/export")
+async def zc_export():
+    from fastapi.responses import FileResponse
+    import tempfile, os
+    rows = zc.export_rows()
+    fd, path = tempfile.mkstemp(suffix=".xlsx")
+    os.close(fd)
+    zc.write_xlsx(rows, path)
+    return FileResponse(path, filename="итоговые_остатки_для_дашборда.xlsx")
+
+@app.get("/zip_curator/api/dict")
+async def zc_dict():
+    from fastapi.responses import FileResponse
+    import tempfile, os
+    rows = [["Наименование (норм.)","Категория","Группа","Вода"]]
+    for nn, v in zc.D["dict"].items():
+        rows.append([nn, v[0] or "", v[1] or "", "да" if v[2] else ""])
+    fd, path = tempfile.mkstemp(suffix=".xlsx")
+    os.close(fd)
+    zc.write_xlsx(rows, path)
+    return FileResponse(path, filename="справочник.xlsx")
+
+
+# ===============================
+# ПУБЛИКАЦИЯ СОГЛАСОВАННОЙ ТАБЛИЦЫ (куратор -> дашборд, без Яндекс.Диска)
+# ===============================
+ZIP_PUB_FILE = BASE_DIR / "data" / "zip_curator" / "published.json"
+
+@app.post("/zip_curator/api/publish")
+async def zc_publish(request: Request):
+    import json as _j
+    from datetime import datetime
+    payload = await request.json()
+    rows = payload.get("rows") or []
+    if len(rows) < 2:
+        return {"ok": False, "error": "нет согласованных строк"}
+    ZIP_PUB_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ZIP_PUB_FILE.write_text(_j.dumps(
+        {"rows": rows,
+         "published_at": datetime.now().isoformat(timespec="seconds")},
+        ensure_ascii=False), encoding="utf-8")
+    return {"ok": True, "rows": len(rows) - 1}
+
+@app.get("/zip_curator/api/published")
+async def zc_published():
+    import json as _j
+    if not ZIP_PUB_FILE.exists():
+        return {"rows": [], "published_at": None}
+    try:
+        return _j.loads(ZIP_PUB_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"rows": [], "published_at": None}
