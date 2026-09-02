@@ -3020,16 +3020,74 @@ async def aichat_del(did: str):
 
 
 def build_platform_context(question: str) -> str:
-    """Детализированный контекст: муниципалитет / организация / объект / нарушение."""
-    _TRIG = ["эдо", "камер", "просроч", "критич", "вод", "утнкр", "технадзор", "сводк",
-             "жалоб", "доброд", "авари", "срок", "округ", "мкд", "мгх", "redmine",
-             "наруш", "детал", "объект", "какой", "что находится", "что конкретно"]
+    """Собирает живые данные платформы, если вопрос про состояние модулей."""
     q = (question or "").lower()
-    if not any(t in q for t in _TRIG):
+    triggers = ["эдо", "камер", "просроч", "критич", "вод", "остатк", "зип",
+                "утнкр", "технадзор", "сводк", "жалоб", "доброд", "авари",
+                "срок", "округ", "мкд"]
+    if not any(t in q for t in triggers):
         return ""
-    from services.platform_details import build_detailed_context
-    return build_detailed_context(question)
-
+    lines = ["АКТУАЛЬНЫЕ ДАННЫЕ ПЛАТФОРМЫ НА " +
+             datetime.now().strftime("%d.%m.%Y %H:%M") +
+             ". Отвечай СТРОГО по этим данным и НЕ говори, что у тебя нет доступа:"]
+    try:
+        edo = load_json_file(EDO_RESULT_FILE)
+        m = calculate_edo_metrics(edo)
+        lines.append(f"ЭДО: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+        crit = [r for r in as_list_from_result(edo)
+                if normalize_text(r.get("status")).lower() in ("critical", "red", "критично", "красный")][:5]
+        for r in crit:
+            lines.append("  критично ЭДО: " + str(r.get("municipality", "") or r.get("organization", "")) +
+                         " — " + str(r.get("name", "") or r.get("object", "")))
+    except Exception:
+        pass
+    try:
+        ov = load_json_file(OVERDUE_RESULT_FILE)
+        m = calculate_overdue_metrics(ov)
+        lines.append(f"Просроченные задачи: всего {m['total']}, критичных (>=20) {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+        top = sorted(as_list_from_result(ov), key=lambda r: -to_int(r.get("overdue_count")))[:5]
+        for r in top:
+            lines.append("  просрочка: " + str(r.get("municipality", "")) + " — " + str(to_int(r.get("overdue_count"))) + " задач")
+    except Exception:
+        pass
+    try:
+        cam = load_json_file(CAMERAS_STATE_FILE)
+        m = calculate_cameras_metrics(cam)
+        lines.append(f"Камеры: всего {m['total']}, работает {m['working']}, не работает {m['not_working']}, не подключено {m['not_connected']}.")
+        bad = [r for r in as_list_from_result(cam) if r.get("camera_status") in ("not_working", "not_connected")][:5]
+        for r in bad:
+            lines.append("  проблема камеры: " + str(r.get("city", "") or r.get("municipality", "")) +
+                         " — " + str(r.get("owner", "") or r.get("address", "")) + " (" + str(r.get("camera_status")) + ")")
+    except Exception:
+        pass
+    try:
+        wc = load_json_file(WATERCONTROL_RESULT_FILE)
+        m = calculate_watercontrol_metrics(wc)
+        lines.append(f"WaterControl: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    except Exception:
+        pass
+    try:
+        ut = load_json_file(UTNKR_RESULT_FILE)
+        m = calculate_utnkr_metrics(ut)
+        lines.append(f"Технадзор УТНКР: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    except Exception:
+        pass
+    try:
+        mg = load_json_file(MGKH_RM_RESULT_FILE)
+        m = calculate_mgkh_rm_metrics(mg)
+        lines.append(f"МКХ Redmine: всего {m['total']}, закрыть {m['close']}, продлить {m['extend']}, переделать {m['rework']}.")
+    except Exception:
+        pass
+    try:
+        from services.ecur.client import get_current_data
+        data = get_current_data()
+        rows = data.get("rows") or []
+        if rows:
+            m = calculate_ecur_metrics(rows)
+            lines.append(f"ДоброДел жалобы: всего {m['total']}, просрочено {m['overdue']}, сегодня {m['today']}, за неделю {m['week']}.")
+    except Exception:
+        pass
+    return "\n".join(lines) if len(lines) > 1 else ""
 
 
 @app.post("/aichat/api/send")
