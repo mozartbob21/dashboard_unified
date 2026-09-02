@@ -724,6 +724,25 @@
     </style>
 </head>
 <body>
+<script id="zipLocalFetchPatch">
+(function(){
+  var orig = window.fetch.bind(window);
+  window.fetch = function(url, opts){
+    var u = String(url);
+    if (u.indexOf('cloud-api.yandex.net') !== -1 && u.indexOf('/download?') !== -1) {
+      return orig('/zip_curator/api/published.xlsx', {cache:'no-store'}).then(function(r){
+        if (r.ok) {
+          return new Response(JSON.stringify({href:'/zip_curator/api/published.xlsx'}),
+            {status:200, headers:{'Content-Type':'application/json'}});
+        }
+        return orig(url, opts);  // в системе пусто — идём на Яндекс.Диск
+      });
+    }
+    return orig(url, opts);
+  };
+})();
+</script>
+
 
 <div class="container">
     <header class="topbar">

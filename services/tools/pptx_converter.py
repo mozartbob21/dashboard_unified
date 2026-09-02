@@ -660,17 +660,13 @@ def build_pptx(slides: list, template_name, output_name: str) -> Path:
                 _fill_slide(new_slide, s, i == 0, prs, emblem)
             sldIdLst = prs.slides._sldIdLst
             orig = list(sldIdLst)[:n_tpl]
-            for el in orig[:-1]:
+            for el in orig: # Убираем срез [:-1], идем по всем
                 rId = el.get(qn("r:id"))
                 try:
                     prs.part.drop_rel(rId)
                 except Exception:
                     pass
                 sldIdLst.remove(el)
-            last = orig[-1]
-            sldIdLst.remove(last)
-            sldIdLst.append(last)
-
     out = OUTPUT_DIR / output_name
     prs.save(str(out))
     return out

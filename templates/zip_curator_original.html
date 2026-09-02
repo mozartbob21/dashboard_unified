@@ -55,7 +55,8 @@
       <button class="btn" id="btnSaveDict">Скачать справочник</button>
       <div class="sep"></div>
       <button class="btn" id="btnLoadClean">Загрузить текущие данные (Диск B)</button>
-      <button class="btn green" id="btnSaveClean">⬇ Скачать итоговый эксель</button><button class="btn green" id="btnPublish">📤 Опубликовать в систему</button>
+      <button class="btn green" id="btnSaveClean">⬇ Скачать итоговый эксель</button>
+<button class="btn green" id="btnPublish">💾 Сохранить в систему</button><button class="btn green" id="btnPublish">📤 Опубликовать в систему</button>
     </div>
     <div class="status" id="status"></div>
     <input type="file" id="fiManual" accept=".xlsx,.xls" multiple>
@@ -262,6 +263,7 @@ function approve(idx){
   merged.forEach(it=>{if(it.cat){const cur=D.dict[it.nn]; if(it.via==='override'||!cur){D.dict[it.nn]=[it.cat,it.grp,it.water?1:0];dictDirty=true;}}});
   CLEAN[norm(p.rso)]={rso:p.rso,okrug:p.okrug||D.rso2omsu[p.rso]||'',date:p.date,items:merged};
   PENDING.splice(idx,1); render(); toast('Согласовано: '+p.rso+(dictDirty?' · справочник дополнен':''),3200);
+publishToSystem(true);
 }
 function reject(idx){const p=PENDING[idx];PENDING.splice(idx,1);render();toast('Убрано: '+p.rso);}
 
@@ -371,6 +373,20 @@ $('#btnSaveDict').onclick=saveDict;
 $('#btnLoadClean').onclick=()=>$('#fiClean').click();
 $('#fiClean').onchange=e=>{if(e.target.files[0]){loadClean(e.target.files[0]);e.target.value='';}};
 $('#btnSaveClean').onclick=saveClean;
+$('#btnPublish').onclick=()=>publishToSystem(false);
+async function publishToSystem(silent){
+  const head=['РСО','Округ','Наименование','Категория','Группа','Количество','Ед.','Водоподготовка','Дата'];
+  const rows=[head];
+  Object.values(CLEAN).forEach(c=>c.items.forEach(it=>rows.push([c.rso,c.okrug,it.name,it.cat||'не указано',it.grp||'',it.qty,it.unit||'',it.water?'да':'',c.date])));
+  if(rows.length<2){ if(!silent)toast('Нет согласованных данных'); return; }
+  try{
+    const r=await fetch('/zip_curator/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
+    if(!silent)toast('Сохранено в систему: '+(rows.length-1)+' строк. Дашборд возьмёт их локально.',4000);
+  }catch(e){ toast('Ошибка сохранения в систему: '+e.message,5000); }
+}
+
 // - публикация согласованной таблицы в систему (дашборд читает локально) -
 function publishClean(silent){
   const head=['РСО','Округ','Наименование','Категория','Группа','Количество','Ед.','Водоподготовка','Дата'];
