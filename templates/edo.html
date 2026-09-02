@@ -76,6 +76,31 @@
 .copy-btn.ok{background:var(--ok, #10b981);border-color:var(--ok, #10b981);color:#fff}
 .copy-btn svg{width:16px;height:16px}
 </style>
+
+<style id="copy-btn-theme-fix">
+/* FIX: кнопка копирования следует теме */
+button.copy-btn,
+.copy-btn,
+button[title*="опир"],
+button[data-copy-btn] {
+  background: var(--bg-card, #ffffff) !important;
+  color: var(--text-color, #334155) !important;
+  border: 1px solid var(--border-color, #e2e8f0) !important;
+  border-radius: 10px !important;
+}
+button.copy-btn,
+.copy-btn,
+button[title*="опир"],
+button[data-copy-btn] svg { stroke: currentColor !important; }
+html[data-theme="dark"] button.copy-btn,
+html[data-theme="dark"] .copy-btn,
+html[data-theme="dark"] button[title*="опир"],
+html[data-theme="dark"] button[data-copy-btn] {
+  background: var(--bg-card, #1e293b) !important;
+  color: var(--text-color, #e2e8f0) !important;
+  border: 1px solid var(--border-color, #334155) !important;
+}
+</style>
 </head>
 
 <body class="compact-module-page">

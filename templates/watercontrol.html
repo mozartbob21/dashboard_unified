@@ -36,6 +36,31 @@
     
 
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
+
+<style id="copy-btn-theme-fix">
+/* FIX: кнопка копирования следует теме */
+button.copy-btn,
+.copy-btn,
+button[title*="опир"],
+button[data-copy-btn] {
+  background: var(--bg-card, #ffffff) !important;
+  color: var(--text-color, #334155) !important;
+  border: 1px solid var(--border-color, #e2e8f0) !important;
+  border-radius: 10px !important;
+}
+button.copy-btn,
+.copy-btn,
+button[title*="опир"],
+button[data-copy-btn] svg { stroke: currentColor !important; }
+html[data-theme="dark"] button.copy-btn,
+html[data-theme="dark"] .copy-btn,
+html[data-theme="dark"] button[title*="опир"],
+html[data-theme="dark"] button[data-copy-btn] {
+  background: var(--bg-card, #1e293b) !important;
+  color: var(--text-color, #e2e8f0) !important;
+  border: 1px solid var(--border-color, #334155) !important;
+}
+</style>
 </head>
 
 <body class="compact-module-page">
@@ -138,7 +163,7 @@
                 <div class="stage-block">
                     <div class="stage-label">Текущий этап</div>
                     <div id="currentStage" class="stage-value">Ожидание запуска</div>
-                    <div id="currentStageMessage" class="stage-message">
+                    <div style="display:flex;justify-content:flex-end;margin:4px 0;"><button type="button" class="copy-btn" title="Копировать" onclick="wcCopySummary(this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div><div id="currentStageMessage" class="stage-message">
                         Система готова к выполнению проверки.
                     </div>
                 </div>
@@ -879,5 +904,15 @@
 </script>
 
 
+<script>
+function wcCopySummary(btn){
+  var t = document.getElementById('currentStageMessage');
+  if(!t){ alert('Не найден текст для копирования'); return; }
+  var txt = (t.value !== undefined && t.value !== null) ? t.value : t.innerText;
+  function done(){ var o=btn.title; btn.title='Скопировано!'; setTimeout(function(){ btn.title=o; },1200); }
+  if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(done); }
+  else { var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){} document.body.removeChild(ta); }
+}
+</script>
 </body>
 </html>
