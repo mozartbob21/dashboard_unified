@@ -3618,45 +3618,110 @@ def build_system_status_context() -> str:
     blocks = []
     
     # 1. Камеры
-    cameras_state = load_json_file(CAMERAS_STATE_FILE)
-    if cameras_state:
-        m = calculate_cameras_metrics(cameras_state)
-        blocks.append(f"📹 Камеры: всего {m['total']}, работает {m['working']}, не работает {m['not_working']}, не подключено {m['not_connected']}, статус неизвестен {m['unknown']}.")
+    try:
+        cameras_state = load_json_file(CAMERAS_STATE_FILE)
+        if cameras_state:
+            m = calculate_cameras_metrics(cameras_state)
+            blocks.append(f"📹 Камеры: всего {m['total']}, работает {m['working']}, не работает {m['not_working']}, не подключено {m['not_connected']}, статус неизвестен {m['unknown']}.")
+    except Exception: pass
         
     # 2. ЭДО
-    edo_result = load_json_file(EDO_RESULT_FILE)
-    if edo_result:
-        m = calculate_edo_metrics(edo_result)
-        blocks.append(f"📄 ЭДО: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    try:
+        edo_result = load_json_file(EDO_RESULT_FILE)
+        if edo_result:
+            m = calculate_edo_metrics(edo_result)
+            blocks.append(f"📄 ЭДО: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    except Exception: pass
         
     # 3. Просрочка (Overdue)
-    overdue_result = load_json_file(OVERDUE_RESULT_FILE)
-    if overdue_result:
-        m = calculate_overdue_metrics(overdue_result)
-        blocks.append(f"⏳ Просроченные задачи: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    try:
+        overdue_result = load_json_file(OVERDUE_RESULT_FILE)
+        if overdue_result:
+            m = calculate_overdue_metrics(overdue_result)
+            blocks.append(f"⏳ Просроченные задачи: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    except Exception: pass
         
     # 4. УТНКР (Технадзор)
-    utnkr_result = load_json_file(UTNKR_RESULT_FILE)
-    if utnkr_result:
-        m = calculate_utnkr_metrics(utnkr_result)
-        blocks.append(f"🏗 Технадзор (УТНКР): всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    try:
+        utnkr_result = load_json_file(UTNKR_RESULT_FILE)
+        if utnkr_result:
+            m = calculate_utnkr_metrics(utnkr_result)
+            blocks.append(f"🏗 Технадзор (УТНКР): всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    except Exception: pass
         
     # 5. WaterControl
-    watercontrol_result = load_json_file(WATERCONTROL_RESULT_FILE)
-    if watercontrol_result:
-        m = calculate_watercontrol_metrics(watercontrol_result)
-        blocks.append(f"💧 WaterControl: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    try:
+        watercontrol_result = load_json_file(WATERCONTROL_RESULT_FILE)
+        if watercontrol_result:
+            m = calculate_watercontrol_metrics(watercontrol_result)
+            blocks.append(f"💧 WaterControl: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
+    except Exception: pass
         
     # 6. МКХ (Redmine)
-    mgkh_result = load_json_file(MGKH_RM_RESULT_FILE)
-    if mgkh_result:
-        m = calculate_mgkh_rm_metrics(mgkh_result)
-        blocks.append(f"🛠 МКХ (Redmine): всего {m['total']}, закрыть {m['close']}, продлить {m['extend']}, переделать {m['rework']}.")
+    try:
+        mgkh_result = load_json_file(MGKH_RM_RESULT_FILE)
+        if mgkh_result:
+            m = calculate_mgkh_rm_metrics(mgkh_result)
+            blocks.append(f"🛠 МКХ (Redmine): всего {m['total']}, закрыть {m['close']}, продлить {m['extend']}, переделать {m['rework']}.")
+    except Exception: pass
+
+    # 7. ЦДС (Диспетчерская ЖКХ)
+    try:
+        cds_result = load_json_file(CDS_RESULT_FILE)
+        if cds_result and isinstance(cds_result, dict):
+            cds_rows = cds_result.get("data", []) or []
+            blocks.append(f"📞 ЦДС (Диспетчерская): всего выгружено обращений {len(cds_rows)}.")
+    except Exception: pass
+
+    # 8. Обращения (Appeals)
+    try:
+        stats = calculate_appeals_stats()
+        if stats and isinstance(stats, dict):
+            blocks.append(f"📬 Обращения граждан: всего {stats.get('total', 0)}, на рассмотрении {stats.get('awaiting_review', 0)}, согласовано {stats.get('approved', 0)}, отправлено {stats.get('sent', 0)}.")
+    except Exception: pass
+
+    # 9. ДоброДел (ЕЦУР)
+    try:
+        from services.ecur.client import get_current_data
+        ecur_data = get_current_data()
+        ecur_rows = ecur_data.get("rows", [])
+        if ecur_rows:
+            m = calculate_ecur_metrics(ecur_rows)
+            blocks.append(f"🏛 ДоброДел (ЕЦУР): всего {m['total']}, просрочено {m['overdue']}, сегодня {m['today']}, на неделе {m['week']}.")
+    except Exception: pass
+
+    # 10. Водный дашборд (Water Dashboard)
+    try:
+        wd_snap = load_json_file(BASE_DIR / "data" / "water_dashboard" / "snapshot.json")
+        if wd_snap and isinstance(wd_snap, dict):
+            snap_date = wd_snap.get("snapshot_date", "неизвестно")
+            blocks.append(f"🌊 Водный дашборд: последний снимок от {snap_date}.")
+    except Exception: pass
+
+    # 11. Предписания по камерам
+    try:
+        gen_res = load_json_file(GENERATED_PRESCRIPTIONS_DIR / "generation_result.json")
+        if gen_res and isinstance(gen_res, dict):
+            items = gen_res.get("items", [])
+            blocks.append(f"📑 Предписания по камерам: сформировано {len(items)} предписаний.")
+    except Exception: pass
+
+    # 12. Куратор ЗиП РСО
+    try:
+        from services.zip_curator import core as zc
+        zc_state = zc.load_state()
+        if zc_state and isinstance(zc_state, dict):
+            pending = len(zc_state.get("pending", []))
+            clean = len(zc_state.get("clean", []))
+            blocks.append(f"📦 Куратор ЗиП РСО: на согласовании {pending} реестров, согласовано {clean} РСО.")
+    except Exception: pass
 
     if not blocks:
         return "Данные по проверкам пока отсутствуют или файлы результатов пусты."
         
-    return "Актуальная сводка по проверкам системы:\n" + "\n".join(blocks)
+    return "Актуальная сводка по всем модулям системы:
+" + "
+".join(blocks)
 
 
 @app.post("/api/assistant/ask")
