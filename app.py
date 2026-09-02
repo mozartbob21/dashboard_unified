@@ -20,12 +20,6 @@ from services.notifications import store as notif_store
 
 
 # ── Keycloak OIDC (активируется через AUTH_PROVIDER=keycloak в .env) ──
-import os as _kc_os  # noqa: E402
-KC_SERVER_URL = _kc_os.getenv("KC_SERVER_URL", "http://localhost:8080")
-KC_REALM = _kc_os.getenv("KC_REALM", "neurona")
-KC_CLIENT_ID = _kc_os.getenv("KC_CLIENT_ID", "neurona-web")
-KC_CLIENT_SECRET = _kc_os.getenv("KC_CLIENT_SECRET", "")
-AUTH_PROVIDER = _kc_os.getenv("AUTH_PROVIDER", "local")
 
 from pydantic import BaseModel  # <-- Добавлен отсутствовавший импорт
 from fastapi import FastAPI, Request, Header, HTTPException, Form
@@ -54,6 +48,7 @@ from services.appeals.storage import (
     calculate_stats as calculate_appeals_stats,
 )
 from services.appeals.reply_builder import DEFAULT_REPLY_TEMPLATE, generate_reply_from_template
+from services.aichat.extract import extract_any as extract_text_from_file
 
 
 
@@ -105,96 +100,21 @@ CAMERAS_UI_CONFIG = {
     "prescriptions_dir": "generated/prescriptions",
 }
 
-# =========================
-# РОЛИ С ПОЛНЫМ ДОСТУПОМ
-# =========================
+from core.roles import (
+    FULL_ACCESS_ROLES,
+    ALL_MODULE_IDS,
+    KC_ROLE_TO_MODULE,
+    is_full_access,
+    check_module_access,
+    effective_modules,
+    require_admin_or_full,
+)
 
-# Роли, которые видят ВСЕ модули и админ-интерфейс.
-# Хочешь ещё одну — просто допиши название в нижнем регистре.
-FULL_ACCESS_ROLES = {"администратор", "руководитель", "пользователь"}
-
-# Полный список модулей платформы
-ALL_MODULE_IDS = [
-    "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
-    "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
-    "water_rm", "tools",
-]
-
-
-
-# ── Маппинг ролей Keycloak → модули платформы ──
-# Роль admin даёт полный доступ. Остальные роли = имя модуля.
-KC_ROLE_TO_MODULE = {
-    "admin":             "__full_access__",
-    "администратор":     "__full_access__",
-    "руководитель":      "__full_access__",
-    "edo":               "edo",
-    "overdue":           "overdue",
-    "watercontrol":      "watercontrol",
-    "utnkr":             "utnkr",
-    "cameras":           "cameras",
-    "appeals":           "appeals",
-    "cds":               "cds",
-    "mgkh_rm":           "mgkh_rm",
-    "ecur":              "ecur",
-    "municipality-report": "municipality-report",
-    "water-dashboard":   "water-dashboard",
-    "water_rm":          "water_rm",
-    "tools":             "tools",
-}
-
-def _kc_user_modules(user: dict) -> list:
-    """Собирает список модулей по ролям Keycloak."""
-    roles = user.get("roles", []) or []
-    role = (user.get("role") or "").strip().lower()
-    if role in {"admin", "администратор", "руководитель"}:
-        return list(ALL_MODULE_IDS)
-    modules = []
-    for r in roles:
-        mapped = KC_ROLE_TO_MODULE.get(r.lower())
-        if mapped and mapped != "__full_access__" and mapped not in modules:
-            modules.append(mapped)
-    return modules
-
-def is_full_access(user) -> bool:
-    role = (user.get("role") or "").strip().lower()
-    if role in FULL_ACCESS_ROLES:
-        return True
-    if user.get("kc_sub") and role in {"admin", "администратор", "руководитель"}:
-        return True
-    return False
-
-
-def check_module_access(user, module_id) -> bool:
-    """Полные роли проходят на любой модуль, остальные — стандартная проверка."""
-    if is_full_access(user):
-        return True
-    return has_module_access(user, module_id)
-
-
-def effective_modules(user) -> list:
-    """Модули для главной. Поддерживает локальных и Keycloak-пользователей."""
-    if is_full_access(user):
-        return list(ALL_MODULE_IDS)
-    if user.get("kc_sub"):
-        # Keycloak-пользователь — собираем модули из его ролей
-        return _kc_user_modules(user)
-    return user.get("modules", [])
-
-
-async def require_admin_or_full(request: Request):
-    """Dependency для роутеров, доступных админу и полным ролям."""
-    user = getattr(request.state, "user", None)
-    if not user:
-        user = get_user_from_token(request.cookies.get("access_token"))
-    if not user:
-        raise HTTPException(status_code=401, detail="Требуется авторизация")
-    role = (user.get("role") or "").strip().lower()
-    if role in ADMIN_ROLES or role in FULL_ACCESS_ROLES:
-        return user
-    raise HTTPException(status_code=403, detail="Недостаточно прав")
 
 app = FastAPI(title="Unified Dashboard")
+
+from routers.auth import router as auth_router
+app.include_router(auth_router)
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
@@ -206,8 +126,17 @@ app.mount(
     StaticFiles(directory=str(GENERATED_DIR)),
     name="generated",
 )
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-templates.env.undefined = ChainableUndefined
+from core.web import templates
+# =========================
+# ROUTERS
+# =========================
+try:
+    from routers.system import router as system_router
+    app.include_router(system_router)
+    print('[routers] system router connected')
+except Exception as e:
+    print(f'[routers] system router init error: {e}')
+
 
 
 run_status = {
@@ -279,11 +208,18 @@ def load_json_file(path: Path, default=None):
         return default
 
 
-def save_json_file(path: Path, data: Any):
+def _atomic_write_text(path: Path, text: str):
+    """Атомарная запись: сначала .tmp, затем os.replace — файл не портится при сбое."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def save_json_file(path: Path, data: Any):
+    _atomic_write_text(
+        path,
         json.dumps(data, ensure_ascii=False, indent=2, default=str),
-        encoding="utf-8",
     )
 
 
@@ -1076,8 +1012,7 @@ PUBLIC_PATH_PREFIXES = (
     "/register",        # страница регистрации
     "/api/register",    # покрывает /verify и /resend
     "/static",
-    "/data",
-    "/generated",
+
     "/favicon.ico",
     "/health",
     "/api/system/health",
@@ -1087,51 +1022,6 @@ PUBLIC_PATH_PREFIXES = (
 
 
 # ── Keycloak: роуты логина (OAuth2 Authorization Code Flow) ──
-@app.get("/login/keycloak")
-async def login_keycloak_redirect(request: Request):
-    redirect_uri = str(request.url_for("login_keycloak_callback"))
-    auth_url = (
-        f"{KC_SERVER_URL}/realms/{KC_REALM}/protocol/openid-connect/auth"
-        f"?client_id={KC_CLIENT_ID}&response_type=code"
-        f"&redirect_uri={redirect_uri}&scope=openid+profile+email"
-    )
-    return RedirectResponse(auth_url, status_code=302)
-
-
-@app.get("/login/keycloak/callback", name="login_keycloak_callback")
-async def login_keycloak_callback(request: Request, code: str = ""):
-    if not code:
-        return RedirectResponse("/login?error=no_code", status_code=302)
-    try:
-        import httpx
-        redirect_uri = str(request.url_for("login_keycloak_callback"))
-        token_url = f"{KC_SERVER_URL}/realms/{KC_REALM}/protocol/openid-connect/token"
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(token_url, data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": redirect_uri,
-                "client_id": KC_CLIENT_ID,
-                "client_secret": KC_CLIENT_SECRET,
-            })
-        if resp.status_code != 200:
-            print(f"[keycloak] token exchange failed: {resp.status_code} {resp.text[:200]}")
-            return RedirectResponse("/login?error=token_exchange", status_code=302)
-        tokens = resp.json()
-        access_token = tokens.get("access_token", "")
-        refresh_token = tokens.get("refresh_token", "")
-        expires_in = tokens.get("expires_in", 3600)
-        response = RedirectResponse("/", status_code=302)
-        response.set_cookie("access_token", access_token, httponly=True, max_age=expires_in, samesite="lax")
-        if refresh_token:
-            response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=7 * 86400, samesite="lax")
-        response.set_cookie("auth_provider", "keycloak", max_age=expires_in, samesite="lax")
-        return response
-    except Exception as e:
-        print(f"[keycloak] login error: {e}")
-        return RedirectResponse("/login?error=exception", status_code=302)
-
-
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
@@ -1164,13 +1054,6 @@ async def auth_middleware(request: Request, call_next):
 # SECURITY: RATE-LIMIT + ЗАГОЛОВКИ
 # =========================
 
-LOGIN_ATTEMPTS: dict = {}
-
-
-def rate_limit_ok(key: str, limit: int = 5, window: int = 300) -> bool:
-    """Не более limit попыток за window секунд для одного key."""
-    if os.getenv("PYTEST_CURRENT_TEST"):
-        return True
     now = time.time()
     rec = LOGIN_ATTEMPTS.setdefault(key, [])
     rec[:] = [t for t in rec if now - t < window]
@@ -1193,68 +1076,6 @@ async def security_headers(request: Request, call_next):
 # AUTH: РОУТЫ ВХОДА И ВЫХОДА
 # =========================
 
-@app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: str = "", message: str = ""):
-    token = request.cookies.get("access_token")
-    if get_user_from_token(token):
-        return RedirectResponse(url="/", status_code=302)
-
-    return templates.TemplateResponse(
-        request,
-        "login.html",
-        {
-            "request": request,
-            "error": error,
-            "message": message,
-        },
-    )
-
-@app.post("/login")
-async def login_submit(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-):
-    client_ip = request.client.host if request.client else "unknown"
-    rl_key = f"{client_ip}:{username.lower()}"
-
-    if not rate_limit_ok(rl_key):
-        return RedirectResponse(
-            url="/login?error=Слишком много попыток входа. Подождите 5 минут.",
-            status_code=303,
-        )
-
-    user = authenticate_user(username, password)
-    if not user:
-        return RedirectResponse(
-            url="/login?error=Неверный логин или пароль",
-            status_code=303,
-        )
-
-    access_token = create_access_token({
-        "sub": user["username"],
-        "role": user.get("role", ""),
-    })
-
-    response = RedirectResponse(url="/", status_code=303)
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,          # кука недоступна из JavaScript (защита от XSS-кражи)
-        max_age=60 * 60 * 8,
-        samesite="strict",      # кука не отправляется с чужих сайтов (защита от CSRF)
-        secure=False,           # остаёмся на HTTP
-    )
-    return response
-
-@app.get("/logout")
-async def logout():
-    response = RedirectResponse(url="/login?message=Вы вышли из системы", status_code=303)
-    response.delete_cookie("access_token")
-    response.delete_cookie("auth_provider")
-    return response
-
-
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, error: str = ""):
     token = request.cookies.get("access_token")
@@ -1274,111 +1095,6 @@ async def home(request: Request, error: str = ""):
         },
     )
 
-
-@app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    return templates.TemplateResponse(request, "register.html", {"request": request})
-
-
-@app.post("/api/register")
-async def api_register_start(payload: dict):
-    try:
-        username = normalize_text(payload.get("username"))
-        email = normalize_text(payload.get("email"))
-        password = str(payload.get("password") or "")
-
-        if len(password) < 6:
-            return JSONResponse(status_code=400,
-                                content={"ok": False, "message": "Пароль должен быть не короче 6 символов"})
-
-        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        print(f"[register] Старт регистрации: username={username}, email={email}")
-        
-        ok, result = registration.start_registration(username, email, password_hash)
-        if not ok:
-            print(f"[register] Ошибка валидации: {result}")
-            return JSONResponse(status_code=400, content={"ok": False, "message": result})
-
-        print(f"[register] Заявка создана, отправляю код на {result['email']}")
-        sent, err = mailer.send_verification_code(result["email"], result["code"])
-        if not sent:
-            print(f"[register] Ошибка отправки письма: {err}")
-            if os.getenv("REGISTRATION_DEBUG_CODE") == "1":
-                return {"ok": True, "debug_code": result["code"],
-                        "message": "SMTP не настроен (dev-режим). Код: " + result["code"]}
-            return JSONResponse(status_code=500, content={
-                "ok": False,
-                "message": f"Не удалось отправить письмо. Проверьте YANDEX_SMTP_USER / YANDEX_SMTP_PASSWORD. ({err})",
-            })
-
-        print(f"[register] Письмо отправлено успешно")
-        return {"ok": True, "message": f"Код отправлен на {result['email']}"}
-    except Exception as e:
-        import traceback
-        print("[register] НЕПРЕДВИДЕННАЯ ОШИБКА:")
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"ok": False, "message": f"Ошибка сервера: {str(e)}"})
-
-    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    ok, result = registration.start_registration(username, email, password_hash)
-    if not ok:
-        return JSONResponse(status_code=400, content={"ok": False, "message": result})
-
-    sent, err = mailer.send_verification_code(result["email"], result["code"])
-    if not sent:
-        if os.getenv("REGISTRATION_DEBUG_CODE") == "1":
-            return {"ok": True, "debug_code": result["code"],
-                    "message": "SMTP не настроен (dev-режим). Код: " + result["code"]}
-        return JSONResponse(status_code=500, content={
-            "ok": False,
-            "message": f"Не удалось отправить письмо. Проверьте YANDEX_SMTP_USER / YANDEX_SMTP_PASSWORD. ({err})",
-        })
-
-    return {"ok": True, "message": f"Код отправлен на {result['email']}"}
-
-
-@app.post("/api/register/resend")
-async def api_register_resend(payload: dict):
-    ident = normalize_text(payload.get("username") or payload.get("email"))
-    ok, result = registration.resend_code(ident)
-    if not ok:
-        return JSONResponse(status_code=400, content={"ok": False, "message": result})
-
-    sent, err = mailer.send_verification_code(result["email"], result["code"])
-    if not sent:
-        if os.getenv("REGISTRATION_DEBUG_CODE") == "1":
-            return {"ok": True, "debug_code": result["code"], "message": "Dev-режим. Код: " + result["code"]}
-        return JSONResponse(status_code=500, content={"ok": False, "message": f"Ошибка отправки: {err}"})
-
-    return {"ok": True, "message": f"Письмо отправлено на {result['email']}"}
-
-
-@app.post("/api/register/verify")
-async def api_register_verify(payload: dict):
-    ident = normalize_text(payload.get("username") or payload.get("email"))
-    code = normalize_text(payload.get("code"))
-
-    ok, result = registration.verify_registration(ident, code)
-    if not ok:
-        return JSONResponse(status_code=400, content={"ok": False, "message": result})
-
-    # Автовход: выдаём cookie, как при логине
-    access_token = create_access_token({"sub": result["username"], "role": result["role"]})
-    response = JSONResponse(content={"ok": True, "message": "Аккаунт создан! Добро пожаловать.", "redirect": "/"})
-    response.set_cookie(key="access_token", value=access_token, httponly=True,
-                        max_age=60 * 60 * 8, samesite="strict", secure=False)
-    return response
-
-
-@app.get("/api/me/settings")
-async def api_me_settings(request: Request):
-    return {"ok": True, "settings": registration.get_settings(request.state.user["id"])}
-
-
-@app.post("/api/me/settings")
-async def api_me_save_settings(request: Request, payload: dict):
-    settings = registration.save_settings(request.state.user["id"], payload.get("settings") or {})
-    return {"ok": True, "settings": settings}
 
 @app.get("/edo", response_class=HTMLResponse)
 async def edo_page(request: Request):
@@ -1430,25 +1146,6 @@ async def mgkh_rm_run_check():
     return start_background_service("mgkh_rm", command)
 
 
-@app.get("/scheduler", response_class=HTMLResponse)
-async def scheduler_page(request: Request):
-    token = request.cookies.get("access_token")
-    user = get_user_from_token(token) or {}
-
-    role = (user.get("role") or "").strip().lower()
-    if role not in ADMIN_ROLES and role not in FULL_ACCESS_ROLES:
-        return RedirectResponse(url="/", status_code=303)
-
-    return templates.TemplateResponse(
-        request,
-        "scheduler.html",
-        {
-            "request": request,
-            "user": user,
-            "user_role": user.get("role", ""),
-            "user_username": user.get("username", ""),
-        },
-    )
 @app.get("/overdue", response_class=HTMLResponse)
 async def overdue_page(request: Request):
     raw_result = load_json_file(OVERDUE_RESULT_FILE)
@@ -2696,15 +2393,7 @@ async def delete_appeal(request_id: str):
     )
 
 
-@app.get("/health")
-async def health():
-    return {
-        "ok": True,
-        "service": "Unified Dashboard",
-    }
 
-
-# В разделе с другими роутами, например, после @app.get("/appeals")
 @app.get("/zips", response_class=HTMLResponse)
 async def zips_page(request: Request):
     token = request.cookies.get("access_token")
@@ -3246,8 +2935,7 @@ async def ecur_api_refresh():
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
 
-    time.sleep(0.3)
-
+    await asyncio.sleep(0.3)
     st = run_status["ecur"]
     if st["running"]:
         return {"ok": True, "message": "Обновление запущено.", "running": True}
@@ -3299,14 +2987,6 @@ async def refresh_single_source(source_key: str):
 @app.get("/water-dashboard/run-status")
 async def water_dashboard_run_status():
     return run_status["water_dashboard"]
-
-@app.get("/api/notifications")
-async def list_notifications(request: Request):
-    user = get_user_from_token(request.cookies.get("access_token"))
-    if not user:
-        return JSONResponse(status_code=401, content={"detail": "Требуется авторизация"})
-    items = notif_store.list_all()
-    return JSONResponse(content=items)
 
 
 # ===============================
@@ -3480,17 +3160,27 @@ async def prompthub_page(request: Request):
                                       {"request": request, "logo_url": "/static/logo.svg"})
 
 
+_ZIP_HTML_CACHE = {"mtime": 0.0, "text": ""}
+
+
+def _read_zip_html() -> str:
+    """Читает zip_curator_original.html с кэшем по mtime."""
+    p = BASE_DIR / "templates" / "zip_curator_original.html"
+    mt = p.stat().st_mtime
+    if _ZIP_HTML_CACHE["mtime"] != mt or not _ZIP_HTML_CACHE["text"]:
+        _ZIP_HTML_CACHE["text"] = p.read_text(encoding="utf-8")
+        _ZIP_HTML_CACHE["mtime"] = mt
+    return _ZIP_HTML_CACHE["text"]
+
+
 @app.get("/zip", response_class=HTMLResponse)
-async def zip_curator_page(request: Request):
-    """Куратор: проверка и согласование остатков ЗиП РСО."""
-    return HTMLResponse((BASE_DIR / "templates" / "zip_curator_original.html").read_text(encoding="utf-8"))
-
-
 @app.get("/zip_curator", response_class=HTMLResponse)
+@app.get("/zip_curator.html", response_class=HTMLResponse)
 @app.get("/zip_curator_original.html", response_class=HTMLResponse)
+@app.get("/zip-curator", response_class=HTMLResponse)
 async def zip_curator_page(request: Request):
-    """Куратор ЗиП: проверка и согласование остатков РСО."""
-    return HTMLResponse((BASE_DIR / "templates" / "zip_curator_original.html").read_text(encoding="utf-8"))
+    """Куратор ЗиП: сырой HTML без Jinja."""
+    return HTMLResponse(_read_zip_html())
 
 
 # ===============================
@@ -3498,9 +3188,6 @@ async def zip_curator_page(request: Request):
 # ===============================
 from services.zip_curator import core as zc
 
-@app.get("/zip-curator", response_class=HTMLResponse)
-async def zip_curator_page(request: Request):
-    return templates.TemplateResponse(request, "zip_curator_original.html", {"request": request})
 
 @app.get("/zip_curator/api/state")
 async def zc_state():
@@ -3575,10 +3262,10 @@ async def zc_publish(request: Request):
     if len(rows) < 2:
         return {"ok": False, "error": "нет согласованных строк"}
     ZIP_PUB_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ZIP_PUB_FILE.write_text(_j.dumps(
+    _atomic_write_text(ZIP_PUB_FILE, _j.dumps(
         {"rows": rows,
          "published_at": datetime.now().isoformat(timespec="seconds")},
-        ensure_ascii=False), encoding="utf-8")
+        ensure_ascii=False))
     return {"ok": True, "rows": len(rows) - 1}
 
 @app.get("/zip_curator/api/published")
@@ -3613,158 +3300,3 @@ async def zc_published_xlsx():
 # SYSTEM STATUS ASSISTANT (Помощник по статусам всех блоков)
 # ===============================
 
-def build_system_status_context() -> str:
-    """Собирает актуальные метрики по всем блокам системы в текстовый контекст для ИИ."""
-    blocks = []
-    
-    # 1. Камеры
-    try:
-        cameras_state = load_json_file(CAMERAS_STATE_FILE)
-        if cameras_state:
-            m = calculate_cameras_metrics(cameras_state)
-            blocks.append(f"📹 Камеры: всего {m['total']}, работает {m['working']}, не работает {m['not_working']}, не подключено {m['not_connected']}, статус неизвестен {m['unknown']}.")
-    except Exception: pass
-        
-    # 2. ЭДО
-    try:
-        edo_result = load_json_file(EDO_RESULT_FILE)
-        if edo_result:
-            m = calculate_edo_metrics(edo_result)
-            blocks.append(f"📄 ЭДО: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
-    except Exception: pass
-        
-    # 3. Просрочка (Overdue)
-    try:
-        overdue_result = load_json_file(OVERDUE_RESULT_FILE)
-        if overdue_result:
-            m = calculate_overdue_metrics(overdue_result)
-            blocks.append(f"⏳ Просроченные задачи: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
-    except Exception: pass
-        
-    # 4. УТНКР (Технадзор)
-    try:
-        utnkr_result = load_json_file(UTNKR_RESULT_FILE)
-        if utnkr_result:
-            m = calculate_utnkr_metrics(utnkr_result)
-            blocks.append(f"🏗 Технадзор (УТНКР): всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
-    except Exception: pass
-        
-    # 5. WaterControl
-    try:
-        watercontrol_result = load_json_file(WATERCONTROL_RESULT_FILE)
-        if watercontrol_result:
-            m = calculate_watercontrol_metrics(watercontrol_result)
-            blocks.append(f"💧 WaterControl: всего {m['total']}, критичных {m['critical']}, риск {m['risk']}, в норме {m['ok']}.")
-    except Exception: pass
-        
-    # 6. МКХ (Redmine)
-    try:
-        mgkh_result = load_json_file(MGKH_RM_RESULT_FILE)
-        if mgkh_result:
-            m = calculate_mgkh_rm_metrics(mgkh_result)
-            blocks.append(f"🛠 МКХ (Redmine): всего {m['total']}, закрыть {m['close']}, продлить {m['extend']}, переделать {m['rework']}.")
-    except Exception: pass
-
-    # 7. ЦДС (Диспетчерская ЖКХ)
-    try:
-        cds_result = load_json_file(CDS_RESULT_FILE)
-        if cds_result and isinstance(cds_result, dict):
-            cds_rows = cds_result.get("data", []) or []
-            blocks.append(f"📞 ЦДС (Диспетчерская): всего выгружено обращений {len(cds_rows)}.")
-    except Exception: pass
-
-    # 8. Обращения (Appeals)
-    try:
-        stats = calculate_appeals_stats()
-        if stats and isinstance(stats, dict):
-            blocks.append(f"📬 Обращения граждан: всего {stats.get('total', 0)}, на рассмотрении {stats.get('awaiting_review', 0)}, согласовано {stats.get('approved', 0)}, отправлено {stats.get('sent', 0)}.")
-    except Exception: pass
-
-    # 9. ДоброДел (ЕЦУР)
-    try:
-        from services.ecur.client import get_current_data
-        ecur_data = get_current_data()
-        ecur_rows = ecur_data.get("rows", [])
-        if ecur_rows:
-            m = calculate_ecur_metrics(ecur_rows)
-            blocks.append(f"🏛 ДоброДел (ЕЦУР): всего {m['total']}, просрочено {m['overdue']}, сегодня {m['today']}, на неделе {m['week']}.")
-    except Exception: pass
-
-    # 10. Водный дашборд (Water Dashboard)
-    try:
-        wd_snap = load_json_file(BASE_DIR / "data" / "water_dashboard" / "snapshot.json")
-        if wd_snap and isinstance(wd_snap, dict):
-            snap_date = wd_snap.get("snapshot_date", "неизвестно")
-            blocks.append(f"🌊 Водный дашборд: последний снимок от {snap_date}.")
-    except Exception: pass
-
-    # 11. Предписания по камерам
-    try:
-        gen_res = load_json_file(GENERATED_PRESCRIPTIONS_DIR / "generation_result.json")
-        if gen_res and isinstance(gen_res, dict):
-            items = gen_res.get("items", [])
-            blocks.append(f"📑 Предписания по камерам: сформировано {len(items)} предписаний.")
-    except Exception: pass
-
-    # 12. Куратор ЗиП РСО
-    try:
-        from services.zip_curator import core as zc
-        zc_state = zc.load_state()
-        if zc_state and isinstance(zc_state, dict):
-            pending = len(zc_state.get("pending", []))
-            clean = len(zc_state.get("clean", []))
-            blocks.append(f"📦 Куратор ЗиП РСО: на согласовании {pending} реестров, согласовано {clean} РСО.")
-    except Exception: pass
-
-    if not blocks:
-        return "Данные по проверкам пока отсутствуют или файлы результатов пусты."
-        
-    return "Актуальная сводка по всем модулям системы:\n" + "\n".join(blocks)
-
-
-@app.post("/api/assistant/ask")
-async def assistant_ask(payload: dict):
-    """
-    Принимает вопрос пользователя, подставляет актуальную сводку по всем блокам
-    и просит ИИ (Qwen) ответить на вопрос на основе этих данных.
-    Пример: {"question": "сколько камер не работает?"}
-    """
-    question = (payload.get("question") or "").strip()
-    if not question:
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Пустой вопрос"})
-
-    # 1. Получаем срез всех проверок
-    context = build_system_status_context()
-    
-    # 2. Формируем строгий промпт для ИИ, чтобы он не галлюцинировал
-    system_prompt = (
-        "Ты — аналитик и голосовой помощник системы мониторинга ЖКХ. "
-        "Отвечай на вопросы пользователя КРАТКО, ПО СУЩЕСТВУ и ИСПОЛЬЗУЯ ТОЛЬКО предоставленные цифры. "
-        "Если в данных нет ответа на вопрос, так и скажи. Не выдумывай факты.\n\n"
-        f"Данные системы:\n{context}"
-    )
-    
-    # 3. Обращаемся к движку ИИ (используем ваш существующий _qwen_chat из summarizer)
-    try:
-        from services.summarizer.engine import _qwen_chat
-        
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question}
-        ]
-        # ИИ генерирует ответ на основе контекста
-        answer = _qwen_chat(messages, max_tokens=300)
-        
-        return {
-            "ok": True,
-            "question": question,
-            "answer": answer.strip(),
-            "raw_context": context # Для отладки, можно убрать
-        }
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500, 
-            content={"ok": False, "message": f"Ошибка ИИ: {str(e)}"}
-        )
