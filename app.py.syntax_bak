@@ -3719,7 +3719,9 @@ def build_system_status_context() -> str:
     if not blocks:
         return "Данные по проверкам пока отсутствуют или файлы результатов пусты."
         
-    return "Актуальная сводка по всем модулям системы:\n" + "\n".join(blocks)
+    return "Актуальная сводка по всем модулям системы:"
+" + "
+".join(blocks)
 
 
 @app.post("/api/assistant/ask")
