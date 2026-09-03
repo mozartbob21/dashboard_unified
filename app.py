@@ -3071,6 +3071,23 @@ async def aichat_send(request: Request):
     ctx = build_platform_context(text)
     if ctx:
         full_user = full_user + "\n\n" + ctx
+    _ctx_parts = []
+    try:
+        _pc = build_platform_context(text)
+        if _pc:
+            _ctx_parts.append(_pc)
+    except Exception:
+        _pc = ""
+    if any(t in (text or "").lower() for t in ("вод", "качеств", "вк", "зугис", "дашборд", "муниципал", "округ", "рсо", "авари")):
+        try:
+            from services.water_ai_context import build_water_context
+            _w = build_water_context()
+            if _w:
+                _ctx_parts.append(_w)
+        except Exception:
+            pass
+    if _ctx_parts:
+        full_user = full_user + "\n\n" + "\n".join(_ctx_parts)
     history = (d.get("messages") or []) + [{"role": "user", "content": full_user}]
     try:
         answer = aichat_ask(history)
