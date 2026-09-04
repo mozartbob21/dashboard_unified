@@ -1,352 +1,453 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+(function(){var m=localStorage.getItem("neurona-theme-mode")||"auto-moscow",t=m;
+if(m==="auto-moscow"){var now=new Date(),d=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
+var dec=.409*Math.sin(2*Math.PI*(d-80)/365),r=55.7558*Math.PI/180;
+var c=(Math.sin(-.83*Math.PI/180)-Math.sin(r)*Math.sin(dec))/(Math.cos(r)*Math.cos(dec));
+var H=c>=1?0:c<=-1?Math.PI:Math.acos(c);
+var sr=(12-H*12/Math.PI-37.6173/15+3+24)%24,ss=(12+H*12/Math.PI-37.6173/15+3+24)%24;
+var h=now.getHours()+now.getMinutes()/60;t=(h>=sr&&h<ss)?"light":"dark";}
+document.documentElement.setAttribute("data-theme",t);})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Нейрона — AI-чат</title>
+<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 <style>
-:root{
-  --bg:#f2f4fb; --bg2:#e9ecf7; --card:#ffffff; --text:#0b1220; --muted:#6b7a90;
-  --border:#e3e8f4; --acc1:#4f6df5; --acc2:#8b5cf6; --ok:#10b981; --danger:#ef4444;
-  --shadow:0 10px 34px rgba(23,37,84,.10);
-}
-html[data-theme="dark"]{
-  --bg:#0a0f1e; --bg2:#0d1426; --card:#121a30; --text:#e6ecf8; --muted:#8fa0ba;
-  --border:#1d2a47; --shadow:0 10px 34px rgba(0,0,0,.45);
-}
-*{box-sizing:border-box;margin:0}
+.ac-wrap{max-width:none;width:100%;margin:0;padding:0 16px 16px;display:grid;grid-template-columns:300px 1fr;gap:14px;height:calc(100vh - 118px)}
+@media(max-width:980px){.ac-wrap{grid-template-columns:1fr;height:auto}}
+.ac-side{display:flex;flex-direction:column;gap:10px;padding:14px;overflow:hidden}
+.ac-new{border:none;border-radius:14px;padding:12px;font-weight:700;font-size:14px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);box-shadow:0 6px 18px rgba(102,126,234,.35);transition:.2s}
+.ac-new:hover{transform:translateY(-1px)}
+.ac-hub{display:block;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:var(--text-color,#334155);border:1px solid var(--border-color,#e2e8f0);border-radius:14px;padding:10px}
+.ac-list{overflow:auto;display:flex;flex-direction:column;gap:6px}
+.dlg{padding:10px 12px;border-radius:12px;border:1px solid var(--border-color,#e2e8f0);cursor:pointer;position:relative}
+.dlg.active{border-color:#8b5cf6;background:rgba(139,92,246,.08)}
+.dlg .t{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:18px}
+.dlg .p{font-size:11.5px;color:var(--muted-color,#64748b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dlg .del{position:absolute;right:6px;top:8px;border:none;background:none;color:var(--muted-color);cursor:pointer;font-size:13px;opacity:0;transition:.15s}
+.dlg:hover .del{opacity:1}
+.ac-main{display:flex;flex-direction:column;padding:14px;gap:10px;overflow:hidden}
+.ac-chat{flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:6px 4px}
+.ac-msg{display:flex;gap:10px;align-items:flex-end;animation:up .25s ease}
+.ac-msg.user{justify-content:flex-end}
+.ava{flex:none;width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--border-color,#e2e8f0)}
+.ava img{width:26px;height:26px;border-radius:8px}
+.ava.u{background:linear-gradient(135deg,#0ea5e9,#6366f1)}
+.bubble{max-width:78%;width:fit-content;flex:0 1 auto;padding:12px 14px;border-radius:16px;font-size:14px;line-height:1.55}
+.ac-msg.assist .bubble{background:var(--bg-card,#fff);border:1px solid var(--border-color,#e2e8f0);border-bottom-left-radius:6px}
+.ac-msg.user .bubble{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border-bottom-right-radius:6px}
+.bubble img.att{display:block;max-width:230px;border-radius:12px;margin:6px 0;border:1px solid rgba(255,255,255,.35)}
+.att-chip{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);font-size:12px;margin:4px 4px 0 0}
+.ac-msg.assist .att-chip{background:var(--bg-neutral-100,rgba(0,0,0,.05));border-color:var(--border-color)}
+.li{padding-left:16px;position:relative}
+.li:before{content:"•";position:absolute;left:3px;color:#8b5cf6}
+.sp{height:6px}
+.ac-quick{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--border-color,#e2e8f0);background:var(--bg-card,#fff);color:var(--text-color,#334155);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s}
+.chip:hover{transform:translateY(-1px);border-color:#8b5cf6;color:#8b5cf6}
+.chip.add{border:1.5px dashed #8b5cf6;color:#8b5cf6;background:transparent}
+.chip .rm{margin-left:6px;opacity:.6}
+.ac-pend{display:flex;gap:8px;flex-wrap:wrap}
+.pend{position:relative}
+.pend img{width:56px;height:56px;object-fit:cover;border-radius:12px;border:1px solid var(--border-color)}
+.pend .fn{max-width:120px;font-size:11px;color:var(--muted-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pend .x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:none;background:#ef4444;color:#fff;cursor:pointer;font-size:12px;line-height:1}
+.ac-input{display:flex;gap:8px;align-items:flex-end}
+.ac-plus{flex:none;width:44px;height:44px;border-radius:14px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-color);font-size:20px;cursor:pointer;transition:.15s}
+.ac-plus:hover{border-color:#8b5cf6;color:#8b5cf6}
+#ta{flex:1;resize:none;border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card);color:var(--text-color);padding:12px 14px;font-size:14px;font-family:inherit;max-height:140px}
+#ta:focus{outline:none;border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.15)}
+.ac-send{flex:none;width:44px;height:44px;border:none;border-radius:14px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;font-size:17px;cursor:pointer;box-shadow:0 6px 16px rgba(102,126,234,.4);transition:.2s}
+.ac-send:hover{transform:translateY(-1px)}
+.ac-hint{font-size:11px;color:var(--muted-color);text-align:center}
+.ovl{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;animation:fade .2s}
+.modal{background:var(--bg-card,#fff);border:1px solid var(--border-color);border-radius:20px;padding:20px;width:min(440px,92vw);animation:pop .22s}
+.modal.wide{width:min(780px,94vw);max-height:86vh;overflow:auto}
+.modal h3{margin:0 0 10px;font-size:16px}
+.modal textarea{width:100%;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card);color:var(--text-color);padding:10px;font-family:inherit;resize:vertical}
+.m-row{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.btn{border:none;border-radius:12px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:13px}
+.btn.prim{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
+.btn.ghost{background:var(--bg-neutral-100,rgba(0,0,0,.05));color:var(--text-color)}
+.caps-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+@media(max-width:640px){.caps-grid{grid-template-columns:1fr}}
+.cap{border:1px solid var(--border-color);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted-color)}
+.cap b{color:var(--text-color,#1e293b);font-size:13px}
+.cap-ic{font-size:20px}
+.cap-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.welcome{border:1px solid var(--border-color);border-radius:20px;padding:22px;background:linear-gradient(160deg,rgba(102,126,234,.10),rgba(139,92,246,.05));animation:up .3s}
+.welcome h2{margin:0 0 6px;font-size:18px}
+.welcome p{margin:0 0 12px;color:var(--muted-color);font-size:13px}
+.typing .bubble{display:flex;gap:5px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:#8b5cf6;animation:blink 1s infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes up{from{opacity:0;transform:translateY(6px)}}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{opacity:0;transform:scale(.96)}}
+.ac-chat::-webkit-scrollbar,.ac-list::-webkit-scrollbar{width:8px}
+.ac-chat::-webkit-scrollbar-thumb,.ac-list::-webkit-scrollbar-thumb{background:rgba(139,92,246,.35);border-radius:8px}
+[hidden]{display:none !important}
+
+/* FIX-GAP: компактное расположение шапки и контента */
+body.compact-module-page{padding-top:10px !important}
+.container{padding-top:0 !important;padding-bottom:0 !important;margin-bottom:0 !important}
+.topbar{margin-bottom:0 !important}
+.ac-wrap{margin-top:14px !important}
+.container{max-width:none !important;width:100% !important}
+
+/* LAYOUT-FIX2: ровная стыковка и заполнение до низа */
 html,body{height:100%}
-body{font-family:"Inter","Segoe UI",system-ui,sans-serif;background:
-  radial-gradient(1200px 500px at 85% -10%, rgba(139,92,246,.14), transparent 60%),
-  radial-gradient(900px 420px at -10% 110%, rgba(79,109,245,.12), transparent 60%),
-  var(--bg); color:var(--text); display:flex; flex-direction:column; overflow:hidden}
-::-webkit-scrollbar{width:9px}
-::-webkit-scrollbar-thumb{background:rgba(120,134,170,.35);border-radius:99px}
-::-webkit-scrollbar-track{background:transparent}
+body.compact-module-page{display:flex;flex-direction:column;overflow:hidden;margin:0 !important;padding:0 !important}
+body.compact-module-page .container{flex:none;max-width:none !important;width:100% !important;margin:0 !important;padding:12px 16px 0 !important;box-sizing:border-box}
+.topbar{margin:0 !important}
+.ac-wrap{flex:1;min-height:0;height:auto !important;max-width:none !important;width:100% !important;margin:0 !important;
+padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:stretch}
+.ac-side{min-height:0;margin:0 !important;border-radius:18px 18px 0 0 !important}
+.ac-main{min-height:0;margin:0 0 14px !important;border-radius:18px !important}
+@media(max-width:980px){body.compact-module-page{overflow:auto}.ac-wrap{grid-template-columns:1fr;height:auto !important}}
 
-/* ── Шапка ── */
-.top{display:flex;align-items:center;gap:14px;padding:14px 22px;
-  background:color-mix(in srgb, var(--card) 82%, transparent);
-  backdrop-filter:blur(14px); border-bottom:1px solid var(--border); z-index:5}
-.logo{width:46px;height:46px;border-radius:16px;flex:none;display:flex;
-  align-items:center;justify-content:center;
-  filter:drop-shadow(0 5px 14px rgba(79,109,245,.25))}
-@keyframes spin{to{transform:rotate(360deg)}}
-.top h1{font-size:17px;font-weight:800;letter-spacing:.01em}
-.top .sub{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);
-  box-shadow:0 0 0 3px rgba(16,185,129,.18);animation:blink 2.4s infinite}
-@keyframes blink{50%{opacity:.5}}
-.top .home{margin-left:auto;text-decoration:none;color:var(--acc1);font-weight:700;font-size:13px;
-  padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card)}
-.top .home:hover{border-color:var(--acc1)}
-
-.body{flex:1;display:flex;min-height:0}
-
-/* ── Сайдбар ── */
-.side{width:292px;flex:none;display:flex;flex-direction:column;
-  border-right:1px solid var(--border);background:var(--bg2)}
-.newchat{margin:14px;padding:13px;border:none;border-radius:14px;cursor:pointer;
-  background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;
-  font:inherit;font-weight:700;font-size:14px;letter-spacing:.02em;
-  box-shadow:0 8px 20px rgba(99,102,241,.35);transition:.2s}
-.newchat:hover{transform:translateY(-1px);filter:brightness(1.08)}
-.list{flex:1;overflow-y:auto;padding:2px 10px 14px}
-.item{padding:11px 12px;border-radius:12px;cursor:pointer;margin-bottom:4px;
-  border:1px solid transparent;position:relative;transition:.15s;animation:fadeUp .25s both}
-.item:hover{background:color-mix(in srgb, var(--card) 70%, transparent)}
-.item.on{background:var(--card);border-color:color-mix(in srgb, var(--acc1) 40%, transparent);
-  box-shadow:var(--shadow)}
-.item .t{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;padding-right:24px}
-.item .p{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis}
-.item .del{position:absolute;right:8px;top:9px;border:none;background:none;color:var(--muted);
-  cursor:pointer;font-size:12px;opacity:0;transition:.15s}
-.item:hover .del{opacity:1}
-.item .del:hover{color:var(--danger)}
-
-/* ── Чат ── */
-.main{flex:1;display:flex;flex-direction:column;min-width:0}
-.msgs{flex:1;overflow-y:auto;padding:26px 8%;display:flex;flex-direction:column;gap:18px}
-.empty{margin:auto;text-align:center;color:var(--muted);animation:fadeUp .4s both}
-.empty .robot{font-size:56px;filter:drop-shadow(0 8px 18px rgba(139,92,246,.35))}
-.empty h2{font-size:19px;color:var(--text);margin:14px 0 6px;font-weight:800}
-.empty p{font-size:13px;max-width:380px;line-height:1.6}
-.row{display:flex;gap:12px;max-width:86%;min-width:0;animation:fadeUp .3s both}
-.row.user{align-self:flex-end;flex-direction:row-reverse}
-.ava{width:38px;height:38px;border-radius:12px;flex:none;display:flex;align-items:center;
-  justify-content:center;font-size:17px;background:var(--card);border:1px solid var(--border)}
-.row.ai .ava{background:transparent;border:none;box-shadow:none;
-  filter:drop-shadow(0 4px 10px rgba(79,109,241,.22))}
-.bubble{padding:13px 17px;border-radius:18px;font-size:14px;line-height:1.62;
-  white-space:pre-wrap;word-break:break-word;box-shadow:var(--shadow)}
-.row.ai .bubble{background:var(--card);border:1px solid var(--border);
-  border-top-left-radius:6px}
-.row.user .bubble{background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;
-  border-top-right-radius:6px}
-.bubble .file{display:inline-block;margin-top:8px;padding:4px 10px;border-radius:999px;
-  font-size:11px;background:rgba(255,255,255,.16)}
-.row.ai .bubble .file{background:var(--bg2);color:var(--muted)}
-.bubble .ts{display:block;margin-top:7px;font-size:10px;opacity:.5;text-align:right}
-.typing{display:flex;gap:5px;padding:16px 20px}
-.typing i{width:7px;height:7px;border-radius:50%;background:var(--acc2);animation:tp 1s infinite}
-.typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
-@keyframes tp{0%,100%{opacity:.25;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-
-/* ── Ввод ── */
-.composer{padding:12px 8% 18px}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-.chips:empty{display:none}
-.chip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);
-  background:var(--card);border:1px solid var(--border);border-radius:999px;
-  padding:5px 6px 5px 11px;animation:fadeUp .2s both}
-.chip b{color:var(--text);font-weight:600;max-width:180px;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.chip button{border:none;background:var(--bg2);color:var(--muted);width:18px;height:18px;
-  border-radius:50%;cursor:pointer;font-size:10px;line-height:1}
-.chip button:hover{background:var(--danger);color:#fff}
-.bar{display:flex;align-items:flex-end;gap:8px;padding:9px;border-radius:20px;
-  background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow)}
-.bar textarea{flex:1;border:none;background:transparent;color:var(--text);resize:none;
-  font:inherit;font-size:14px;padding:10px 8px;max-height:150px;outline:none}
-.ibtn{width:42px;height:42px;border-radius:14px;border:1px solid var(--border);flex:none;
-  background:var(--bg2);color:var(--text);font-size:17px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;transition:.18s}
-.ibtn:hover{border-color:var(--acc1);color:var(--acc1);transform:translateY(-1px)}
-.ibtn.plus{font-size:20px;font-weight:700}
-.ibtn.mic.on{background:var(--danger);border-color:var(--danger);color:#fff;
-  animation:pulse 1.2s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
-.ibtn.send{background:linear-gradient(135deg,var(--acc1),var(--acc2));border:none;color:#fff;
-  box-shadow:0 6px 16px rgba(99,102,241,.35)}
-.ibtn.send:hover{filter:brightness(1.1);transform:translateY(-1px)}
-.hint{margin-top:7px;font-size:10.5px;color:var(--muted);text-align:center}
-.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
-  background:var(--text);color:var(--bg);padding:11px 18px;border-radius:12px;font-size:13px;
-  opacity:0;pointer-events:none;transition:.3s;z-index:50;box-shadow:var(--shadow)}
-.toast.show{opacity:1;transform:translateX(-50%)}
-@media(max-width:860px){.side{display:none}.msgs,.composer{padding-left:4%;padding-right:4%}}
-
-.logo img,.ava img{width:100%;height:100%;object-fit:cover;border-radius:inherit}
-
-.hub{margin:0 14px 10px;border:1px solid var(--border);border-radius:14px;
-  background:var(--card);overflow:hidden;flex:none}
-.hub-head{display:flex;justify-content:space-between;align-items:center;
-  padding:10px 12px;font-weight:800;font-size:12.5px;letter-spacing:.02em}
-.hub-head button{border:none;background:var(--bg2);border-radius:8px;width:22px;height:22px;
-  cursor:pointer;color:var(--acc1);font-weight:800;font-size:13px}
-.hub-head button:hover{background:var(--acc1);color:#fff}
-.hub-form{padding:0 10px 10px;display:flex;flex-direction:column;gap:6px}
-.hub-form textarea,.hub-form input{border:1px solid var(--border);border-radius:10px;
-  background:var(--bg2);color:var(--text);font:inherit;font-size:12px;padding:8px 10px;outline:none}
-.hub-form textarea{height:64px;resize:vertical}
-.hub-form textarea:focus,.hub-form input:focus{border-color:var(--acc1)}
-.hub-form button{border:none;border-radius:10px;padding:8px;cursor:pointer;font-weight:700;
-  background:linear-gradient(135deg,var(--acc1),var(--acc2));color:#fff;font-size:12px}
-.hub-list{max-height:220px;overflow-y:auto;padding:0 10px 10px;
-  display:flex;flex-direction:column;gap:8px}
-.pcard{border:1px solid var(--border);border-radius:12px;padding:9px 10px;
-  background:var(--bg2);animation:fadeUp .25s both}
-.pcard .d{font-size:12px;font-weight:700}
-.pcard .t{font-size:11px;color:var(--muted);margin-top:3px;display:-webkit-box;
-  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.pcard .f{display:flex;gap:8px;align-items:center;margin-top:7px}
-.pcard .like{border:none;background:none;cursor:pointer;font-size:11px;color:var(--muted);
-  display:flex;gap:4px;align-items:center;padding:2px 4px}
-.pcard .like.on{color:#ef4444}
-.pcard .use{margin-left:auto;border:1px solid var(--border);background:var(--card);
-  border-radius:8px;font-size:10.5px;padding:4px 9px;cursor:pointer;
-  color:var(--acc1);font-weight:700}
-.pcard .use:hover{border-color:var(--acc1)}
-
-.hub-btn{background:var(--card);color:var(--acc1);border:1.5px solid color-mix(in srgb, var(--acc1) 45%, transparent);box-shadow:none;margin-top:0}
-.hub-btn:hover{border-color:var(--acc1);transform:translateY(-1px)}
-    
-.robot img{width:76px;height:76px;border-radius:22px}
-    </style>
+/* MIC: диктофон */
+.mic-btn{flex:none;width:44px;height:44px;border-radius:14px;border:1px solid var(--border-color,#e2e8f0);background:var(--bg-card,#fff);color:var(--text-color,#334155);font-size:18px;cursor:pointer;transition:.15s}
+.mic-btn:hover{border-color:#ef4444;color:#ef4444}
+.mic-rec .mic-btn{border-color:#ef4444;color:#ef4444;animation:micpulse 1.2s infinite}
+@keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.35)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+.mic-timer{font-size:12px;color:var(--muted-color,#64748b);text-align:center;margin-top:6px;font-variant-numeric:tabular-nums}
+.mic-wave{display:flex;gap:3px;align-items:flex-end;height:34px;justify-content:center;margin:10px 0}
+.mic-wave i{width:4px;border-radius:2px;background:linear-gradient(180deg,#ef4444,#8b5cf6);animation:wv 1s infinite ease-in-out}
+.mic-wave i:nth-child(1){animation-delay:0s}.mic-wave i:nth-child(2){animation-delay:.1s}
+.mic-wave i:nth-child(3){animation-delay:.2s}.mic-wave i:nth-child(4){animation-delay:.3s}
+.mic-wave i:nth-child(5){animation-delay:.4s}
+@keyframes wv{0%,100%{height:8px}50%{height:30px}}
+</style>
 </head>
-<body>
-<div class="top">
-  <div class="logo"><img src="/static/logo.svg" alt="Нейрона"></div>
-  <div>
-    <h1>Нейрона AI-чат</h1>
-    <div class="sub"><span class="dot"></span> локальный контур Подмосковья · файлы · диктовка</div>
+<body class="compact-module-page">
+<div class="container">
+<header class="topbar">
+  <div class="brand">
+    <img src="{{ url_for('static', path='logo.svg') }}" class="brand-logo" alt="">
+    <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">AI-чат · аналитик платформы ЖКХ</div></div>
   </div>
-  <a class="home" href="/">← Главная</a>
+  <div class="top-actions">
+    <button class="secondary-button" id="capsBtn" type="button">❓ Что может чат</button>
+    <a href="/" class="secondary-button" style="text-decoration:none">← Главная</a>
+  </div>
+</header>
 </div>
-<div class="body">
-  <aside class="side">
-    <button class="newchat" id="newBtn">＋&nbsp; Новый чат</button>
-    <button class="newchat hub-btn" id="hubBtn">💡&nbsp; ПромтХаб</button>
-    <div class="list" id="dlgList"></div>
+
+<div class="ac-wrap">
+  <aside class="ac-side card">
+    <button class="ac-new" id="newBtn" type="button">＋ Новый чат</button>
+    <a class="ac-hub" href="/prompthub">💡 ПромтХаб</a>
+    <div class="ac-list" id="dlgList"></div>
   </aside>
-  <main class="main">
-    <div class="msgs" id="msgs"></div>
-    <div class="composer">
-      <div class="chips" id="chips"></div>
-      <div class="bar">
-        <input type="file" id="file" multiple hidden
-               accept=".txt,.docx,.pdf,.csv,.md,.xls,.xlsx,.pptx,.webm,.mp3,.wav,.m4a,.ogg">
-        <button class="ibtn plus" id="attachBtn" title="Прикрепить файл или аудио">＋</button>
-        <textarea id="inp" rows="1" placeholder="Напишите сообщение…"></textarea>
-        <button class="ibtn mic" id="micBtn" title="Диктовка (микрофон или аудиофайл)">🎤</button>
-        <button class="ibtn send" id="sendBtn" title="Отправить">➤</button>
-      </div>
-      <div class="hint">Enter — отправить · Shift+Enter — перенос · 🎤 — диктовка · ＋ — файлы (txt, docx, pdf, xls, xlsx, pptx, аудио)</div>
+
+  <main class="ac-main card">
+    <div class="ac-chat" id="chat"></div>
+    <div class="ac-quick" id="quickBar"></div>
+    <div class="ac-pend" id="pendRow"></div>
+    <div class="ac-input">
+      <button class="ac-plus" id="plusBtn" type="button" title="Прикрепить файл или фото">＋</button>
+      <input type="file" id="fileIn" multiple hidden accept="image/*,.txt,.md,.csv,.doc,.docx,.xls,.xlsx,.pptx,.pdf">
+      <textarea id="ta" rows="1" placeholder="Напишите сообщение…"></textarea>
+      <button class="mic-btn" id="micBtn" type="button" title="Надиктовать голосом">🎤</button>
+      <button class="ac-send" id="sendBtn" type="button" title="Отправить">➤</button>
     </div>
+    <div class="ac-hint">Enter — отправить · Shift+Enter — перенос · ＋ — файлы и фото</div>
   </main>
 </div>
-<div class="toast" id="toast"></div>
+
+
+<div class="ovl" id="micOvl" hidden>
+  <div class="modal">
+    <h3>🎤 Диктовка</h3>
+    <div class="mic-wave"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="mic-timer" id="micTimer">00:00</div>
+    <div id="micErr" style="color:#ef4444;font-size:12px;margin-top:6px"></div>
+    <div class="m-row">
+      <button class="btn ghost" id="micCancel" type="button">Отмена</button>
+      <button class="btn prim" id="micStop" type="button">⏹ Стоп и прикрепить</button>
+    </div>
+  </div>
+</div>
+<div class="ovl" id="cmdOvl" hidden>
+  <div class="modal">
+    <h3>Своя быстрая команда</h3>
+    <textarea id="cmdText" rows="3" placeholder="Например: Дай просрочку по Солнечногорску"></textarea>
+    <div class="m-row">
+      <button class="btn ghost" id="cmdCancel" type="button">Отмена</button>
+      <button class="btn prim" id="cmdSave" type="button">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="ovl" id="capsOvl" hidden>
+  <div class="modal wide">
+    <h3>Что может этот чат?</h3>
+    <div class="caps-grid">
+      <div class="cap"><div class="cap-ic">🏘</div><b>Статистика по муниципалитетам</b><span>Сводка по любому округу сразу из всех модулей: технадзор, ЭДО, просрочка, вода, камеры, обращения.</span></div>
+      <div class="cap"><div class="cap-ic">🚨</div><b>Критичные объекты</b><span>Какие объекты и организации в критичной зоне, кто ответственный и сколько дней просрочки.</span></div>
+      <div class="cap"><div class="cap-ic">💧</div><b>Качество воды</b><span>Худшие и лучшие округа, KPI сводного дашборда по водоснабжению.</span></div>
+      <div class="cap"><div class="cap-ic">📷</div><b>Камеры</b><span>Сколько камер не работает и в каких округах.</span></div>
+      <div class="cap"><div class="cap-ic">📑</div><b>Отчёты и доклады</b><span>Подготовит текст отчёта по муниципалитету или теме для доклада и презентации.</span></div>
+      <div class="cap"><div class="cap-ic">📎</div><b>Файлы и фото</b><span>Разберёт docx, xlsx, pdf, pptx, txt и фото с текстом.</span></div>
+    </div>
+    <div class="cap-ex"><b>Попробуйте:</b><div class="cap-chips" id="capChips"></div></div>
+    <div class="m-row"><button class="btn prim" id="capsClose" type="button">Понятно</button></div>
+  </div>
+</div>
+
 <script>
-let cur = null, busy = false, attached = [], rec = null, recording = false;
-const $ = id => document.getElementById(id);
-const LOGO = "/static/logo.svg";
-const AVAI = '<img src="'+LOGO+'" alt="">';
-const api = (u, o) => fetch(u, o).then(r => r.json());
-const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>");
-function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("show");
-  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"), 4200); }
+var $=function(s){return document.querySelector(s)};
+var chatEl=$("#chat"),ta=$("#ta");
+var currentDid=null,pending=[],busy=false;
+var customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");
+var STD=[{i:"📊",t:"Дай сводку по платформе"},{i:"🏗",t:"Что в критичных по технадзору?"},{i:"💧",t:"Кто худшие по воде?"}];
+var EXAMPLES=["Дай сводку по платформе","Что в критичных по технадзору?","Кто худшие по воде?","Сколько камер не работает и где?","Сформируй отчёт по Солнечногорску","Какая просрочка по округам?"];
 
-async function loadList(){
-  const r = await api("/aichat/api/dialogs");
-  $("dlgList").innerHTML = (r.items||[]).map(d =>
-    `<div class="item ${d.id===cur?"on":""}" data-id="${d.id}">
-       <div class="t">${esc(d.title)}</div><div class="p">${esc(d.preview)}</div>
-       <button class="del" data-del="${d.id}" title="Удалить диалог">✕</button></div>`).join("")
-    || '<div style="padding:14px;font-size:12px;color:var(--muted)">История пуста</div>';
+function esc(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function fmt(s){
+  var h=esc(s).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  return h.split("\n").map(function(l){
+    if(/^\s*[-•]\s+/.test(l))return '<div class="li">'+l.replace(/^\s*[-•]\s+/,"")+"</div>";
+    if(l.trim()==="")return '<div class="sp"></div>';
+    return "<div>"+l+"</div>";
+  }).join("");
 }
-$("dlgList").addEventListener("click", e => {
-  const del = e.target.closest("[data-del]");
-  if (del){ e.stopPropagation();
-    api("/aichat/api/dialogs/"+del.dataset.del,{method:"DELETE"}).then(()=>{
-      if(cur===del.dataset.del){cur=null;renderMsgs([]);} loadList(); }); return; }
-  const it = e.target.closest(".item"); if (it) open(it.dataset.id);
-});
-async function open(id){ cur=id; const d=await api("/aichat/api/dialogs/"+id);
-  renderMsgs(d.messages||[]); loadList(); }
-function renderMsgs(msgs){
-  $("msgs").innerHTML = msgs.length ? msgs.map(m =>
-    `<div class="row ${m.role==="user"?"user":"ai"}">
-       <div class="ava">${m.role==="user"?"👤":AVAI}</div>
-       <div class="bubble">${fmt(m.content)}
-         ${m.file?`<span class="file">📎 ${esc(m.file)}</span>`:""}
-         <span class="ts">${(m.ts||"").slice(11,16)}</span></div></div>`).join("")
-    : `<div class="empty"><div class="robot"><img src="${LOGO}" alt="" style="width:72px;height:72px;border-radius:22px;filter:drop-shadow(0 10px 22px rgba(79,109,245,.35))"></div>
-       <h2>Чем помочь?</h2>
-       <p>Я — Нейрона. Отвечаю на вопросы, разбираю прикреплённые файлы и понимаю диктовку. История диалогов сохраняется.</p></div>`;
-  $("msgs").scrollTop = 1e9;
-}
-function addMsg(role, content, file){
-  const el = document.createElement("div");
-  el.className = "row " + (role==="user"?"user":"ai");
-  el.innerHTML = `<div class="ava">${role==="user"?"👤":AVAI}</div>
-    <div class="bubble">${fmt(content)}${file?`<span class="file">📎 ${esc(file)}</span>`:""}</div>`;
-  $("msgs").appendChild(el); $("msgs").scrollTop = 1e9;
-}
-function typing(on){ let t=$("typing");
-  if(on&&!t){ t=document.createElement("div"); t.id="typing"; t.className="row ai";
-    t.innerHTML='<div class="ava">'+AVAI+'</div><div class="bubble typing"><i></i><i></i><i></i></div>';
-    $("msgs").appendChild(t); $("msgs").scrollTop=1e9; }
-  if(!on&&t) t.remove(); }
+function scroll(){chatEl.scrollTop=chatEl.scrollHeight}
 
-/* ── файлы: чипы с удалением ── */
+function welcomeHTML(){
+  return '<div class="welcome" id="welcome"><h2>👋 Я — Нейрона, аналитик платформы</h2>'+
+  '<p>Отвечаю по живым данным всех модулей: технадзор, ЭДО, просрочка, вода, камеры, обращения. '+
+  'Могу собрать статистику по любому муниципалитету и подготовить отчёт.</p>'+
+  '<div class="cap-chips" id="wChips"></div></div>';
+}
+function bindChips(root){
+  root.querySelectorAll("[data-ex]").forEach(function(b){
+    b.addEventListener("click",function(){send(b.getAttribute("data-ex"))});
+  });
+}
+function appendAssist(content){
+  var w=document.createElement("div");w.className="ac-msg assist";
+  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="bubble">'+fmt(content)+"</div>";
+  chatEl.appendChild(w);scroll();
+}
+function appendUser(text,atts){
+  var w=document.createElement("div");w.className="ac-msg user";
+  var inner="";
+  (atts||[]).forEach(function(a){
+    if(a.url)inner+='<img class="att" src="'+a.url+'">';
+    else inner+='<span class="att-chip">📎 '+esc(a.name)+"</span>";
+  });
+  if(text)inner+="<div>"+esc(text).replace(/\n/g,"<br>")+"</div>";
+  w.innerHTML='<div class="bubble">'+inner+'</div><div class="ava u">👤</div>';
+  chatEl.appendChild(w);scroll();
+}
+function showTyping(on){
+  var old=$("#typing");if(old)old.remove();
+  if(!on)return;
+  var w=document.createElement("div");w.className="ac-msg assist";w.id="typing";
+  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  chatEl.appendChild(w);scroll();
+}
+
+async function loadDialogs(){
+  var r=await fetch("/aichat/api/dialogs");var d=await r.json();
+  var list=$("#dlgList");list.innerHTML="";
+  (d.items||[]).forEach(function(it){
+    var el=document.createElement("div");
+    el.className="dlg"+(it.id===currentDid?" active":"");
+    el.innerHTML='<div class="t">'+esc(it.title)+'</div><div class="p">'+esc(it.preview||"")+'</div><button class="del" title="Удалить">✕</button>';
+    el.addEventListener("click",function(){openDialog(it.id)});
+    el.querySelector(".del").addEventListener("click",function(ev){
+      ev.stopPropagation();
+      fetch("/aichat/api/dialogs/"+it.id,{method:"DELETE"}).then(function(){
+        if(currentDid===it.id){currentDid=null;chatEl.innerHTML=welcome();bindChips(chatEl);}
+        loadDialogs();
+      });
+    });
+    list.appendChild(el);
+  });
+}
+function welcome(){chatEl.innerHTML=welcomeHTML();bindChips(chatEl);
+  var wc=$("#wChips");if(wc){wc.innerHTML=EXAMPLES.map(function(e){return '<button class="chip" data-ex="'+esc(e)+'">'+esc(e)+"</button>"}).join("");bindChips(wc);}
+}
+async function openDialog(did){
+  currentDid=did;loadDialogs();
+  var r=await fetch("/aichat/api/dialogs/"+did);var d=await r.json();
+  chatEl.innerHTML="";
+  var msgs=(d.messages||[]);
+  if(!msgs.length){welcome();return;}
+  msgs.forEach(function(m){
+    if(m.role==="user")appendUser(m.content,[]);
+    else appendAssist(m.content);
+  });
+}
+async function newChat(){
+  var r=await fetch("/aichat/api/dialogs",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+  var d=await r.json();currentDid=d.id;loadDialogs();welcome();
+}
+
+function renderPending(){
+  var row=$("#pendRow");row.innerHTML="";
+  pending.forEach(function(p,idx){
+    var el=document.createElement("div");el.className="pend";
+    if(p.url)el.innerHTML='<img src="'+p.url+'"><button class="x">✕</button>';
+    else el.innerHTML='<div class="fn">📎 '+esc(p.file?p.file.name:(p.name||'аудио'))+'</div><button class="x">✕</button>';
+    el.querySelector(".x").addEventListener("click",function(){
+      if(p.url)URL.revokeObjectURL(p.url);
+      pending.splice(idx,1);renderPending();
+    });
+    row.appendChild(el);
+  });
+}
+
 function renderChips(){
-  $("chips").innerHTML = attached.map((f,i)=>{
-    const audio = /\.(webm|mp3|wav|m4a|ogg)$/i.test(f.name);
-    return `<span class="chip">${audio?"🎤":"📄"}<b>${esc(f.name)}</b>
-      <button data-rm="${i}" title="Убрать файл">✕</button></span>`; }).join("");
+  var bar=$("#quickBar");bar.innerHTML="";
+  STD.forEach(function(c){
+    var b=document.createElement("button");b.className="chip";b.type="button";
+    b.textContent=c.i+" "+c.t;
+    b.addEventListener("click",function(){send(c.t)});
+    bar.appendChild(b);
+  });
+  customCmds.forEach(function(t,idx){
+    var b=document.createElement("button");b.className="chip";b.type="button";
+    b.innerHTML="⭐ "+esc(t)+'<span class="rm">✕</span>';
+    b.addEventListener("click",function(ev){
+      if(ev.target.classList.contains("rm")){
+        customCmds.splice(idx,1);
+        localStorage.setItem("neurona-quick-cmds",JSON.stringify(customCmds));
+        renderChips();return;
+      }
+      send(t);
+    });
+    bar.appendChild(b);
+  });
+  var add=document.createElement("button");add.className="chip add";add.type="button";
+  add.textContent="＋ Добавить свою";
+  add.addEventListener("click",function(){$("#cmdOvl").hidden=false;$("#cmdText").focus();});
+  bar.appendChild(add);
 }
-$("chips").addEventListener("click", e => {
-  const b = e.target.closest("[data-rm]"); if(!b) return;
-  attached.splice(+b.dataset.rm, 1); renderChips();
-});
-$("attachBtn").onclick = () => $("file").click();
-$("file").onchange = () => { attached.push(...$("file").files); $("file").value=""; renderChips(); };
 
-async function send(){
-  if (busy) return;
-  const text = $("inp").value.trim();
-  if (!text && !attached.length) return;
-  const fd = new FormData();
-  fd.append("dialog_id", cur||""); fd.append("text", text);
-  attached.forEach(f => fd.append("file", f));
-  const names = attached.map(f=>f.name).join(", ");
-  addMsg("user", text || ("Приложены файлы: " + names), names || null);
-  $("inp").value=""; attached=[]; renderChips();
-  busy=true; typing(true);
-  try{
-    const r = await api("/aichat/api/send", {method:"POST", body:fd});
-    typing(false);
-    if (r.error) addMsg("ai", "⚠️ " + r.error);
-    else { cur=r.dialog_id; addMsg("ai", r.answer); }
-  }catch(e){ typing(false); addMsg("ai", "⚠️ Сетевая ошибка: " + e.message); }
-  busy=false; loadList();
-}
-$("sendBtn").onclick = send;
-$("newBtn").onclick = async () => {
-  const d = await api("/aichat/api/dialogs",{method:"POST",
-    headers:{"Content-Type":"application/json"},body:"{}"});
-  cur=d.id; renderMsgs([]); loadList(); };
-$("inp").addEventListener("keydown", e => { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();} });
-$("inp").addEventListener("input", () => { $("inp").style.height="auto";
-  $("inp").style.height=Math.min(150,$("inp").scrollHeight)+"px"; });
-
-/* ── диктовка: микрофон, а при блоке — аудиофайл ── */
-function audioFallback(){
-  const i = document.createElement("input");
-  i.type="file"; i.accept="audio/*,.webm,.mp3,.wav,.m4a,.ogg";
-  i.onchange = async () => {
-    const f = i.files[0]; if(!f) return;
-    $("micBtn").textContent="⏳";
-    const fd = new FormData(); fd.append("audio", f);
-    try{
-      const r = await fetch("/aichat/api/transcribe",{method:"POST",body:fd});
-      const j = await r.json();
-      if (j.text) { $("inp").value = ($("inp").value? $("inp").value+" ": "") + j.text;
-        toast("🎤 Распознано: " + j.text.slice(0,60) + "…"); }
-      else toast("Не удалось распознать: " + (j.error||"пустой ответ"));
-    }catch(e){ toast("Ошибка распознавания: " + e.message); }
-    $("micBtn").textContent="🎤"; $("inp").focus();
-  };
-  i.click();
-}
-$("micBtn").onclick = async () => {
-  if (recording){ rec.stop(); return; }
-  const MIME = window.MediaRecorder && MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
-  if (!navigator.mediaDevices || !MIME) return audioFallback();
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    let base = $("inp").value.trim(), chunks = [];
-    rec = new MediaRecorder(stream, {mimeType:MIME});
-    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
-    rec.onstop = async () => {
-      stream.getTracks().forEach(t=>t.stop());
-      recording=false; $("micBtn").classList.remove("on"); $("micBtn").textContent="⏳";
-      const fd = new FormData();
-      fd.append("audio", new Blob(chunks,{type:MIME}), "voice.webm");
-      try{
-        const r = await fetch("/aichat/api/transcribe",{method:"POST",body:fd});
-        const j = await r.json();
-        if (j.text) $("inp").value = (base? base+" ": "") + j.text;
-        else toast("Не удалось распознать: " + (j.error||""));
-      }catch(e){ toast("Ошибка: " + e.message); }
-      $("micBtn").textContent="🎤";
-    };
-    rec.start(); recording=true;
-    $("micBtn").classList.add("on"); $("micBtn").textContent="⏹";
-  }catch(e){
-    toast("🎤 Микрофон заблокирован политикой — выберите аудиофайл, я распознаю его");
-    audioFallback();
+async function send(textOverride){
+  if(busy)return;
+  var text=(typeof textOverride==="string"?textOverride:ta.value).trim();
+  if(!text&&!pending.length)return;
+  ta.value="";ta.style.height="auto";
+  var w=$("#welcome");if(w)w.remove();
+  appendUser(text,pending.map(function(p){return {url:p.url,name:(p.file?p.file.name:(p.name||'аудио'))}}));
+  var fd=new FormData();
+  fd.append("dialog_id",currentDid||"");
+  fd.append("text",text);
+  for(var pi=0;pi<pending.length;pi++){
+    var pp=pending[pi],pf=pp.file;
+    if(!pf&&pp.remote){
+      try{var pr=await fetch(pp.remote);var pb=await pr.blob();pf=new File([pb],pp.name||"диктовка.wav",{type:pb.type||"audio/wav"});}catch(e){}
+    }
+    if(pf)fd.append("file",pf,pf.name);
+    if(pp.url)URL.revokeObjectURL(pp.url);
   }
-};
+  pending=[];renderPending();
+  busy=true;showTyping(true);
+  try{
+    var r=await fetch("/aichat/api/send",{method:"POST",body:fd});
+    var d=await r.json();
+    showTyping(false);busy=false;
+    if(d.error){appendAssist("⚠️ "+d.error);return;}
+    if(d.dialog_id&&d.dialog_id!==currentDid){currentDid=d.dialog_id;}
+    loadDialogs();
+    appendAssist(d.answer||"…");
+  }catch(e){showTyping(false);busy=false;appendAssist("⚠️ Ошибка сети: "+e.message);}
+}
 
-$("hubBtn").onclick = () => location.href = "/prompthub";
-const _pend = localStorage.getItem("hubPending");
-if (_pend){ localStorage.removeItem("hubPending"); $("inp").value = _pend; $("inp").focus(); }
-loadList();
+$("#newBtn").addEventListener("click",newChat);
+$("#sendBtn").addEventListener("click",function(){send()});
+ta.addEventListener("keydown",function(e){
+  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}
+});
+ta.addEventListener("input",function(){ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight,140)+"px";});
+$("#plusBtn").addEventListener("click",function(){$("#fileIn").click()});
+$("#fileIn").addEventListener("change",function(e){
+  Array.prototype.forEach.call(e.target.files,function(f){
+    var url=f.type&&f.type.indexOf("image/")===0?URL.createObjectURL(f):null;
+    pending.push({file:f,url:url});
+  });
+  e.target.value="";renderPending();
+});
+$("#cmdCancel").addEventListener("click",function(){$("#cmdOvl").hidden=true});
+$("#cmdSave").addEventListener("click",function(){
+  var t=$("#cmdText").value.trim();if(!t)return;
+  customCmds.push(t);
+  localStorage.setItem("neurona-quick-cmds",JSON.stringify(customCmds));
+  $("#cmdText").value="";$("#cmdOvl").hidden=true;renderChips();
+});
+$("#capsBtn").addEventListener("click",function(){$("#capsOvl").hidden=false;fillCapChips();});
+$("#capsClose").addEventListener("click",function(){$("#capsOvl").hidden=true;localStorage.setItem("neurona-caps-seen","1");});
+function fillCapChips(){
+  var c=$("#capChips");
+  c.innerHTML=EXAMPLES.map(function(e){return '<button class="chip" data-ex="'+esc(e)+'">'+esc(e)+"</button>"}).join("");
+  bindChips(c);
+}
+loadDialogs();renderChips();welcome();
+if(!localStorage.getItem("neurona-caps-seen")){$("#capsOvl").hidden=false;fillCapChips();}
+</script>
+
+<script>
+/* FIX-GAP: дотягиваем контент к шапке, если платформа добавила лишние отступы */
+(function(){
+  function fixGap(){
+    var tb=document.querySelector('.topbar');
+    var wrap=document.querySelector('.ac-wrap');
+    if(!tb||!wrap)return;
+    var gap=wrap.getBoundingClientRect().top - tb.getBoundingClientRect().bottom;
+    if(gap>40){
+      var cur=parseFloat(getComputedStyle(wrap).marginTop)||0;
+      wrap.style.marginTop=(cur-(gap-14))+'px';
+    }
+  }
+  window.addEventListener('load',fixGap);
+  setTimeout(fixGap,250);
+})();
+</script>
+
+
+
+<script>
+/* MIC2: диктовка через локальный сервер (в обход политик браузера) */
+(function(){
+  var btn=document.getElementById('micBtn');
+  if(!btn)return;
+  var tInt=null,t0=0;
+  function fmtT(s){var m=Math.floor(s/60),x=s%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x;}
+  function err(m){var e=document.getElementById('micErr');if(e)e.textContent=m||'';}
+  btn.addEventListener('click',async function(){
+    err('');
+    var r=await fetch('/api/voice/start',{method:'POST'});
+    var d=await r.json();
+    if(!d.ok){err('Не удалось начать запись: '+(d.error||''));return;}
+    document.getElementById('micOvl').hidden=false;
+    t0=Date.now();document.getElementById('micTimer').textContent='00:00';
+    tInt=setInterval(function(){document.getElementById('micTimer').textContent=fmtT(Math.floor((Date.now()-t0)/1000));},500);
+  });
+  document.getElementById('micStop').addEventListener('click',async function(){
+    clearInterval(tInt);
+    var r=await fetch('/api/voice/stop',{method:'POST'});
+    var d=await r.json();
+    document.getElementById('micOvl').hidden=true;
+    if(d.ok&&d.file){
+      pending.push({file:null,remote:'/api/voice/file/'+d.file,name:d.file,url:null});
+      renderPending();
+    }
+  });
+  document.getElementById('micCancel').addEventListener('click',async function(){
+    clearInterval(tInt);
+    await fetch('/api/voice/stop',{method:'POST'});
+    document.getElementById('micOvl').hidden=true;
+  });
+})();
 </script>
 </body>
 </html>

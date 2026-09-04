@@ -3259,3 +3259,76 @@ async def zc_published_xlsx():
 # SYSTEM STATUS ASSISTANT (Помощник по статусам всех блоков)
 # ===============================
 
+# ===============================
+# ГОЛОСОВАЯ ДИКТОВКА ЧЕРЕЗ ЛОКАЛЬНЫЙ СЕРВЕР (Windows MCI, без ffmpeg и без браузера)
+# ===============================
+VOICE_DIR = DATA_DIR / "voice"
+_voice_state = {"recording": False, "file": None}
+
+
+def _mci(cmd):
+    import ctypes
+    buf = ctypes.create_unicode_buffer(256)
+    code = ctypes.windll.winmm.mciSendStringW(cmd, buf, 256, 0)
+    return code, buf.value
+
+
+def _mci_error_text(code):
+    import ctypes
+    buf = ctypes.create_unicode_buffer(256)
+    ctypes.windll.winmm.mciGetErrorStringW(code, buf, 256)
+    return buf.value or ("MCI error %s" % code)
+
+
+@app.post("/api/voice/start")
+async def voice_start():
+    if _voice_state["recording"]:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "запись уже идёт"})
+    VOICE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        _mci("close rec")  # сброс зависшего алиаса
+        code, _ = _mci("open new type waveaudio alias rec")
+        if code:
+            return JSONResponse(status_code=500, content={"ok": False, "error": "open: " + _mci_error_text(code)})
+        _mci("set rec time format ms")
+        _mci("set rec samplespersec 16000")
+        _mci("set rec bitspersample 16")
+        _mci("set rec channels 1")
+        code, _ = _mci("record rec")
+        if code:
+            _mci("close rec")
+            return JSONResponse(status_code=500, content={"ok": False, "error": "record: " + _mci_error_text(code)})
+        _voice_state["recording"] = True
+        _voice_state["file"] = VOICE_DIR / ("rec_%d.wav" % int(time.time()))
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@app.post("/api/voice/stop")
+async def voice_stop():
+    if not _voice_state["recording"]:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "запись не идёт"})
+    try:
+        _mci("stop rec")
+        out = _voice_state["file"]
+        code, _ = _mci('save rec "%s"' % str(out))
+        _mci("close rec")
+        _voice_state["recording"] = False
+        if code or not out.exists():
+            return JSONResponse(status_code=500, content={"ok": False, "error": "save: " + _mci_error_text(code)})
+        return {"ok": True, "file": out.name}
+    except Exception as e:
+        _voice_state["recording"] = False
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@app.get("/api/voice/file/{name}")
+async def voice_file(name: str):
+    from fastapi.responses import FileResponse
+    if "/" in name or "\\" in name or ".." in name:
+        return JSONResponse(status_code=400, content={"ok": False})
+    p = VOICE_DIR / name
+    if not p.exists():
+        return JSONResponse(status_code=404, content={"ok": False})
+    return FileResponse(p, media_type="audio/wav", filename=name)
