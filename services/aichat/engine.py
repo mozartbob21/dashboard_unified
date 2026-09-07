@@ -143,38 +143,33 @@ def _platform_creds():
 
 
 def _asr_qwen(data: bytes) -> str:
-    """Распознавание речи моделью Qwen3-ASR (qwen-asr) через chat/completions."""
-    import base64
+    """Распознавание речи моделью qwen-asr через /audio/transcriptions (multipart)."""
+    import os
     import httpx
     base, key = _platform_creds()
-    b64 = base64.b64encode(data).decode()
+    endpoint = os.getenv("STT_ASR_ENDPOINT", "/audio/transcriptions")
+    model = os.getenv("STT_ASR_MODEL", "qwen-asr")
+    language = os.getenv("STT_ASR_LANGUAGE", "ru")
+    url = base + endpoint
     headers = {"Authorization": "Bearer " + key} if key else {}
-    variants = [
-        {"model": "qwen-asr", "messages": [{"role": "user", "content": [
-            {"type": "input_audio", "input_audio": {"data": b64, "format": "wav"}},
-            {"type": "text", "text": "Расшифруй речь на русском языке, верни только текст."}]}]},
-        {"model": "qwen-asr", "messages": [{"role": "user", "content": [
-            {"type": "audio_url", "audio_url": {"url": "data:audio/wav;base64," + b64}},
-            {"type": "text", "text": "Расшифруй речь на русском языке, верни только текст."}]}]},
-    ]
-    for payload in variants:
-        try:
-            with httpx.Client(timeout=90) as c:
-                r = c.post(base + "/chat/completions", json=payload, headers=headers)
-                if r.status_code != 200:
-                    print("[aichat] qwen-asr http", r.status_code, r.text[:120])
-                    continue
-                j = r.json()
-                txt = (j.get("choices") or [{}])[0].get("message", {}).get("content", "")
-                if isinstance(txt, list):
-                    txt = "".join(p.get("text", "") for p in txt if isinstance(p, dict))
-                txt = (txt or "").strip()
-                if txt:
-                    return txt
-        except Exception as e:
-            print("[aichat] qwen-asr variant error:", e)
-    return ""
-
+    files = {"file": ("audio.wav", data, "audio/wav")}
+    form_data = {
+        "model": model,
+        "language": language,
+        "response_format": "json",
+    }
+    try:
+        with httpx.Client(timeout=90) as c:
+            r = c.post(url, headers=headers, files=files, data=form_data)
+            if r.status_code != 200:
+                print(f"[aichat] qwen-asr http {r.status_code}: {r.text[:200]}")
+                return ""
+            j = r.json()
+            text = (j.get("text") or "").strip()
+            return text
+    except Exception as e:
+        print("[aichat] qwen-asr error:", e)
+        return ""
 
 def transcribe(data: bytes, mime: str = "audio/webm") -> str:
     """Цепочка: Qwen3-ASR (контур) -> Whisper (локально) -> Vosk (офлайн)."""
