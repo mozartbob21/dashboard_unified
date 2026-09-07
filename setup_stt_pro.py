@@ -1,33 +1,23 @@
-"""Движок AI-чата: Нейрона ИИ (работает на локальном контуре Подмосковья)."""
-from services.summarizer.engine import _qwen_chat
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Максимальная точность диктовки: faster-whisper (medium) + нормализация + Vosk как fallback."""
+import re
+import subprocess
+import sys
+from pathlib import Path
 
-GREETING = ("Здравствуйте! Я — Нейрона ИИ, корпоративный помощник платформы ЖКХ "
-            "Московской области. Могу разобрать приложенный файл, подготовить "
-            "служебную записку, сверку или отчёт, подсказать по обращениям граждан. "
-            "С чего начнём?")
+# ── 1) ставим faster-whisper ──
+print("📦 Ставлю faster-whisper...")
+subprocess.run([sys.executable, "-m", "pip", "install", "faster-whisper"], check=False)
+chk = subprocess.run([sys.executable, "-c", "import faster_whisper, ctranslate2; print('ok')"],
+                     capture_output=True, text=True)
+print("faster-whisper:", "✅ OK" if chk.returncode == 0 else "❌ не встал -> останется Vosk")
 
-SYSTEM_PROMPT = (
-    "Ты — Нейрона ИИ, корпоративный ИИ-ассистент платформы ЖКХ Московской области. "
-    "ЭТО ТВОЁ ЕДИНСТВЕННОЕ ИМЯ. Если спрашивают, кто ты, как тебя зовут, "
-    "какая ты модель или технология — отвечай: «Я — Нейрона ИИ». "
-    "НИКОГДА не упоминай Qwen, Qwen3, Tongyi, Alibaba, OpenAI, GPT, LLaMA, "
-    "«языковая модель», «нейросеть такого-то вендора» и любые технические названия моделей.\n"
-    "Помогаешь сотрудникам с документами, отчётами, анализом обращений, "
-    "служебными записками и рабочими задачами.\n"
-    "Правила: отвечай на русском; структурируй ответ (списки, подзаголовки); "
-    "если приложены файлы — опирайся на их содержимое; "
-    "если данных не хватает — честно скажи; без воды и лишних вступлений."
-)
+# ── 2) переписываем распознавание в engine.py ──
+E = Path("services") / "aichat" / "engine.py"
+src = E.read_text(encoding="utf-8")
 
-def ask(history, max_tokens=2500):
-    """history: список {"role": "user"|"assistant", "content"}."""
-    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for m in (history or [])[-12:]:
-        msgs.append({"role": m["role"], "content": m["content"]})
-    return _qwen_chat(msgs, max_tokens=max_tokens)
-
-
-_VOSK_MODEL = None
+NEW_BLOCK = '''_VOSK_MODEL = None
 _WHISPER = None
 
 
@@ -170,3 +160,19 @@ def transcribe(data: bytes, mime: str = "audio/webm") -> str:
     except Exception as e:
         print("[aichat] vosk error:", e)
         return ""
+'''
+
+# вырезаем старые реализации и вставляем новый блок
+src = re.sub(r'\n?_VOSK_MODEL\s*=\s*None\n', '\n', src)
+src = re.sub(r'\n?_WHISPER\s*=\s*None\n', '\n', src)
+src = re.sub(r'def _vosk_model\(\):.*?(?=\ndef |\Z)', '', src, flags=re.S)
+src = re.sub(r'def _whisper_model\(\):.*?(?=\ndef |\Z)', '', src, flags=re.S)
+src = re.sub(r'def _pcm_to_16k_mono\(.*?(?=\ndef |\Z)', '', src, flags=re.S)
+src = re.sub(r'def _normalize_pcm\(.*?(?=\ndef |\Z)', '', src, flags=re.S)
+src = re.sub(r'def transcribe\(.*?(?=\ndef |\Z)', '', src, flags=re.S)
+src = src.rstrip() + "\n\n\n" + NEW_BLOCK
+E.write_text(src, encoding="utf-8")
+print("✅ engine.py: распознавание = Whisper(medium) → Vosk(fallback) + нормализация")
+print("\nРестарт:")
+print("   taskkill /IM python.exe /F")
+print("   python -m uvicorn app:app --host 0.0.0.0 --port 8000")
