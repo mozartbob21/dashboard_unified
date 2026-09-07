@@ -142,6 +142,36 @@ def _platform_creds():
     return base.rstrip("/"), key
 
 
+def _wav_normalized_bytes(data: bytes) -> bytes:
+    """Приводит WAV к 16k mono 16bit и поднимает громкость до пика ~90%."""
+    import io
+    import wave
+    import array
+    try:
+        wf = wave.open(io.BytesIO(data), "rb")
+    except Exception:
+        return data
+    ch, width, rate = wf.getnchannels(), wf.getsampwidth(), wf.getframerate()
+    n = wf.getnframes()
+    raw = wf.readframes(n)
+    wf.close()
+    pcm = _normalize_pcm(_pcm_to_16k_mono(raw, ch, width, rate))
+    a = array.array("h")
+    a.frombytes(pcm)
+    probe = a[::37] or array.array("h", [0])
+    rms = sum(abs(v) for v in probe) / len(probe)
+    dur = (n / rate) if rate else 0.0
+    print(f"[voice] wav dur={dur:.1f}s rms={rms:.0f} " + ("← ТИХО/ПУСТО, проверь микрофон!" if rms < 300 else ""))
+    buf = io.BytesIO()
+    wo = wave.open(buf, "wb")
+    wo.setnchannels(1)
+    wo.setsampwidth(2)
+    wo.setframerate(16000)
+    wo.writeframes(pcm)
+    wo.close()
+    return buf.getvalue()
+
+
 def _asr_qwen(data: bytes) -> str:
     """Распознавание речи моделью qwen-asr через /audio/transcriptions (multipart)."""
     import os
@@ -172,10 +202,11 @@ def _asr_qwen(data: bytes) -> str:
         return ""
 
 def transcribe(data: bytes, mime: str = "audio/webm") -> str:
-    """Цепочка: Qwen3-ASR (контур) -> Whisper (локально) -> Vosk (офлайн)."""
+    """Цепочка: Qwen3-ASR (контур) -> Whisper (локально) -> Vosk (офлайн). Нормализация входа."""
     import io
+    norm = _wav_normalized_bytes(data)
     try:
-        t = _asr_qwen(data)
+        t = _asr_qwen(norm)
         if t:
             print("[aichat] qwen-asr transcribed:", t[:120])
             return t
@@ -185,9 +216,9 @@ def transcribe(data: bytes, mime: str = "audio/webm") -> str:
     if m is not None:
         try:
             try:
-                segments, _i = m.transcribe(io.BytesIO(data), language="ru", vad_filter=True)
+                segments, _i = m.transcribe(io.BytesIO(norm), language="ru", vad_filter=True)
             except Exception:
-                segments, _i = m.transcribe(io.BytesIO(data), language="ru")
+                segments, _i = m.transcribe(io.BytesIO(norm), language="ru")
             text = " ".join(s.text for s in segments).strip()
             print("[aichat] whisper transcribed:", text[:120])
             if text:
@@ -200,13 +231,11 @@ def transcribe(data: bytes, mime: str = "audio/webm") -> str:
     import json
     import wave
     try:
-        wf = wave.open(io.BytesIO(data), "rb")
+        wf = wave.open(io.BytesIO(norm), "rb")
     except Exception:
         return ""
-    ch, width, rate = wf.getnchannels(), wf.getsampwidth(), wf.getframerate()
-    raw = wf.readframes(wf.getnframes())
+    pcm = wf.readframes(wf.getnframes())
     wf.close()
-    pcm = _normalize_pcm(_pcm_to_16k_mono(raw, ch, width, rate))
     try:
         from vosk import KaldiRecognizer
         rec = KaldiRecognizer(model, 16000)
