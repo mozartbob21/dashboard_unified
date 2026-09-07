@@ -3332,3 +3332,83 @@ async def voice_file(name: str):
     if not p.exists():
         return JSONResponse(status_code=404, content={"ok": False})
     return FileResponse(p, media_type="audio/wav", filename=name)
+
+# ===============================
+# МОБИЛЬНАЯ ДИКТОВКА /voice (телефон как микрофон)
+# ===============================
+VOICE_PAGE = """<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Нейрона · Диктовка</title><style>
+body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:linear-gradient(160deg,#eef2ff,#fdf4ff);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px}
+#btn{width:120px;height:120px;border-radius:50%;border:none;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:44px;box-shadow:0 12px 30px rgba(102,126,234,.45);cursor:pointer;transition:.2s}
+#btn.rec{background:linear-gradient(135deg,#ef4444,#b91c1c);animation:p 1.2s infinite}
+@keyframes p{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 22px rgba(239,68,68,0)}}
+#st{color:#475569;font-size:14px;min-height:20px;text-align:center}
+#txt{width:100%;max-width:520px;min-height:110px;border-radius:16px;border:1px solid #e2e8f0;padding:14px;font-size:16px;background:#fff}
+.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.b{border:none;border-radius:12px;padding:12px 18px;font-size:15px;font-weight:600;cursor:pointer}
+.prim{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
+.ghost{background:#fff;border:1px solid #e2e8f0;color:#334155}
+#ans{width:100%;max-width:520px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:14px;font-size:15px;white-space:pre-wrap;display:none}
+</style></head><body>
+<h2 style="margin:0">🎙 Нейрона · Диктовка</h2>
+<div id="st">Нажми микрофон и говори</div>
+<button id="btn">🎤</button>
+<textarea id="txt" placeholder="Здесь появится распознанный текст (можно править)"></textarea>
+<div class="row"><button class="b prim" id="send">Отправить Нейроне</button><button class="ghost" id="copy">Копировать</button></div>
+<div id="ans"></div>
+<script>
+var rec=null,chunks=[],stream=null,recording=false;
+var btn=document.getElementById('btn'),st=document.getElementById('st');
+btn.onclick=async function(){
+ if(!recording){
+  if(!window.isSecureContext){st.textContent='Нужен HTTPS: открой https://…:8443/voice';return;}
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){st.textContent='Нет доступа к микрофону: '+e.message;return;}
+  chunks=[];rec=new MediaRecorder(stream);
+  rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
+  rec.onstop=async function(){
+   stream.getTracks().forEach(function(t){t.stop();});
+   var blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});
+   st.textContent='Распознаю…';
+   var fd=new FormData();fd.append('file',blob,'voice.webm');
+   try{
+    var r=await fetch('/api/voice/upload',{method:'POST',body:fd});
+    var d=await r.json();
+    document.getElementById('txt').value=d.text||'';
+    st.textContent=d.text?'Готово!':'Не распознал — говори ближе к микрофону';
+   }catch(e){st.textContent='Ошибка: '+e.message;}
+  };
+  rec.start();recording=true;btn.classList.add('rec');btn.textContent='⏹';st.textContent='Слушаю… нажми, чтобы остановить';
+ }else{rec.stop();recording=false;btn.classList.remove('rec');btn.textContent='🎤';}
+};
+document.getElementById('send').onclick=async function(){
+ var t=document.getElementById('txt').value.trim();if(!t)return;
+ st.textContent='Нейрона думает…';
+ var fd=new FormData();fd.append('text',t);fd.append('dialog_id','');
+ var r=await fetch('/aichat/api/send',{method:'POST',body:fd});
+ var d=await r.json();
+ var a=document.getElementById('ans');a.style.display='block';a.textContent=d.answer||d.error||'';
+ st.textContent='Ответ готов';
+};
+document.getElementById('copy').onclick=function(){
+ var t=document.getElementById('txt');t.select();
+ try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand('copy');}
+};
+</script></body></html>"""
+
+
+@app.get("/voice", response_class=HTMLResponse)
+async def voice_page(request: Request):
+    return HTMLResponse(VOICE_PAGE)
+
+
+@app.post("/api/voice/upload")
+async def voice_upload(request: Request):
+    form = await request.form()
+    up = form.get("file")
+    if up is None:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "нет файла"})
+    data = await up.read()
+    from services.aichat.engine import transcribe
+    text = transcribe(data, up.content_type or "audio/webm")
+    return {"ok": True, "text": text or ""}
