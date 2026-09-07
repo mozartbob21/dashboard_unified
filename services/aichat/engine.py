@@ -127,16 +127,72 @@ def _normalize_pcm(pcm: bytes) -> bytes:
     return out.tobytes()
 
 
+def _platform_creds():
+    """Base URL и ключ того же контура, что использует чат."""
+    import os
+    try:
+        from services.summarizer import engine as _se
+    except Exception:
+        _se = None
+    base = (getattr(_se, "BASE_URL", None) or getattr(_se, "API_BASE", None)
+            or os.getenv("STT_BASE") or os.getenv("QWEN_BASE_URL")
+            or "https://aiplatform.mosreg.ru/api/user-models/v1")
+    key = (getattr(_se, "API_KEY", None) or getattr(_se, "QWEN_API_KEY", None)
+           or os.getenv("QWEN_API_KEY") or os.getenv("AI_API_KEY") or os.getenv("API_KEY") or "")
+    return base.rstrip("/"), key
+
+
+def _asr_qwen(data: bytes) -> str:
+    """Распознавание речи моделью Qwen3-ASR (qwen-asr) через chat/completions."""
+    import base64
+    import httpx
+    base, key = _platform_creds()
+    b64 = base64.b64encode(data).decode()
+    headers = {"Authorization": "Bearer " + key} if key else {}
+    variants = [
+        {"model": "qwen-asr", "messages": [{"role": "user", "content": [
+            {"type": "input_audio", "input_audio": {"data": b64, "format": "wav"}},
+            {"type": "text", "text": "Расшифруй речь на русском языке, верни только текст."}]}]},
+        {"model": "qwen-asr", "messages": [{"role": "user", "content": [
+            {"type": "audio_url", "audio_url": {"url": "data:audio/wav;base64," + b64}},
+            {"type": "text", "text": "Расшифруй речь на русском языке, верни только текст."}]}]},
+    ]
+    for payload in variants:
+        try:
+            with httpx.Client(timeout=90) as c:
+                r = c.post(base + "/chat/completions", json=payload, headers=headers)
+                if r.status_code != 200:
+                    print("[aichat] qwen-asr http", r.status_code, r.text[:120])
+                    continue
+                j = r.json()
+                txt = (j.get("choices") or [{}])[0].get("message", {}).get("content", "")
+                if isinstance(txt, list):
+                    txt = "".join(p.get("text", "") for p in txt if isinstance(p, dict))
+                txt = (txt or "").strip()
+                if txt:
+                    return txt
+        except Exception as e:
+            print("[aichat] qwen-asr variant error:", e)
+    return ""
+
+
 def transcribe(data: bytes, mime: str = "audio/webm") -> str:
-    """Диктовка: сначала Whisper (точно), при неудаче — Vosk (офлайн)."""
+    """Цепочка: Qwen3-ASR (контур) -> Whisper (локально) -> Vosk (офлайн)."""
     import io
+    try:
+        t = _asr_qwen(data)
+        if t:
+            print("[aichat] qwen-asr transcribed:", t[:120])
+            return t
+    except Exception as e:
+        print("[aichat] qwen-asr error:", e)
     m = _whisper_model()
     if m is not None:
         try:
             try:
-                segments, _info = m.transcribe(io.BytesIO(data), language="ru", vad_filter=True)
+                segments, _i = m.transcribe(io.BytesIO(data), language="ru", vad_filter=True)
             except Exception:
-                segments, _info = m.transcribe(io.BytesIO(data), language="ru")
+                segments, _i = m.transcribe(io.BytesIO(data), language="ru")
             text = " ".join(s.text for s in segments).strip()
             print("[aichat] whisper transcribed:", text[:120])
             if text:
