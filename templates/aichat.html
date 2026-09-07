@@ -82,7 +82,7 @@ document.documentElement.setAttribute("data-theme",t);})();
 .welcome h2{margin:0 0 6px;font-size:18px}
 .welcome p{margin:0 0 12px;color:var(--muted-color);font-size:13px}
 .typing .bubble{display:flex;gap:5px;align-items:center}
-.dot{width:7px;height:7px;border-radius:50%;background:#8b5cf6;animation:blink 1s infinite}
+.dot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%;background:#8b5cf6;animation:blink 1s infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
 @keyframes up{from{opacity:0;transform:translateY(6px)}}
@@ -249,7 +249,7 @@ function appendUser(text,atts){
 function showTyping(on){
   var old=$("#typing");if(old)old.remove();
   if(!on)return;
-  var w=document.createElement("div");w.className="ac-msg assist";w.id="typing";
+  var w=document.createElement("div");w.className="ac-msg assist typing";w.id="typing";
   w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
   chatEl.appendChild(w);scroll();
 }

@@ -25,3 +25,63 @@ def ask(history, max_tokens=2500):
     for m in (history or [])[-12:]:
         msgs.append({"role": m["role"], "content": m["content"]})
     return _qwen_chat(msgs, max_tokens=max_tokens)
+
+_VOSK_MODEL = None
+
+
+def _vosk_model():
+    """Загружает русскую модель Vosk из models/vosk-ru (офлайн, локально)."""
+    global _VOSK_MODEL
+    if _VOSK_MODEL is not None:
+        return _VOSK_MODEL
+    from pathlib import Path as _P
+    mdir = _P(__file__).resolve().parents[2] / "models" / "vosk-ru"
+    if not mdir.exists():
+        print("[aichat] vosk model dir not found:", mdir)
+        return None
+    try:
+        from vosk import Model
+        _VOSK_MODEL = Model(str(mdir))
+        print("[aichat] vosk model loaded:", mdir)
+        return _VOSK_MODEL
+    except Exception as e:
+        print("[aichat] vosk model load error:", e)
+        return None
+
+
+def transcribe(data: bytes, mime: str = "audio/webm") -> str:
+    """Локальное офлайн-распознавание речи (Vosk) — без интернета и HTTPS."""
+    import io
+    import json
+    import wave
+    model = _vosk_model()
+    if model is None:
+        print("[aichat] vosk model not loaded")
+        return ""
+    try:
+        wf = wave.open(io.BytesIO(data), "rb")
+    except Exception as e:
+        print("[aichat] not a WAV file:", e)
+        return ""
+    try:
+        from vosk import KaldiRecognizer
+        rec = KaldiRecognizer(model, wf.getframerate())
+        parts = []
+        while True:
+            chunk = wf.readframes(4000)
+            if not chunk:
+                break
+            if rec.AcceptWaveform(chunk):
+                parts.append(json.loads(rec.Result()).get("text", ""))
+        parts.append(json.loads(rec.FinalResult()).get("text", ""))
+        text = " ".join(p for p in parts if p).strip()
+        print("[aichat] transcribed:", text[:80])
+        return text
+    except Exception as e:
+        print("[aichat] transcribe error:", e)
+        return ""
+    finally:
+        try:
+            wf.close()
+        except Exception:
+            pass
