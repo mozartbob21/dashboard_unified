@@ -204,32 +204,25 @@ def transcribe(data: bytes, mime: str = "audio/webm") -> str:
         return ""
     import json
     import wave
-    model = _vosk_model()
-    if model is None:
-        print("[aichat] vosk model not found at models/vosk-ru")
-        return ""
     try:
         wf = wave.open(io.BytesIO(data), "rb")
     except Exception:
-        # не WAV (например webm из браузера) — vosk не читает
         return ""
+    ch, width, rate = wf.getnchannels(), wf.getsampwidth(), wf.getframerate()
+    raw = wf.readframes(wf.getnframes())
+    wf.close()
+    pcm = _normalize_pcm(_pcm_to_16k_mono(raw, ch, width, rate))
     try:
         from vosk import KaldiRecognizer
-        rec = KaldiRecognizer(model, wf.getframerate())
+        rec = KaldiRecognizer(model, 16000)
         parts = []
-        while True:
-            chunk = wf.readframes(4000)
-            if not chunk:
-                break
-            if rec.AcceptWaveform(chunk):
+        for i in range(0, len(pcm), 8000):
+            if rec.AcceptWaveform(pcm[i:i + 8000]):
                 parts.append(json.loads(rec.Result()).get("text", ""))
         parts.append(json.loads(rec.FinalResult()).get("text", ""))
-        return " ".join(p for p in parts if p).strip()
+        text = " ".join(p for p in parts if p).strip()
+        print("[aichat] vosk transcribed:", text[:120])
+        return text
     except Exception as e:
-        print("[aichat] transcribe error:", e)
+        print("[aichat] vosk error:", e)
         return ""
-    finally:
-        try:
-            wf.close()
-        except Exception:
-            pass
