@@ -42,12 +42,12 @@ def build_water_context(limit_rows: int = 15) -> str:
         kpi = snap.get("kpi_live") or {}
         if isinstance(kpi, dict):
             for k, v in list(kpi.items())[:12]:
-                lines.append(f"  KPI: {k} = {v}")
+                lines.append(f"  • {k}: {v}")
 
         srcs = snap.get("sources_refresh") or {}
         if isinstance(srcs, dict):
             for k, v in list(srcs.items())[:12]:
-                lines.append(f"  Источник «{k}»: {v}")
+                lines.append(f"  Источник данных «{k}»: обновлён {v}")
 
         bottoms = snap.get("bottoms") or {}
         if isinstance(bottoms, dict):
@@ -55,7 +55,23 @@ def build_water_context(limit_rows: int = 15) -> str:
                 if isinstance(v, list):
                     lines.append(f"  ХУДШИЕ по «{k}»: {', '.join(_name_of(x) for x in v[:5])}")
                 else:
-                    lines.append(f"  ХУДШИЕ по «{k}»: {v}")
+                    
+        # Добавляем интерпретацию худших показателей
+        if bottoms:
+            lines.append("\n  **Проблемные зоны:**")
+            for k, v in bottoms.items():
+                if isinstance(v, list) and len(v) > 0:
+                    muni_names = [_name_of(x) for x in v[:3]]
+                    metric_desc = {
+                        "resVS": "потерям ресурсной сети",
+                        "sysVS": "потерям системной сети", 
+                        "tasks": "количеству незакрытых задач",
+                        "sysKR": "авариям системной сети",
+                        "resKR": "авариям ресурсной сети",
+                    }.get(k, k)
+                    lines.append(f"    - По {metric_desc}: {', '.join(muni_names)}")
+
+                lines.append(f"  ХУДШИЕ по «{k}»: {v}")
 
         table = snap.get("table") or []
         if isinstance(table, list) and table and isinstance(table[0], dict):
