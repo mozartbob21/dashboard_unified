@@ -3152,6 +3152,24 @@ from services.zip_curator import core as zc
 async def zc_state():
     return zc.load_state()
 
+@app.get("/zip_curator/api/municipalities")
+async def zc_municipalities():
+    return {"items": list(zc.load_municipality_overrides().values())}
+
+@app.post("/zip_curator/api/municipalities")
+async def zc_save_municipality(payload: dict = None):
+    p = payload or {}
+    try:
+        item = zc.save_municipality_override(p.get("organization"), p.get("municipality"))
+        return {"ok": True, "item": item}
+    except ValueError as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+@app.delete("/zip_curator/api/municipalities")
+async def zc_delete_municipality(payload: dict = None):
+    return {"ok": zc.delete_municipality_override((payload or {}).get("organization"))}
+
 @app.post("/zip_curator/api/scan")
 async def zc_scan():
     added, skipped = zc.scan_folder()

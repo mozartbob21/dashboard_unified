@@ -8,6 +8,7 @@ BASE = Path(__file__).resolve().parents[2]
 DATA = BASE / "data" / "zip_curator"
 INPUT_DIR = Path(__import__("os").getenv("ZIP_INPUT_DIR", str(DATA / "input")))
 STATE_FILE = DATA / "state.json"
+MUNICIPALITY_OVERRIDES_FILE = DATA / "municipality_overrides.json"
 DICT_JSON = Path(__file__).with_name("zip_dict.json")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
@@ -50,6 +51,76 @@ def norm(s):
     s = re.sub(r"^\d+[а-яё]?\s", "", s)
     s = re.sub(r"[,\s]+$", "", s)
     return re.sub(r"\s+", " ", s).strip()
+
+def load_municipality_overrides():
+    """Return curator-maintained organization -> municipality mappings."""
+    if MUNICIPALITY_OVERRIDES_FILE.exists():
+        try:
+            data = json.loads(MUNICIPALITY_OVERRIDES_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except (OSError, json.JSONDecodeError):
+            pass
+    return {}
+
+def resolve_municipality(organization):
+    """Resolve an organization, preferring the curator's additional dictionary."""
+    key = norm(organization)
+    override = load_municipality_overrides().get(key)
+    if override:
+        return str(override.get("municipality") or "").strip()
+    for name, municipality in D.get("rso2omsu", {}).items():
+        if norm(name) == key:
+            return municipality
+    return ""
+
+def save_municipality_override(organization, municipality):
+    organization = str(organization or "").strip()
+    municipality = str(municipality or "").strip()
+    key = norm(organization)
+    if not key or not municipality:
+        raise ValueError("Укажите организацию и муниципалитет")
+    entries = load_municipality_overrides()
+    entry = {
+        "organization": organization,
+        "municipality": municipality,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    entries[key] = entry
+    DATA.mkdir(parents=True, exist_ok=True)
+    MUNICIPALITY_OVERRIDES_FILE.write_text(
+        json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _apply_municipality_to_state(key, municipality)
+    return entry
+
+def delete_municipality_override(organization):
+    key = norm(organization)
+    entries = load_municipality_overrides()
+    if key not in entries:
+        return False
+    del entries[key]
+    DATA.mkdir(parents=True, exist_ok=True)
+    MUNICIPALITY_OVERRIDES_FILE.write_text(
+        json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _apply_municipality_to_state(key, resolve_municipality(organization))
+    return True
+
+def _apply_municipality_to_state(organization_key, municipality):
+    """Keep already loaded and approved data consistent with a changed mapping."""
+    st = load_state()
+    changed = False
+    for item in st.get("pending", []):
+        if norm(item.get("rso")) == organization_key:
+            item["okrug"] = municipality
+            changed = True
+    for item in st.get("clean", {}).values():
+        if norm(item.get("rso")) == organization_key:
+            item["okrug"] = municipality
+            changed = True
+    if changed:
+        save_state(st)
 
 def norm_unit(u):
     if u is None or not str(u).strip(): return None, True
@@ -110,7 +181,7 @@ def _enrich(p):
     for it in p["items"]:
         c = classify(it["name"]); u, unk = norm_unit(it.get("unitRaw"))
         it.update(nn=norm(it["name"]), cat=c["cat"], grp=c["grp"], water=c["water"], via=c["via"], unit=u, unitUnknown=unk)
-    p["okrug"] = D["rso2omsu"].get(p["rso"], "")
+    p["okrug"] = resolve_municipality(p["rso"])
 
 def ingest(list_of_parsed):
     st = load_state()
@@ -149,7 +220,7 @@ def approve(idx):
         b = arr[0]
         if len(arr) > 1: b["qty"] = sum(x.get("qty") or 0 for x in arr)
         merged.append(b)
-    st["clean"][norm(p["rso"])] = {"rso": p["rso"], "okrug": p.get("okrug") or D["rso2omsu"].get(p["rso"], ""), "date": p.get("date"), "items": merged}
+    st["clean"][norm(p["rso"])] = {"rso": p["rso"], "okrug": p.get("okrug") or resolve_municipality(p["rso"]), "date": p.get("date"), "items": merged}
     save_state(st); return True
 
 def reject(idx):

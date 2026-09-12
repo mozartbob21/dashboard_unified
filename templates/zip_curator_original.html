@@ -30,7 +30,7 @@
   .badge{display:inline-block;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:600;white-space:nowrap}
   .b-green{background:#e3f6ec;color:var(--green-d)}.b-amber{background:#fdeede;color:var(--amber)}
   .b-blue{background:#e7efff;color:var(--blue-d)}.b-rose{background:#fde8e8;color:var(--rose)}.b-gray{background:#eef2f8;color:var(--ink3)}
-  select{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:#fff}
+  select,input[type=text]{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff}
   .rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
   .empty{padding:24px;text-align:center;color:var(--ink3)}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:#0f2a44;color:#fff;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;transition:.25s;z-index:100;pointer-events:none}
@@ -53,6 +53,7 @@
       <div class="sep"></div>
       <button class="btn" id="btnLoadDict">Загрузить справочник</button>
       <button class="btn" id="btnSaveDict">Скачать справочник</button>
+      <button class="btn" id="btnMunicipalityDict">Муниципалитеты организаций</button>
       <div class="sep"></div>
       <button class="btn" id="btnLoadClean">Загрузить текущие данные (Диск B)</button>
       <button class="btn green" id="btnSaveClean">⬇ Скачать итоговый эксель</button>
@@ -62,6 +63,16 @@
     <input type="file" id="fiManual" accept=".xlsx,.xls" multiple>
     <input type="file" id="fiDict" accept=".xlsx">
     <input type="file" id="fiClean" accept=".xlsx,.csv">
+  </div>
+
+  <div class="card" id="municipalityDictCard" style="display:none">
+    <div class="rhead"><div><b>Дополнительный справочник муниципалитетов</b><div class="mini">Ручные соответствия имеют приоритет над встроенным справочником.</div></div></div>
+    <div class="bar" style="margin-top:10px">
+      <input type="text" id="municipalityOrg" placeholder="Организация, например МУП Водоканал" style="min-width:310px">
+      <input type="text" id="municipalityName" placeholder="Муниципалитет" style="min-width:220px">
+      <button class="btn primary" id="btnSaveMunicipality">Сохранить соответствие</button>
+    </div>
+    <div id="municipalityDictList" style="margin-top:10px"></div>
   </div>
 
   <h2>На согласовании <span class="mini" id="pendCount"></span></h2>
@@ -103,12 +114,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 const YANDEX_FOLDER_A_URL = "https://disk.yandex.ru/d/WeAv-MDA6uEzpw";
 // ===========================================================================
 
-let PENDING=[], CLEAN={}, dictDirty=false;
+let PENDING=[], CLEAN={}, dictDirty=false, MUNICIPALITY_OVERRIDES={}, MUNICIPALITY_ROWS=[];
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const fmt=n=>n==null||isNaN(n)?'—':(Math.round(n*100)/100).toLocaleString('ru-RU');
 function toast(m,ms=2600){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),ms);}
 function norm(s){s=String(s).toLowerCase().trim();s=s.replace(/^\(\d+[.\d]*\)/,'');s=s.replace(/^\d+[а-яё]?\s/,'');s=s.replace(/[,\s]+$/,'');s=s.replace(/\s+/g,' ').trim();return s;}
+function resolveMunicipality(organization){
+  const key=norm(organization), manual=MUNICIPALITY_OVERRIDES[key];
+  if(manual)return manual.municipality||'';
+  for(const [name,municipality] of Object.entries(D.rso2omsu||{})){if(norm(name)===key)return municipality;}
+  return '';
+}
 function normUnit(u){if(u==null||String(u).trim()==='')return{canon:null,unknown:true};const k=String(u).toLowerCase().trim();const c=D.umap[k];return{canon:c||null,unknown:!c};}
 function classify(name){const nn=norm(name);const r=D.dict[nn];if(r)return{cat:r[0],grp:r[1],water:!!r[2],via:'match'};
   for(const kw of D.kws){if(nn.includes(kw[0]))return{cat:kw[1],grp:kw[2],water:false,via:'keyword'};}
@@ -150,7 +167,7 @@ function ingestWorkbooks(list, skippedOld){
     }
     p.items.forEach(it=>{const c=classify(it.name),u=normUnit(it.unitRaw);
       it.nn=norm(it.name);it.cat=c.cat;it.grp=c.grp;it.water=c.water;it.via=c.via;it.unit=u.canon;it.unitUnknown=u.unknown;});
-    p.okrug=D.rso2omsu[p.rso]||'';
+    p.okrug=resolveMunicipality(p.rso);
     PENDING=PENDING.filter(x=>norm(x.rso)!==norm(p.rso)); PENDING.push(p); added++;
   }
   render();
@@ -261,7 +278,7 @@ function approve(idx){
   const g={}; p.items.forEach(it=>{(g[it.nn]=g[it.nn]||[]).push(it);});
   const merged=[]; Object.values(g).forEach(arr=>{const b=arr[0]; if(arr.length>1)b.qty=arr.reduce((a,x)=>a+(x.qty||0),0); merged.push(b);});
   merged.forEach(it=>{if(it.cat){const cur=D.dict[it.nn]; if(it.via==='override'||!cur){D.dict[it.nn]=[it.cat,it.grp,it.water?1:0];dictDirty=true;}}});
-  CLEAN[norm(p.rso)]={rso:p.rso,okrug:p.okrug||D.rso2omsu[p.rso]||'',date:p.date,items:merged};
+  CLEAN[norm(p.rso)]={rso:p.rso,okrug:p.okrug||resolveMunicipality(p.rso),date:p.date,items:merged};
   PENDING.splice(idx,1); render(); toast('Согласовано: '+p.rso+(dictDirty?' · справочник дополнен':''),3200);
 publishToSystem(true);
 }
@@ -293,7 +310,7 @@ function render(){
     const bad=p.items.filter(it=>it.qty==null).length;
     const up=p.uploaded?new Date(p.uploaded).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
     return `<div class="card"><div class="rhead">
-      <div><b style="font-size:15px">${esc(p.rso)}</b> ${p.okrug?`· <span style="color:var(--green-d)">${esc(p.okrug)}</span>`:'<span class="badge b-amber">округ не определён</span>'}
+      <div><b style="font-size:15px">${esc(p.rso)}</b> ${p.okrug?`· <span style="color:var(--green-d)">${esc(p.okrug)}</span>`:`<span class="badge b-amber">муниципалитет не определён</span> <button class="btn sm" onclick="openMunicipalityEditor(${pi})">Указать</button>`}
         <div class="mini">${esc(p.fname||'')} · дата остатков: <b>${esc(p.date||'—')}</b>${up?` · загружен: ${esc(up)}`:''} · ${p.items.length} позиций</div>
         <div style="margin-top:6px">${uncl?`<span class="badge b-amber">${uncl} не классиф.</span> `:''}${nou?`<span class="badge b-rose">${nou} без единицы</span> `:''}${bad?`<span class="badge b-rose">${bad} без кол-ва</span> `:''}${(!uncl&&!nou&&!bad)?'<span class="badge b-green">✓ всё распознано</span>':''}${p.periodWarn?' <span class="badge b-rose" title="Более ранняя загрузка содержит более свежий период — проверьте, тот ли файл взят">загружен позже, но период старее — проверьте</span>':''}</div></div>
       <div class="bar"><button class="btn sm" onclick="toggleView(${pi})">Посмотреть</button>
@@ -308,6 +325,54 @@ function render(){
     return `<tr><td>${esc(c.rso)}</td><td>${esc(c.okrug||'—')}</td><td>${esc(c.date||'—')}</td><td class="num">${c.items.length}</td></tr>`;}).join('');
     cc.innerHTML=`<table><thead><tr><th>РСО</th><th>Округ</th><th>Дата</th><th>Позиций</th></tr></thead><tbody>${rows}</tbody>
       <tfoot><tr><td colspan="3" class="mini" style="padding-top:8px">Итого позиций</td><td class="num" style="padding-top:8px"><b>${total}</b></td></tr></tfoot></table>`;}
+}
+function openMunicipalityEditor(pi){
+  $('#municipalityDictCard').style.display='block';
+  $('#municipalityOrg').value=PENDING[pi]&&PENDING[pi].rso||'';
+  $('#municipalityName').value='';
+  $('#municipalityName').focus();
+  $('#municipalityDictCard').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function applyMunicipalityMapping(organization,municipality){
+  const key=norm(organization);
+  PENDING.forEach(p=>{if(norm(p.rso)===key)p.okrug=municipality;});
+  Object.values(CLEAN).forEach(c=>{if(norm(c.rso)===key)c.okrug=municipality;});
+}
+function renderMunicipalityDict(){
+  const items=Object.values(MUNICIPALITY_OVERRIDES).sort((a,b)=>a.organization.localeCompare(b.organization,'ru'));
+  MUNICIPALITY_ROWS=items;
+  $('#municipalityDictList').innerHTML=items.length?`<table><thead><tr><th>Организация</th><th>Муниципалитет</th><th></th></tr></thead><tbody>${items.map((x,i)=>`<tr><td>${esc(x.organization)}</td><td>${esc(x.municipality)}</td><td><button class="btn sm ghost" onclick="deleteMunicipalityMappingByIndex(${i})">Удалить</button></td></tr>`).join('')}</tbody></table>`:'<div class="mini">Ручных соответствий пока нет.</div>';
+}
+function deleteMunicipalityMappingByIndex(index){const item=MUNICIPALITY_ROWS[index];if(item)deleteMunicipalityMapping(item.organization);}
+async function loadMunicipalityOverrides(){
+  try{
+    const r=await fetch('/zip_curator/api/municipalities',{cache:'no-store'}),d=await r.json();
+    MUNICIPALITY_OVERRIDES={};
+    (d.items||[]).forEach(x=>MUNICIPALITY_OVERRIDES[norm(x.organization)]=x);
+    PENDING.forEach(p=>p.okrug=resolveMunicipality(p.rso));
+    Object.values(CLEAN).forEach(c=>c.okrug=resolveMunicipality(c.rso)||c.okrug);
+    renderMunicipalityDict();render();
+  }catch(e){console.warn('Дополнительный справочник муниципалитетов недоступен',e);}
+}
+async function saveMunicipalityMapping(){
+  const organization=$('#municipalityOrg').value.trim(),municipality=$('#municipalityName').value.trim();
+  if(!organization||!municipality){toast('Укажите организацию и муниципалитет');return;}
+  try{
+    const r=await fetch('/zip_curator/api/municipalities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({organization,municipality})}),d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
+    MUNICIPALITY_OVERRIDES[norm(organization)]=d.item;applyMunicipalityMapping(organization,municipality);
+    $('#municipalityOrg').value='';$('#municipalityName').value='';renderMunicipalityDict();render();
+    toast('Соответствие сохранено: '+organization+' → '+municipality,4000);
+  }catch(e){toast('Не удалось сохранить: '+e.message,5000);}
+}
+async function deleteMunicipalityMapping(organization){
+  try{
+    const r=await fetch('/zip_curator/api/municipalities',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({organization})}),d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
+    delete MUNICIPALITY_OVERRIDES[norm(organization)];
+    const municipality=resolveMunicipality(organization);applyMunicipalityMapping(organization,municipality);
+    renderMunicipalityDict();render();toast('Ручное соответствие удалено');
+  }catch(e){toast('Не удалось удалить: '+e.message,5000);}
 }
 function toggleView(pi){const h=$('#pv'+pi);if(h.dataset.o){h.innerHTML='';h.dataset.o='';return;}h.dataset.o='1';
   const p=PENDING[pi];
@@ -370,6 +435,8 @@ $('#fiManual').onchange=async e=>{if(e.target.files.length){
 $('#btnLoadDict').onclick=()=>$('#fiDict').click();
 $('#fiDict').onchange=e=>{if(e.target.files[0]){loadDict(e.target.files[0]);e.target.value='';}};
 $('#btnSaveDict').onclick=saveDict;
+$('#btnMunicipalityDict').onclick=()=>{const c=$('#municipalityDictCard');c.style.display=c.style.display==='none'?'block':'none';};
+$('#btnSaveMunicipality').onclick=saveMunicipalityMapping;
 $('#btnLoadClean').onclick=()=>$('#fiClean').click();
 $('#fiClean').onchange=e=>{if(e.target.files[0]){loadClean(e.target.files[0]);e.target.value='';}};
 $('#btnSaveClean').onclick=saveClean;
@@ -402,6 +469,7 @@ function publishClean(silent){
 $('#btnPublish').onclick=()=>publishClean(false);
 if(!YANDEX_FOLDER_A_URL)$('#cfgWarn').innerHTML='<div class="warn"><b>Кнопка «Обновить данные» не настроена.</b> Впишите ссылку на папку A (Яндекс.Диск) в начале файла, или пользуйтесь «Загрузить файлы вручную».</div>';
 render();
+loadMunicipalityOverrides();
 </script>
 </body>
 </html>
