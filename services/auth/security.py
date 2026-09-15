@@ -146,7 +146,7 @@ DEFAULT_USERS = [
         "username": "admin",
         "password": _decode_password("FAoEDwdUVh4="),
         "role": "Администратор",
-        "modules": ["edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals", "municipality-report","cds","mgkh_rm"],
+        "modules": ["edds", "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals", "municipality-report","cds","mgkh_rm"],
     },
     {
         "username": "data",
@@ -354,4 +354,3 @@ def require_admin_user(request: Request) -> dict:
     if (user.get("role") or "").strip().lower() not in ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Доступ только для администраторов")
     return user
-

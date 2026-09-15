@@ -1,11 +1,28 @@
 <!doctype html>
-<html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ru" data-theme="light"><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta charset="utf-8">
 <!-- Кодировку объявляем сами: файл открывают и с диска, и изнутри АРМ ЕДДС.
      Если сервер отдаст страницу без charset, браузер уйдёт в windows-1251,
      и сломается не только вид — перестанут совпадать разборы по русским
      словам: «час» в t_ustr, «Аварийная заявка» в type_otkl, причины. -->
 <title>Мониторинг ЕДДС — задержка доклада по объектам ВС/ВО</title>
+<script>
+(function(){
+  var mode='auto-moscow';
+  try{mode=localStorage.getItem('neurona-theme-mode')||mode}catch(_){}
+  var theme=mode;
+  if(mode==='auto-moscow'){
+    var now=new Date(),start=new Date(now.getFullYear(),0,0),day=Math.floor((now-start)/86400000);
+    var decl=.409*Math.sin(2*Math.PI*(day-80)/365),lat=55.7558*Math.PI/180;
+    var cosH=(Math.sin(-.83*Math.PI/180)-Math.sin(lat)*Math.sin(decl))/(Math.cos(lat)*Math.cos(decl));
+    var h=cosH>=1?0:cosH<=-1?Math.PI:Math.acos(cosH);
+    var sunrise=(12-h*12/Math.PI-37.6173/15+3+24)%24,sunset=(12+h*12/Math.PI-37.6173/15+3+24)%24;
+    var hour=now.getHours()+now.getMinutes()/60;
+    theme=hour>=sunrise&&hour<sunset?'light':'dark';
+  }
+  document.documentElement.dataset.theme=theme==='dark'?'dark':'light';
+})();
+</script>
 <style>
 :root{
   color-scheme: light;
@@ -409,9 +426,77 @@ td.c,th.c{text-align:center}
 
 .foot{padding:8px 20px 28px; color:var(--ink-3); font-size:11.5px; line-height:1.7}
 @media (prefers-reduced-motion: reduce){*{transition:none !important}}
+
+
+/* ---------- единая оболочка Нейроны ---------- */
+:root{
+  --ground:#f4f7fb;--surface:rgba(255,255,255,.9);--surface-2:#f7f8ff;
+  --ink:#102033;--ink-2:#637083;--ink-3:#7e8ba0;
+  --line:rgba(40,65,95,.14);--line-soft:rgba(40,65,95,.08);
+  --accent:#3867ff;--accent-2:#6c4dff;--accent-soft:rgba(56,103,255,.11);--accent-ink:#2a4fcc;
+  --shadow:0 18px 56px rgba(22,31,51,.12);--r:20px;
+  --sans:"Avenir Next","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI Variable",sans-serif;
+}
+:root[data-theme="dark"]{
+  --ground:#070b16;--surface:rgba(16,24,43,.9);--surface-2:#111a2e;
+  --ink:#edf3ff;--ink-2:#aebbd0;--ink-3:#8290a7;
+  --line:rgba(255,255,255,.12);--line-soft:rgba(255,255,255,.075);
+  --accent:#6f8cff;--accent-2:#9b6dff;--accent-soft:rgba(111,140,255,.15);--accent-ink:#8fa4ff;
+  --shadow:0 24px 72px rgba(0,0,0,.32);
+}
+body{
+  min-height:100vh;background-color:var(--ground);color:var(--ink);
+  background-image:radial-gradient(circle at 10% 8%,rgba(76,111,255,.17),transparent 30%),radial-gradient(circle at 86% 14%,rgba(155,109,255,.15),transparent 28%);
+}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.3;background-image:linear-gradient(rgba(127,143,170,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(127,143,170,.08) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom,#000,transparent 75%)}
+.system-header{
+  position:sticky;top:16px;z-index:40;width:min(1540px,calc(100% - 48px));margin:16px auto 0;padding:11px 14px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:24px;
+  box-shadow:var(--shadow);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)
+}
+.system-brand{display:flex;align-items:center;gap:12px;margin-right:auto;color:inherit;text-decoration:none;min-width:220px}
+.system-brand img{width:44px;height:44px;border-radius:13px;box-shadow:0 8px 22px rgba(56,103,255,.22)}
+.system-brand-copy{display:flex;flex-direction:column;line-height:1.2}
+.system-brand-copy strong{font-size:16px;letter-spacing:-.025em}
+.system-brand-copy span{margin-top:3px;color:var(--ink-2);font-size:12px}
+.system-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.system-status{flex:0 1 auto;max-width:420px;color:var(--ink-2);font-size:12px}
+.topbar{
+  position:relative;z-index:20;width:min(1540px,calc(100% - 48px));margin:20px auto 0;padding:24px 26px;
+  background:var(--surface);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)
+}
+.brand::before{content:'ОПЕРАЦИОННЫЙ МОНИТОРИНГ';margin-bottom:8px;color:var(--accent);font-size:10px;font-weight:750;letter-spacing:.15em}
+.brand strong{font-size:clamp(20px,2vw,28px);font-weight:700;letter-spacing:-.035em}
+.brand span{margin-top:5px;font-size:13px;color:var(--ink-2)}
+.btn{padding:10px 15px;border-radius:12px;border-color:var(--line);text-decoration:none}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;box-shadow:0 10px 24px rgba(78,82,240,.22)}
+.drop{margin:42px auto;max-width:760px;padding:54px 48px;background:var(--surface);border-radius:24px;box-shadow:var(--shadow)}
+.drop h2{font-size:24px;margin-bottom:10px;letter-spacing:-.035em}
+.drop p{max-width:590px;margin:0 auto 26px;font-size:14px;line-height:1.65;color:var(--ink-2)}
+.drop .hint{max-width:620px;margin:24px auto 0;font-size:13px;line-height:1.75;color:var(--ink-2)}
+main{width:min(1540px,calc(100% - 48px));margin:0 auto;padding:20px 0 40px}
+.filters,.card{border-radius:var(--r);box-shadow:var(--shadow)}
+.foot{width:min(1540px,calc(100% - 48px));margin:0 auto;padding:8px 0 28px}
+@media(max-width:760px){
+  .system-header,.topbar,main,.foot{width:min(100% - 24px,1540px)}
+  .system-header{top:8px;margin-top:8px;border-radius:18px}.system-brand{min-width:0}.system-brand-copy span{display:none}
+  .system-actions{width:100%}.system-actions .btn{flex:1;justify-content:center}.topbar{padding:20px;border-radius:20px}
+  .drop{margin:24px 12px;padding:36px 20px}
+}
+
 </style>
 </head><body>
-<nav style="padding:12px 24px;background:#fff;border-bottom:1px solid #ddd;display:flex;gap:16px;align-items:center;flex-wrap:wrap"><a href="/">← В систему</a><strong>ЕДДС · контроль заявок</strong><button id="eddsRefresh" type="button">Обновить жалобы Добродела</button><span id="eddsStatus" role="status"></span></nav>
+<header class="system-header">
+  <a class="system-brand" href="/">
+    <img src="/static/logo.svg" alt="Нейрона ИИ">
+    <span class="system-brand-copy"><strong>Нейрона ИИ</strong><span>ЕДДС — контроль заявок</span></span>
+  </a>
+  <span class="system-status" id="eddsStatus" role="status" aria-live="polite"></span>
+  <div class="system-actions">
+    <button class="btn" id="eddsRefresh" type="button">↻ Обновить жалобы</button>
+    <a class="btn" href="/">← К модулям</a>
+  </div>
+</header>
 <div class="topbar">
   <div class="brand">
     <strong>Мониторинг ЕДДС — задержка доклада о технологических нарушениях</strong>

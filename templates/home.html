@@ -939,7 +939,8 @@
         @media(max-width:1080px){.wide-pair{grid-template-columns:1fr;}}
     </style>
 <link rel="stylesheet" href="/static/module-layout.css?v=20260915">
-<script src="/static/module-layout.js?v=20260915" defer></script>
+<link rel="stylesheet" href="/static/home-premium.css?v=20260915-4">
+<script src="/static/module-layout.js?v=20260915-4" defer></script>
 </head>
 
 
@@ -1039,37 +1040,13 @@
 
         
 
-<section class="card hero">
-    <div class="hero-main">
-        <div class="eyebrow">ЕДИНАЯ ТОЧКА ВХОДА</div>
-
-        <h1>
-            Локальная AI-платформа мониторинга и формирования управленческих уведомлений
-        </h1>
-
-        <!-- «НАЗНАЧЕНИЕ» теперь горизонтально под основным текстом -->
-        <div class="soft-card hero-purpose">
-            <div class="soft-card-title">НАЗНАЧЕНИЕ</div>
-            <div class="muted">
-                Платформа объединяет независимые сценарии мониторинга
-                в одном интерфейсе и позволяет развивать их как единое приложение
-                без дублирования общей инфраструктуры.
-            </div>
-        </div>
+<section class="home-welcome" aria-labelledby="homeWelcomeTitle">
+    <div>
+        <div class="eyebrow">Рабочее пространство</div>
+        <h1 id="homeWelcomeTitle">С возвращением!</h1>
+        <p>Выберите задачу или продолжите с быстрого действия.</p>
     </div>
-
-    <div class="hero-side">
-        <div class="soft-card">
-            <div class="soft-card-title">КОНТУР РАБОТЫ</div>
-            <div class="soft-card-text">
-                Локальный контур<br>
-                FastAPI<br>
-                Playwright<br>
-                Jinja2<br>
-                FFmpeg
-            </div>
-        </div>
-    </div>
+    <a href="#systemModules" class="home-welcome-link">К модулям <span aria-hidden="true">↓</span></a>
 </section>
         {% if true %}
         <section class="card quick-actions-bar">
@@ -1112,8 +1089,8 @@
         </section>
         {% endif %}
 
-        <div class="module-view-controls" role="group" aria-label="Вид блоков"><span>Блоки системы</span><button type="button" data-module-view="cards" title="Карточки" aria-label="Карточки" aria-pressed="true">▦</button><button type="button" data-module-view="list" title="Список" aria-label="Список" aria-pressed="false">☰</button></div>
-        <section class="modules-grid">
+        <div class="module-view-controls" id="systemModules" role="group" aria-label="Вид блоков"><span><small>Рабочее пространство</small>Модули</span><button type="button" data-module-view="cards" title="Карточки" aria-label="Карточки" aria-pressed="true">▦</button><button type="button" data-module-view="list" title="Список" aria-label="Список" aria-pressed="false">☰</button></div>
+        <section class="modules-grid" aria-label="Модули системы">
 
 
             {% if "edo" in user_modules %}
@@ -1608,6 +1585,37 @@
             </article>
             {% endif %}
             </div>
+
+        <section class="system-about" aria-labelledby="systemAboutTitle">
+            <div class="system-about-heading">
+                <div class="eyebrow">О системе</div>
+                <h2 id="systemAboutTitle">Нейрона объединяет рабочие сценарии в одном локальном пространстве.</h2>
+                <p>Техническая основа и принципы работы — здесь, отдельно от ежедневных задач.</p>
+            </div>
+
+            <div class="system-about-grid">
+                <article>
+                    <span>01</span>
+                    <h3>Назначение</h3>
+                    <p>Мониторинг, аналитика и подготовка управленческих уведомлений собраны в едином интерфейсе.</p>
+                </article>
+                <article>
+                    <span>02</span>
+                    <h3>Локальный контур</h3>
+                    <p>Данные, отчёты, снимки экрана и документы обрабатываются внутри локальной инфраструктуры.</p>
+                </article>
+                <article>
+                    <span>03</span>
+                    <h3>Автоматизация</h3>
+                    <p>Сценарии открывают панели, проверяют источники, анализируют таблицы и формируют готовые материалы.</p>
+                </article>
+                <article>
+                    <span>04</span>
+                    <h3>Технологии</h3>
+                    <p>FastAPI · Playwright · Jinja2 · FFmpeg</p>
+                </article>
+            </div>
+        </section>
     
     </div>
 
@@ -2372,42 +2380,6 @@
     })();
     </script>
 
-    
-    <section class="card">
-            <h2 class="section-title">О платформе</h2>
-
-            <div class="info-grid" style="margin-top: 18px;">
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Локальный контур</h3>
-
-                    <div class="info-text">
-                        Работа без внешних облачных сервисов: данные, отчёты, скриншоты,
-                        таблицы, документы и промежуточные результаты обрабатываются
-                        внутри локальной инфраструктуры.
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Автоматизация сценариев</h3>
-
-                    <div class="info-text">
-                        Используются автоматизированные сценарии открытия панелей,
-                        авторизации на целевых сайтах, получения снимков экрана,
-                        анализа таблиц, проверки видеопотоков и формирования итоговых материалов.
-                    </div>
-                </div>
-
-                <div class="soft-card">
-                    <h3 style="margin: 0 0 12px;">Единый интерфейс</h3>
-
-                    <div class="info-text">
-                        Все направления сведены в одно приложение:
-                        можно быстро переключаться между модулями,
-                        запускать проверки и развивать систему без дублирования общей инфраструктуры.
-                    </div>
-                </div>
-            </div>
-        </section>
     <script>
     (function () {
         const cards = document.querySelectorAll(".module-card");

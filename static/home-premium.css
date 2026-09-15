@@ -1,0 +1,497 @@
+/* Home page polish. Scoped to avoid changing the visual language of other modules. */
+.home-page {
+    font-family: "Avenir Next", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable", sans-serif;
+}
+
+.home-page h1,
+.home-page h2,
+.home-page h3,
+.home-page .brand-title,
+.home-page .module-title {
+    font-family: "SF Pro Display", "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI Variable", sans-serif;
+}
+
+.home-page .container {
+    width: min(1480px, calc(100% - 56px));
+    padding-top: 24px;
+}
+
+.home-page .topbar {
+    margin-bottom: 52px;
+    padding: 11px 14px !important;
+    border-radius: 24px !important;
+    box-shadow: 0 18px 60px rgba(5, 10, 24, 0.14);
+}
+
+.home-welcome {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+    margin: 0 6px 42px;
+    padding: 0 2px;
+}
+
+.home-welcome h1 {
+    max-width: none;
+    margin: 11px 0 8px !important;
+    font-size: clamp(38px, 4.6vw, 68px) !important;
+    line-height: 1 !important;
+    font-weight: 650 !important;
+    letter-spacing: -0.055em;
+}
+
+.home-welcome p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.55;
+}
+
+.home-welcome-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+    padding: 10px 2px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    transition: color var(--transition), transform var(--transition);
+}
+
+.home-welcome-link span {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+}
+
+.home-welcome-link:hover {
+    color: var(--text);
+    transform: translateY(2px);
+}
+
+.home-page .quick-actions-bar,
+.home-page .history-widget {
+    border-radius: 22px;
+    box-shadow: 0 16px 48px rgba(5, 10, 24, 0.1);
+}
+
+.home-page .quick-actions-bar {
+    margin-bottom: 16px !important;
+    padding: 15px 18px !important;
+}
+
+.home-page .quick-actions-title {
+    font-size: 13px !important;
+    font-weight: 650 !important;
+}
+
+.home-page .quick-glass,
+.home-page .quick-actions-configure-btn {
+    min-height: 40px;
+    border-radius: 12px !important;
+}
+
+.home-page .history-widget {
+    margin-bottom: 54px !important;
+}
+
+.home-page .module-view-controls {
+    margin: 0 4px 20px;
+}
+
+.home-page .module-view-controls > span {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--text);
+    font-family: "SF Pro Display", "Avenir Next", sans-serif;
+    font-size: 28px;
+    font-weight: 650;
+    line-height: 1;
+    letter-spacing: -0.04em;
+}
+
+.home-page .module-view-controls > span small {
+    color: var(--muted);
+    font-family: "Avenir Next", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+
+.home-page .module-view-controls button {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    font-size: 19px;
+    transition: transform var(--transition), background var(--transition), border-color var(--transition);
+}
+
+.home-page .module-view-controls button:hover {
+    transform: translateY(-2px);
+}
+
+.home-page .modules-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.home-page .modules-grid .module-card,
+.home-page .wide-pair .module-card {
+    min-height: 284px;
+    padding: 24px !important;
+    border-radius: 24px !important;
+    box-shadow: 0 16px 46px rgba(5, 10, 24, 0.11) !important;
+    transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.home-page .modules-grid .module-card:hover,
+.home-page .wide-pair .module-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-strong) !important;
+    box-shadow: 0 24px 64px rgba(5, 10, 24, 0.16) !important;
+}
+
+.home-page .module-head {
+    min-height: 30px;
+}
+
+.home-page .module-title-row {
+    align-items: center;
+    gap: 10px;
+    margin-top: 34px;
+}
+
+.home-page .module-title {
+    font-size: 23px !important;
+    font-weight: 650 !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.035em !important;
+}
+
+.home-page .tag-row {
+    gap: 7px;
+    margin-top: 20px;
+}
+
+.home-page .tag {
+    min-height: 28px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.home-page .action-panel {
+    gap: 8px;
+    padding-top: 22px;
+}
+
+.home-page .module-link,
+.home-page .module-card .secondary-button {
+    min-height: 42px;
+    padding: 10px 14px !important;
+    border-radius: 12px !important;
+    font-size: 12px !important;
+    font-weight: 650 !important;
+}
+
+.home-page .info-btn {
+    width: 22px;
+    height: 22px;
+    border-color: var(--border);
+    background: transparent;
+    font-family: Georgia, serif;
+    font-weight: 400;
+}
+
+.home-page .module-list-summary {
+    display: none;
+}
+
+/* A calm, useful list view: title first, metadata second, actions at the edge. */
+html[data-module-view="list"] .home-page .modules-grid,
+html[data-module-view="list"] .home-page .wide-pair {
+    gap: 8px !important;
+}
+
+html[data-module-view="list"] .home-page .module-card {
+    position: relative;
+    display: grid !important;
+    grid-template-columns: minmax(260px, 1fr) auto !important;
+    grid-template-rows: auto auto auto !important;
+    column-gap: 28px !important;
+    row-gap: 7px !important;
+    min-height: 136px !important;
+    padding: 20px 22px 20px 84px !important;
+    border-radius: 18px !important;
+    box-shadow: 0 10px 32px rgba(5, 10, 24, 0.08) !important;
+}
+
+html[data-module-view="list"] .home-page .module-card::after {
+    content: attr(data-module);
+    position: absolute;
+    left: 22px;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(111, 140, 255, .22);
+    border-radius: 13px;
+    color: var(--primary);
+    background: rgba(111, 140, 255, .1);
+    font-size: 0;
+    transform: translateY(-50%);
+}
+
+html[data-module-view="list"] .home-page .module-card::before {
+    opacity: .38;
+}
+
+html[data-module-view="list"] .home-page .module-card[data-module="edo"]::after { content: "▤"; font-size: 20px; }
+html[data-module-view="list"] .home-page .module-card[data-module="overdue"]::after { content: "◷"; font-size: 21px; }
+html[data-module-view="list"] .home-page .module-card[data-module="watercontrol"]::after { content: "◇"; font-size: 20px; }
+html[data-module-view="list"] .home-page .module-card[data-module="utnkr"]::after { content: "⌁"; font-size: 21px; }
+html[data-module-view="list"] .home-page .module-card[data-module="cameras"]::after { content: "◎"; font-size: 21px; }
+html[data-module-view="list"] .home-page .module-card[data-module="appeals"]::after { content: "✦"; font-size: 18px; }
+html[data-module-view="list"] .home-page .module-card[data-module="summarizer"]::after { content: "≡"; font-size: 21px; }
+html[data-module-view="list"] .home-page .module-card[data-module="cds"]::after { content: "⌂"; font-size: 21px; }
+html[data-module-view="list"] .home-page .module-card[data-module="mgkh_rm"]::after { content: "↗"; font-size: 18px; }
+html[data-module-view="list"] .home-page .module-card[data-module="zips"]::after { content: "□"; font-size: 20px; }
+html[data-module-view="list"] .home-page .module-card[data-module="ecur"]::after { content: "◌"; font-size: 21px; }
+html[data-module-view="list"] .home-page .module-card[data-module="edds"]::after { content: "⌁"; font-size: 21px; }
+html[data-module-view="list"] .home-page .module-card[data-module="water-dashboard"]::after { content: "≈"; font-size: 22px; }
+html[data-module-view="list"] .home-page .module-card[data-module="municipality-report"]::after { content: "▥"; font-size: 20px; }
+
+html[data-module-view="list"] .home-page .module-title-row {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+}
+
+html[data-module-view="list"] .home-page .module-title {
+    font-size: 19px !important;
+}
+
+html[data-module-view="list"] .home-page .module-head {
+    grid-column: 1;
+    grid-row: 3;
+    min-height: 0;
+    margin: 0 !important;
+    justify-content: flex-start;
+}
+
+html[data-module-view="list"] .home-page .module-list-summary {
+    display: block;
+    grid-column: 1;
+    grid-row: 2;
+    max-width: 780px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 450;
+    line-height: 1.5;
+}
+
+html[data-module-view="list"] .home-page .module-head .status-badge {
+    order: -1;
+}
+
+html[data-module-view="list"] .home-page .head-pills .pill:nth-child(n+2),
+html[data-module-view="list"] .home-page .tag-row {
+    display: none !important;
+}
+
+html[data-module-view="list"] .home-page .action-panel {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+    flex-wrap: nowrap;
+    max-width: none;
+    padding: 0;
+}
+
+html[data-module-view="list"] .home-page .action-panel .module-link {
+    min-width: 144px;
+}
+
+html[data-module-view="list"] .home-page .action-panel .secondary-button {
+    width: 42px;
+    min-width: 42px;
+    padding: 0 !important;
+    overflow: hidden;
+    color: transparent !important;
+}
+
+html[data-module-view="list"] .home-page .action-panel .secondary-button::after {
+    content: "↗";
+    position: absolute;
+    color: var(--muted);
+    font-size: 17px;
+}
+
+.system-about {
+    display: grid;
+    grid-template-columns: minmax(280px, .8fr) minmax(0, 1.5fr);
+    gap: clamp(40px, 7vw, 110px);
+    margin: 96px 4px 24px;
+    padding: 64px 0 20px;
+    border-top: 1px solid var(--border);
+}
+
+.system-about-heading h2 {
+    max-width: 460px;
+    margin-top: 16px;
+    font-size: clamp(28px, 3.2vw, 46px);
+    font-weight: 620;
+    line-height: 1.04;
+    letter-spacing: -0.05em;
+}
+
+.system-about-heading p {
+    max-width: 430px;
+    margin: 20px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+.system-about-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--border);
+}
+
+.system-about-grid article {
+    min-height: 190px;
+    padding: 24px 24px 30px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.system-about-grid article:nth-child(even) {
+    padding-left: 28px;
+    border-left: 1px solid var(--border);
+}
+
+.system-about-grid article > span {
+    color: var(--primary);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .14em;
+}
+
+.system-about-grid h3 {
+    margin: 30px 0 10px;
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+}
+
+.system-about-grid p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.65;
+}
+
+@media (max-width: 1120px) {
+    .home-page .modules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+    .home-page .container { width: min(100% - 24px, 1480px); }
+    .home-page .topbar { margin-bottom: 34px; }
+    .home-welcome { align-items: flex-start; margin: 0 4px 32px; }
+    .home-welcome h1 { font-size: clamp(34px, 11vw, 48px) !important; }
+    .home-welcome-link { display: none; }
+    .home-page .quick-actions-bar { align-items: flex-start !important; }
+    .home-page .history-widget { margin-bottom: 42px !important; }
+    .home-page .modules-grid { grid-template-columns: 1fr; }
+    html[data-module-view="list"] .home-page .module-card {
+        grid-template-columns: 1fr !important;
+        min-height: 0 !important;
+        padding: 20px 18px 18px 72px !important;
+    }
+    html[data-module-view="list"] .home-page .module-card::after { left: 16px; top: 20px; transform: none; }
+    html[data-module-view="list"] .home-page .action-panel {
+        grid-column: 1;
+        grid-row: 4;
+        justify-content: flex-start;
+        margin-left: -54px !important;
+        padding-top: 12px;
+    }
+    .system-about { grid-template-columns: 1fr; margin-top: 70px; padding-top: 46px; }
+}
+
+@media (max-width: 520px) {
+    .system-about-grid { grid-template-columns: 1fr; }
+    .system-about-grid article,
+    .system-about-grid article:nth-child(even) { min-height: 0; padding: 22px 0; border-left: 0; }
+    .system-about-grid h3 { margin-top: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .home-page .module-card,
+    .home-welcome-link { transition: none !important; }
+}
+
+/* Readable list layout: reserve the full content column for copy and actions. */
+html[data-module-view="list"] .home-page .module-card {
+    grid-template-columns: minmax(0, 1fr) max-content !important;
+    column-gap: 36px !important;
+    row-gap: 9px !important;
+    min-height: 158px !important;
+    padding: 25px 24px 24px 92px !important;
+}
+html[data-module-view="list"] .home-page .module-card::after { left: 26px; }
+html[data-module-view="list"] .home-page .module-title {
+    font-size: 20px !important;
+    line-height: 1.2 !important;
+}
+html[data-module-view="list"] .home-page .module-head {
+    justify-content: flex-start !important;
+    gap: 8px;
+    width: auto !important;
+}
+html[data-module-view="list"] .home-page .module-head .head-pills {
+    display: flex;
+    flex: 0 0 auto;
+    width: auto !important;
+    margin: 0 !important;
+}
+html[data-module-view="list"] .home-page .module-list-summary {
+    max-width: none;
+    font-size: 15px;
+    line-height: 1.55;
+    text-wrap: pretty;
+}
+html[data-module-view="list"] .home-page .module-card.card-info-open {
+    min-height: 238px !important;
+}
+html[data-module-view="list"] .home-page .card-info-overlay {
+    padding: 26px 30px;
+    gap: 14px;
+}
+html[data-module-view="list"] .home-page .card-info-overlay-title { font-size: 18px; }
+html[data-module-view="list"] .home-page .card-info-overlay-text {
+    overflow: visible;
+    font-size: 15px;
+    line-height: 1.7;
+}
+@media (max-width: 760px) {
+    html[data-module-view="list"] .home-page .module-card {
+        padding: 22px 18px 20px 72px !important;
+    }
+    html[data-module-view="list"] .home-page .module-card.card-info-open {
+        min-height: 0 !important;
+    }
+}
