@@ -1,8 +1,8 @@
-
-<!doctype html>
-<html lang="ru">
-<head>
-    <script id="neurona-theme-head-init">
+{% extends "base_module.html" %}
+{% block title %}Сводный отчёт по муниципалитету{% endblock %}
+{% block body_class %}{% endblock %}
+{% block head %}
+<script id="neurona-theme-head-init">
         (function() {
             const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
             let activeTheme = savedThemeMode;
@@ -43,9 +43,9 @@
             }
         })();
     </script>
-<meta charset="utf-8">
-    <title>Сводный отчёт по муниципалитету</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+
 
     <style>
         :root {
@@ -552,7 +552,7 @@
                 grid-template-columns: 1fr;
             }
         }
-    
+
         html[data-theme="dark"] {
             --bg: #0f172a;
             --card: #1e293b;
@@ -579,7 +579,7 @@
             font-weight: 800;
             cursor: pointer;
         }
-        
+
 
         /* === Исправления тёмной темы для municipality_report.html === */
         html[data-theme="dark"] {
@@ -720,9 +720,8 @@
         html[data-theme="dark"] .block-chip.active { background: var(--blue); border-color: var(--blue); color: #0f172a; }
 
 </style>
-</head>
-
-<body>
+{% endblock %}
+{% block content %}
 <div class="page">
 
     <div class="topbar">
@@ -1076,7 +1075,4 @@ document.querySelectorAll('.block-chip input[type="checkbox"]').forEach(function
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}

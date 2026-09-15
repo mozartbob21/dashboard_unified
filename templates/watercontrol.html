@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Нейрона ИИ — Повышение качества водоснабжения{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
+<script>
         (function() {
             const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
             let activeTheme = savedThemeMode;
@@ -29,13 +30,13 @@
             document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — Повышение качества водоснабжения</title>
 
-    
 
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
+
+
+
+
+
 
 <style id="copy-btn-theme-fix">
 /* FIX: кнопка копирования следует теме */
@@ -61,9 +62,8 @@ html[data-theme="dark"] button[data-copy-btn] {
   border: 1px solid var(--border-color, #334155) !important;
 }
 </style>
-</head>
-
-<body class="compact-module-page">
+{% endblock %}
+{% block content %}
     <div class="page-glow page-glow-one"></div>
     <div class="page-glow page-glow-two"></div>
     <div class="page-glow page-glow-three"></div>
@@ -479,7 +479,7 @@ html[data-theme="dark"] button[data-copy-btn] {
         </div>
     </div>
 
-    
+
 
     <script>
         const runCheckBtn = document.getElementById("runCheckBtn");
@@ -821,7 +821,7 @@ html[data-theme="dark"] button[data-copy-btn] {
             if (!toggle) return;
             const icon = toggle.querySelector(".theme-toggle-icon");
             const text = toggle.querySelector(".theme-toggle-text");
-            
+
             if (themeMode === "dark") {
                 if (icon) icon.textContent = "🌙";
                 if (text) text.textContent = "Тёмная тема";
@@ -914,5 +914,4 @@ function wcCopySummary(btn){
   else { var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){} document.body.removeChild(ta); }
 }
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,45 @@
+/* Shared visual shell for every Neurona module. Page-specific layouts remain local. */
+.unified-module-page { font-family:"Avenir Next","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI Variable",sans-serif; }
+.unified-module-page h1,.unified-module-page h2,.unified-module-page h3,.unified-module-page .brand-title { font-family:"SF Pro Display","Avenir Next",-apple-system,BlinkMacSystemFont,"Segoe UI Variable",sans-serif; }
+.unified-module-page .unified-shell-topbar {
+  position:relative;z-index:40;display:flex;align-items:center;gap:14px;width:100%;min-height:72px;margin-bottom:22px;padding:11px 14px!important;
+  border:1px solid var(--border,rgba(40,65,95,.14))!important;border-radius:24px!important;background:var(--card,rgba(255,255,255,.88))!important;
+  box-shadow:0 18px 60px rgba(5,10,24,.13)!important;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)
+}
+.unified-module-page .unified-shell-topbar .brand,.unified-module-page .unified-shell-topbar .system-shell-brand { display:flex;align-items:center;min-width:0;margin-right:auto; }
+.unified-module-page .unified-shell-topbar .brand-link,.unified-module-page .system-shell-brand { display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none; }
+.unified-module-page .unified-shell-topbar .brand-logo,.unified-module-page .system-shell-brand .brand-logo {
+  width:44px!important;height:44px!important;flex:0 0 44px;border-radius:13px!important;box-shadow:0 8px 22px rgba(56,103,255,.22)
+}
+.unified-module-page .unified-shell-topbar .brand-title { color:var(--text,#102033)!important;font-size:16px!important;font-weight:700!important;line-height:1.15!important;letter-spacing:-.025em!important; }
+.unified-module-page .unified-shell-topbar .brand-subtitle { max-width:min(52vw,620px);margin-top:3px;overflow:hidden;color:var(--muted,#637083)!important;font-size:12px!important;line-height:1.35!important;text-overflow:ellipsis;white-space:nowrap; }
+.unified-module-page .unified-shell-topbar .top-actions,.unified-module-page .unified-shell-topbar .topbar-right,.unified-module-page .unified-shell-topbar .actions,.unified-module-page .unified-shell-topbar .nav,.unified-module-page .system-shell-actions { display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;flex-wrap:wrap; }
+.unified-module-page .shell-control {
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;min-height:42px!important;padding:10px 14px!important;
+  border:1px solid var(--border,rgba(40,65,95,.14))!important;border-radius:12px!important;background:var(--bg-soft,rgba(255,255,255,.08))!important;
+  color:var(--text,#102033)!important;font:650 12px/1.2 "Avenir Next","SF Pro Text",sans-serif!important;text-decoration:none!important;box-shadow:none!important;cursor:pointer;
+  transition:transform 180ms ease,border-color 180ms ease,background 180ms ease!important
+}
+.unified-module-page .shell-control:hover { transform:translateY(-1px);border-color:var(--border-strong,rgba(40,65,95,.24))!important;background:var(--card-strong,rgba(255,255,255,.16))!important; }
+.unified-module-page .system-back-button { border-color:transparent!important;background:linear-gradient(135deg,var(--primary,#3867ff),var(--primary-2,#6c4dff))!important;color:#fff!important;box-shadow:0 9px 22px rgba(78,82,240,.22)!important; }
+.unified-module-page .system-back-button:hover { filter:brightness(1.06);color:#fff!important; }
+.unified-module-page .shell-generated { width:min(1480px,calc(100% - 48px));margin:24px auto 22px; }
+.unified-module-page .shell-generated .system-shell-brand-copy { display:flex;flex-direction:column; }
+.unified-module-page .shell-generated .system-shell-brand-copy span { margin-top:3px;color:var(--muted,#637083);font-size:12px; }
+@media(max-width:760px){
+  .unified-module-page .unified-shell-topbar{align-items:flex-start;min-height:0;padding:12px!important;border-radius:18px!important}
+  .unified-module-page .unified-shell-topbar .brand-subtitle{max-width:58vw}
+  .unified-module-page .unified-shell-topbar .top-actions,.unified-module-page .unified-shell-topbar .topbar-right,.unified-module-page .unified-shell-topbar .actions,.unified-module-page .unified-shell-topbar .nav,.unified-module-page .system-shell-actions{width:100%;justify-content:flex-start;margin-left:0}
+  .unified-module-page .system-back-button{margin-left:auto}.unified-module-page .shell-generated{width:min(100% - 24px,1480px);margin-top:12px}
+}
+.unified-module-page .shell-generated + .container > .back-link { display:none!important; }
+/* Legacy admin page follows the shared theme instead of mixing white panels with dark text tokens. */
+html[data-theme="dark"] .module-users { color:var(--text);background:var(--bg); }
+html[data-theme="dark"] .module-users main h1,
+html[data-theme="dark"] .module-users main h2,
+html[data-theme="dark"] .module-users main label { color:var(--text); }
+html[data-theme="dark"] .module-users .panel,
+html[data-theme="dark"] .module-users .user-item { color:var(--text);background:var(--card-strong);border-color:var(--border); }
+html[data-theme="dark"] .module-users input:not([type=checkbox]),
+html[data-theme="dark"] .module-users select { color:var(--text);background:var(--bg-soft);border-color:var(--border); }
+html[data-theme="dark"] .module-users .common-note { color:var(--muted);background:var(--card);border-color:var(--border); }

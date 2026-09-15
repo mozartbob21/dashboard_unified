@@ -1,13 +1,11 @@
-<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Пользователи и доступ — Нейрона</title>
-  <link rel="stylesheet" href="/static/users.css?v=20260915-delegation">
+{% extends "base_module.html" %}
+{% block title %}Пользователи и доступ — Нейрона{% endblock %}
+{% block body_class %}module-users{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/users.css?v=20260915-delegation">
   <script src="/static/users.js?v=20260915-delegation" defer></script>
-</head>
-<body>
+{% endblock %}
+{% block content %}
   <header><a href="/" class="system-link">← Перейти в систему</a><span>Админ-панель Нейроны</span><a href="/logout">Выйти</a></header>
   <main>
     <div class="page-heading"><div><p class="eyebrow">УЧЁТНЫЕ ЗАПИСИ</p><h1>Пользователи и права</h1><p>Назначайте каждому пользователю только нужные блоки.</p></div><button id="newUser" type="button">+ Создать пользователя</button></div>
@@ -67,5 +65,4 @@
       <p class="muted">Дашборд АРМ сейчас использует загруженную выгрузку. Сбор жалоб Добродела запускается из блока ЕДДС или планировщика.</p>
     </section>
   </main>
-</body>
-</html>
+{% endblock %}

@@ -1,6 +1,7 @@
-﻿<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-<head>
+{% extends "base_module.html" %}
+{% block title %}Контроль жалоб ЕЦУР · Нейрона{% endblock %}
+{% block body_class %}{% endblock %}
+{% block head %}
 <script>
 (function(){
   const saved=localStorage.getItem("neurona-theme-mode")||"auto-moscow";
@@ -9,10 +10,10 @@
   document.documentElement.setAttribute("data-theme",t);
 })();
 </script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Контроль жалоб ЕЦУР · Нейрона</title>
-<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+
+
+
 <style>
 /* ─────────────────────────────────────────────────────────────
    ECUR — стили модуля (используем переменные из style.css)
@@ -273,9 +274,8 @@ textarea#smsText:focus{outline:none;border-color:var(--primary)}
 .ecur-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .ecur-panel-head h2{font-size:15px;font-weight:900;color:var(--text);margin:0}
 </style>
-</head>
-
-<body>
+{% endblock %}
+{% block content %}
 <div class="page-glow page-glow-one"></div>
 <div class="page-glow page-glow-two"></div>
 <div class="page-glow page-glow-three"></div>
@@ -326,7 +326,7 @@ textarea#smsText:focus{outline:none;border-color:var(--primary)}
     <div>
       <h2>Управление сводом</h2>
       <p class="subtext">Получите свежий свод жалоб из ДоброДела или загрузите файл вручную.</p>
-      
+
       <!-- Статус авторизации в ДоброДеле -->
       <div class="ecur-auth-status">
         {% if is_authed %}
@@ -1389,7 +1389,4 @@ window.addEventListener('DOMContentLoaded',()=>{
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}

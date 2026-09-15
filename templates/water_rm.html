@@ -1,10 +1,7 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Контроль качества воды — Нейрона ИИ</title>
-<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+{% extends "base_module.html" %}
+{% block title %}Контроль качества воды — Нейрона ИИ{% endblock %}
+{% block body_class %}module-water-rm{% endblock %}
+{% block head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 #pane-rm{--ink:#14505C;--steel:#2A7286;--water:#EAF4F6;--paper:#FFFFFF;--line:#CFE0E5;--close:#2E7D32;--ext:#9A6700;--rw:#A61B1B;--mut:#5B7A83;font:15px/1.5 "Segoe UI",system-ui,Arial,sans-serif;background:var(--water);color:#1c3138;padding-bottom:60px;border-radius:12px;overflow:hidden;margin-top:20px}
@@ -58,8 +55,8 @@
 .back-link{display:inline-block;margin:20px 0;color:#2A7286;text-decoration:none;font-weight:500}
 .back-link:hover{text-decoration:underline}
 </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
 <div class="container">
 <a href="/" class="back-link">← На главную</a>
 <div class="pane active" id="pane-rm">
@@ -629,7 +626,4 @@ function downloadCsv1251(rows, filename){
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}

@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Сумматор — Нейрона ИИ{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
+<script>
         (function() {
             var m = localStorage.getItem("neurona-theme-mode") || "auto-moscow", t = m;
             if (m === "auto-moscow") {
@@ -18,10 +19,10 @@
             document.documentElement.setAttribute("data-glass", localStorage.getItem("neurona-glass") || "off");
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сумматор — Нейрона ИИ</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+
+
+
     <style>
         .sm-hero{padding:20px 24px!important;margin-bottom:16px!important}
         .sm-title{font-size:20px;font-weight:800;margin:0 0 6px;color:var(--text-color,#1e293b)}
@@ -55,8 +56,8 @@
         .sm-hitem{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 12px;border:1px solid var(--border-color,#e2e8f0);border-radius:10px;margin-bottom:6px;font-size:12.5px;color:var(--muted-color,#475569);cursor:pointer}
         .sm-hitem:hover{border-color:#8b5cf6}
     </style>
-</head>
-<body class="compact-module-page">
+{% endblock %}
+{% block content %}
 <div class="container">
     <header class="topbar">
         <div class="brand">
@@ -241,7 +242,4 @@ function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}

@@ -1,6 +1,7 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
+{% extends "base_module.html" %}
+{% block title %}Планировщик — Нейрона ИИ{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
 <script>
     (function() {
         const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
@@ -28,10 +29,10 @@
         document.documentElement.setAttribute("data-theme", activeTheme);
     })();
 </script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Планировщик — Нейрона ИИ</title>
-<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=scheduler_v1">
+
+
+
+
 <style>
 :root {
     --sch-bg: #f8fafc;
@@ -345,9 +346,8 @@
     .sch-grid { grid-template-columns: 1fr; }
 }
 </style>
-</head>
-
-<body class="compact-module-page">
+{% endblock %}
+{% block content %}
 <div class="container">
     <header class="topbar">
         <div class="brand">
@@ -690,7 +690,4 @@
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}

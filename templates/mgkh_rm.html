@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Нейрона ИИ — Качество воды{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
+<script>
         (function() {
             const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
             let activeTheme = savedThemeMode;
@@ -21,10 +22,10 @@
             document.documentElement.setAttribute("data-theme", activeTheme);
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — Качество воды</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
+
+
+
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
 #pane-rm{--ink:#14505C;--steel:#2A7286;--water:#EAF4F6;--paper:#FFFFFF;--line:#CFE0E5;--close:#2E7D32;--ext:#9A6700;--rw:#A61B1B;--mut:#5B7A83;font:15px/1.5 "Segoe UI",system-ui,Arial,sans-serif;background:var(--water);color:#1c3138;padding-bottom:60px;border-radius:12px;overflow:hidden;margin-top:20px}
@@ -78,9 +79,8 @@
 #pane-rm #autoBtn.on{background:var(--rw);border-color:var(--rw);color:#fff}
 #pane-rm #rmLog{display:none;background:#0F2E36;color:#BFE8D2;font:12.5px/1.6 Consolas,monospace;border-radius:8px;padding:12px 14px;margin-top:14px;max-height:320px;overflow:auto;white-space:pre-wrap}
     </style>
-</head>
-
-<body class="compact-module-page">
+{% endblock %}
+{% block content %}
     <div class="page-glow page-glow-one"></div>
     <div class="page-glow page-glow-two"></div>
     <div class="page-glow page-glow-three"></div>
@@ -733,7 +733,4 @@ function downloadCsv1251(rows, filename){
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}

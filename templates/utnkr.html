@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Контроль УТНКР{% endblock %}
+{% block body_class %}{% endblock %}
+{% block head %}
+<script>
         (function() {
             const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
             let activeTheme = savedThemeMode;
@@ -29,13 +30,13 @@
             document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Контроль УТНКР</title>
 
-    
 
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+
+
+
+
     <style>
         .utnkr-filters-card {
             margin-bottom: 20px;
@@ -146,9 +147,8 @@
             }
         }
     </style>
-</head>
-
-<body>
+{% endblock %}
+{% block content %}
     <div class="page-glow page-glow-one"></div>
     <div class="page-glow page-glow-two"></div>
     <div class="page-glow page-glow-three"></div>
@@ -257,7 +257,7 @@
             </div>
         </div>
 
-        
+
         <div id="checkTimesBlock" class="{% if not check_state.started_at and not check_state.finished_at and not check_state.is_running %}hidden{% endif %}">
             <div class="grid two">
                 <div class="card">
@@ -732,7 +732,7 @@
             if (!toggle) return;
             const icon = toggle.querySelector(".theme-toggle-icon");
             const text = toggle.querySelector(".theme-toggle-text");
-            
+
             if (themeMode === "dark") {
                 if (icon) icon.textContent = "🌙";
                 if (text) text.textContent = "Тёмная тема";
@@ -813,7 +813,4 @@
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}

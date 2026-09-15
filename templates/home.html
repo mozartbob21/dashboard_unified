@@ -27,6 +27,7 @@
             }
             document.documentElement.setAttribute("data-theme", activeTheme);
             document.documentElement.dataset.theme = activeTheme;
+            document.documentElement.setAttribute("data-glass", localStorage.getItem("neurona-glass") || "off");
         })();
     </script>
     <meta charset="UTF-8">
@@ -939,7 +940,7 @@
         @media(max-width:1080px){.wide-pair{grid-template-columns:1fr;}}
     </style>
 <link rel="stylesheet" href="/static/module-layout.css?v=20260915">
-<link rel="stylesheet" href="/static/home-premium.css?v=20260915-4">
+<link rel="stylesheet" href="/static/home-premium.css?v=20260915-5">
 <script src="/static/module-layout.js?v=20260915-4" defer></script>
 </head>
 
@@ -959,25 +960,40 @@
             </div>
 
             <div class="top-actions">
-                <div class="theme-dropdown">
-                    <button id="themeToggle" class="theme-toggle secondary-button" type="button"
-                            aria-haspopup="true" aria-expanded="false" aria-label="Выбрать тему">
-                        <span class="theme-toggle-icon">☀️</span>
-                        <span class="theme-toggle-text">Тема</span>
-                        <span class="theme-toggle-arrow" aria-hidden="true">▾</span>
+                <div class="theme-dropdown appearance-dropdown">
+                    <button id="themeToggle" class="theme-toggle appearance-trigger" type="button"
+                            aria-haspopup="true" aria-expanded="false" aria-label="Настроить оформление">
+                        <span class="appearance-trigger-icon" aria-hidden="true">◐</span>
+                        <span class="theme-toggle-copy">
+                            <small>Оформление</small>
+                            <span class="theme-toggle-text">Подмосковное солнце</span>
+                        </span>
+                        <span class="theme-toggle-arrow" aria-hidden="true">⌄</span>
                     </button>
-                    <div id="themeMenu" class="theme-menu" role="menu" aria-label="Выбор темы" hidden>
-                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="light">
-                            <span class="theme-menu-icon">☀️</span><span class="theme-menu-label">Светлая</span><span class="theme-menu-check">✓</span>
-                        </button>
-                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="dark">
-                            <span class="theme-menu-icon">🌙</span><span class="theme-menu-label">Тёмная</span><span class="theme-menu-check">✓</span>
-                        </button>
-                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="kreml">
-                            <span class="theme-menu-icon">🏛️</span><span class="theme-menu-label">Московская</span><span class="theme-menu-check">✓</span>
-                        </button>
-                        <button class="theme-menu-item" type="button" role="menuitemradio" data-theme-mode="auto-moscow">
-                            <span class="theme-menu-icon">🛰️</span><span class="theme-menu-label">Подмосковное солнце (авто)</span><span class="theme-menu-check">✓</span>
+                    <div id="themeMenu" class="theme-menu appearance-menu" role="dialog" aria-label="Настройки оформления" hidden>
+                        <div class="appearance-menu-head">
+                            <div><strong>Оформление</strong><span>Настройте вид рабочего пространства</span></div>
+                        </div>
+                        <div class="appearance-section-label">Цветовая тема</div>
+                        <div class="appearance-theme-grid" role="radiogroup" aria-label="Цветовая тема">
+                            <button class="theme-menu-item" type="button" role="radio" data-theme-mode="light">
+                                <span class="theme-menu-icon">☀️</span><span class="theme-menu-label">Светлая</span><span class="theme-menu-check">✓</span>
+                            </button>
+                            <button class="theme-menu-item" type="button" role="radio" data-theme-mode="dark">
+                                <span class="theme-menu-icon">🌙</span><span class="theme-menu-label">Тёмная</span><span class="theme-menu-check">✓</span>
+                            </button>
+                            <button class="theme-menu-item" type="button" role="radio" data-theme-mode="kreml">
+                                <span class="theme-menu-icon">🏛️</span><span class="theme-menu-label">Московская</span><span class="theme-menu-check">✓</span>
+                            </button>
+                            <button class="theme-menu-item theme-menu-auto" type="button" role="radio" data-theme-mode="auto-moscow">
+                                <span class="theme-menu-icon">🛰️</span><span class="theme-menu-label"><strong>Подмосковное солнце</strong><small>Автоматически по времени суток</small></span><span class="theme-menu-check">✓</span>
+                            </button>
+                        </div>
+                        <div class="appearance-divider"></div>
+                        <button id="glassMenuToggle" class="appearance-setting" type="button" role="switch" aria-checked="false">
+                            <span class="appearance-setting-icon" aria-hidden="true">◇</span>
+                            <span class="appearance-setting-copy"><strong>Жидкое стекло</strong><small>Прозрачность и мягкое размытие карточек</small></span>
+                            <span class="appearance-switch" aria-hidden="true"><span></span></span>
                         </button>
                     </div>
                 </div>
@@ -1013,11 +1029,11 @@
 
                 {% if true %}
                 <div class="profile-menu">
-                    <button id="profileMenuButton" class="badge profile-menu-trigger" type="button"
-                            aria-haspopup="true" aria-expanded="false"
-                            style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer;"
-                            title="{{ user_role or '' }}">
-                        👤 {{ user_username }} ▾
+                    <button id="profileMenuButton" class="profile-menu-trigger professional-profile" type="button"
+                            aria-haspopup="true" aria-expanded="false" title="{{ user_role or '' }}">
+                        <span class="profile-avatar" aria-hidden="true">●</span>
+                        <span class="profile-trigger-copy"><small>Профиль</small><strong>{{ user_username }}</strong></span>
+                        <span class="profile-chevron" aria-hidden="true">⌄</span>
                     </button>
                     <div id="profileMenuDropdown" class="profile-menu-dropdown" hidden>
                         <div class="profile-menu-header">
@@ -1025,7 +1041,7 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item" type="button"> ✅ v 2.8</button>
+                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button"><span>Версия продукта</span><strong>v3 Бета</strong></button>
                         {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <div class="profile-menu-divider"></div>
@@ -1971,6 +1987,15 @@
         const themeToggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
         const dropdown = themeToggle ? themeToggle.closest(".theme-dropdown") : null;
         const menu = dropdown ? dropdown.querySelector("#themeMenu, .theme-menu") : null;
+        const glassMenuToggle = document.getElementById("glassMenuToggle");
+
+        function applyGlass(mode) {
+            const on = mode === "on";
+            root.setAttribute("data-glass", on ? "on" : "off");
+            if (!glassMenuToggle) return;
+            glassMenuToggle.classList.toggle("active", on);
+            glassMenuToggle.setAttribute("aria-checked", String(on));
+        }
 
         const MOSCOW_LAT = 55.7558;
         const MOSCOW_LON = 37.6173;
@@ -2027,6 +2052,16 @@
         }
         const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
         applyTheme(savedThemeMode);
+        applyGlass(localStorage.getItem("neurona-glass") || "off");
+
+        if (glassMenuToggle) {
+            glassMenuToggle.addEventListener("click", function (e) {
+                e.stopPropagation();
+                const next = root.getAttribute("data-glass") === "on" ? "off" : "on";
+                localStorage.setItem("neurona-glass", next);
+                applyGlass(next);
+            });
+        }
 
         function markActiveMenu(mode) {
             if (!menu) return;
@@ -2463,62 +2498,7 @@
     })();
     </script>
 
-<script>
-(function(){
-    var b = document.getElementById("glassToggle");
-    if (!b) return;
-    var host2 = document.querySelector(".top-actions") || document.querySelector(".topbar-right") || document.querySelector(".topbar");
-    if (host2 && !host2.contains(b)) {
-        var an2 = host2.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
-        if (an2) { an2.parentNode.insertBefore(b, an2); } else { host2.appendChild(b); }
-    }
-    function paint(){
-        var on = document.documentElement.getAttribute("data-glass") === "on";
-            var SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>';
-            var SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
-            b.innerHTML = on ? SVG_ON : SVG_OFF;
-        b.style.opacity = on ? "1" : ".55";
-        b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
-    }
-    b.addEventListener("click", function(){
-        var on = document.documentElement.getAttribute("data-glass") === "on";
-        document.documentElement.setAttribute("data-glass", on ? "off" : "on");
-        localStorage.setItem("neurona-glass", on ? "off" : "on");
-        paint();
-    });
-    paint();
-})();
-</script>
 
-<script>
-(function(){
-    function make(){
-        var host = document.querySelector(".top-actions") || document.querySelector(".topbar");
-        if (!host) { setTimeout(make, 300); return; }
-        if (document.getElementById("glassToggle")) return;
-        var b = document.createElement("button");
-        b.id = "glassToggle";
-        b.type = "button";
-        var anchor = host.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
-        if (anchor) { anchor.parentNode.insertBefore(b, anchor); } else { host.appendChild(b); }
-        function paint(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            b.innerHTML = on ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>' : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
-            b.classList.toggle("on", on);
-            b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
-        }
-        b.addEventListener("click", function(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            document.documentElement.setAttribute("data-glass", on ? "off" : "on");
-            localStorage.setItem("neurona-glass", on ? "off" : "on");
-            paint();
-        });
-        paint();
-    }
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", make);
-    else make();
-})();
-</script>
 
 
 

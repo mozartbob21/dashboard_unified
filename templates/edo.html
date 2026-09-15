@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Нейрона ИИ — ЭДО{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
+<script>
         (function() {
             const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
             let activeTheme = savedThemeMode;
@@ -57,13 +58,13 @@
             document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Нейрона ИИ — ЭДО</title>
 
-    
 
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=unified1">
+
+
+
+
+
 <style>
 /* ── Кнопка копирования в углу уведомления ── */
 .message-block{position:relative}
@@ -103,10 +104,9 @@ html[data-theme="dark"] button[data-copy-btn] {
 </style>
 <link rel="stylesheet" href="/static/floating-table-header.css?v=20260913">
 <script src="/static/floating-table-header.js?v=20260913" defer></script>
-</head>
+{% endblock %}
+{% block content %}
 
-<body class="compact-module-page">
-    
     <div class="page-glow page-glow-one"></div>
     <div class="page-glow page-glow-two"></div>
     <div class="page-glow page-glow-three"></div>
@@ -513,7 +513,7 @@ html[data-theme="dark"] button[data-copy-btn] {
         </div>
     </div>
 
-    
+
 
     <script>
         const runCheckBtn = document.getElementById("runCheckBtn");
@@ -855,7 +855,7 @@ html[data-theme="dark"] button[data-copy-btn] {
             if (!toggle) return;
             const icon = toggle.querySelector(".theme-toggle-icon");
             const text = toggle.querySelector(".theme-toggle-text");
-            
+
             if (themeMode === "dark") {
                 if (icon) icon.textContent = "🌙";
                 if (text) text.textContent = "Тёмная тема";
@@ -945,7 +945,7 @@ html[data-theme="dark"] button[data-copy-btn] {
             if (!themeToggle) return;
             const icon = themeToggle.querySelector(".theme-toggle-icon");
             const text = themeToggle.querySelector(".theme-toggle-text");
-            
+
             if (themeMode === "dark") {
                 if (icon) icon.textContent = "🌙";
                 if (text) text.textContent = "Тёмная тема";
@@ -1067,6 +1067,4 @@ html[data-theme="dark"] button[data-copy-btn] {
         {childList:true, subtree:true});
 })();
 </script>
-
-</body>
-</html>
+{% endblock %}

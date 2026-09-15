@@ -1,6 +1,7 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
+{% extends "base_module.html" %}
+{% block title %}Нейрона — AI-чат{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
 <script>
 (function(){var m=localStorage.getItem("neurona-theme-mode")||"auto-moscow",t=m;
 if(m==="auto-moscow"){var now=new Date(),d=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
@@ -11,10 +12,10 @@ var sr=(12-H*12/Math.PI-37.6173/15+3+24)%24,ss=(12+H*12/Math.PI-37.6173/15+3+24)
 var h=now.getHours()+now.getMinutes()/60;t=(h>=sr&&h<ss)?"light":"dark";}
 document.documentElement.setAttribute("data-theme",t);})();
 </script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Нейрона — AI-чат</title>
-<link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+
+
+
 <style>
 .ac-wrap{max-width:none;width:100%;margin:0;padding:0 16px 16px;display:grid;grid-template-columns:300px 1fr;gap:14px;height:calc(100vh - 118px)}
 @media(max-width:980px){.ac-wrap{grid-template-columns:1fr;height:auto}}
@@ -111,8 +112,8 @@ padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-
 @media(max-width:980px){body.compact-module-page{overflow:auto}.ac-wrap{grid-template-columns:1fr;height:auto !important}}
 
 </style>
-</head>
-<body class="compact-module-page">
+{% endblock %}
+{% block content %}
 <div class="container">
 <header class="topbar">
   <div class="brand">
@@ -387,9 +388,4 @@ if(!localStorage.getItem("neurona-caps-seen")){$("#capsOvl").hidden=false;fillCa
   setTimeout(fixGap,250);
 })();
 </script>
-
-
-
-
-</body>
-</html>
+{% endblock %}

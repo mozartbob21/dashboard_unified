@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Полезные инструменты — Нейрона ИИ{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
+<script>
         (function() {
             var m = localStorage.getItem("neurona-theme-mode") || "auto-moscow", t = m;
             if (m === "auto-moscow") {
@@ -18,10 +19,10 @@
             document.documentElement.setAttribute("data-glass", localStorage.getItem("neurona-glass") || "off");
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Полезные инструменты — Нейрона ИИ</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+
+
+
     <style>
         .tl-hero{padding:20px 24px!important;margin-bottom:16px!important}
         .tl-eyebrow{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8b5cf6;margin:0 0 4px}
@@ -84,8 +85,8 @@
         .tl-del{flex:none;background:rgba(239,68,68,.1);color:#ef4444;border:none;border-radius:6px;width:20px;height:20px;font-size:14px;line-height:1;cursor:pointer;transition:all .15s}
         .tl-del:hover{background:#ef4444;color:#fff;transform:scale(1.1)}
     </style>
-</head>
-<body class="compact-module-page">
+{% endblock %}
+{% block content %}
 <div class="container">
     <header class="topbar">
         <div class="brand">
@@ -276,34 +277,34 @@ $("convertBtn").addEventListener("click", async () => {
     if (!html.trim()) return setStatus("error", "Укажи HTML: файлом или кодом.");
     setStatus("info", "⏳ Собираю PPTX…");
     $("convertBtn").disabled = true;
-    
+
     try {
         const fd = new FormData();
         fd.append("html", html);
         fd.append("mode", $("modeSelect").value);
-        
+
         // Безопасное получение модели ИИ
         const engineEl = $("aiEngineSelect");
         if (engineEl) {
             fd.append("engine", engineEl.value);
         }
-        
+
         fd.append("template", $("tplSelect").value);
         fd.append("out_name", $("outName").value || "presentation.pptx");
 
         const r = await fetch("/tools/html2pptx", { method: "POST", body: fd });
         const d = await r.json();
         if (!d.ok) throw new Error(d.message || "Ошибка сервера");
-        
+
         setStatus("done", "✅ Готово! Слайдов: " + d.slides);
         const res = $("resultArea");
         res.hidden = false;
         res.innerHTML = `<a href="${d.url}" class="tl-download">⬇️ Скачать PPTX</a>`;
-    } catch (e) { 
-        setStatus("error", "Ошибка: " + e.message); 
-    } finally { 
+    } catch (e) {
+        setStatus("error", "Ошибка: " + e.message);
+    } finally {
         // Гарантированно разблокируем кнопку даже при ошибке
-        $("convertBtn").disabled = false; 
+        $("convertBtn").disabled = false;
     }
 });
 
@@ -388,6 +389,4 @@ refreshTemplates({{ templates | tojson }});
     else make();
 })();
 </script>
-
-</body>
-</html>
+{% endblock %}

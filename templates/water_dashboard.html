@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Качество водоснабжения МО — Нейрона ИИ{% endblock %}
+{% block body_class %}compact-module-page{% endblock %}
+{% block head %}
+<script>
         (function() {
             var m = localStorage.getItem("neurona-theme-mode") || "auto-moscow", t = m;
             if (m === "auto-moscow") {
@@ -18,10 +19,10 @@
             document.documentElement.setAttribute("data-glass", localStorage.getItem("neurona-glass") || "off");
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Качество водоснабжения МО — Нейрона ИИ</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+
+
+
+
     <style>
         .wd-hero{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:center;padding:20px 24px!important;margin-bottom:16px!important}
         .wd-eyebrow{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8b5cf6;margin:0 0 4px}
@@ -135,7 +136,7 @@
         .wd-card.open .wd-detail{display:block;animation:wdpop .15s ease}
         @keyframes wdpop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
         /* ===== /ОДИНАКОВЫЙ РАЗМЕР ===== */
-    
+
         .wd-top5-best{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;margin-top:8px}
         .wd-top5-best li{display:flex;align-items:baseline;gap:8px;font-size:12px}
         .wd-top5-best .n{color:var(--muted-color,#64748b);width:12px;flex:none;font-weight:700}
@@ -147,15 +148,15 @@
         .wd-refresh-card:disabled{opacity:.5;cursor:not-allowed}
         .wd-refresh-card.spin{animation:wdspin .8s linear infinite}
 
-    
+
         .wd-best-toggle{background:none;border:none;padding:0;color:#059669;font-weight:700;
             font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;margin-left:14px}
         .wd-best-toggle:hover{text-decoration:underline}
-    
+
         .wd-toggle-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:2px 0}
     </style>
-</head>
-<body class="compact-module-page">
+{% endblock %}
+{% block content %}
 <div class="container">
     <header class="topbar">
         <div class="brand">
@@ -790,5 +791,4 @@ if (refreshBtn) {
     setTimeout(run, 1600);
 })();
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,9 +1,7 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Нейрона — ПромтХаб</title>
+{% extends "base_module.html" %}
+{% block title %}Нейрона — ПромтХаб{% endblock %}
+{% block body_class %}{% endblock %}
+{% block head %}
 <style>
 :root{--bg:#f2f4fb;--bg2:#e9ecf7;--card:#fff;--text:#0b1220;--muted:#6b7a90;
   --border:#e3e8f4;--acc1:#4f6df5;--acc2:#8b5cf6;--shadow:0 10px 34px rgba(23,37,84,.10)}
@@ -68,8 +66,8 @@ body{font-family:"Inter","Segoe UI",system-ui,sans-serif;color:var(--text);min-h
 .toast.show{opacity:1;transform:translateX(-50%)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 </style>
-</head>
-<body>
+{% endblock %}
+{% block content %}
 <div class="top">
   <div class="logo"><img src="{{ logo_url }}" alt="Нейрона"></div>
   <div><h1>Нейрона ПромтХаб</h1>
@@ -140,5 +138,4 @@ $("pList").addEventListener("click", async e => {
 });
 load();
 </script>
-</body>
-</html>
+{% endblock %}

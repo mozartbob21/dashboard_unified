@@ -1,7 +1,8 @@
-<!DOCTYPE html>
-<html lang="ru" data-theme="light">
-<head>
-    <script>
+{% extends "base_module.html" %}
+{% block title %}Карточка обращения {{ item.request_id }} — Нейрона ИИ{% endblock %}
+{% block body_class %}compact-module-page appeal-detail-page{% endblock %}
+{% block head %}
+<script>
         (function() {
             const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
             let activeTheme = savedThemeMode;
@@ -57,10 +58,10 @@
             document.documentElement.dataset.theme = activeTheme;
         })();
     </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Карточка обращения {{ item.request_id }} — Нейрона ИИ</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=stable_cards_20260912">
+
+
+
+
 
     <style id="appeal-empathy-layout-fix">
         /* === Новый компактный экран эмпатичной доработки обращения === */
@@ -234,10 +235,8 @@
             }
         }
     </style>
-
-</head>
-
-<body class="compact-module-page appeal-detail-page">
+{% endblock %}
+{% block content %}
     {% set analysis = item.analysis_data or {} %}
 
     {# Берём индекс только как число/строку, никогда не выводим весь словарь #}
@@ -574,7 +573,7 @@
         </section>
     </div>
 
-    
+
     <script>
     (function () {
         const root = document.documentElement;
@@ -612,7 +611,7 @@
             if (!toggle) return;
             const icon = toggle.querySelector(".theme-toggle-icon");
             const text = toggle.querySelector(".theme-toggle-text");
-            
+
             if (themeMode === "dark") {
                 if (icon) icon.textContent = "🌙";
                 if (text) text.textContent = "Тёмная тема";
@@ -702,7 +701,7 @@
             if (!themeToggle) return;
             const icon = themeToggle.querySelector(".theme-toggle-icon");
             const text = themeToggle.querySelector(".theme-toggle-text");
-            
+
             if (themeMode === "dark") {
                 if (icon) icon.textContent = "🌙";
                 if (text) text.textContent = "Тёмная тема";
@@ -781,7 +780,4 @@
     else make();
 })();
 </script>
-
-
-</body>
-</html>
+{% endblock %}
