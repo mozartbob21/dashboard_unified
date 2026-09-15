@@ -1054,7 +1054,7 @@ async def auth_middleware(request: Request, call_next):
             logging.getLogger("auth").warning("users_api: authentication required method=%s cookie_present=%s", request.method, bool(token))
             return JSONResponse(status_code=401, content={
                 "code": "auth_required",
-                "detail": "Сессия завершена или недействительна. Войдите снова как user_manager. Изменения не сохранены.",
+                "detail": "Сессия завершена или недействительна. Войдите учётной записью с правом управления пользователями. Изменения не сохранены.",
             })
         if path == "/" or request.method == "GET":
             return RedirectResponse(url="/login", status_code=302)

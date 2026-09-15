@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS account_control (
     grants_migrated INTEGER NOT NULL DEFAULT 0
 );
 INSERT OR IGNORE INTO account_control (id) VALUES (1);
+CREATE TABLE IF NOT EXISTS account_managers (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS account_notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Пользователи и доступ — Нейрона</title>
-  <link rel="stylesheet" href="/static/users.css?v=20260915">
-  <script src="/static/users.js?v=20260915" defer></script>
+  <link rel="stylesheet" href="/static/users.css?v=20260915-delegation">
+  <script src="/static/users.js?v=20260915-delegation" defer></script>
 </head>
 <body>
   <header><a href="/">Нейрона</a><span>Управление доступом</span><a href="/logout">Выйти</a></header>
@@ -13,7 +13,7 @@
     <div class="page-heading"><div><p class="eyebrow">УЧЁТНЫЕ ЗАПИСИ</p><h1>Пользователи и права</h1><p>Назначайте каждому пользователю только нужные блоки.</p></div><button id="newUser" type="button">+ Создать пользователя</button></div>
     <p class="common-note">ИИ-чат, автозапуск и история доступны всем вошедшим пользователям. В автозапуске и истории отображаются только назначенные блоки. Расписание каждого блока общее для системы.</p>
     <div id="message" role="status" aria-live="polite"></div>
-    <p id="sessionNotice" class="common-note" hidden>Данные формы оставлены на этой странице. <a href="/login" target="_blank" rel="noopener">Войти как user_manager в новой вкладке</a>, затем вернитесь и повторите сохранение. Не обновляйте эту страницу до сохранения.</p>
+    <p id="sessionNotice" class="common-note" hidden>Данные формы оставлены на этой странице. <a href="/login" target="_blank" rel="noopener">Войти учётной записью с правом управления в новой вкладке</a>, затем вернитесь и повторите сохранение. Не обновляйте эту страницу до сохранения.</p>
     <details class="panel" id="notificationsPanel">
       <summary id="notificationCount">Уведомления управляющего</summary>
       <p>Новые учётные записи, изменения доступа и ошибки сохранения. Последние 100 событий.</p>
@@ -36,6 +36,8 @@
           </div>
           <label>Новый пароль<input name="password" type="password" minlength="12" maxlength="72" autocomplete="new-password"><span class="muted">Для существующей записи оставьте пустым, чтобы сохранить пароль.</span></label>
           <label class="check"><input name="is_active" type="checkbox" checked> Учётная запись активна</label>
+          <label class="check" id="delegationOption" hidden><input name="can_manage_users" type="checkbox"> Управление пользователями — разрешить назначать рабочие блоки и редактировать обычные учётные записи</label>
+          <p id="protectedNote" class="common-note" hidden>Только родительская учётная запись может редактировать управляющих и выдавать или отзывать право управления.</p>
           <fieldset id="moduleChoices"><legend>Доступные блоки</legend>
             <div class="selection-actions"><button id="selectAll" type="button" class="secondary">Выбрать все</button><button id="clearAll" type="button" class="secondary">Снять все</button></div>
             <div class="modules">
@@ -44,7 +46,7 @@
             {% endfor %}
             </div>
           </fieldset>
-          <p id="managerNote" class="common-note" hidden>Эта учётная запись управляет пользователями. Её нельзя отключить или назначить ей рабочие блоки; пароль и почту можно изменить.</p>
+          <p id="managerNote" class="common-note" hidden>Родительская учётная запись. Её нельзя отключить или лишить права управления. Только она выдаёт и отзывает права других управляющих.</p>
           <button id="saveUser" type="submit">Сохранить изменения</button>
         </form>
       </section>

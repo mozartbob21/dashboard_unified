@@ -83,6 +83,40 @@ class AccessControlTests(unittest.TestCase):
         self.assertIn('Сессия',response.json()['detail'])
         self.assertEqual(self.client.get('/api/users/notifications').status_code,401)
 
+    def test_delegated_manager_permissions_and_live_revocation(self):
+        self.manager_login()
+        listing=self.client.get('/api/users').json()
+        self.assertTrue(listing['is_parent_manager'])
+        ordinary=next(u for u in listing['users'] if u['username']=='ordinary')
+        parent=next(u for u in listing['users'] if u['is_manager'])
+        payload={'username':'ordinary','modules':['edo'],'can_manage_users':True}
+        self.assertEqual(self.client.put(f"/api/users/{ordinary['id']}",json=payload).status_code,200)
+        self.assertEqual(self.login().headers['location'],'/users')
+        cookie=self.client.cookies.get('access_token')
+        self.assertEqual(self.client.get('/users').status_code,200)
+        self.assertFalse(self.client.get('/api/users').json()['is_parent_manager'])
+        self.assertIn('href="/users"',self.client.get('/').text)
+        self.assertEqual(self.client.get('/overdue').status_code,403)
+        for target,username in [(parent['id'],parent['username']),(ordinary['id'],'ordinary')]:
+            self.assertEqual(self.client.put(f'/api/users/{target}',json={'username':username,'modules':[]}).status_code,403)
+        new={'username':'delegatechild','password':'Delegate-test-123','modules':['zips'],'can_manage_users':True}
+        self.assertEqual(self.client.post('/api/users',json=new).status_code,403)
+        new['can_manage_users']=False
+        self.assertEqual(self.client.post('/api/users',json=new).status_code,201)
+        child=next(u for u in self.client.get('/api/users').json()['users'] if u['username']=='delegatechild')
+        new.update(password='',modules=['edo'])
+        self.assertEqual(self.client.put(f"/api/users/{child['id']}",json=new).status_code,200)
+        new['can_manage_users']=True
+        self.assertEqual(self.client.put(f"/api/users/{child['id']}",json=new).status_code,403)
+        self.manager_login()
+        self.assertEqual(self.client.put(f"/api/users/{parent['id']}",json={'username':parent['username'],'can_manage_users':False}).status_code,400)
+        payload['can_manage_users']=False
+        self.assertEqual(self.client.put(f"/api/users/{ordinary['id']}",json=payload).status_code,200)
+        self.client.cookies.set('access_token',cookie,domain='testserver.local',path='/')
+        self.assertEqual(self.client.get('/api/users').status_code,403)
+        self.assertEqual(self.client.get('/api/users/notifications').status_code,403)
+        self.assertEqual(self.client.get('/edo').status_code,200)
+
     def test_notifications_are_manager_only_and_can_be_read(self):
         self.login()
         self.assertEqual(self.client.get('/api/users/notifications').status_code,403)

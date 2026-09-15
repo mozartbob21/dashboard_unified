@@ -6,6 +6,7 @@ from core.web import templates
 from core.roles import MODULE_NAMES
 from services.auth.accounts import require_account_manager, list_accounts, save_account
 from services.auth.accounts import list_notifications, read_notifications
+from services.auth.accounts import is_parent_manager
 
 router = APIRouter(dependencies=[Depends(require_account_manager)])
 
@@ -16,6 +17,7 @@ class AccountPayload(BaseModel):
     password: StrictStr = Field(default="", max_length=72)
     modules: list[StrictStr] = Field(default_factory=list, max_length=50)
     is_active: StrictBool = True
+    can_manage_users: StrictBool | None = None
 
 
 class ReadNotificationsPayload(BaseModel):
@@ -39,17 +41,18 @@ async def users_page(request: Request):
 
 
 @router.get("/api/users")
-async def users_list():
-    return {"users": list_accounts(), "modules": MODULE_NAMES}
+async def users_list(request: Request):
+    return {"users": list_accounts(), "modules": MODULE_NAMES,
+            "is_parent_manager": is_parent_manager(request.state.user)}
 
 
 @router.post("/api/users", status_code=201)
-async def users_create(payload: AccountPayload):
-    save_account(payload)
+async def users_create(payload: AccountPayload, request: Request):
+    save_account(payload, actor=request.state.user)
     return {"ok": True}
 
 
 @router.put("/api/users/{user_id}")
-async def users_update(user_id: int, payload: AccountPayload):
-    save_account(payload, user_id)
+async def users_update(user_id: int, payload: AccountPayload, request: Request):
+    save_account(payload, user_id, actor=request.state.user)
     return {"ok": True}

@@ -4,7 +4,7 @@
   const message = document.getElementById('message');
   const list = document.getElementById('userList');
   const search = document.getElementById('userSearch');
-  let users = [], selected = null;
+  let users = [], selected = null, isParentManager = false;
   const names={username:'Логин',email:'Почта',password:'Новый пароль',modules:'Доступные блоки',is_active:'Учётная запись активна'};
   let sessionExpired=false;
   function notify(text, error=false) {
@@ -27,9 +27,12 @@
     if (response.status===401 || response.redirected) {
       sessionExpired=true;
       document.getElementById('sessionNotice').hidden=false;
-      throw new Error('Сессия завершена или недействительна (401). Войдите снова как user_manager. Это не ошибка заполнения полей; изменения не сохранены.');
+      throw new Error('Сессия завершена или недействительна (401). Войдите учётной записью с правом управления пользователями. Это не ошибка заполнения полей; изменения не сохранены.');
     }
-    if(response.status===403) throw new Error('Нет доступа (403). Управление пользователями доступно только отдельной учётной записи user_manager.');
+    if(response.status===403) {
+      const data=await response.json().catch(()=>({}));
+      throw new Error(data.detail||'Нет доступа (403). Требуется право «Управление пользователями».');
+    }
     const data = await response.json().catch(()=>({}));
     if (!response.ok) {
       if(Array.isArray(data.detail)) {
@@ -60,7 +63,7 @@
       button.type='button'; button.className='user-item'; button.classList.toggle('selected',selected?.id===user.id);
       const name=document.createElement('strong'); name.textContent=user.username;
       const details=document.createElement('small');
-      details.textContent=user.is_manager ? 'Управление пользователями' : `${user.is_active?'Активен':'Отключён'} · блоков: ${user.modules.length}`;
+      details.textContent=user.is_manager ? 'Родительская учётная запись' : `${user.is_active?'Активен':'Отключён'} · блоков: ${user.modules.length}${user.can_manage_users?' · Управляющий':''}`;
       const email=document.createElement('small'); email.textContent=user.email||'Почта не указана';
       button.append(name,details,email); button.addEventListener('click',()=>openUser(user)); list.append(button);
     }
@@ -68,17 +71,23 @@
   function openUser(user=null) {
     if (!form.hidden && form.dataset.dirty==='true' && !confirm('Перейти без сохранения изменений?')) return;
     selected=user; clearErrors(); form.reset(); form.hidden=false; form.dataset.dirty='false';
+    const protectedUser=!!user?.can_manage_users&&!isParentManager;
+    form.querySelectorAll('input,button,fieldset').forEach(el=>el.disabled=protectedUser);
     document.getElementById('editorTitle').textContent=user ? user.username : 'Новый пользователь';
     document.getElementById('editorHint').textContent=user ? 'Изменения прав действуют со следующего запроса пользователя.' : 'После создания передайте пользователю логин и пароль.';
     form.elements.username.value=user?.username||''; form.elements.username.readOnly=!!user;
     form.elements.email.value=user?.email||''; form.elements.password.value=''; form.elements.password.required=!user;
-    form.elements.is_active.checked=user?.is_active??true; form.elements.is_active.disabled=!!user?.is_manager;
-    document.getElementById('moduleChoices').disabled=!!user?.is_manager;
+    form.elements.is_active.checked=user?.is_active??true; form.elements.is_active.disabled=protectedUser||!!user?.is_manager;
+    document.getElementById('moduleChoices').disabled=protectedUser||!!user?.is_manager;
+    form.elements.can_manage_users.checked=!!user?.can_manage_users;
+    form.elements.can_manage_users.disabled=!isParentManager||!!user?.is_manager;
+    document.getElementById('delegationOption').hidden=!isParentManager;
+    document.getElementById('protectedNote').hidden=!protectedUser;
     document.getElementById('managerNote').hidden=!user?.is_manager;
     form.querySelectorAll('[name=modules]').forEach(input=>input.checked=!!user?.modules.includes(input.value));
     renderList();
   }
-  async function loadUsers() { const data=await api('/api/users'); users=data.users; renderList(); }
+  async function loadUsers() { const data=await api('/api/users'); users=data.users; isParentManager=data.is_parent_manager; renderList(); }
   search.addEventListener('input',renderList);
   document.getElementById('newUser').addEventListener('click',()=>openUser());
   form.addEventListener('input',()=>form.dataset.dirty='true');
@@ -94,6 +103,7 @@
     clearErrors();
     const payload={username:form.elements.username.value,email:form.elements.email.value,password:form.elements.password.value,
       is_active:form.elements.is_active.checked, modules:[...form.querySelectorAll('[name=modules]:checked')].map(el=>el.value)};
+    if(isParentManager) payload.can_manage_users=form.elements.can_manage_users.checked;
     let committed=false;
     try {
       await api(selected?`/api/users/${selected.id}`:'/api/users',{method:selected?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
