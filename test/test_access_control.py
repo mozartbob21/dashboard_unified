@@ -21,10 +21,13 @@ class AccessControlTests(unittest.TestCase):
         cls.db, cls.scheduler = db, scheduler
         cls.secret = patch("services.auth.security.get_jwt_secret", return_value="isolated-test-secret-1234567890")
         cls.secret.start()
+        cls.integration_key = patch('services.auth.integrations.KEY_FILE',Path(cls.temp.name)/'integrations.key')
+        cls.integration_key.start()
 
     @classmethod
     def tearDownClass(cls):
         cls.secret.stop()
+        cls.integration_key.stop()
         cls.db.DB_FILE, cls.db._SCHEMA_READY = cls.old_db, cls.old_ready
         cls.temp.cleanup()
 
@@ -39,6 +42,7 @@ class AccessControlTests(unittest.TestCase):
             conn.execute("DELETE FROM users")
             conn.execute("DELETE FROM scheduler_jobs")
             conn.execute("DELETE FROM run_history")
+            conn.execute("DELETE FROM integration_credentials")
             conn.execute("INSERT INTO users(username,password_hash,role,modules) VALUES (?,?,?,?)",
                          ("ordinary",hash_password("Test-password-123"),"Контроль данных",'["edo"]'))
             conn.execute("INSERT INTO users(username,password_hash,role,modules) VALUES (?,?,?,?)",
@@ -82,6 +86,60 @@ class AccessControlTests(unittest.TestCase):
         self.assertEqual(response.json()['code'],'auth_required')
         self.assertIn('Сессия',response.json()['detail'])
         self.assertEqual(self.client.get('/api/users/notifications').status_code,401)
+
+    def test_archive_preserves_data_and_blocks_existing_session(self):
+        self.login()
+        cookie=self.client.cookies.get('access_token')
+        self.manager_login()
+        users=self.client.get('/api/users').json()['users']
+        ordinary=next(u for u in users if u['username']=='ordinary')
+        parent=next(u for u in users if u['is_manager'])
+        self.assertEqual(self.client.post(f"/api/users/{parent['id']}/archive").status_code,400)
+        self.assertEqual(self.client.post(f"/api/users/{ordinary['id']}/archive").status_code,200)
+        archived=next(u for u in self.client.get('/api/users').json()['users'] if u['username']=='ordinary')
+        self.assertTrue(archived['archived_at']);self.assertEqual(archived['modules'],['edo'])
+        self.assertFalse(archived['is_active'])
+        self.assertEqual(self.client.put(f"/api/users/{ordinary['id']}",json={'username':'ordinary','is_active':True}).status_code,400)
+        self.client.cookies.set('access_token',cookie,domain='testserver.local',path='/')
+        self.assertEqual(self.client.get('/edo',follow_redirects=False).status_code,302)
+        self.manager_login()
+        self.assertEqual(self.client.post(f"/api/users/{ordinary['id']}/restore").status_code,200)
+        restored=next(u for u in self.client.get('/api/users').json()['users'] if u['username']=='ordinary')
+        self.assertIsNone(restored['archived_at']);self.assertFalse(restored['is_active'])
+
+    def test_integration_credentials_are_encrypted_and_manager_only(self):
+        from services.auth.integrations import credentials
+        self.login()
+        self.assertEqual(self.client.get('/api/users/integrations/edds').status_code,403)
+        self.assertEqual(self.client.put('/api/users/integrations/edds',json={'username':'u','password':'secret'}).status_code,403)
+        self.manager_login()
+        for service in ['edds','edds_arm']:
+            url='/api/users/integrations/'+service
+            self.assertEqual(self.client.put(url,json={'username':'testlogin','password':'secret-test-only'}).status_code,200)
+            data=self.client.get(url).json()
+            self.assertTrue(data['configured']);self.assertNotIn('password',data)
+            self.assertNotIn('secret-test-only',str(data))
+            self.assertEqual(self.client.put(url,json={'username':'testlogin','password':''}).status_code,200)
+            self.assertEqual(credentials(service)['password'],'secret-test-only')
+        with self.db.get_db_connection() as conn:
+            for row in conn.execute('SELECT encrypted_value FROM integration_credentials'):
+                self.assertNotIn('secret-test-only',row[0]);self.assertNotIn('testlogin',row[0])
+
+    def test_edds_grant_page_and_refresh_without_credentials(self):
+        self.login()
+        for path in ['/edds','/edds/water-daily','/edds/status']:
+            self.assertEqual(self.client.get(path).status_code,403)
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[\"edds\"]' WHERE username='ordinary'")
+        page=self.client.get('/edds')
+        self.assertEqual(page.status_code,200);self.assertIn('eddsRefresh',page.text)
+        self.assertNotIn('http://127.0.0.1:8765/api',page.text)
+        self.assertIn('days',self.client.get('/edds/water-daily').json())
+        self.assertEqual(self.client.post('/edds/refresh').status_code,400)
+        home=self.client.get('/').text
+        self.assertIn('data-module="edds"',home)
+        self.assertNotIn('data-module="water_rm"',home)
+        self.assertIn('data-module-view="list"',home)
 
     def test_delegated_manager_permissions_and_live_revocation(self):
         self.manager_login()

@@ -30,6 +30,7 @@ TICK_INTERVAL = 30  # секунд между проверками распис�
 # Какие модули можно запускать по расписанию
 # module_id → команда запуска (аналогично app.py)
 MODULE_COMMANDS: dict[str, list[str]] = {
+    "edds":                 [sys.executable, "-m", "services.edds.runner"],
     "edo":                  [sys.executable, "-m", "services.edo.runner"],
     "overdue":              [sys.executable, "-m", "services.overdue.runner"],
     "watercontrol":         [sys.executable, "-m", "services.watercontrol.runner"],
@@ -41,6 +42,7 @@ MODULE_COMMANDS: dict[str, list[str]] = {
 
 # Интервалы по умолчанию (минуты) для первичного заполнения
 DEFAULT_INTERVALS: dict[str, int] = {
+    "edds": 360,
     "edo": 120,
     "overdue": 120,
     "watercontrol": 120,
@@ -296,6 +298,9 @@ def _get_run_status_dict() -> dict:
 
 def _is_module_running(module_id: str) -> bool:
     """Проверяет, не запущен ли модуль уже (через run_status в app.py)."""
+    if module_id == 'edds':
+        from services.edds.runner import status
+        return status()['running']
     rs = _get_run_status_dict()
     status = rs.get(module_id, {})
     return bool(status.get("running", False))
@@ -315,6 +320,17 @@ def _launch_module(module_id: str) -> None:
     print(f"[scheduler] Launching {module_id}: {' '.join(command)}")
 
     mark_run_started(module_id)
+
+    if module_id == 'edds':
+        def collect_edds():
+            from services.edds.runner import run
+            try:
+                ok=run()
+                mark_run_finished('edds','success' if ok else 'error','' if ok else 'Проверьте настройки доступа и состояние ЕДДС')
+            except Exception:
+                mark_run_finished('edds','error','Не удалось запустить сбор ЕДДС')
+        threading.Thread(target=collect_edds,daemon=True).start()
+        return
 
     try:
         from app import start_background_service

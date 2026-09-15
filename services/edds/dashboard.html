@@ -1,0 +1,4069 @@
+<!doctype html>
+<html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<!-- Кодировку объявляем сами: файл открывают и с диска, и изнутри АРМ ЕДДС.
+     Если сервер отдаст страницу без charset, браузер уйдёт в windows-1251,
+     и сломается не только вид — перестанут совпадать разборы по русским
+     словам: «час» в t_ustr, «Аварийная заявка» в type_otkl, причины. -->
+<title>Мониторинг ЕДДС — задержка доклада по объектам ВС/ВО</title>
+<style>
+:root{
+  color-scheme: light;
+  --ground:#eef1f3;
+  --surface:#ffffff;
+  --surface-2:#f7f9fa;
+  --ink:#0f1417;
+  --ink-2:#4d5962;
+  --ink-3:#7f8b94;
+  --line:#dde3e7;
+  --line-soft:#e9eef1;
+  --accent:#2a78d6;
+  --accent-soft:#e6effb;
+  --accent-ink:#1c5cab;
+  --good:#0a7a0a;
+  --good-bg:#e4f4e4;
+  --warn:#8a5a00;
+  --warn-bg:#fdf0cf;
+  --serious:#9a3b00;
+  --serious-bg:#fbe2d2;
+  --crit:#a51f1f;
+  --crit-bg:#f9d9d9;
+  --grid:#e6ebee;
+  --shadow:0 1px 2px rgba(15,20,23,.06), 0 6px 20px -12px rgba(15,20,23,.25);
+  --r:10px;
+  --mono:ui-monospace,"Cascadia Mono","Consolas","Segoe UI Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --ground:#0c1013;
+    --surface:#161b1f;
+    --surface-2:#1c2227;
+    --ink:#f2f5f7;
+    --ink-2:#aab6be;
+    --ink-3:#7d8890;
+    --line:#2a3238;
+    --line-soft:#232a30;
+    --accent:#5598e7;
+    --accent-soft:#1a2937;
+    --accent-ink:#86b6ef;
+    --good:#4bbd4b;
+    --good-bg:#16291a;
+    --warn:#e0a92a;
+    --warn-bg:#2e2513;
+    --serious:#e08b5c;
+    --serious-bg:#31211a;
+    --crit:#e57373;
+    --crit-bg:#331c1c;
+    --grid:#242c32;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 24px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --ground:#0c1013;
+  --surface:#161b1f;
+  --surface-2:#1c2227;
+  --ink:#f2f5f7;
+  --ink-2:#aab6be;
+  --ink-3:#7d8890;
+  --line:#2a3238;
+  --line-soft:#232a30;
+  --accent:#5598e7;
+  --accent-soft:#1a2937;
+  --accent-ink:#86b6ef;
+  --good:#4bbd4b;
+  --good-bg:#16291a;
+  --warn:#e0a92a;
+  --warn-bg:#2e2513;
+  --serious:#e08b5c;
+  --serious-bg:#31211a;
+  --crit:#e57373;
+  --crit-bg:#331c1c;
+  --grid:#242c32;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 24px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0; text-wrap:balance; letter-spacing:-.015em}
+button{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+
+.eyebrow{
+  font-size:10px; font-weight:700; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--ink-3);
+}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+
+/* ---------- шапка ---------- */
+.topbar{
+  position:sticky; top:0; z-index:30;
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:12px 20px; background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex; flex-direction:column; gap:1px; margin-right:auto}
+.brand strong{font-size:15px; font-weight:750; letter-spacing:-.02em}
+.brand span{font-size:11.5px; color:var(--ink-2)}
+.btn{
+  display:inline-flex; align-items:center; gap:7px;
+  padding:8px 14px; border-radius:8px; border:1px solid var(--line);
+  background:var(--surface-2); cursor:pointer; font-size:13px; font-weight:600;
+  transition:background .12s, border-color .12s;
+}
+.btn:hover:not(:disabled){background:var(--accent-soft); border-color:var(--accent)}
+.btn:disabled{opacity:.45; cursor:not-allowed}
+.btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--accent-ink); border-color:var(--accent-ink)}
+.btn-sm{padding:4px 10px; font-size:12px; border-radius:6px}
+
+/* ---------- вкладки (листы) ---------- */
+.tabs{display:flex; gap:2px; padding:3px; border-radius:9px; background:var(--surface-2); border:1px solid var(--line)}
+.tabs[hidden]{display:none}
+.tabs button{
+  padding:6px 15px; font-size:13px; font-weight:650; cursor:pointer;
+  border:0; background:transparent; border-radius:6px; color:var(--ink-2);
+}
+.tabs button:hover{color:var(--accent)}
+.tabs button[aria-selected="true"]{background:var(--accent); color:#fff}
+.page{display:flex; flex-direction:column; gap:16px}
+.page[hidden]{display:none}
+
+/* ---------- загрузка ---------- */
+.drop{
+  margin:56px auto; max-width:620px; padding:44px 32px; text-align:center;
+  background:var(--surface); border:2px dashed var(--line);
+  border-radius:16px; transition:border-color .15s, background .15s;
+}
+.drop.over{border-color:var(--accent); background:var(--accent-soft)}
+.drop h2{font-size:19px; margin-bottom:8px}
+.drop p{color:var(--ink-2); margin:0 0 22px; font-size:13px}
+.drop .hint{margin-top:20px; font-size:12px; color:var(--ink-3); line-height:1.7}
+.err{
+  margin:16px auto 0; max-width:620px; padding:12px 16px; border-radius:8px;
+  background:var(--crit-bg); color:var(--crit); font-size:13px; font-weight:600;
+}
+
+main{padding:20px; display:flex; flex-direction:column; gap:16px}
+
+/* ---------- фильтры ---------- */
+.filters{
+  display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+  padding:14px 16px; background:var(--surface);
+  border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow);
+}
+.f{display:flex; flex-direction:column; gap:4px; min-width:0}
+/* только подпись самого поля, но не строки списка внутри выпадашки */
+.f > label{font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+.f select,.f input{
+  font:inherit; font-size:13px; padding:6px 9px; border-radius:7px;
+  border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+  max-width:230px;
+}
+.f-grow{flex:1 1 190px}
+.f-grow input{max-width:none; width:100%}
+
+/* диапазон по охвату жителей */
+.f-range .rg-row{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+.f-range input[type=number]{width:84px; max-width:84px; text-align:right; -moz-appearance:textfield}
+.f-range input[type=number]::-webkit-outer-spin-button,
+.f-range input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+.f-range.on input[type=number]{border-color:var(--accent); background:var(--accent-soft)}
+.rg-dash{color:var(--ink-3); font-size:12px}
+.rg-na{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--ink-3);
+  cursor:pointer; white-space:nowrap; user-select:none}
+.rg-na input{width:13px; height:13px; max-width:none; padding:0; margin:0;
+  border:0; background:none; accent-color:var(--accent)}
+.rg-hint{font-size:11px; color:var(--ink-3); white-space:nowrap}
+/* принудительный перенос: диапазон по жителям живёт отдельной строкой,
+   чтобы не разрывать выпадашки и поля периода */
+.fl-break{flex:0 0 100%; height:0; margin:0; padding:0}
+
+/* карточка «жалобы и инциденты», пока свод не загружен */
+.zh-empty{display:flex; flex-direction:column; gap:9px; align-items:flex-start;
+  font-size:13px; color:var(--ink-2); line-height:1.5; padding:2px 0 4px}
+.zh-empty b{color:var(--ink)}
+.zh-empty code{font-family:var(--mono); font-size:12px; background:var(--surface-2);
+  border:1px solid var(--line); border-radius:5px; padding:1px 5px}
+.zh-bad{color:var(--crit)}
+.zh-meta{font-size:12px; color:var(--ink-3)}
+.filters .btn{margin-left:auto}
+
+/* ---------- живой режим: дашборд внутри вкладки АРМ ЕДДС ---------- */
+.live-badge{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:3px 10px; border-radius:999px; font-size:11.5px; font-weight:700;
+  background:var(--good-bg); color:var(--good); white-space:nowrap;
+}
+.live-badge.busy{background:var(--warn-bg); color:var(--warn)}
+.live-badge.bad{background:var(--crit-bg); color:var(--crit)}
+.live-badge[hidden]{display:none}
+.live-dot{width:7px; height:7px; border-radius:50%; background:currentColor}
+.live-badge.busy .live-dot{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+.live-dates{display:flex; gap:14px; justify-content:center; margin:18px 0 20px; flex-wrap:wrap}
+.live-dates label{display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:700;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); text-align:left}
+.live-dates input{
+  font:inherit; font-size:14px; padding:7px 10px; border-radius:8px;
+  border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+}
+/* поле периода в живом режиме перезапрашивает данные — помечаем это визуально */
+.f.live-req > label::after{content:' ↻'; color:var(--accent); font-weight:700}
+
+/* мультивыбор */
+.ms{position:relative}
+.ms-btn{
+  display:flex; align-items:center; gap:8px; width:100%; min-width:150px; max-width:250px;
+  padding:6px 9px; border-radius:7px; border:1px solid var(--line);
+  background:var(--surface-2); font-size:13px; cursor:pointer; text-align:left;
+}
+.ms-btn:hover{border-color:var(--accent)}
+.ms.on .ms-btn{border-color:var(--accent); background:var(--accent-soft)}
+.ms-lab{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ms-car{color:var(--ink-3); font-size:10px}
+.ms-cnt{
+  background:var(--accent); color:#fff; border-radius:999px;
+  padding:0 6px; font-size:11px; font-weight:700; font-variant-numeric:tabular-nums;
+}
+.ms-panel{
+  position:absolute; top:calc(100% + 5px); left:0; z-index:40; min-width:260px; max-width:340px;
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  box-shadow:var(--shadow); padding:8px; display:flex; flex-direction:column; gap:7px;
+}
+.ms-panel[hidden]{display:none}
+.ms-search{width:100%; max-width:none !important}
+.ms-acts{display:flex; gap:6px}
+.ms-acts button{
+  flex:1; padding:4px 8px; font-size:11.5px; font-weight:650; cursor:pointer;
+  border:1px solid var(--line); border-radius:6px; background:var(--surface-2);
+}
+.ms-acts button:hover{border-color:var(--accent); color:var(--accent)}
+.ms-list{max-height:250px; overflow:auto; display:flex; flex-direction:column}
+.ms-opt{
+  display:flex; align-items:flex-start; gap:8px; padding:5px 6px;
+  border-radius:6px; cursor:pointer; font-size:13px; line-height:1.35;
+}
+.ms-opt:hover{background:var(--surface-2)}
+.ms-opt input{margin:2px 0 0; max-width:none; accent-color:var(--accent)}
+.ms-opt.hide{display:none}
+.ms-empty{padding:8px 6px; color:var(--ink-3); font-size:12.5px}
+
+/* ---------- лист «Динамика»: отчётный период против периода сравнения ---------- */
+.dyn-bar{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end}
+.dyn-when{display:flex; flex-wrap:wrap; gap:22px; margin-top:12px;
+  font-size:12.5px; color:var(--ink-2); line-height:1.5}
+.dyn-when .tag{display:block; font-size:10px; font-weight:700; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3)}
+.dyn-when b{color:var(--ink); font-variant-numeric:tabular-nums}
+.dyn-msg{flex:0 0 100%; line-height:1.5}
+.dyn-hint{color:var(--ink-2)}
+.dyn-load{margin-top:2px}
+.dyn-vs{align-self:center; padding:0 2px; font-size:11px; font-weight:700;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+.dyn-warn{color:var(--serious)}
+.dyn-bad{color:var(--crit)}
+/* Знак изменения сам по себе ничего не говорит: рост числа устранённых — это
+   хорошо, рост числа аварий — плохо. Поэтому стрелка показывает направление,
+   а цвет берётся из объявленной у метрики «хорошести», а не из знака. */
+.d-up::before{content:'\25b2\00a0'; font-size:8px; vertical-align:1px}
+.d-dn::before{content:'\25bc\00a0'; font-size:8px; vertical-align:1px}
+.d-good{color:var(--good); font-weight:700}
+.d-bad{color:var(--crit); font-weight:700}
+.d-flat{color:var(--ink-3)}
+.row-grp > td{background:var(--surface-2); color:var(--ink-2); font-weight:700;
+  font-size:10.5px; letter-spacing:.06em; text-transform:uppercase}
+.kpi .d{font-size:12px; font-weight:700; font-variant-numeric:tabular-nums}
+
+/* ---------- KPI ---------- */
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:12px}
+.kpi{
+  padding:14px 16px; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r); box-shadow:var(--shadow);
+  display:flex; flex-direction:column; gap:5px;
+  border-left:3px solid var(--accent);
+}
+.kpi.k-crit{border-left-color:var(--crit)}
+.kpi.k-warn{border-left-color:var(--serious)}
+.kpi .v{font-size:26px; font-weight:750; letter-spacing:-.03em; font-variant-numeric:tabular-nums; line-height:1.1}
+.kpi .s{font-size:11.5px; color:var(--ink-2)}
+
+/* ---------- карточки ---------- */
+.card{
+  background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden;
+}
+.card > header{
+  display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+  padding:13px 16px; border-bottom:1px solid var(--line-soft);
+}
+.card > header h3{font-size:13.5px; font-weight:700}
+.card > header .note{font-size:11.5px; color:var(--ink-3); margin-left:auto}
+/* переключатель группировки времени */
+.seg{display:flex; gap:2px; padding:2px; border-radius:7px; background:var(--surface-2); border:1px solid var(--line)}
+.seg button{
+  padding:3px 10px; font-size:11.5px; font-weight:650; cursor:pointer;
+  border:0; background:transparent; border-radius:5px; color:var(--ink-2);
+}
+.seg button:hover{color:var(--accent)}
+.seg button[aria-pressed="true"]{background:var(--accent); color:#fff}
+.card .body{padding:14px 16px}
+
+.charts{display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:16px}
+/* карточки в ряду одной высоты, короткая диаграмма центрируется, а не липнет к верху */
+.chart-wrap{overflow-x:auto; display:flex; flex-direction:column; justify-content:center}
+svg{display:block; width:100%; height:auto}
+.g-line{stroke:var(--grid); stroke-width:1}
+.ax{fill:var(--ink-3); font-size:13px; font-family:var(--sans)}
+.val{fill:var(--ink-2); font-size:13px; font-weight:650; font-family:var(--sans)}
+.bar{transition:opacity .12s}
+.bar:hover{opacity:.75}
+
+/* ---------- сводная ---------- */
+.pivot-tools{display:flex; gap:8px; margin-left:auto}
+table{border-collapse:collapse; width:100%; font-size:12.5px}
+th{
+  text-align:left; font-weight:700; font-size:10.5px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--ink-3);
+  padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
+  position:sticky; top:0; background:var(--surface); z-index:2;
+}
+th.sortable{cursor:pointer}
+th.sortable:hover{color:var(--accent)}
+td{padding:6px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+td.r,th.r{text-align:right; font-variant-numeric:tabular-nums}
+td.c,th.c{text-align:center}
+.scroll{max-height:620px; overflow:auto}
+/* короткая таблица с заранее известным числом строк: обрезанная последняя
+   строка читается как поломка, а прокручивать там нечего */
+.scroll-full{max-height:none}
+
+.row-mr > td{background:var(--surface-2); font-weight:700}
+.row-rso > td:first-child{padding-left:26px}
+.row-id > td:first-child{padding-left:46px}
+/* в списке заявок дерева нет — ступенчатый отступ там ни к чему */
+.row-id.flat > td:first-child{padding-left:10px}
+.row-more > td{padding:10px; background:var(--surface-2)}
+.row-total > td{background:var(--accent-soft); font-weight:750; border-top:1px solid var(--accent)}
+/* итог стоит первой строкой — отделяем его снизу, а не сверху */
+.row-total.top > td{border-top:0; border-bottom:2px solid var(--accent)}
+.tw{cursor:pointer; user-select:none}
+.tw .caret{display:inline-block; width:13px; color:var(--ink-3); font-size:10px}
+
+.pill{
+  display:inline-block; padding:1px 8px; border-radius:999px;
+  font-size:11px; font-weight:700; white-space:nowrap;
+}
+.p-crit{background:var(--crit-bg); color:var(--crit)}
+.p-warn{background:var(--warn-bg); color:var(--warn)}
+.p-ser{background:var(--serious-bg); color:var(--serious)}
+.p-good{background:var(--good-bg); color:var(--good)}
+.p-mute{background:var(--surface-2); color:var(--ink-3)}
+
+/* перечисление объектов/причин в ячейке */
+.cnt{font-size:11px; font-weight:700; color:var(--ink-3); font-variant-numeric:tabular-nums}
+.mute{color:var(--ink-3)}
+.clip{display:block; max-width:250px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+.more{display:flex; justify-content:center; padding:12px}
+
+/* ---------- модалка ---------- */
+.modal{
+  position:fixed; inset:0; z-index:60; display:none;
+  align-items:center; justify-content:center; padding:20px;
+  background:rgba(6,10,13,.55);
+}
+.modal.open{display:flex}
+.modal-box{
+  background:var(--surface); border-radius:14px; border:1px solid var(--line);
+  max-width:760px; width:100%; max-height:86vh; overflow:auto; box-shadow:var(--shadow);
+}
+.modal-box header{
+  position:sticky; top:0; background:var(--surface); z-index:1;
+  display:flex; align-items:center; gap:12px; padding:16px 20px;
+  border-bottom:1px solid var(--line);
+}
+.modal-box header h3{font-size:16px; margin-right:auto}
+.modal-box .body{padding:18px 20px}
+.kv{display:grid; grid-template-columns:minmax(140px,190px) 1fr; gap:7px 16px; font-size:13px}
+.kv dt{color:var(--ink-3); font-size:11.5px; font-weight:650; text-transform:uppercase; letter-spacing:.05em; padding-top:2px}
+.kv dd{margin:0; font-variant-numeric:tabular-nums}
+.msg{
+  margin-top:18px; padding:13px 15px; border-radius:9px;
+  background:var(--surface-2); border:1px solid var(--line-soft);
+  font-size:13px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere;
+}
+
+#tip{
+  position:fixed; z-index:70; pointer-events:none; display:none;
+  background:var(--ink); color:var(--ground); padding:6px 10px; border-radius:7px;
+  font-size:12px; font-weight:600; box-shadow:var(--shadow); white-space:nowrap;
+}
+
+.foot{padding:8px 20px 28px; color:var(--ink-3); font-size:11.5px; line-height:1.7}
+@media (prefers-reduced-motion: reduce){*{transition:none !important}}
+</style>
+</head><body>
+<nav style="padding:12px 24px;background:#fff;border-bottom:1px solid #ddd;display:flex;gap:16px;align-items:center;flex-wrap:wrap"><a href="/">← В систему</a><strong>ЕДДС · контроль заявок</strong><button id="eddsRefresh" type="button">Обновить жалобы Добродела</button><span id="eddsStatus" role="status"></span></nav>
+<div class="topbar">
+  <div class="brand">
+    <strong>Мониторинг ЕДДС — задержка доклада о технологических нарушениях</strong>
+    <span id="scope">Объекты водоснабжения и водоотведения: ВЗУ, сети ВС, КНС, КОС, сети ВО</span>
+  </div>
+  <div class="tabs" id="tabs" role="tablist" aria-label="Листы отчёта" hidden>
+    <button type="button" role="tab" data-page="lead"  aria-selected="true">Руководителю</button>
+    <button type="button" role="tab" data-page="delay" aria-selected="false">Задержка доклада</button>
+    <button type="button" role="tab" data-page="dyn"   aria-selected="false">Динамика</button>
+  </div>
+  <span class="live-badge" id="live-badge" hidden><span class="live-dot"></span><span id="live-text"></span></span>
+  <input type="file" id="file" accept=".xlsx,.json" hidden>
+  <button class="btn" id="pick">Загрузить выгрузку</button>
+  <input type="file" id="zh-file" accept=".xlsx,.json" hidden>
+  <button class="btn" id="zh-pick"
+          title="Свод жалоб ДоброДел/ЕЦУР для графика на листе «Руководителю»">Жалобы</button>
+  <button class="btn btn-primary" id="xls" disabled>Скачать Excel</button>
+</div>
+
+<div id="landing">
+  <!-- живой режим: дашборд открыт внутри АРМ ЕДДС, файлы не нужны -->
+  <div class="drop" id="live-start" hidden>
+    <h2>Отчёт по Московской области за период</h2>
+    <p>Данные подтянутся прямо из АРМ ЕДДС — ничего скачивать и перетаскивать не нужно</p>
+    <div class="live-dates">
+      <label>Начало<input type="date" id="lv-from"></label>
+      <label>Окончание<input type="date" id="lv-to"></label>
+    </div>
+    <button class="btn btn-primary" id="lv-go">Загрузить</button>
+    <div class="hint">
+      Запрос идёт от вашего имени в уже открытой сессии — только чтение сводного отчёта.<br>
+      Область запрашивается целиком, поэтому длинный период читается по многим страницам:<br>
+      начните с недели, дальше период можно менять прямо в фильтрах.
+    </div>
+  </div>
+
+  <div class="drop" id="drop">
+    <h2>Перетащите сюда выгрузку <span class="mono">svod_doc</span></h2>
+    <p>Файл <span class="mono">.xlsx</span> с кнопки «Excel» в АРМ ЕДДС —
+       или <span class="mono">.json</span> от кнопки-закладки, снятый прямо со страницы отчёта</p>
+    <button class="btn btn-primary" id="pick2">Выбрать файл</button>
+    <div class="hint">
+      Разбор идёт целиком в браузере — файл никуда не отправляется.<br>
+      Из выгрузки отбираются инциденты по объектам ВС/ВО, считается задержка<br>
+      между возникновением события и его фиксацией в системе.
+    </div>
+  </div>
+  <div class="err" id="err" hidden></div>
+</div>
+
+<main id="app" hidden>
+  <div class="filters" id="filters"></div>
+
+  <!-- ЛИСТ 1: сводная картина для руководителя -->
+  <section class="page" id="page-lead" role="tabpanel" aria-label="Руководителю">
+    <div class="kpis" id="lead-kpis"></div>
+    <div class="charts" id="lead-charts"></div>
+
+    <section class="card">
+      <header>
+        <h3>Аварийность в разрезе ОМСУ и РСО</h3>
+        <span class="note" id="lead-note">ОМСУ → РСО → заявка</span>
+        <div class="pivot-tools">
+          <button class="btn btn-sm" id="lv-collapse">Свернуть всё</button>
+          <button class="btn btn-sm" id="lv-expand">Развернуть ОМСУ</button>
+          <button class="btn btn-sm" id="lv-flat" aria-pressed="false"
+            title="Показать заявки сплошным списком, с ОМСУ и РСО отдельными столбцами">В разрезе заявок</button>
+        </div>
+      </header>
+      <div class="scroll"><table id="lead-tbl"></table></div>
+    </section>
+  </section>
+
+  <!-- ЛИСТ 2: контроль своевременности доклада -->
+  <section class="page" id="page-delay" role="tabpanel" aria-label="Задержка доклада" hidden>
+    <div class="kpis" id="kpis"></div>
+    <div class="charts" id="charts"></div>
+
+    <section class="card">
+      <header>
+        <h3>Сводная: среднее время от возникновения до фиксации</h3>
+        <span class="note">ОМСУ → РСО → заявка</span>
+        <div class="pivot-tools">
+          <button class="btn btn-sm" id="pv-collapse">Свернуть всё</button>
+          <button class="btn btn-sm" id="pv-expand">Развернуть РСО</button>
+        </div>
+      </header>
+      <div class="scroll"><table id="pivot"></table></div>
+    </section>
+
+    <section class="card">
+      <header>
+        <h3>Реестр инцидентов</h3>
+        <span class="note" id="tbl-note"></span>
+      </header>
+      <div class="scroll"><table id="tbl"></table></div>
+      <div class="more" id="more" hidden><button class="btn btn-sm" id="more-btn">Показать ещё</button></div>
+    </section>
+  </section>
+
+  <!-- ЛИСТ 3: тот же срез в двух окнах времени -->
+  <section class="page" id="page-dyn" role="tabpanel" aria-label="Динамика" hidden>
+    <section class="card">
+      <header>
+        <h3>Что с чем сравниваем</h3>
+        <span class="note">оба окна задаются здесь и фильтр периода в шапке не трогают</span>
+      </header>
+      <div class="body">
+        <div class="dyn-bar">
+          <div class="f">
+            <label for="dy-afrom">Период с</label>
+            <input id="dy-afrom" type="date">
+          </div>
+          <div class="f">
+            <label for="dy-ato">по</label>
+            <input id="dy-ato" type="date">
+          </div>
+          <div class="dyn-vs">против</div>
+          <div class="f">
+            <label for="dy-from">Базы сравнения с</label>
+            <input id="dy-from" type="date">
+          </div>
+          <div class="f">
+            <label for="dy-to">по</label>
+            <input id="dy-to" type="date">
+          </div>
+          <button class="btn btn-sm" id="dy-prev"
+            title="Столько же дней подряд непосредственно перед отчётным периодом">Предыдущий период</button>
+          <button class="btn btn-sm" id="dy-year"
+            title="Тот же интервал год назад">Год назад</button>
+          <button class="btn btn-sm" id="dy-clear"
+            title="Очистить оба окна: отчётный период вернётся к фильтру в шапке">Сбросить</button>
+        </div>
+        <div class="dyn-when" id="dy-when"></div>
+      </div>
+    </section>
+
+    <div class="kpis" id="dyn-kpis"></div>
+    <div class="charts" id="dyn-charts"></div>
+
+    <section class="card">
+      <header>
+        <h3>Метрики: отчётный период против периода сравнения</h3>
+        <span class="note" id="dyn-note"></span>
+      </header>
+      <div class="scroll scroll-full"><table id="dyn-tbl"></table></div>
+    </section>
+
+    <section class="card">
+      <header>
+        <h3>Изменение в разрезе ОМСУ</h3>
+        <span class="note" id="dyn-omsu-note"></span>
+      </header>
+      <div class="scroll"><table id="dyn-omsu"></table></div>
+    </section>
+
+    <section class="card">
+      <header>
+        <h3>Изменение в разрезе РСО</h3>
+        <span class="note">жалоб здесь нет: в своде ЕЦУР только округа, без исполнителя</span>
+      </header>
+      <div class="scroll"><table id="dyn-rso"></table></div>
+    </section>
+  </section>
+
+  <div class="foot" id="foot"></div>
+</main>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <header>
+      <h3 id="m-title">Заявка</h3>
+      <button class="btn btn-sm" id="m-copy">Копировать ID</button>
+      <button class="btn btn-sm" id="m-close">Закрыть</button>
+    </header>
+    <div class="body" id="m-body"></div>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   1. Правила предметной области
+   ============================================================ */
+const NORM_H = 72;                       // норматив уведомления о плановых работах, часов
+const WATER = [
+  ['obj_vzu','ВЗУ'], ['obj_vs','Сети водоснабжения'], ['obj_kns','КНС'],
+  ['obj_kos','КОС'], ['obj_vo','Сети водоотведения'],
+];
+
+/* ---------- живой режим ----------
+   Из файла на диске (file://) до сайта не достучаться: браузер не пустит межсайтовый
+   запрос и не отдаст куки сессии. Поэтому живой режим включается только тогда, когда
+   дашборд открыт внутри самой вкладки АРМ ЕДДС — там запросы к отчёту идут как
+   обычные внутренние, под уже выполненным входом. В остальных случаях работает
+   привычный приём файла. */
+const SITE = {
+  host: 'zkh-kontur.mosreg.ru',
+  path: '/new9/',
+  act:  'cds_report_svod',
+  id:   '3608',
+  omsu: '0',                             // «Московская область» в справочнике ОМСУ: все округа сразу
+  res:  ['res_ts','res_vs','res_vo','res_gvs','res_es','res_gs'],
+};
+// Обычно определяется по адресу системы. Параметр ?live=1 включает режим принудительно —
+// пригодится, если АРМ откроют по другому имени хоста, и для проверки на стенде.
+const LIVE = false; // Embedded dashboard uses uploaded ARM exports.
+
+// Колонки таблицы отчёта идут ровно в том же порядке, что и строка машинных имён полей
+// в выгрузке Excel. Благодаря этому оба источника отдают build() одинаковую сетку.
+const FIELDS = [
+  'id_cds_claim','name_mr','ispolnitel','files','name_gp_sp','text_message',
+  'is_excavation_work_required','vost_rab','t_ov','d_create','d_doklad','d_close','t_ustr',
+  'fio_zayavitel','fio_peredal','socr','d_svod','type_otkl','t_narushenie','t_narushenie2',
+  't_narushenie3','res_ts','res_gvs','res_vs','res_vo','res_es','res_gs',
+  'obj_koteln','obj_ctp','obj_ts','obj_vzu','obj_vs','obj_kns','obj_kos','obj_vo','obj_es',
+  'obj_gs','obj_tp','ved_pr1','ved_pr2','ved_pr3','ved_pr4','ved_pr5','ved_pr6','ved_pr7',
+  'pr_tn_utechka_teplo','pr_tn_utechka_hvs','pr_tn_utechka_vodootv','pr_tn_kotel','pr_tn_vzu',
+  'pr_tn_kns','pr_tn_elektroproboy','pr_tn_povr_gaz','pr_tn_zamena_trub','pr_tn_zamena_armatura',
+  'pr_tn_new_potreb','pr_tn_plan_elektro','pr_tn_gidro_ispyt','pr_tn_kratko_otkl','pr_tn_plan_gaz',
+  'pr_tn_ctp_work','pr_tn_pribor_ucheta','cnt_people','cnt_nas_punkt','cnt_mkd','cnt_bolnic',
+  'cnt_polikl','cnt_school','cnt_det_sad','fio_poluchil',
+];
+const PRICH = [
+  ['pr_tn_utechka_teplo','Утечка на теплосети'],
+  ['pr_tn_utechka_hvs','Утечка на сетях ХВС'],
+  ['pr_tn_utechka_vodootv','Утечка на сетях водоотведения'],
+  ['pr_tn_kotel','Технарушение в котельной'],
+  ['pr_tn_vzu','Технарушение в ВЗУ'],
+  ['pr_tn_kns','Технарушение в КНС'],
+  ['pr_tn_elektroproboy','Электропробой КЛ, ВС'],
+  ['pr_tn_povr_gaz','Повреждение газопровода'],
+  ['pr_tn_zamena_trub','Замена участка трубопровода'],
+  ['pr_tn_zamena_armatura','Замена запорно-регулирующей арматуры'],
+  ['pr_tn_new_potreb','Присоединение новых потребителей'],
+  ['pr_tn_plan_elektro','Плановые работы на электрооборудовании'],
+  ['pr_tn_gidro_ispyt','Гидравлические испытания'],
+  ['pr_tn_kratko_otkl','Кратковременное отключение электроэнергии'],
+  ['pr_tn_plan_gaz','Плановые работы на газовом оборудовании'],
+  ['pr_tn_ctp_work','Работы на оборудовании ЦТП'],
+  ['pr_tn_pribor_ucheta','Установка/замена приборов учета'],
+];
+const BUCKETS = [
+  ['≤10 мин', -1e9, 10], ['10–30 мин', 10, 30], ['30–60 мин', 30, 60],
+  ['1–3 ч', 60, 180], ['3–24 ч', 180, 1440], ['>24 ч', 1440, 1e9],
+];
+// порядковая шкала синего (светлый / тёмный шаг) — величина растёт слева направо
+const RAMP = ['#86b6ef','#6da7ec','#3987e5','#256abf','#184f95','#0d366b'];
+const RAMP_D = ['#184f95','#1c5cab','#256abf','#3987e5','#5598e7','#86b6ef'];
+
+/* ============================================================
+   2. Чтение xlsx без внешних библиотек
+   ZIP → deflate-raw через DecompressionStream → XML через DOMParser
+   ============================================================ */
+function readZip(buf){
+  const dv = new DataView(buf), n = buf.byteLength;
+  let eocd = -1;
+  for(let i = n - 22; i >= Math.max(0, n - 66000); i--){
+    if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd < 0) throw new Error('Файл не похож на .xlsx — не найден конец ZIP-архива.');
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const files = new Map();
+  for(let i = 0; i < count; i++){
+    if(dv.getUint32(p, true) !== 0x02014b50) break;
+    const method   = dv.getUint16(p + 10, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const nameLen  = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const cmtLen   = dv.getUint16(p + 32, true);
+    const lho      = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(new Uint8Array(buf, p + 46, nameLen));
+    const lnLen = dv.getUint16(lho + 26, true);
+    const leLen = dv.getUint16(lho + 28, true);
+    files.set(name, { method, off: lho + 30 + lnLen + leLen, compSize });
+    p += 46 + nameLen + extraLen + cmtLen;
+  }
+  return files;
+}
+
+async function entryText(buf, e){
+  if(!e) return null;
+  const raw = new Uint8Array(buf, e.off, e.compSize);
+  if(e.method === 0) return new TextDecoder().decode(raw);
+  if(e.method !== 8) throw new Error('Неподдерживаемый метод сжатия в архиве: ' + e.method);
+  if(typeof DecompressionStream === 'undefined')
+    throw new Error('Браузер не умеет распаковывать deflate. Нужен современный Chrome, Edge или Firefox.');
+  const st = new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return await new Response(st).text();
+}
+
+const XP = new DOMParser();
+function parseXml(t){
+  const d = XP.parseFromString(t, 'application/xml');
+  if(d.querySelector('parsererror')) throw new Error('Не удалось разобрать XML внутри файла.');
+  return d;
+}
+function colIndex(ref){            // "AB12" -> 27
+  let n = 0;
+  for(const ch of ref){
+    const c = ch.charCodeAt(0);
+    if(c >= 65 && c <= 90) n = n * 26 + (c - 64); else break;
+  }
+  return n;
+}
+
+async function readWorkbook(buf){
+  const files = readZip(buf);
+  const wbXml = await entryText(buf, files.get('xl/workbook.xml'));
+  if(!wbXml) throw new Error('В архиве нет xl/workbook.xml — это не книга Excel.');
+  const relsXml = await entryText(buf, files.get('xl/_rels/workbook.xml.rels'));
+
+  const relMap = new Map();
+  if(relsXml){
+    for(const r of parseXml(relsXml).getElementsByTagName('Relationship')){
+      let t = r.getAttribute('Target') || '';
+      if(t.startsWith('/')) t = t.slice(1); else if(!t.startsWith('xl/')) t = 'xl/' + t;
+      relMap.set(r.getAttribute('Id'), t.replace('xl/../',''));
+    }
+  }
+  const sheets = [];
+  for(const s of parseXml(wbXml).getElementsByTagName('sheet')){
+    const rid = s.getAttribute('r:id') || s.getAttributeNS(
+      'http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');
+    sheets.push({ name: s.getAttribute('name'), path: relMap.get(rid) });
+  }
+
+  // общие строки
+  const ssXml = await entryText(buf, files.get('xl/sharedStrings.xml'));
+  const shared = [];
+  if(ssXml){
+    for(const si of parseXml(ssXml).getElementsByTagName('si')){
+      let s = '';
+      for(const t of si.getElementsByTagName('t')) s += t.textContent;
+      shared.push(s);
+    }
+  }
+
+  // нужный лист
+  let target = sheets.find(s => s.name === 'svod_doc') || sheets[0];
+  if(!target || !target.path || !files.get(target.path))
+    throw new Error('В книге не найден лист с данными.');
+  const shXml = await entryText(buf, files.get(target.path));
+  const doc = parseXml(shXml);
+
+  const grid = [];
+  for(const row of doc.getElementsByTagName('row')){
+    const rIdx = parseInt(row.getAttribute('r'), 10);
+    const arr = [];
+    let auto = 0;
+    for(const c of row.getElementsByTagName('c')){
+      const ref = c.getAttribute('r');
+      const ci = ref ? colIndex(ref) : ++auto;
+      auto = ci;
+      const t = c.getAttribute('t');
+      let v = null;
+      if(t === 'inlineStr'){
+        const is = c.getElementsByTagName('is')[0];
+        if(is){ v = ''; for(const tt of is.getElementsByTagName('t')) v += tt.textContent; }
+      }else{
+        const ve = c.getElementsByTagName('v')[0];
+        if(ve){
+          const raw = ve.textContent;
+          if(t === 's') v = shared[+raw] ?? '';
+          else if(t === 'str' || t === 'e') v = raw;
+          else if(t === 'b') v = raw === '1' ? 'ИСТИНА' : 'ЛОЖЬ';
+          else v = raw === '' ? null : Number(raw);
+        }
+      }
+      arr[ci - 1] = v;
+    }
+    grid[rIdx - 1] = arr;
+  }
+  return { grid, sheetName: target.name };
+}
+
+/* ============================================================
+   2а. Чтение отчёта прямо с сайта (живой режим)
+   ============================================================ */
+
+// дата поля <input type="date"> (ГГГГ-ММ-ДД) -> формат сайта (ДД.ММ.ГГ)
+const siteDay = iso => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  return m ? m[3] + '.' + m[2] + '.' + m[1].slice(2) : '';
+};
+
+function reportUrl(ot, doo, page){
+  const q = ['act=' + SITE.act, 'id=' + SITE.id,
+             'date_ot=' + encodeURIComponent(ot), 'date_do=' + encodeURIComponent(doo),
+             'id_tu_mun_raion=' + SITE.omsu]
+    // услуги запрашиваем все: они фильтруют по прерванному ресурсу, а отбор идёт
+    // по объектам ВС/ВО — сняв любую, мы потеряли бы заявки ещё на стороне сайта
+    .concat(SITE.res.map(r => r + '=1'))
+    .concat(['page=' + page]);
+  return SITE.path + '?' + q.join('&');
+}
+
+function rowsOfReport(doc){
+  let trs = doc.querySelectorAll('table.table-height tr');
+  if(!trs.length) trs = doc.querySelectorAll('table tr');
+  const out = [];
+  for(const tr of trs){
+    if(!tr.querySelector('td')) continue;          // строки шапки пропускаем
+    out.push([...tr.children].map(td => td.textContent.trim()));
+  }
+  return out;
+}
+
+// Тянет отчёт за период, обходя пагинацию. say() — показ хода работы.
+async function fetchReport(ot, doo, say){
+  const get = async p => {
+    let r;
+    try{ r = await fetch(reportUrl(ot, doo, p), { credentials: 'same-origin' }); }
+    catch(_){ throw new Error('Не получилось обратиться к АРМ ЕДДС. Проверьте связь и что система открыта.'); }
+    if(!r.ok) throw new Error('АРМ ЕДДС ответил кодом ' + r.status + ' на странице ' + p + '.');
+    const t = await r.text();
+    const doc = new DOMParser().parseFromString(t, 'text/html');
+    if(!doc.querySelector('table') && /act=login/.test(t))
+      throw new Error('Похоже, сессия истекла. Войдите в АРМ ЕДДС заново и повторите запрос.');
+    return doc;
+  };
+
+  const first = await get(1);
+  const nums = [...first.querySelectorAll('.pagination a.page-link')]
+    .map(a => +((/[?&]page=(\d+)/.exec(a.getAttribute('href') || '') || [])[1] || 0))
+    .filter(n => n > 0);
+  const last = nums.length ? Math.max(...nums) : 1;
+
+  const grid = [FIELDS];
+  let bad = 0, badLen = 0;
+  const take = doc => {
+    for(const r of rowsOfReport(doc)){
+      // строка не той ширины — молча принять её нельзя: поля разъедутся
+      if(r.length !== FIELDS.length){ bad++; badLen = r.length; continue; }
+      grid.push(r);
+    }
+  };
+  take(first);
+  for(let p = 2; p <= last; p++){
+    if(say) say('Читаю страницу ' + p + ' из ' + last + '…');
+    take(await get(p));
+  }
+  if(bad && grid.length === 1)
+    throw new Error('В таблице отчёта ' + badLen + ' колонок вместо ' + FIELDS.length +
+      ' — похоже, сайт переверстали. Пока пользуйтесь выгрузкой в Excel.');
+  return { grid, pages: last, bad, badLen };
+}
+
+/* ============================================================
+   3. Обработка: те же правила, что и в Excel-выгрузке
+   ============================================================ */
+const S = v => (v === null || v === undefined) ? '' : String(v).trim();
+
+function parseDT(s){
+  const m = /^(\d{2})\.(\d{2})\.(\d{2})\s+(\d{1,2}):(\d{2})/.exec(S(s));
+  if(!m) return null;
+  const y = 2000 + (+m[3]), mo = (+m[2]) - 1, d = +m[1];
+  const dt = new Date(y, mo, d, +m[4], +m[5]);
+  if(dt.getMonth() !== mo || dt.getDate() !== d) return null;   // 31.02 и подобное
+  return dt;
+}
+// В исходнике встречаются только три единицы: день, час, мин.
+function durMin(s){
+  const t = S(s);
+  if(!t) return null;
+  const d = /(\d+)\s*(?:день|дн|сут)/.exec(t);
+  const h = /(\d+)\s*час/.exec(t);
+  const m = /(\d+)\s*мин/.exec(t);
+  if(!d && !h && !m) return null;
+  return (d ? +d[1] * 1440 : 0) + (h ? +h[1] * 60 : 0) + (m ? +m[1] : 0);
+}
+const numOf = v => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
+const r2 = v => Math.round(v * 100) / 100;
+
+function build(grid){
+  // строка машинных имён полей — там, где первая ячейка равна id_cds_claim
+  let hdr = -1;
+  for(let i = 0; i < Math.min(grid.length, 40); i++){
+    if(grid[i] && S(grid[i][0]) === 'id_cds_claim'){ hdr = i; break; }
+  }
+  if(hdr < 0) throw new Error('В листе не найдена строка с именами полей (id_cds_claim). Похоже, это другая выгрузка.');
+  const F = new Map();
+  grid[hdr].forEach((v, i) => { const n = S(v); if(n && !F.has(n)) F.set(n, i); });
+  for(const need of ['name_mr','ispolnitel','d_create','d_doklad','type_otkl'])
+    if(!F.has(need)) throw new Error('В выгрузке нет обязательного поля «' + need + '».');
+
+  const get = (row, name) => F.has(name) ? row[F.get(name)] : null;
+  const rows = grid.slice(hdr + 1).filter(r => r && S(r[0]) !== '');
+
+  const recs = [];
+  let total = 0;
+  for(const row of rows){
+    total++;
+    const objs = WATER.filter(([f]) => S(get(row, f)) === '1').map(([, l]) => l);
+    if(!objs.length) continue;                       // выборка: только объекты ВС/ВО
+
+    const start = parseDT(get(row, 'd_create'));
+    const fix   = parseDT(get(row, 'd_doklad'));
+    const close = parseDT(get(row, 'd_close'));
+    const diff  = (start && fix) ? r2((fix - start) / 3600000) : null;
+    const type  = S(get(row, 'type_otkl')).replace('00. ', '');
+    const dm    = durMin(get(row, 't_ustr'));
+
+    // Аномалия: доклад раньше события по аварийной/неплановой заявке.
+    // У плановых отрицательная разница — штатное уведомление заранее.
+    const anom = (diff !== null && diff < 0 &&
+                  (type === 'Аварийная заявка' || type === 'Неплановая заявка')) ? 'Да' : 'Нет';
+
+    // Счётчики охвата иногда заполнены как -1: в исходной системе это прочерк
+    // «не указано», а не отрицательное количество. Считаем такие значения неизвестными:
+    // в таблицах — «—», в суммах не участвуют.
+    const cnt = f => { const n = numOf(get(row, f)); return (n === null || n < 0) ? null : n; };
+    const socParts = ['cnt_bolnic','cnt_polikl','cnt_school','cnt_det_sad'].map(cnt);
+
+    // Плановые: о работах должно быть известно минимум за NORM_H часов до начала.
+    let plan3 = '', short = null;
+    if(type === 'Плановая заявка' && diff !== null){
+      const lead = -diff;
+      if(lead >= NORM_H) plan3 = 'Да';
+      else { plan3 = 'Нет'; short = r2(NORM_H - lead); }
+    }
+
+    recs.push({
+      id: S(get(row, 'id_cds_claim')),
+      omsu: S(get(row, 'name_mr')),
+      rso: S(get(row, 'ispolnitel')),
+      start, fix, close, diff, anom, plan3, short, type,
+      obj: objs.join('; '),
+      objs,
+      people: cnt('cnt_people'),
+      mkd: cnt('cnt_mkd'),
+      np: cnt('cnt_nas_punkt'),
+      // если хоть одна составляющая не указана, общее число соцобъектов неизвестно
+      soc: socParts.includes(null) ? null : socParts.reduce((x, v) => x + v, 0),
+      ustrTxt: S(get(row, 't_ustr')),
+      ustrH: dm === null ? null : r2(dm / 60),
+      status: close ? 'Устранено' : 'В работе',
+      prichs: PRICH.filter(([f]) => S(get(row, f)) === '1').map(([, l]) => l),
+      prich: PRICH.filter(([f]) => S(get(row, f)) === '1').map(([, l]) => l).join('; '),
+      text: S(get(row, 'text_message')),
+    });
+  }
+  if(!recs.length){
+    // помечаем случай «данных нет» отдельно: в живом режиме это обычный пустой
+    // период, а не сломанная выгрузка, и говорить о нём надо иначе
+    const e = new Error('В выгрузке нет ни одного инцидента по объектам ВС/ВО.');
+    e.empty = true;
+    throw e;
+  }
+  recs.sort((a, b) => (a.diff === null) - (b.diff === null) || (b.diff ?? 0) - (a.diff ?? 0));
+
+  const dates = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
+  return { recs, total, from: dates[0] || null, to: dates[dates.length - 1] || null };
+}
+
+/* ============================================================
+   4. Состояние и фильтры
+   ============================================================ */
+let DATA = null;          // {recs,total,from,to}
+let VIEW = [];            // отфильтровано
+let LIMIT = 100;
+let SORT = { key: 'diff', dir: -1 };
+const collapsed = new Set();      // свёрнутые узлы сводной (лист «Задержка доклада»)
+const lcollapsed = new Set();     // свёрнутые ОМСУ в сводке руководителя
+const lopenRso = new Set();       // РСО там по умолчанию закрыты: раскрываются только вручную
+let PAGE = 'lead';                // активный лист: lead | delay
+
+const FILTERS = [
+  { k:'type',   label:'Тип отключения' },
+  { k:'status', label:'Статус' },
+  { k:'plan3',  label:'Уведомили за 3 суток' },
+  { k:'anom',   label:'Аномалия' },
+  { k:'omsu',   label:'ОМСУ' },
+  { k:'rso',    label:'РСО' },
+  { k:'obj',    label:'Объект' },
+  { k:'prich',  label:'Причина' },
+];
+// фильтры, где у одной заявки может быть отмечено сразу несколько значений
+const MULTI = { obj: 'objs', prich: 'prichs' };
+const sel = {};                       // ключ фильтра -> Set выбранных значений
+let query = '';
+let period = { from: null, to: null };   // границы по дате возникновения события
+let ppl = { min: null, max: null, na: false };  // диапазон охвата жителей, na = брать и «не указано»
+
+/* ============================================================
+   Жалобы ДоброДел / ЕЦУР рядом с инцидентами
+   До ДоброДела дашборд не достучится сам: другой домен и своя авторизация.
+   Счётчики приносит локальный помощник кликера (server.py, порт 8765), а если
+   он не запущен — обычная выгрузка файлом. Храним только свод
+   «день → ОМСУ → [ХВС, водоотведение, ГВС]»: ни текстов жалоб, ни адресов
+   здесь нет, поэтому он спокойно лежит в памяти браузера.
+   ============================================================ */
+const ZH_KEY = 'edds_water_complaints_v1';
+const ZH_URL = '/edds/water-daily';
+let ZH = null;        // разобранный свод
+let ZH_NOTE = '';     // чем объяснить пустую карточку
+let ZH_BUILDING = false;   // кликер прямо сейчас идёт в ДоброДел
+let ZHG = 'auto';          // группировка оси жалоб: auto | day | month
+
+/* Память браузера не резиновая: свод, который только растёт, однажды упрётся
+   в квоту, и тогда localStorage начнёт молча отказывать в записи. Поэтому
+   держим последние ZH_KEEP дней (трёх лет хватает на любые сравнения год к
+   году), а если записать всё равно не вышло — отрезаем четверть самых старых
+   дней и пробуем ещё раз. Свежий хвост важнее давней истории. */
+const ZH_KEEP = 1100;
+function zhTrim(days, keep){
+  const all = Object.keys(days).sort();
+  if(all.length <= keep) return false;
+  for(const d of all.slice(0, all.length - keep)) delete days[d];
+  return true;
+}
+function zhSave(){
+  if(!ZH || !ZH.days) return;
+  try{ localStorage.setItem(ZH_KEY, JSON.stringify(ZH)); return; }catch(_){}
+  const all = Object.keys(ZH.days).sort();
+  if(!zhTrim(ZH.days, Math.floor(all.length * 0.75))) return;
+  const left = Object.keys(ZH.days).sort();
+  ZH.from = left[0]; ZH.to = left[left.length - 1];
+  try{ localStorage.setItem(ZH_KEY, JSON.stringify(ZH)); }catch(_){}
+}
+
+/* Свод копится, а не переписывается. Кликер каждый раз приносит своё окно, и
+   оно бывает узким — в неделю: если класть его вместо старого, история за
+   прошлые месяцы пропадёт, а окно свода схлопнется до последнего запуска.
+   Поэтому день из свежего сбора замещает такой же день в памяти (сбор за него
+   полнее), а дни, которых в новом окне нет, остаются как были. Так свод только
+   растёт: назад — глубиной сбора, вперёд — каждым новым запуском. */
+let zhChanged = false;
+function zhMerge(days, source){
+  if(!days || typeof days !== 'object') return false;
+  const base = (ZH && ZH.days) ? ZH.days : {};
+  let changed = false;
+  for(const d in days){
+    if(JSON.stringify(base[d]) !== JSON.stringify(days[d])){ base[d] = days[d]; changed = true; }
+  }
+  zhTrim(base, ZH_KEEP);
+  const all = Object.keys(base).sort();
+  if(!all.length) return false;
+  ZH = { updated: (changed || !ZH) ? fmtDT(new Date()) : ZH.updated,
+         from: all[0], to: all[all.length - 1],
+         source: source || (ZH && ZH.source) || '', days: base };
+  ZH_NOTE = '';
+  if(changed){ zhChanged = true; zhSave(); }
+  return changed;
+}
+
+/* Классификация «по воде». Инциденты в дашборде — это объекты ВС/ВО: ВЗУ, сети
+   водоснабжения, КНС, КОС, сети водоотведения, то есть холодная вода и стоки.
+   ГВС там отдельный ресурс и в выборку не входит, поэтому в линию его не кладём,
+   но считаем отдельно — цифра не теряется и видна в подсказке.
+   Границы слова заданы явно: \b в JS работает только по латинице. */
+const ZH_GVS = /горяч[а-яё]*\s*вод|(?<![а-яё])гвс(?![а-яё])/i;
+const ZH_VO  = /водоотвед|канализ|очистн|септик|выгреб|(?<![а-яё])стоки(?![а-яё])|(?<![а-яё])к[но]с(?![а-яё])/i;
+const ZH_HVS = /холодн[а-яё]*\s*вод|водоснабж|водопровод|водозабор|водоразбор|колонк|скважин|подвоз[а-яё]*\s*вод|качеств[а-яё]*\s*вод|ржав|(?<![а-яё])хвс(?![а-яё])/i;
+
+function zhKind(subcat, fact, cat){
+  const t = [subcat, fact, cat].map(x => String(x ?? '')).join(' ');
+  if(ZH_GVS.test(t)) return 2;      // ГВС
+  if(ZH_VO.test(t))  return 1;      // водоотведение
+  if(ZH_HVS.test(t)) return 0;      // ХВС
+  return -1;
+}
+
+/* «Дата создания» приходит строкой ГГГГ-ММ-ДД или ДД.ММ.ГГГГ, из книги Excel —
+   объектом Date либо серийным числом. Приводим всё к 'ГГГГ-ММ-ДД'. */
+function zhDay(v){
+  if(v instanceof Date && !isNaN(v)) return isoDay(v);
+  if(typeof v === 'number' && v > 20000 && v < 80000)
+    return isoDay(new Date(Date.UTC(1899, 11, 30 + Math.floor(v))));
+  const t = String(v ?? '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if(m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = /^(\d{2})\.(\d{2})\.(\d{4})/.exec(t);
+  if(m) return m[3] + '-' + m[2] + '-' + m[1];
+  m = /^(\d{2})\.(\d{2})\.(\d{2})(?!\d)/.exec(t);
+  if(m) return '20' + m[3] + '-' + m[2] + '-' + m[1];
+  return null;
+}
+
+/* Названия округов в ЕДДС и ЕЦУР пишут по-разному: «г.о. Люберцы» и «Люберцы»,
+   «Наро-Фоминский» и «Наро-Фоминск». Сводим к общему виду и сверяем по началу
+   слова — этого хватает, чтобы совпали все округа области. */
+const zhNorm = x => String(x ?? '').toLowerCase().replace(/ё/g, 'е')
+  .replace(/городско[йг]о? округ|муниципальн[ыо][йг]о? округ|г\s*\.?\s*о\s*\.?|м\s*\.?\s*о\s*\.?|округ|район/g, ' ')
+  .replace(/[^a-zа-я0-9]+/g, '');
+const zhStem = x => { const n = zhNorm(x); return n.slice(0, Math.min(6, n.length)); };
+
+/* Сборка свода из сетки «заголовок + строки»: выгрузка ЕЦУР xlsx или JSON кликера. */
+function zhIngest(grid){
+  if(!Array.isArray(grid) || !Array.isArray(grid[0]))
+    throw new Error('Ожидалась таблица выгрузки: первая строка — заголовки колонок.');
+  const H = grid[0].map(x => String(x ?? '').trim().toLowerCase());
+  const col = (names, fb) => { for(const n of names){ const i = H.indexOf(n); if(i >= 0) return i; } return fb; };
+  const iDist = col(['район','омсу','территория'], 2),
+        iCat  = col(['категория ецур','категория'], 3),
+        iSub  = col(['подкатегория ецур','подкатегория'], 4),
+        iFact = col(['ецур факт','факт'], 5),
+        iCre  = col(['дата создания','дата подачи'], 8);
+  const days = {};
+  let hit = 0;
+  for(let i = 1; i < grid.length; i++){
+    const r = grid[i];
+    if(!r || !r.length) continue;
+    const k = zhKind(r[iSub], r[iFact], r[iCat]);
+    if(k < 0) continue;
+    const d = zhDay(r[iCre]);
+    if(!d) continue;
+    const omsu = String(r[iDist] ?? '').trim() || '—';
+    const day = days[d] || (days[d] = {});
+    const cell = day[omsu] || (day[omsu] = [0, 0, 0]);
+    cell[k]++; hit++;
+  }
+  if(!hit) throw new Error('В файле не нашлось жалоб по воде. Нужна выгрузка ЕЦУР ' +
+    'с колонками «Район», «Подкатегория ЕЦУР», «ЕЦУР факт» и «Дата создания».');
+  zhMerge(days, 'выгрузка ЕЦУР файлом');
+}
+
+/* Сколько жалоб по воде в каждый день — с учётом фильтра по ОМСУ. Остальные
+   фильтры (тип, РСО, объект, причина, жители) к жалобам неприменимы: в своде
+   этих полей нет, и на карточке это оговорено. */
+function zhDayCounts(){
+  const out = new Map();
+  if(!ZH || !ZH.days) return out;
+  const sm = sel.omsu;
+  const want = (sm && sm.size) ? new Set([...sm].map(zhStem)) : null;
+  for(const day in ZH.days){
+    let n = 0, gvs = 0;
+    const byOmsu = ZH.days[day];
+    for(const omsu in byOmsu){
+      if(want && !want.has(zhStem(omsu))) continue;
+      const v = byOmsu[omsu];
+      n += (v[0] || 0) + (v[1] || 0);
+      gvs += (v[2] || 0);
+    }
+    out.set(day, { n, gvs });
+  }
+  return out;
+}
+
+/* Границы, по которым жалобы сопоставимы с заявками: если период не сужен
+   фильтром, берём диапазон самих инцидентов. Иначе неделя заявок сравнивалась бы
+   с 60 днями свода, и жалоб оказалось бы кратно больше просто из-за окна. */
+function zhBounds(){
+  let lo = null, hi = null;
+  for(const r of VIEW){
+    if(!r.start) continue;
+    const d = isoDay(r.start);
+    if(lo === null || d < lo) lo = d;
+    if(hi === null || d > hi) hi = d;
+  }
+  return { from: period.from ? isoDay(period.from) : lo,
+           to:   period.to   ? isoDay(period.to)   : hi };
+}
+
+/* Насколько свод отстал от сегодняшнего дня. Молча устаревший свод — худший
+   случай: цифры выглядят настоящими, просто новых дней в них нет, и понять это
+   можно только заметив пропажу. Поэтому отставание пишем прямо в подписи. */
+function zhLag(){
+  if(!ZH || !ZH.to) return null;
+  const last = dayStart(ZH.to);
+  if(!last) return null;
+  const days = Math.round((dayStart(isoDay(new Date())) - last) / 86400000);
+  return days >= 2 ? { last: last, days: days } : null;
+}
+
+/* Пересечение окна, за которое смотрим заявки, с окном свода. null — свод этот
+   период не покрывает, и тогда показывать 0 нельзя: ноль читается как «жалоб не
+   было», а на деле их просто не собирали. */
+function zhCover(){
+  const b = zhBounds();
+  if(!ZH || !ZH.from || !ZH.to || !b.from || !b.to) return null;
+  const from = b.from > ZH.from ? b.from : ZH.from;
+  const to   = b.to   < ZH.to   ? b.to   : ZH.to;
+  if(from > to) return null;
+  const d = (a, z) => Math.round((dayStart(z) - dayStart(a)) / 86400000) + 1;
+  const days = d(from, to), want = d(b.from, b.to);
+  return { from, to, days, want, full: days >= want, ask: b };
+}
+
+/* Жалобы по воде в разрезе ОМСУ. Ключ — «стебель» названия: в ЕДДС округ
+   записан иначе, чем в ЕЦУР. */
+function zhOmsuCounts(){
+  const out = new Map();
+  if(!ZH || !ZH.days) return out;
+  const b = zhCover();
+  if(!b) return out;
+  for(const day in ZH.days){
+    if(day < b.from || day > b.to) continue;
+    const byOmsu = ZH.days[day];
+    for(const omsu in byOmsu){
+      const v = byOmsu[omsu], k = zhStem(omsu);
+      out.set(k, (out.get(k) || 0) + (v[0] || 0) + (v[1] || 0));
+    }
+  }
+  return out;
+}
+
+async function zhFetch(){
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 2500);
+  try{
+    const r = await fetch(ZH_URL, { signal: ctl.signal, cache: 'no-store' });
+    if(!r.ok) throw new Error('помощник ответил ' + r.status);
+    const j = await r.json();
+    ZH_BUILDING = !!(j && j.building);
+    if(j && j.days){ zhMerge(j.days, j.source || 'помощник кликера'); return true; }
+    ZH_NOTE = (j && j.error) ? j.error : 'Помощник ответил, но свода в ответе нет.';
+  }catch(e){
+    ZH_BUILDING = false;
+    ZH_NOTE = e.name === 'AbortError'
+      ? 'Помощник кликера не ответил за 2,5 секунды.'
+      : 'Не удалось получить свод с сервера системы.';
+  }finally{ clearTimeout(t); }
+  return false;
+}
+
+/* Пока помощник собирает свод, переспрашиваем часто — график появится сам,
+   как только кликер вернётся с портала. В остальное время спрашиваем раз в пять
+   минут и не перестаём: помощник мог подняться уже после открытия листа, а свод
+   обязан догонять сегодняшний день, пока лист открыт. Иначе к концу смены
+   последний собранный день отстаёт от заявок, пересечения окон нет — и карточка
+   жалоб молча пропадает. */
+const ZH_EVERY = 300000;   // обычная проверка помощника
+const ZH_SOON  = 15000;    // пока кликер идёт в ДоброДел
+let zhTries = 0, zhTimer = null, zhSig = null;
+async function zhPoll(){
+  if(zhTimer){ clearTimeout(zhTimer); zhTimer = null; }
+  zhChanged = false;
+  const ok = await zhFetch();
+  // пересобираем весь лист: свод кормит и графики, и колонку «Жалоб ЕЦУР» в сводной.
+  // но только когда есть что показать заново: фоновая проверка не должна на ровном
+  // месте перерисовывать лист под руками у дежурного
+  const sig = (ZH ? ZH.from + '..' + ZH.to : '-') + '|' + ZH_BUILDING + '|' + ZH_NOTE;
+  if(DATA && (zhChanged || sig !== zhSig)) applyFilters();
+  zhSig = sig;
+  if(!ok && ZH_BUILDING && zhTries < 20){
+    zhTries++;
+    zhTimer = setTimeout(zhPoll, ZH_SOON);
+  }else{
+    zhTries = 0;
+    zhTimer = setTimeout(zhPoll, ZH_EVERY);
+  }
+}
+
+
+let req = { from: '', to: '' };          // запрошенный у сайта период, строки ГГГГ-ММ-ДД
+let liveBusy = false, liveArmed = false, liveTimer = null;
+const setOf = k => (sel[k] || (sel[k] = new Set()));
+
+function optionsFor(k){
+  const s = new Set();
+  const mk = MULTI[k];
+  for(const r of DATA.recs){
+    if(mk){
+      if(r[mk].length) r[mk].forEach(o => s.add(o));
+      else s.add(NO_CAUSE);            // заявки без отмеченной причины тоже нужно уметь отобрать
+    }
+    else s.add(String(r[k]));          // '' тоже вариант: «норматив не применим»
+  }
+  return [...s].sort((a, b) =>
+    a === '' ? -1 : b === '' ? 1 :
+    a === NO_CAUSE ? 1 : b === NO_CAUSE ? -1 :   // «причина не указана» — в конец списка
+    a.localeCompare(b, 'ru'));
+}
+
+function passes(r){
+  if(period.from || period.to){
+    if(!r.start) return false;                     // без даты возникновения судить не о чем
+    if(period.from && r.start < period.from) return false;
+    if(period.to && r.start > period.to) return false;
+  }
+  return passesBase(r);
+}
+
+/* Все фильтры, кроме периода. Отдельно от passes() ради листа «Динамика»: там
+   один и тот же срез считается в двух окнах времени, и окно — единственное,
+   что между ними отличается. Если бы период сидел внутри, период сравнения
+   отфильтровалась бы по текущему периоду и всегда выходила пустой. */
+function passesBase(r){
+  if(ppl.min !== null || ppl.max !== null){
+    // охват не указан (в выгрузке прочерк) — в диапазон не попадает, пока не разрешили галочкой
+    if(r.people === null){ if(!ppl.na) return false; }
+    else if((ppl.min !== null && r.people < ppl.min) ||
+            (ppl.max !== null && r.people > ppl.max)) return false;
+  }
+  for(const { k } of FILTERS){
+    const s = sel[k];
+    if(!s || !s.size) continue;        // пустой набор = «все»
+    const mk = MULTI[k];
+    if(mk){
+      const vals = r[mk].length ? r[mk] : [NO_CAUSE];
+      if(!vals.some(v => s.has(v))) return false;
+    }
+    else if(!s.has(String(r[k]))) return false;
+  }
+  const q = query.trim().toLowerCase();
+  if(q){
+    const hay = (r.id + ' ' + r.omsu + ' ' + r.rso + ' ' + r.obj + ' ' + r.prich + ' ' + r.text).toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function applyFilters(){
+  VIEW = DATA.recs.filter(passes);
+  LIMIT = 100;
+  // все листы считаются от одной и той же выборки — фильтры общие
+  renderLeadKpis(); renderLeadTable(); renderLeadCharts();
+  renderKpis(); renderCharts(); renderPivot(); renderTable(); renderFoot();
+  renderDyn();
+}
+
+function setPage(p){
+  PAGE = p;
+  document.getElementById('page-lead').hidden  = p !== 'lead';
+  document.getElementById('page-delay').hidden = p !== 'delay';
+  document.getElementById('page-dyn').hidden   = p !== 'dyn';
+  document.querySelectorAll('#tabs [data-page]').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.page === p)));
+  fillCharts(p);   // у скрытого листа ширины не было — рисуем при показе
+}
+
+/* ============================================================
+   5. Отрисовка
+   ============================================================ */
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtN = (v, d = 0) => v === null || v === undefined || Number.isNaN(v)
+  ? '—' : v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtDT = d => d ? d.toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', year:'numeric',
+                                                   hour:'2-digit', minute:'2-digit' }) : '—';
+// десятичные часы -> читаемое «26 ч 46 мин»; знак сохраняем (доклад мог быть заранее)
+function fmtHM(h){
+  if(h === null || h === undefined || Number.isNaN(h)) return '—';
+  const total = Math.round(Math.abs(h) * 60);
+  const hh = Math.floor(total / 60), mm = total % 60;
+  const s = hh === 0 ? mm + ' мин' : mm === 0 ? hh + ' ч' : hh + ' ч ' + mm + ' мин';
+  return (h < 0 ? '−' : '') + s;
+}
+// подсказка с точным десятичным значением
+const hTip = h => (h === null || h === undefined || Number.isNaN(h)) ? '' : `title="${fmtN(h, 2)} ч"`;
+
+// работа с полем <input type="date">: значение всегда «ГГГГ-ММ-ДД» по местному времени
+const isoDay = d => d ? d.getFullYear() + '-' +
+  String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : '';
+const dayStart = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], 0, 0, 0, 0) : null; };
+const dayEnd = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], 23, 59, 59, 999) : null; };
+const median = a => { if(!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+
+const optLabel = v => v === '' ? '— не применимо' : v;
+
+function msLabel(k){
+  const s = setOf(k), n = s.size;
+  const wrap = document.querySelector(`.ms[data-k="${k}"]`);
+  if(!wrap) return;
+  const lab = wrap.querySelector('.ms-lab');
+  wrap.classList.toggle('on', n > 0);
+  const old = wrap.querySelector('.ms-cnt');
+  if(old) old.remove();
+  if(n === 0){ lab.textContent = 'Все'; return; }
+  lab.textContent = n === 1 ? optLabel([...s][0]) : [...s].map(optLabel).join(', ');
+  if(n > 1){
+    const b = document.createElement('span');
+    b.className = 'ms-cnt'; b.textContent = n;
+    wrap.querySelector('.ms-btn').insertBefore(b, wrap.querySelector('.ms-car'));
+  }
+}
+
+function renderFilters(){
+  const el = document.getElementById('filters');
+
+  // выбранные значения, которых в новых данных больше нет, убираем: иначе после
+  // смены периода фильтр молча отсекал бы всё подряд
+  for(const f of FILTERS){
+    const s = sel[f.k];
+    if(!s || !s.size) continue;
+    const ok = new Set(optionsFor(f.k));
+    for(const v of [...s]) if(!ok.has(v)) s.delete(v);
+  }
+
+  // в живом режиме период не ограничен загруженными данными — можно запросить любой
+  const dFrom = LIVE ? (req.from || isoDay(DATA.from)) : isoDay(DATA.from);
+  const dTo   = LIVE ? (req.to   || isoDay(DATA.to))   : isoDay(DATA.to);
+  const bound = LIVE ? '' : ` min="${isoDay(DATA.from)}" max="${isoDay(DATA.to)}"`;
+
+  // верх шкалы охвата берём из самих данных, чтобы подсказка не была абстрактной
+  const pplTop = fmtN(DATA.recs.reduce((m, r) => r.people !== null && r.people > m ? r.people : m, 0));
+  const pplOn = ppl.min !== null || ppl.max !== null;
+
+  el.innerHTML = FILTERS.map(f => {
+    const opts = optionsFor(f.k);
+    return `
+    <div class="f ms" data-k="${f.k}">
+      <label id="lb-${f.k}">${esc(f.label)}</label>
+      <button type="button" class="ms-btn" aria-expanded="false" aria-labelledby="lb-${f.k}">
+        <span class="ms-lab">Все</span><span class="ms-car">▾</span>
+      </button>
+      <div class="ms-panel" hidden>
+        ${opts.length > 10 ? '<input class="ms-search" type="search" placeholder="Найти…" aria-label="Поиск по списку">' : ''}
+        <div class="ms-acts">
+          <button type="button" data-act="all">Выбрать все</button>
+          <button type="button" data-act="none">Снять</button>
+        </div>
+        <div class="ms-list">
+          ${opts.map(v => `<label class="ms-opt">
+              <input type="checkbox" value="${esc(v)}"><span>${esc(optLabel(v))}</span>
+            </label>`).join('')}
+          <div class="ms-empty" hidden>Ничего не найдено</div>
+        </div>
+      </div>
+    </div>`; }).join('') + `
+    <div class="f${LIVE ? ' live-req' : ''}">
+      <label for="fl-from">${LIVE ? 'Период с — запрос к ЕДДС' : 'Период с (начало события)'}</label>
+      <input id="fl-from" type="date" value="${dFrom}"${bound}>
+    </div>
+    <div class="f${LIVE ? ' live-req' : ''}">
+      <label for="fl-to">по</label>
+      <input id="fl-to" type="date" value="${dTo}"${bound}>
+    </div>
+    ${LIVE ? '<button class="btn" id="fl-reload" title="Перезапросить отчёт за выбранный период">↻ Обновить</button>' : ''}
+    <div class="f f-grow">
+      <label for="fl-q">Поиск по адресу, ID, причине</label>
+      <input id="fl-q" type="search" placeholder="например: Ногинск или 425044">
+    </div>
+
+    <div class="fl-break"></div>
+    <div class="f f-range${pplOn ? ' on' : ''}" id="f-ppl">
+      <label for="pp-min">Жителей затронуто</label>
+      <div class="rg-row">
+        <input id="pp-min" type="number" min="0" step="1" inputmode="numeric"
+               placeholder="любое" value="${ppl.min ?? ''}" aria-label="Жителей затронуто, от">
+        <span class="rg-dash">—</span>
+        <input id="pp-max" type="number" min="0" step="1" inputmode="numeric"
+               placeholder="любое" value="${ppl.max ?? ''}" aria-label="Жителей затронуто, до">
+        <label class="rg-na" title="Заявки, где охват населения в выгрузке не указан (прочерк). Без галочки диапазон их отсекает.">
+          <input type="checkbox" id="pp-na"${ppl.na ? ' checked' : ''}> без данных
+        </label>
+        <span class="rg-hint">пустое поле — без ограничения · в текущей выборке от 0 до ${pplTop} чел.</span>
+      </div>
+    </div>
+    <button class="btn" id="fl-reset">Сбросить всё</button>`;
+
+  el.querySelectorAll('.ms').forEach(wrap => {
+    const k = wrap.dataset.k;
+    const panel = wrap.querySelector('.ms-panel');
+    const btn = wrap.querySelector('.ms-btn');
+
+    btn.addEventListener('click', () => {
+      const open = !panel.hidden;
+      closeAllPanels();
+      if(open) return;
+      panel.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      panel.querySelector('.ms-search')?.focus();
+    });
+
+    panel.addEventListener('change', e => {
+      const cb = e.target.closest('input[type=checkbox]');
+      if(!cb) return;
+      const s = setOf(k);
+      cb.checked ? s.add(cb.value) : s.delete(cb.value);
+      msLabel(k); applyFilters();
+    });
+
+    panel.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+      const s = setOf(k);
+      const boxes = [...panel.querySelectorAll('.ms-opt:not(.hide) input')];
+      if(b.dataset.act === 'all') boxes.forEach(c => { c.checked = true; s.add(c.value); });
+      else boxes.forEach(c => { c.checked = false; s.delete(c.value); });
+      msLabel(k); applyFilters();
+    }));
+
+    const search = panel.querySelector('.ms-search');
+    search?.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      let shown = 0;
+      panel.querySelectorAll('.ms-opt').forEach(o => {
+        const hit = o.textContent.toLowerCase().includes(q);
+        o.classList.toggle('hide', !hit);
+        if(hit) shown++;
+      });
+      panel.querySelector('.ms-empty').hidden = shown > 0;
+    });
+  });
+
+  // выбор в мультифильтрах должен пережить перерисовку после нового запроса
+  el.querySelectorAll('.ms').forEach(w => {
+    const k = w.dataset.k, s = sel[k];
+    if(s && s.size) w.querySelectorAll('input[type=checkbox]').forEach(c => { c.checked = s.has(c.value); });
+    msLabel(k);
+  });
+
+  const fFrom = document.getElementById('fl-from');
+  const fTo = document.getElementById('fl-to');
+  const readPeriod = byUser => {
+    period.from = dayStart(fFrom.value);
+    period.to = dayEnd(fTo.value);
+    // не даём выбрать «по» раньше «с»
+    fTo.min = fFrom.value || (LIVE ? '' : isoDay(DATA.from));
+    fFrom.max = fTo.value || (LIVE ? '' : isoDay(DATA.to));
+    applyFilters();
+    // в живом режиме смена периода — это новый запрос к ЕДДС, а не фильтр по загруженному
+    if(LIVE && byUser){ req.from = fFrom.value; req.to = fTo.value; scheduleLive(); }
+  };
+  fFrom.addEventListener('change', () => readPeriod(true));
+  fTo.addEventListener('change', () => readPeriod(true));
+  readPeriod(false);
+
+  const pMin = document.getElementById('pp-min');
+  const pMax = document.getElementById('pp-max');
+  const pNa  = document.getElementById('pp-na');
+  // пустое поле = граница не задана; минус и прочий мусор просто отбрасываем
+  const pplNum = v => { const n = parseInt(String(v).replace(/\D/g, ''), 10);
+    return Number.isFinite(n) ? n : null; };
+  const readPpl = () => {
+    ppl.min = pplNum(pMin.value);
+    ppl.max = pplNum(pMax.value);
+    ppl.na  = pNa.checked;
+    document.getElementById('f-ppl').classList.toggle('on', ppl.min !== null || ppl.max !== null);
+    applyFilters();
+  };
+  let tp;
+  [pMin, pMax].forEach(i => i.addEventListener('input', () => {
+    clearTimeout(tp); tp = setTimeout(readPpl, 250);
+  }));
+  pNa.addEventListener('change', readPpl);
+
+  const reload = document.getElementById('fl-reload');
+  if(reload) reload.addEventListener('click', () => {
+    req.from = fFrom.value; req.to = fTo.value;
+    loadLive();
+  });
+
+  let t;
+  document.getElementById('fl-q').addEventListener('input', e => {
+    clearTimeout(t); t = setTimeout(() => { query = e.target.value; applyFilters(); }, 200);
+  });
+  document.getElementById('fl-reset').addEventListener('click', () => {
+    for(const k of Object.keys(sel)) delete sel[k];
+    query = '';
+    el.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+    el.querySelectorAll('.ms').forEach(w => msLabel(w.dataset.k));
+    document.getElementById('fl-q').value = '';
+    ppl.min = ppl.max = null; ppl.na = false;
+    pMin.value = ''; pMax.value = '';
+    document.getElementById('f-ppl').classList.remove('on');
+    // в живом режиме сброс не должен дёргать сайт — возвращаем запрошенный период
+    fFrom.value = LIVE ? (req.from || isoDay(DATA.from)) : isoDay(DATA.from);
+    fTo.value   = LIVE ? (req.to   || isoDay(DATA.to))   : isoDay(DATA.to);
+    closeAllPanels();
+    readPeriod(false);
+  });
+}
+
+function closeAllPanels(){
+  document.querySelectorAll('.ms-panel').forEach(p => {
+    p.hidden = true;
+    p.parentElement.querySelector('.ms-btn').setAttribute('aria-expanded', 'false');
+  });
+}
+
+function renderKpis(){
+  const d = VIEW.map(r => r.diff).filter(v => v !== null);
+  const anom = VIEW.filter(r => r.anom === 'Да').length;
+  const pl = VIEW.filter(r => r.plan3 !== '');
+  const plNo = pl.filter(r => r.plan3 === 'Нет').length;
+  const work = VIEW.filter(r => r.status === 'В работе').length;
+  const over24 = d.filter(v => v > 24).length;
+  const people = VIEW.reduce((a, r) => a + r.people, 0);
+
+  const tiles = [
+    ['Инцидентов', fmtN(VIEW.length), 'из ' + fmtN(DATA.recs.length) + ' по объектам ВС/ВО', ''],
+    ['Среднее время фиксации', fmtHM(avg(d)), 'медиана ' + fmtHM(median(d)), ''],
+    ['Дольше суток', fmtN(over24), over24 ? 'заявок с задержкой > 24 ч' : 'нет', over24 ? 'k-crit' : ''],
+    ['Аномалий', fmtN(anom), 'доклад раньше аварии', anom ? 'k-crit' : ''],
+    ['Плановые: нарушен срок', pl.length ? fmtN(plNo) : '—',
+      pl.length ? 'из ' + fmtN(pl.length) + ' плановых (норматив ' + NORM_H + ' ч)' : 'плановых заявок нет',
+      plNo ? 'k-warn' : ''],
+    ['В работе', fmtN(work), 'без времени завершения', work ? 'k-warn' : ''],
+    ['Жителей затронуто', fmtN(people), 'сумма по заявкам, без дедупликации', ''],
+  ];
+  document.getElementById('kpis').innerHTML = tiles.map(([t, v, s, cls]) => `
+    <div class="kpi ${cls}">
+      <div class="eyebrow">${esc(t)}</div>
+      <div class="v">${esc(v)}</div>
+      <div class="s">${esc(s)}</div>
+    </div>`).join('');
+}
+
+/* ---------- графики (SVG вручную, без библиотек) ---------- */
+const isDark = () => {
+  const t = document.documentElement.getAttribute('data-theme');
+  if(t === 'dark') return true;
+  if(t === 'light') return false;
+  return matchMedia('(prefers-color-scheme: dark)').matches;
+};
+const ramp = i => (isDark() ? RAMP_D : RAMP)[Math.min(i, 5)];
+
+function tipOn(el, text){
+  el.addEventListener('mousemove', e => {
+    const t = document.getElementById('tip');
+    t.textContent = text; t.style.display = 'block';
+    const x = Math.min(e.clientX + 14, innerWidth - t.offsetWidth - 8);
+    t.style.left = x + 'px'; t.style.top = (e.clientY + 16) + 'px';
+  });
+  el.addEventListener('mouseleave', () => { document.getElementById('tip').style.display = 'none'; });
+}
+
+// «круглый» верх шкалы, чтобы деления читались
+function niceMax(v){
+  if(v <= 5) return Math.max(1, Math.ceil(v));
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  return Math.ceil(v / (p / 2)) * (p / 2);
+}
+
+// вертикальные столбцы; W — фактическая ширина карточки в пикселях
+function barsV(data, unit, W){
+  W = Math.round(W || 640);
+  const H = Math.round(Math.min(320, Math.max(210, W * 0.42)));
+  const ml = 52, mr = 14, mt = 20, mb = 40;
+  const iw = W - ml - mr, ih = H - mt - mb;
+  const max = niceMax(Math.max(1, ...data.map(d => d.v)));
+  const bw = iw / data.length;
+  // при частоколе столбцов подписи прореживаем до ~14 штук, числа над столбцами убираем
+  const dense = data.length > 12;
+  const every = Math.max(1, Math.ceil(data.length / 14));
+  const pad = Math.min(6, Math.max(0.15, bw * 0.18));   // зазор соразмерен ширине столбца
+  let g = '';
+  for(let i = 0; i <= 4; i++){
+    const y = mt + ih - ih * i / 4;
+    g += `<line class="g-line" x1="${ml}" y1="${y}" x2="${W - mr}" y2="${y}"/>
+          <text class="ax" x="${ml - 8}" y="${y + 4.5}" text-anchor="end">${fmtN(Math.round(max * i / 4))}</text>`;
+  }
+  const bars = data.map((d, i) => {
+    const h = Math.max(d.v > 0 ? 2 : 0, ih * d.v / max);
+    const x = ml + i * bw + pad, y = mt + ih - h, w = Math.max(0.8, bw - pad * 2);
+    // последнюю подпись не рисуем, если она села бы вплотную к предыдущей
+    const showLab = i % every === 0 ||
+                    (i === data.length - 1 && (data.length - 1) % every > every / 2);
+    return `<g class="bar" data-tip="${esc(d.k)}: ${fmtN(d.v)}${unit ? ' ' + unit : ''}">
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" ry="4" fill="${d.c || ramp(i)}"/>
+        <rect x="${x}" y="${Math.max(y, mt + ih - 4)}" width="${w}" height="${Math.min(4, h)}" fill="${d.c || ramp(i)}"/>
+        ${(!dense && d.v > 0) ? `<text class="val" x="${x + w / 2}" y="${y - 6}" text-anchor="middle">${fmtN(d.v)}</text>` : ''}
+        ${showLab ? `<text class="ax" x="${x + w / 2}" y="${H - 13}" text-anchor="middle">${esc(d.k)}</text>` : ''}
+      </g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">${g}${bars}
+    <line class="g-line" x1="${ml}" y1="${mt + ih}" x2="${W - mr}" y2="${mt + ih}"/></svg>`;
+}
+
+// горизонтальные столбцы; hours = подписывать длительностью «26 ч 46 мин»;
+// W — фактическая ширина карточки: колонка подписей и высота строки подстраиваются под неё,
+// чтобы на узкой карточке диаграмма не сжималась вместе с текстом
+function barsH(data, unit, dec, hours, W){
+  W = Math.round(W || 640);
+  const mt = 8, mr = hours ? 118 : 70;
+  // высота строки: мало строк — строки выше, диаграмма заполняет карточку
+  const rowH = Math.min(46, Math.max(26, Math.round(340 / Math.max(data.length, 1))));
+  const barH = Math.max(11, Math.round(rowH * 0.5));
+  // 7 px на символ — оценка для кириллицы 13 px; заниженная приводила к обрезке подписи слева
+  const longest = data.reduce((a, d) => Math.max(a, d.k.length), 0);
+  const ml = Math.round(Math.min(Math.max(longest * 7 + 16, 110), W * 0.52));
+  const maxCh = Math.max(8, Math.floor((ml - 16) / 7));
+  const H = mt + data.length * rowH + 10, iw = Math.max(40, W - ml - mr);
+  const max = Math.max(...data.map(d => d.v), 0.0001);
+  const c = isDark() ? '#5598e7' : '#2a78d6';
+  const lab = d => hours ? fmtHM(d.v) : fmtN(d.v, dec);
+  const tip = d => esc(d.k) + ' — ' + lab(d) +
+    (hours ? ` (${fmtN(d.v, 2)} ч)` : (unit ? ' ' + unit : '')) +
+    (d.n ? ', заявок: ' + d.n : '');
+  const bars = data.map((d, i) => {
+    const y = mt + i * rowH, w = Math.max(d.v > 0 ? 2 : 0, iw * d.v / max);
+    const by = y + (rowH - barH) / 2;          // столбец по центру строки
+    const ty = y + rowH / 2 + 4.5;             // базовая линия подписи там же
+    return `<g class="bar" data-tip="${tip(d)}">
+        <text class="ax" x="${ml - 10}" y="${ty}" text-anchor="end">${esc(d.k.length > maxCh ? d.k.slice(0, maxCh - 1) + '…' : d.k)}</text>
+        <rect x="${ml}" y="${by}" width="${w}" height="${barH}" rx="4" ry="4" fill="${c}"/>
+        <text class="val" x="${ml + w + 8}" y="${ty}">${lab(d)}</text>
+      </g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">${bars}</svg>`;
+}
+
+/* Карточка рисуется в два прохода: сначала пустое тело, затем — когда ширина карточки
+   уже известна — сама диаграмма под эту ширину. Иначе SVG с фиксированным viewBox
+   сжимается браузером вместе с подписями и на узкой карточке всё становится мелким. */
+const SLOTS = { lead: new Map(), delay: new Map(), dyn: new Map() };
+const CHART_ROOT = { lead: 'lead-charts', delay: 'charts', dyn: 'dyn-charts' };
+const CHART_PAD = 32;   // .body padding слева и справа
+
+/* Круговая (кольцевая) диаграмма: подходит там, где категорий немного и важна доля.
+   Легенда под кругом — в неё выносятся название, число и процент. */
+function donut(data, unit, W){
+  W = Math.round(W || 640);
+  const total = data.reduce((a, d) => a + d.v, 0);
+  const R = Math.round(Math.min(W * 0.30, 118));
+  const r = Math.round(R * 0.58);
+  const cx = Math.round(W / 2), cy = R + 14;
+  const rowH = 24, legendTop = cy + R + 22;
+  const H = legendTop + data.length * rowH;
+  const pal = isDark() ? RAMP_D : RAMP;
+  const col = i => pal[data.length < 2 ? 3
+    : Math.round(i * (pal.length - 1) / (data.length - 1))];
+  const pct = v => total ? v / total * 100 : 0;
+  const pctTxt = v => fmtN(pct(v), pct(v) < 10 ? 1 : 0) + '%';
+  const tip = d => esc(d.k) + ' — ' + fmtN(d.v) + (unit ? ' ' + unit : '') + ' · ' + pctTxt(d.v);
+  const maxCh = Math.max(8, Math.floor((W - 165) / 7));
+
+  // сектора
+  let a0 = -Math.PI / 2, arcs = '';
+  data.forEach((d, i) => {
+    const frac = total ? d.v / total : 0;
+    const c = col(i);
+    if(frac >= 0.999){            // единственная категория — сплошное кольцо, дуга вырождается
+      arcs += `<g class="bar" data-tip="${tip(d)}">
+          <path d="M${cx} ${cy - R} A${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R} Z
+                   M${cx} ${cy - r} A${r} ${r} 0 1 0 ${cx - 0.01} ${cy - r} Z"
+                fill="${c}" fill-rule="evenodd"/></g>`;
+      return;
+    }
+    const a1 = a0 + frac * 2 * Math.PI;
+    const big = frac > 0.5 ? 1 : 0;
+    const px = (rad, a) => (cx + rad * Math.cos(a)).toFixed(2) + ' ' + (cy + rad * Math.sin(a)).toFixed(2);
+    arcs += `<g class="bar" data-tip="${tip(d)}">
+        <path d="M${px(R, a0)} A${R} ${R} 0 ${big} 1 ${px(R, a1)} L${px(r, a1)} A${r} ${r} 0 ${big} 0 ${px(r, a0)} Z"
+              fill="${c}"/></g>`;
+    a0 = a1;
+  });
+
+  // легенда
+  const legend = data.map((d, i) => {
+    const y = legendTop + i * rowH;
+    const name = d.k.length > maxCh ? d.k.slice(0, maxCh - 1) + '…' : d.k;
+    return `<g class="bar" data-tip="${tip(d)}">
+        <rect x="14" y="${y}" width="11" height="11" rx="2.5" fill="${col(i)}"/>
+        <text class="ax" x="33" y="${y + 10}">${esc(name)}</text>
+        <text class="val" x="${W - 14}" y="${y + 10}" text-anchor="end">${fmtN(d.v)} · ${pctTxt(d.v)}</text>
+      </g>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">${arcs}
+    <text class="val" x="${cx}" y="${cy - 2}" text-anchor="middle" style="font-size:22px">${fmtN(total)}</text>
+    <text class="ax" x="${cx}" y="${cy + 16}" text-anchor="middle">${esc(unit || 'всего')}</text>
+    ${legend}</svg>`;
+}
+
+function chartCard(scope, title, note, draw, controls){
+  const id = scope + '-' + SLOTS[scope].size;
+  SLOTS[scope].set(id, draw);
+  return `<section class="card">
+      <header><h3>${esc(title)}</h3><span class="note">${esc(note)}</span>${controls || ''}</header>
+      <div class="body chart-wrap" data-chart="${id}"></div>
+    </section>`;
+}
+
+function fillCharts(scope){
+  const root = document.getElementById(CHART_ROOT[scope]);
+  if(!root) return;
+  root.querySelectorAll('[data-chart]').forEach(el => {
+    const draw = SLOTS[scope].get(el.dataset.chart);
+    if(!draw) return;
+    const w = Math.round(el.clientWidth - CHART_PAD);
+    if(w < 120) return;                     // лист скрыт — отрисуем при показе вкладки
+    if(el.dataset.w === String(w)) return;  // ширина не изменилась, перерисовывать нечего
+    el.dataset.w = String(w);
+    el.innerHTML = draw(w);
+    el.querySelectorAll('[data-tip]').forEach(g => tipOn(g, g.dataset.tip));
+  });
+}
+
+/* группировка динамики по времени: сутки или месяцы.
+   'auto' — сам переключается на месяцы, когда период длиннее квартала */
+let timeGroup = 'auto';
+const MON = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const p2 = n => String(n).padStart(2, '0');
+
+function timeSeries(){
+  const ds = [];
+  for(const r of VIEW) if(r.start) ds.push(r.start);
+  if(!ds.length) return { arr: [], grp: 'day', span: 0 };
+  let lo = ds[0], hi = ds[0];
+  for(const d of ds){ if(d < lo) lo = d; if(d > hi) hi = d; }
+  const span = (hi - lo) / 86400000;
+  const grp = timeGroup === 'auto' ? (span > 92 ? 'month' : 'day') : timeGroup;
+
+  const m = new Map();
+  for(const d of ds){
+    const s = grp === 'month'
+      ? d.getFullYear() * 100 + d.getMonth()
+      : d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    const k = grp === 'month'
+      ? MON[d.getMonth()] + ' ' + String(d.getFullYear()).slice(2)
+      : p2(d.getDate()) + '.' + p2(d.getMonth() + 1);
+    const cur = m.get(s) || { k, v: 0, s };
+    cur.v++; m.set(s, cur);
+  }
+  return { arr: [...m.values()].sort((a, b) => a.s - b.s), grp, span };
+}
+
+function renderCharts(){
+  const withDiff = VIEW.filter(r => r.diff !== null);
+
+  // 1. распределение задержки — границы интервалов заданы в минутах
+  const hist = BUCKETS.map(([k, lo, hi]) => ({
+    k, v: withDiff.filter(r => { const m = r.diff * 60; return m > lo && m <= hi; }).length,
+  }));
+
+  // 2/3. средние по ОМСУ и РСО
+  const byKey = key => {
+    const m = new Map();
+    for(const r of withDiff){
+      if(!m.has(r[key])) m.set(r[key], []);
+      m.get(r[key]).push(r.diff);
+    }
+    return [...m.entries()]
+      .filter(([, a]) => a.length >= 5)
+      .map(([k, a]) => ({ k, v: r2(avg(a)), n: a.length }))
+      .sort((a, b) => b.v - a.v).slice(0, 10);
+  };
+  const topOmsu = byKey('omsu'), topRso = byKey('rso');
+
+  // 4. по дням
+  const ts = timeSeries();
+  const col = isDark() ? '#3987e5' : '#2a78d6';
+  const dayArr = ts.arr.map(d => ({ k: d.k, v: d.v, c: col }));
+  const seg = `<div class="seg" role="group" aria-label="Группировка динамики">
+      ${[['auto','авто'], ['day','дни'], ['month','месяцы']].map(([v, t]) =>
+        `<button type="button" data-tg="${v}" aria-pressed="${timeGroup === v}">${t}</button>`).join('')}
+    </div>`;
+  const tsNote = (ts.grp === 'month' ? 'по месяцам' : 'по дням') +
+    (timeGroup === 'auto' && ts.span > 92 ? ' · выбрано автоматически' : '');
+
+  // разрезы «по объектам» и «по причинам» живут на листе руководителя
+  const c = document.getElementById('charts');
+  SLOTS.delay.clear();
+  c.innerHTML =
+    chartCard('delay', 'Распределение задержки фиксации', 'заявок в интервале',
+      W => barsV(hist, 'заявок', W)) +
+    chartCard('delay', 'Динамика инцидентов', tsNote,
+      W => barsV(dayArr, 'заявок', W), seg) +
+    (topOmsu.length ? chartCard('delay', 'Худшие ОМСУ по среднему времени', 'от 5 заявок',
+      W => barsH(topOmsu, '', 2, true, W)) : '') +
+    (topRso.length ? chartCard('delay', 'Худшие РСО по среднему времени', 'от 5 заявок',
+      W => barsH(topRso, '', 2, true, W)) : '');
+
+  fillCharts('delay');
+  c.querySelectorAll('[data-tg]').forEach(b => b.addEventListener('click', () => {
+    timeGroup = b.dataset.tg;
+    renderCharts();
+  }));
+}
+
+/* ============================================================
+   5а. Лист «Руководителю»: аварийность, охват, сроки устранения
+   ============================================================ */
+const AVAR_TYPES = ['Аварийная заявка', 'Неплановая заявка'];
+const isAvar = r => AVAR_TYPES.includes(r.type);
+const NO_CAUSE = 'Причина не указана';
+
+// свод по произвольному набору заявок
+function aggr(list){
+  const objs = new Map(), prichs = new Map(), ust = [];
+  let people = 0, mkd = 0, soc = 0, np = 0, avar = 0, work = 0;
+  for(const r of list){
+    for(const o of r.objs) objs.set(o, (objs.get(o) || 0) + 1);
+    if(r.prichs.length) for(const p of r.prichs) prichs.set(p, (prichs.get(p) || 0) + 1);
+    else prichs.set(NO_CAUSE, (prichs.get(NO_CAUSE) || 0) + 1);
+    people += r.people; mkd += r.mkd; soc += r.soc; np += r.np;
+    if(isAvar(r)) avar++;
+    if(r.status === 'В работе') work++;
+    if(r.ustrH !== null) ust.push(r.ustrH);
+  }
+  return {
+    n: list.length, avar, work, done: list.length - work,
+    people, mkd, soc, np,
+    avgU: avg(ust), medU: median(ust), maxU: ust.length ? Math.max(...ust) : null, nU: ust.length,
+    objs, prichs,
+  };
+}
+
+// «Сети водоснабжения 66, +2» с полным перечнем в подсказке
+function topList(m, lim){
+  const arr = [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'));
+  if(!arr.length) return '<span class="mute">—</span>';
+  const head = arr.slice(0, lim).map(([k, v]) => `${esc(k)} <span class="cnt">${fmtN(v)}</span>`).join(', ');
+  const rest = arr.length - lim;
+  const full = arr.map(([k, v]) => k + ' — ' + v).join('\n');
+  return `<span class="clip" title="${esc(full)}">${head}${rest > 0 ? ` <span class="mute">+${rest}</span>` : ''}</span>`;
+}
+
+function renderLeadKpis(){
+  const a = aggr(VIEW);
+  const plan = a.n - a.avar;
+  const longU = VIEW.filter(r => r.ustrH !== null && r.ustrH > 24).length;
+  const omsuN = new Set(VIEW.map(r => r.omsu)).size;
+  const rsoN  = new Set(VIEW.map(r => r.rso)).size;
+
+  const tiles = [
+    ['Инцидентов', fmtN(a.n), 'ОМСУ: ' + fmtN(omsuN) + ' · РСО: ' + fmtN(rsoN), ''],
+    ['Аварийных и неплановых', fmtN(a.avar), 'плановых работ: ' + fmtN(plan), a.avar ? 'k-crit' : ''],
+    ['Ещё в работе', fmtN(a.work), a.work ? 'без времени устранения' : 'всё закрыто', a.work ? 'k-warn' : ''],
+    ['Устранено', fmtN(a.done), a.n ? Math.round(a.done / a.n * 100) + '% от инцидентов' : '—', ''],
+    ['Среднее время устранения', fmtHM(a.avgU), a.nU ? 'медиана ' + fmtHM(a.medU) + ' · по ' + fmtN(a.nU) + ' заявкам' : 'нет данных АВР', ''],
+    ['Устраняли дольше суток', fmtN(longU), longU ? 'заявок с АВР > 24 ч' : 'нет', longU ? 'k-crit' : ''],
+    ['Жителей затронуто', fmtN(a.people), 'нас. пунктов: ' + fmtN(a.np), ''],
+    ['МКД затронуто', fmtN(a.mkd), 'соцобъектов: ' + fmtN(a.soc), ''],
+  ];
+  document.getElementById('lead-kpis').innerHTML = tiles.map(([t, v, s, cls]) => `
+    <div class="kpi ${cls}">
+      <div class="eyebrow">${esc(t)}</div>
+      <div class="v">${esc(v)}</div>
+      <div class="s">${esc(s)}</div>
+    </div>`).join('');
+}
+
+/* ---------- сводка ОМСУ → РСО → заявка ---------- */
+let LSORT = { key: 'n', dir: -1 };   // name | n | avar | work | avgU | people | mkd
+// Второй вид той же сводной: заявки сплошным списком, без дерева. ОМСУ и РСО там
+// становятся обычными столбцами — иначе, развернув дерево, их не видно у строки заявки.
+let LFLAT = false;
+let LFLAT_N = 300;                   // столько строк показываем сразу: область даёт длинные списки
+
+const LEAD_COLS = [
+  ['name',   'ОМСУ / РСО / заявка', ''],
+  ['n',      'Инцидентов', 'r'],
+  ['zh',     'Жалоб ЕЦУР', 'r'],
+  ['avar',   'Аварийных', 'r'],
+  ['work',   'В работе', 'r'],
+  ['avgU',   'Ср. устранение', 'r'],
+  ['people', 'Жителей', 'r'],
+  ['mkd',    'МКД', 'r'],
+  ['soc',    'Соцоб.', 'r'],
+  ['obj',    'Объекты', ''],
+  ['prich',  'Причины', ''],
+];
+
+// тот же набор величин, но у одной заявки: «Инцидентов» здесь всегда 1 и не нужен,
+// зато нужны ОМСУ и РСО, которых в дереве не было — они читались из строки-родителя
+const LEAD_FLAT_COLS = [
+  ['omsu',   'ОМСУ', ''],
+  ['rso',    'РСО', ''],
+  ['name',   'Заявка', ''],
+  ['avar',   'Тип', 'r'],
+  ['work',   'Статус', 'r'],
+  ['avgU',   'Устранение', 'r'],
+  ['people', 'Жителей', 'r'],
+  ['mkd',    'МКД', 'r'],
+  ['soc',    'Соцоб.', 'r'],
+  ['obj',    'Объекты', ''],
+  ['prich',  'Причины', ''],
+];
+
+function leadTree(){
+  const t = new Map();
+  for(const r of VIEW){
+    if(!t.has(r.omsu)) t.set(r.omsu, new Map());
+    const m = t.get(r.omsu);
+    if(!m.has(r.rso)) m.set(r.rso, []);
+    m.get(r.rso).push(r);
+  }
+  return [...t.entries()];
+}
+
+const sortNodes = arr => arr.sort((x, y) => LSORT.key === 'name'
+  ? x.name.localeCompare(y.name, 'ru') * LSORT.dir
+  : (((x.a[LSORT.key] ?? -1e12) - (y.a[LSORT.key] ?? -1e12)) * LSORT.dir) ||
+    x.name.localeCompare(y.name, 'ru'));
+
+// у отдельной заявки нет агрегатов — сопоставляем ключ сортировки её собственному полю
+const leafVal = (r, k) =>
+  k === 'people' ? r.people : k === 'mkd' ? r.mkd : k === 'soc' ? r.soc :
+  k === 'avgU'   ? (r.ustrH ?? -1e12) :
+  k === 'work'   ? (r.status === 'В работе' ? 1 : 0) :
+  k === 'avar'   ? (isAvar(r) ? 1 : 0) : (r.start ? +r.start : 0);
+
+const sortLeadLeaves = list => [...list].sort((a, b) => LSORT.key === 'name'
+  ? a.id.localeCompare(b.id, 'ru') * LSORT.dir
+  : (leafVal(a, LSORT.key) - leafVal(b, LSORT.key)) * LSORT.dir);
+
+// в списке заявок сортировать можно и по ОМСУ с РСО — это текст, сравниваем по алфавиту
+const txtVal = (r, k) => k === 'omsu' ? r.omsu : k === 'rso' ? r.rso : k === 'name' ? r.id : null;
+const sortFlat = list => [...list].sort((a, b) => {
+  const t = txtVal(a, LSORT.key);
+  if(t !== null)
+    return (String(t).localeCompare(String(txtVal(b, LSORT.key)), 'ru') * LSORT.dir)
+        || ((b.start || 0) - (a.start || 0));
+  return ((leafVal(a, LSORT.key) - leafVal(b, LSORT.key)) * LSORT.dir)
+      || a.omsu.localeCompare(b.omsu, 'ru');
+});
+
+const typePill = r => r.type === 'Аварийная заявка' ? `<span class="pill p-crit" title="${esc(r.type)}">Ава</span>`
+  : r.type === 'Неплановая заявка' ? `<span class="pill p-ser" title="${esc(r.type)}">Непл</span>`
+  : r.type === 'Плановая заявка' ? `<span class="pill p-mute" title="${esc(r.type)}">План</span>`
+  : `<span class="pill p-mute" title="${esc(r.type)}">—</span>`;
+
+function renderLeadTable(){
+  if(LFLAT) return renderLeadFlat();
+  // жалобы есть только в разрезе ОМСУ: в своде нет ни РСО, ни номеров заявок
+  const zhOmsu = zhOmsuCounts();
+  const zhCov = zhCover();
+  const hasZh = !!(ZH && ZH.days);
+  const groups = leadTree().map(([omsu, m]) => ({
+    name: omsu,
+    a: aggr([...m.values()].flat()),
+    kids: [...m.entries()].map(([rso, list]) => ({ name: rso, list, a: aggr(list) })),
+  }));
+  // кладём в агрегат — тогда сортировка по колонке работает тем же кодом
+  // без покрытия ставим «—»: ноль здесь означал бы «жалоб не было», а их не собирали
+  for(const g of groups) g.a.zh = (hasZh && zhCov) ? (zhOmsu.get(zhStem(g.name)) || 0) : null;
+  const totZh = zhCov ? groups.reduce((x, g) => x + (g.a.zh || 0), 0) : null;
+  const zhTd = v => hasZh
+    ? '<td class="r">' + (v === null || v === undefined
+        ? '<span class="mute">—</span>' : fmtN(v)) + '</td>'
+    : '';
+  sortNodes(groups);
+  groups.forEach(g => sortNodes(g.kids));
+
+  const arrow = k => LSORT.key === k ? (LSORT.dir === 1 ? ' ↑' : ' ↓') : '';
+  // перечисления объектов и причин сортировать нечем — это списки, а не величины
+  const noSort = k => k === 'obj' || k === 'prich';
+  // у колонки жалоб окно своё — окно свода; без пояснения её легко сравнить не с тем
+  const lag = zhLag();
+  const lagTxt = lag ? 'ВНИМАНИЕ: свод отстал, последний собранный день ' +
+    dRu(lag.last) + ' (' + lag.days + ' дн. назад). Новых жалоб в колонке нет — ' +
+    'помощник кликера не обновлял данные. ' : '';
+  // скобки обязательны: «+» связывает сильнее тернарника, и без них текст
+  // предупреждения уезжал в условие вместо результата
+  const zhTitle = !hasZh ? '' : lagTxt + (
+    !zhCov
+      ? 'Свод жалоб собран за ' + dRu(dayStart(ZH.from)) + ' — ' + dRu(dayStart(ZH.to)) +
+        ' и выбранный период не покрывает, поэтому стоит «—», а не ноль: ' +
+        'жалоб за эти дни не собирали. Увеличьте глубину сбора (KLIKER_DAYS) ' +
+        'и запустите кликер.'
+      : zhCov.full
+        ? 'Жалобы ДоброДел/ЕЦУР по ХВС и водоотведению за ' +
+          dRu(dayStart(zhCov.from)) + ' — ' + dRu(dayStart(zhCov.to)) + '. Клик — сортировка.'
+        : 'Внимание: свод покрывает только ' + zhCov.days + ' дн. из ' + zhCov.want +
+          ' выбранных — с ' + dRu(dayStart(zhCov.from)) + ' по ' + dRu(dayStart(zhCov.to)) +
+          '. Инциденты считаются за весь период, поэтому колонки напрямую ' +
+          'не сопоставимы. Клик — сортировка.');
+  let html = '<thead><tr>' + LEAD_COLS.filter(([k]) => k !== 'zh' || hasZh).map(([k, t, cls]) => noSort(k)
+      ? `<th class="${cls}">${esc(t)}</th>`
+      : `<th class="sortable ${cls}" data-lsort="${k}" title="${k === 'zh' ? esc(zhTitle) : 'Сортировать'}">${esc(t)}${arrow(k)}</th>`).join('') +
+    '<th></th></tr></thead><tbody>';
+
+  // итог сразу под шапкой — на длинной таблице его не приходится искать внизу
+  const tot = aggr(VIEW);
+  html += `<tr class="row-total top">
+      <td>Общий итог</td>
+      <td class="r">${fmtN(tot.n)}</td>${zhTd(totZh)}<td class="r">${fmtN(tot.avar)}</td><td class="r">${fmtN(tot.work)}</td>
+      <td class="r" ${hTip(tot.avgU)}>${fmtHM(tot.avgU)}</td>
+      <td class="r">${fmtN(tot.people)}</td><td class="r">${fmtN(tot.mkd)}</td><td class="r">${fmtN(tot.soc)}</td>
+      <td>${topList(tot.objs, 1)}</td><td>${topList(tot.prichs, 1)}</td><td></td>
+    </tr>`;
+
+  const gRow = (name, a, cls, tog, open, pad) => {
+    const caret = `<span class="caret">${open ? '▾' : '▸'}</span>`;
+    return `<tr class="${cls} tw" data-ltog="${esc(tog)}">
+        <td${pad}>${caret}${esc(name)}</td>
+        <td class="r">${fmtN(a.n)}</td>
+        ${zhTd(a.zh === undefined ? null : a.zh)}
+        <td class="r">${a.avar ? `<span class="pill p-crit">${fmtN(a.avar)}</span>` : '<span class="mute">0</span>'}</td>
+        <td class="r">${a.work ? `<span class="pill p-warn">${fmtN(a.work)}</span>` : '<span class="mute">0</span>'}</td>
+        <td class="r" ${hTip(a.avgU)}>${fmtHM(a.avgU)}</td>
+        <td class="r">${fmtN(a.people)}</td>
+        <td class="r">${fmtN(a.mkd)}</td>
+        <td class="r">${fmtN(a.soc)}</td>
+        <td>${topList(a.objs, 1)}</td>
+        <td>${topList(a.prichs, 1)}</td>
+        <td></td>
+      </tr>`;
+  };
+
+  for(const g of groups){
+    const openM = !lcollapsed.has('m:' + g.name);
+    html += gRow(g.name, g.a, 'row-mr', 'm:' + g.name, openM, '');
+    if(!openM) continue;
+
+    for(const k of g.kids){
+      const kR = 'r:' + g.name + '|' + k.name;
+      const openR = lopenRso.has(kR);
+      html += gRow(k.name, k.a, 'row-rso', kR, openR, ' style="padding-left:26px"');
+      if(!openR) continue;
+
+      for(const r of sortLeadLeaves(k.list)){
+        html += `<tr class="row-id">
+            <td style="padding-left:46px"><span class="mono">${esc(r.id)}</span>
+              <span class="mute"> · ${esc(fmtDT(r.start))}</span></td>
+            <td class="r">1</td>
+            ${zhTd(null)}
+            <td class="r">${typePill(r)}</td>
+            <td class="r">${r.status === 'В работе'
+              ? '<span class="pill p-warn">В работе</span>' : '<span class="pill p-good">Устранено</span>'}</td>
+            <td class="r" ${hTip(r.ustrH)}>${r.ustrH === null ? (esc(r.ustrTxt) || '—') : fmtHM(r.ustrH)}</td>
+            <td class="r">${fmtN(r.people)}</td>
+            <td class="r">${fmtN(r.mkd)}</td>
+            <td class="r">${fmtN(r.soc)}</td>
+            <td><span class="clip" title="${esc(r.obj)}">${esc(r.obj)}</span></td>
+            <td><span class="clip" title="${esc(r.prich || NO_CAUSE)}">${esc(r.prich) || '<span class="mute">—</span>'}</span></td>
+            <td class="c"><button class="btn btn-sm" data-open="${esc(r.id)}">Открыть заявку</button></td>
+          </tr>`;
+      }
+    }
+  }
+
+  html += '</tbody>';
+
+  const t = document.getElementById('lead-tbl');
+  t.innerHTML = html;
+  t.querySelectorAll('[data-lsort]').forEach(h => h.addEventListener('click', () => {
+    const k = h.dataset.lsort;
+    if(LSORT.key === k) LSORT.dir *= -1;
+    else LSORT = { key: k, dir: k === 'name' ? 1 : -1 };   // по названию с А-Я, по числам — с худших
+    renderLeadTable();
+  }));
+  t.querySelectorAll('[data-ltog]').forEach(tr => tr.addEventListener('click', e => {
+    if(e.target.closest('button')) return;
+    const k = tr.dataset.ltog;
+    if(k.startsWith('m:')){
+      if(lcollapsed.has(k)){
+        lcollapsed.delete(k);
+        // раскрыли ОМСУ — его РСО показываем свёрнутыми, без списка заявок
+        const pref = 'r:' + k.slice(2) + '|';
+        for(const x of [...lopenRso]) if(x.startsWith(pref)) lopenRso.delete(x);
+      } else lcollapsed.add(k);
+    } else {
+      lopenRso.has(k) ? lopenRso.delete(k) : lopenRso.add(k);
+    }
+    renderLeadTable();
+  }));
+  t.querySelectorAll('[data-open]').forEach(b =>
+    b.addEventListener('click', () => openCard(b.dataset.open)));
+}
+
+// Тот же отбор, что в дереве, но без группировки: строка = заявка, ОМСУ и РСО — столбцы.
+// Область даёт длинные списки, поэтому показываем частями.
+function renderLeadFlat(){
+  const rows = sortFlat(VIEW);
+  const shown = rows.slice(0, LFLAT_N);
+  const arrow = k => LSORT.key === k ? (LSORT.dir === 1 ? ' ↑' : ' ↓') : '';
+  const noSort = k => k === 'obj' || k === 'prich';
+
+  let html = '<thead><tr>' + LEAD_FLAT_COLS.map(([k, t, cls]) => noSort(k)
+      ? `<th class="${cls}">${esc(t)}</th>`
+      : `<th class="sortable ${cls}" data-lsort="${k}" title="Сортировать">${esc(t)}${arrow(k)}</th>`).join('') +
+    '<th></th></tr></thead><tbody>';
+
+  const tot = aggr(VIEW);
+  html += `<tr class="row-total top">
+      <td>Общий итог</td>
+      <td class="mute">${fmtN(tot.n)} заявок</td>
+      <td></td>
+      <td class="r">${tot.avar ? `<span class="pill p-crit">${fmtN(tot.avar)}</span>` : '<span class="mute">0</span>'}</td>
+      <td class="r">${tot.work ? `<span class="pill p-warn">${fmtN(tot.work)}</span>` : '<span class="mute">0</span>'}</td>
+      <td class="r" ${hTip(tot.avgU)}>${fmtHM(tot.avgU)}</td>
+      <td class="r">${fmtN(tot.people)}</td><td class="r">${fmtN(tot.mkd)}</td><td class="r">${fmtN(tot.soc)}</td>
+      <td>${topList(tot.objs, 1)}</td><td>${topList(tot.prichs, 1)}</td><td></td>
+    </tr>`;
+
+  for(const r of shown){
+    html += `<tr class="row-id flat">
+        <td>${esc(r.omsu)}</td>
+        <td><span class="clip" title="${esc(r.rso)}">${esc(r.rso)}</span></td>
+        <td><span class="mono">${esc(r.id)}</span><span class="mute"> · ${esc(fmtDT(r.start))}</span></td>
+        <td class="r">${typePill(r)}</td>
+        <td class="r">${r.status === 'В работе'
+          ? '<span class="pill p-warn">В работе</span>' : '<span class="pill p-good">Устранено</span>'}</td>
+        <td class="r" ${hTip(r.ustrH)}>${r.ustrH === null ? (esc(r.ustrTxt) || '—') : fmtHM(r.ustrH)}</td>
+        <td class="r">${fmtN(r.people)}</td>
+        <td class="r">${fmtN(r.mkd)}</td>
+        <td class="r">${fmtN(r.soc)}</td>
+        <td><span class="clip" title="${esc(r.obj)}">${esc(r.obj)}</span></td>
+        <td><span class="clip" title="${esc(r.prich || NO_CAUSE)}">${esc(r.prich) || '<span class="mute">—</span>'}</span></td>
+        <td class="c"><button class="btn btn-sm" data-open="${esc(r.id)}">Открыть заявку</button></td>
+      </tr>`;
+  }
+  if(rows.length > shown.length){
+    html += `<tr class="row-more"><td colspan="${LEAD_FLAT_COLS.length + 1}" class="c">
+        <button class="btn btn-sm" id="lf-more">Показать ещё</button>
+        <span class="mute"> показано ${fmtN(shown.length)} из ${fmtN(rows.length)}</span>
+      </td></tr>`;
+  }
+  html += '</tbody>';
+
+  const t = document.getElementById('lead-tbl');
+  t.innerHTML = html;
+  t.querySelectorAll('[data-lsort]').forEach(h => h.addEventListener('click', () => {
+    const k = h.dataset.lsort;
+    if(LSORT.key === k) LSORT.dir *= -1;
+    // по названиям с А-Я, по числам — с худших
+    else LSORT = { key: k, dir: (k === 'omsu' || k === 'rso' || k === 'name') ? 1 : -1 };
+    renderLeadTable();
+  }));
+  const more = t.querySelector('#lf-more');
+  if(more) more.addEventListener('click', () => { LFLAT_N += 300; renderLeadTable(); });
+  t.querySelectorAll('[data-open]').forEach(b =>
+    b.addEventListener('click', () => openCard(b.dataset.open)));
+}
+
+/* ---------- графики листа руководителя ---------- */
+/* ---------- жалобы и инциденты на одной сетке дней ----------
+   Ряд дней непрерывный, включая нулевые: провал среди череды дней — это тоже
+   информация. Границы берём из фильтра периода, а если он не задан — по данным. */
+function zhCombo(){
+  const inc = new Map(), ppl = new Map();
+  let lo = null, hi = null;
+  for(const r of VIEW){
+    if(!r.start) continue;
+    const d = isoDay(r.start);
+    inc.set(d, (inc.get(d) || 0) + 1);
+    // охват суммируем без дедупликации: одного жителя могли задеть две заявки
+    if(r.people !== null) ppl.set(d, (ppl.get(d) || 0) + r.people);
+    if(lo === null || d < lo) lo = d;
+    if(hi === null || d > hi) hi = d;
+  }
+  const cmp = zhDayCounts();
+  // ось строим по инцидентам: свод жалоб шире (60 дней), и растягивать график
+  // на него значит показывать длинную линию жалоб почти без столбцов
+  let from = period.from ? isoDay(period.from) : lo;
+  let to   = period.to   ? isoDay(period.to)   : hi;
+  if(!from || !to) return null;
+
+  // Свод собран за своё окно. День вне него — это не «ноль жалоб», а «жалоб
+  // не спрашивали»: рисовать там нули значит врать графиком. Поэтому ось
+  // обрезаем по своду, а в подписи честно пишем, с какого числа он есть.
+  let clipped = null;
+  if(ZH && ZH.from && ZH.to){
+    if(from < ZH.from){ clipped = ZH.from; from = ZH.from; }
+    if(to > ZH.to) to = ZH.to;
+  }
+  if(from > to) return null;
+
+  const days = [];
+  const end = dayStart(to);
+  for(let d = dayStart(from); d && end && d <= end && days.length < 400;
+      d = new Date(d.getTime() + 86400000)){
+    const iso = isoDay(d), c = cmp.get(iso);
+    days.push({ k: p2(d.getDate()) + '.' + p2(d.getMonth() + 1), iso,
+                inc: inc.get(iso) || 0, ppl: ppl.get(iso) || 0,
+                cmp: c ? c.n : 0, gvs: c ? c.gvs : 0 });
+  }
+  if(!days.length) return null;
+  // 'auto' сам уходит в месяцы на длинном периоде, «дни»/«месяцы» — как выбрали
+  const grp = ZHG === 'auto' ? (days.length > 92 ? 'month' : 'day') : ZHG;
+  if(grp === 'day') return { arr: days, grp: 'day', clipped };
+
+  const m = new Map();
+  for(const d of days){
+    const dt = dayStart(d.iso);
+    const key = dt.getFullYear() * 100 + dt.getMonth();
+    const cur = m.get(key) ||
+      { k: MON[dt.getMonth()] + ' ' + String(dt.getFullYear()).slice(2),
+        inc: 0, ppl: 0, cmp: 0, gvs: 0, s: key };
+    cur.inc += d.inc; cur.ppl += d.ppl; cur.cmp += d.cmp; cur.gvs += d.gvs;
+    m.set(key, cur);
+  }
+  return { arr: [...m.values()].sort((a, b) => a.s - b.s), grp: 'month', clipped };
+}
+
+/* Столбцы — инциденты, линия — жалобы. Шкалы разные и подписаны с двух сторон:
+   жалоб обычно в разы больше, на общей оси столбцы инцидентов выродились бы
+   в плинтус и никакой параллели видно не было бы. */
+/* mode: 'inc' — столбцы считают инциденты, 'ppl' — сколько жителей они задели.
+   Линия жалоб в обоих случаях одна и та же, поэтому графики читаются в паре. */
+function zhChart(rows, W, mode){
+  const M = mode === 'ppl'
+    ? { key: 'ppl', legend: '▮ затронуто жителей', tip: 'жителей затронуто: ' }
+    : { key: 'inc', legend: '▮ инциденты ВС/ВО',  tip: 'инцидентов ВС/ВО: ' };
+  W = Math.round(W || 640);
+  const H = Math.round(Math.min(340, Math.max(235, W * 0.44)));
+  const ml = 46, mr = 50, mt = 26, mb = 42;
+  const iw = W - ml - mr, ih = H - mt - mb;
+  const maxI = niceMax(Math.max(1, ...rows.map(d => d[M.key])));
+  const maxC = niceMax(Math.max(1, ...rows.map(d => d.cmp)));
+  const bw = iw / rows.length;
+  const pad = Math.min(6, Math.max(0.15, bw * 0.18));
+  const cBar  = isDark() ? '#3987e5' : '#2a78d6';
+  const cLine = isDark() ? '#e08b5c' : '#9a3b00';
+  // Подписи прореживаем под фактическую ширину карточки, а не «до 14 штук»:
+  // «01.06» занимает ~34 px, и на узкой карточке 14 подписей слипаются в кашу.
+  const labW = mode === 'ppl' ? 50 : 46;
+  const fits = Math.max(1, Math.floor(iw / labW));
+  const every = Math.max(1, Math.ceil(rows.length / fits));
+
+  let g = '';
+  for(let i = 0; i <= 4; i++){
+    const y = mt + ih - ih * i / 4;
+    g += '<line class="g-line" x1="' + ml + '" y1="' + y + '" x2="' + (W - mr) + '" y2="' + y + '"/>' +
+      '<text class="ax" x="' + (ml - 8) + '" y="' + (y + 4.5) + '" text-anchor="end">' +
+        fmtN(Math.round(maxI * i / 4)) + '</text>' +
+      '<text class="ax" x="' + (W - mr + 8) + '" y="' + (y + 4.5) + '" fill="' + cLine + '">' +
+        fmtN(Math.round(maxC * i / 4)) + '</text>';
+  }
+
+  const bars = rows.map((d, i) => {
+    const v = d[M.key];
+    const h = Math.max(v > 0 ? 2 : 0, ih * v / maxI);
+    const x = ml + i * bw + pad, y = mt + ih - h, w = Math.max(0.8, bw - pad * 2);
+    const showLab = i % every === 0 ||
+                    (i === rows.length - 1 && (rows.length - 1) % every > every / 2);
+    const tip = d.k + ' — ' + M.tip + fmtN(v) +
+                ', жалоб по воде: ' + fmtN(d.cmp) +
+                (d.gvs ? ' (ещё по ГВС: ' + fmtN(d.gvs) + ')' : '');
+    return '<g class="bar" data-tip="' + esc(tip) + '">' +
+      // прозрачная полоса на всю высоту — чтобы подсказка ловилась по всей колонке
+      '<rect x="' + (ml + i * bw) + '" y="' + mt + '" width="' + bw + '" height="' + ih + '" fill="transparent"/>' +
+      '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="3" ry="3" fill="' + cBar + '"/>' +
+      (showLab ? '<text class="ax" x="' + (x + w / 2) + '" y="' + (H - 13) +
+                 '" text-anchor="middle">' + esc(d.k) + '</text>' : '') +
+      '</g>';
+  }).join('');
+
+  const px = i => ml + i * bw + bw / 2;
+  const py = v => mt + ih - ih * v / maxC;
+  const pts = rows.map((d, i) => px(i).toFixed(1) + ',' + py(d.cmp).toFixed(1)).join(' ');
+  const rDot = rows.length > 45 ? 1.8 : 3;
+  const dots = rows.map((d, i) =>
+    '<circle cx="' + px(i).toFixed(1) + '" cy="' + py(d.cmp).toFixed(1) +
+    '" r="' + rDot + '" fill="' + cLine + '"/>').join('');
+
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + g +
+    '<line class="g-line" x1="' + ml + '" y1="' + (mt + ih) + '" x2="' + (W - mr) + '" y2="' + (mt + ih) + '"/>' +
+    bars +
+    '<polyline points="' + pts + '" fill="none" stroke="' + cLine +
+      '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' + dots +
+    '<text class="ax" x="' + ml + '" y="' + (mt - 10) + '" fill="' + cBar + '">' + M.legend + '</text>' +
+    '<text class="ax" x="' + (W - mr) + '" y="' + (mt - 10) + '" text-anchor="end" fill="' + cLine +
+      '">— жалобы по воде</text></svg>';
+}
+
+/* Карточка целиком: либо график, либо объяснение, почему свода нет. */
+function zhCardHtml(){
+  if(!ZH){
+    const head = ZH_BUILDING
+      ? '<div>Кликер сейчас идёт в ДоброДел за жалобами. Обычно это одна-три минуты — ' +
+        'график появится сам, страницу обновлять не нужно.</div>'
+      : '<div class="zh-bad">' + esc(ZH_NOTE || 'Свод жалоб пока не загружен.') + '</div>' +
+        '<div>Помощник поднимается сам при входе в Windows. Если этого не случилось — ' +
+        'один раз запустите <code>Автозапуск — включить.bat</code> в папке «для кликера», ' +
+        'дальше он будет включаться без вас.</div>' +
+        '<div>Либо загрузите выгрузку ЕЦУР кнопкой <b>«Жалобы»</b> в шапке.</div>';
+    return '<section class="card"><header><h3>Жалобы по воде и инциденты</h3>' +
+      '<span class="note">' + (ZH_BUILDING ? 'свод собирается…' : 'свод ДоброДела не загружен') +
+      '</span></header>' +
+      '<div class="body"><div class="zh-empty">' + head +
+      '<button class="btn" type="button" id="zh-retry">↻ Проверить помощника</button>' +
+      '</div></div></section>';
+  }
+  const ts = zhCombo();
+  if(!ts){
+    // молча пропадающая карточка выглядит как поломка — объясняем, что произошло
+    const b = zhBounds();
+    const ask = (b.from && b.to)
+      ? dRu(dayStart(b.from)) + ' — ' + dRu(dayStart(b.to)) : 'выбранный период';
+    const lag = zhLag();
+    return '<section class="card"><header><h3>Жалобы по воде</h3>' +
+      '<span class="note">нет данных за этот период</span></header>' +
+      '<div class="body"><div class="zh-empty">' +
+      '<div>Свод жалоб собран за <b>' + dRu(dayStart(ZH.from)) + ' — ' +
+      dRu(dayStart(ZH.to)) + '</b>, а показаны заявки за <b>' + esc(ask) + '</b>. ' +
+      'Пересечения нет, поэтому графика жалоб здесь не будет.</div>' +
+      (lag
+        ? '<div class="zh-bad">Свод отстал на ' + lag.days + ' дн.: последний собранный ' +
+          'день — ' + dRu(lag.last) + '. Новых жалоб помощник не приносил — проверьте, ' +
+          'запущен ли он.</div>'
+        : '') +
+      '<div>Это не «жалоб не было» — за эти дни их не собирали. Свежие дни свод ' +
+      'дописывает сам, пока лист открыт и помощник запущен, и уже собранное не ' +
+      'теряет; чтобы дотянуть историю назад, увеличьте глубину: ' +
+      '<code>set KLIKER_DAYS=180</code> и запустите кликер.</div>' +
+      '<div class="zh-meta">свод от ' + esc(ZH.updated || '—') +
+      (ZH.source ? ' · ' + esc(ZH.source) : '') + '</div>' +
+      '<button class="btn" type="button" id="zh-retry">↻ Обновить свод</button>' +
+      '</div></div></section>';
+  }
+  const seg = '<div class="seg" role="group" aria-label="Группировка по времени">' +
+    [['auto', 'авто'], ['day', 'дни'], ['month', 'месяцы']].map(function(o){
+      return '<button type="button" data-ztg="' + o[0] +
+             '" aria-pressed="' + (ZHG === o[0]) + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+
+  // хвост подписи общий у обеих карточек
+  const grp = (ts.grp === 'month' ? 'по месяцам' : 'по дням') +
+    (ZHG === 'auto' && ts.grp === 'month' ? ' · выбрано автоматически' : '');
+  const tail = ' · линия — жалобы ЕЦУР по ХВС и водоотведению' +
+    ' · жалобы реагируют только на период и ОМСУ' +
+    (ts.clipped ? ' · свод жалоб начинается ' + dRu(dayStart(ts.clipped)) +
+                  ', более ранние дни не показаны' : '') +
+    ' · свод от ' + (ZH.updated || '—') + (ZH_BUILDING ? ' · обновляется' : '') +
+    (zhLag() ? ' · ⚠ свод отстал: последний день ' + dRu(zhLag().last) +
+               ', ' + zhLag().days + ' дн. назад — помощник не обновлял данные' : '');
+  return chartCard('lead', 'Жалобы по воде и инциденты',
+      grp + ' · столбцы — инциденты ВС/ВО' + tail,
+      W => zhChart(ts.arr, W, 'inc'), seg) +
+    chartCard('lead', 'Жалобы по воде и охват населения',
+      grp + ' · столбцы — сколько жителей задели инциденты, сумма по заявкам' + tail,
+      W => zhChart(ts.arr, W, 'ppl'), seg);
+}
+
+function renderLeadCharts(){
+  // 1. объекты
+  const objs = WATER.map(([, l]) => ({ k: l, v: VIEW.filter(r => r.objs.includes(l)).length }))
+    .filter(d => d.v > 0).sort((a, b) => b.v - a.v);
+
+  // 2. причины — у заявки может быть отмечено несколько причин,
+  //    поэтому сумма столбцов больше числа заявок
+  const cz = new Map();
+  let noCause = 0;
+  for(const r of VIEW){
+    if(!r.prichs.length){ noCause++; continue; }
+    for(const p of r.prichs) cz.set(p, (cz.get(p) || 0) + 1);
+  }
+  // причин немного (справочник закрытый) — карточка широкая, показываем все
+  const causes = [...cz.entries()].map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v);
+  const causeAll = [...causes];
+  if(noCause) causeAll.push({ k: NO_CAUSE, v: noCause });
+
+  // 3. РСО по числу инцидентов
+  const topRso = (() => {
+    const m = new Map();
+    for(const r of VIEW) m.set(r.rso, (m.get(r.rso) || 0) + 1);
+    return [...m.entries()].map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v).slice(0, 10);
+  })();
+
+  // 4. охват населения по ОМСУ
+  const pplOmsu = (() => {
+    const m = new Map();
+    for(const r of VIEW) m.set(r.omsu, (m.get(r.omsu) || 0) + r.people);
+    return [...m.entries()].filter(([, v]) => v > 0)
+      .map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v).slice(0, 10);
+  })();
+
+  const c = document.getElementById('lead-charts');
+  SLOTS.lead.clear();
+  c.innerHTML =
+    (causeAll.length ? chartCard('lead', 'Инциденты по причинам',
+        'заявок · у заявки бывает несколько причин, сумма больше числа заявок',
+        W => barsH(causeAll, 'заявок', 0, false, W)) : '') +
+    (objs.length ? chartCard('lead', 'Инциденты по объектам',
+        'доля заявок · у заявки бывает несколько объектов',
+        W => donut(objs, 'заявок', W)) : '') +
+    (topRso.length ? chartCard('lead', 'Больше всего инцидентов — РСО', 'заявок',
+        W => barsH(topRso, 'заявок', 0, false, W)) : '') +
+    (pplOmsu.length ? chartCard('lead', 'Затронуто жителей — ОМСУ', 'человек · сумма по заявкам',
+        W => barsH(pplOmsu, 'чел.', 0, false, W)) : '') +
+    // жалобы ДоброДела — в самом низу листа, под привычными разрезами
+    zhCardHtml();
+
+  fillCharts('lead');
+  c.querySelectorAll('[data-ztg]').forEach(b => b.addEventListener('click', () => {
+    ZHG = b.dataset.ztg;
+    renderLeadCharts();
+  }));
+  const retry = document.getElementById('zh-retry');
+  if(retry) retry.addEventListener('click', async () => {
+    retry.disabled = true;
+    retry.textContent = 'Спрашиваю помощника…';
+    zhTries = 0;
+    await zhPoll();
+    if(DATA) applyFilters();
+  });
+}
+
+
+/* ============================================================
+   Лист «Динамика»: один и тот же срез в двух окнах времени
+
+   Сравнивать осмысленно только сопоставимые выборки, поэтому все фильтры,
+   кроме периода, применяются к обоим окнам одинаково (passesBase). Текущее
+   окно задаёт фильтр периода в шапке, база выбирается здесь. Δ считается
+   как «текущий минус база».
+   ============================================================ */
+let cur = { from: null, to: null };        // окно А, если задано прямо на листе
+let cmp = { from: null, to: null };        // период сравнения, границы суток
+let DSORT = { key: 'dn', dir: -1 };        // сортировка разреза по ОМСУ
+let RSORT = { key: 'dn', dir: -1 };        // то же для разреза по РСО
+
+/* Окно А. Приоритет у полей на самом листе: сравнение — отдельная задача, и
+   ради неё не должно приходиться переставлять фильтр периода в шапке, от
+   которого зависят остальные листы. Поля пусты — берём фильтр, а если пуст и
+   он, то весь загруженный диапазон: иначе пришлось бы сравнивать неделю с
+   двумя годами выгрузки и читать это как обвал. */
+function dynNow(){
+  if(cur.from && cur.to) return { from: cur.from, to: cur.to };
+  const from = period.from || DATA.from;
+  const to   = period.to   || DATA.to;
+  return { from: from ? dayStart(isoDay(from)) : null,
+           to:   to   ? dayEnd(isoDay(to))     : null };
+}
+
+// чем задано окно А — на это опирается подпись, иначе непонятно, что показано
+const dynSrc = () => cur.from && cur.to ? 'задан здесь'
+  : (period.from || period.to) ? 'из фильтра в шапке' : 'весь загруженный диапазон';
+
+const dynSpan = w => (!w || !w.from || !w.to) ? null :
+  Math.round((dayStart(isoDay(w.to)) - dayStart(isoDay(w.from))) / 86400000) + 1;
+
+const dynLabel = w => (!w || !w.from || !w.to) ? '—'
+  : dRu(dayStart(isoDay(w.from))) + ' — ' + dRu(dayStart(isoDay(w.to)));
+
+function dynSlice(w){
+  if(!w || !w.from || !w.to) return [];
+  return DATA.recs.filter(r => r.start && r.start >= w.from && r.start <= w.to && passesBase(r));
+}
+
+/* Покрыто ли окно загруженными данными. Нужно, чтобы не выдать нули за факт:
+   ноль в непокрытом окне означает «данных не запрашивали», а не «инцидентов
+   не было» — разница принципиальная, на ней строятся выводы. */
+function dynCover(w){
+  if(!DATA || !DATA.from || !DATA.to || !w || !w.from || !w.to) return 'none';
+  if(w.to < dayStart(isoDay(DATA.from)) || w.from > dayEnd(isoDay(DATA.to))) return 'none';
+  if(w.from < dayStart(isoDay(DATA.from)) || w.to > dayEnd(isoDay(DATA.to))) return 'part';
+  return 'full';
+}
+
+/* Всё, что дальше сравнивается. Метрики те же, что на листах «Руководителю»
+   и «Задержка доклада», — чтобы цифра здесь сходилась с цифрой там. */
+function dynStats(list){
+  const a = aggr(list);
+  const d = list.map(r => r.diff).filter(v => v !== null);
+  const pl = list.filter(r => r.plan3 !== '');
+  return {
+    n: a.n, avar: a.avar, plan: a.n - a.avar, work: a.work, done: a.done,
+    people: a.people, mkd: a.mkd, soc: a.soc, np: a.np,
+    avgU: a.avgU, medU: a.medU, nU: a.nU,
+    longU: list.filter(r => r.ustrH !== null && r.ustrH > 24).length,
+    avgD: avg(d), medD: median(d), nD: d.length,
+    late24: d.filter(v => v > 24).length,
+    anom: list.filter(r => r.anom === 'Да').length,
+    planN: pl.length, planBad: pl.filter(r => r.plan3 === 'Нет').length,
+    omsuN: new Set(list.map(r => r.omsu)).size,
+    rsoN: new Set(list.map(r => r.rso)).size,
+  };
+}
+
+/* ключ · подпись · формат · dir: +1 «больше — лучше», -1 «меньше — лучше», 0 — нейтрально */
+const DYN_ROWS = [
+  ['#', 'Инциденты'],
+  ['n',       'Инцидентов',                     'int', -1],
+  ['avar',    'Аварийных и неплановых',         'int', -1],
+  ['plan',    'Плановых работ',                 'int',  0],
+  ['work',    'Ещё в работе',                   'int', -1],
+  ['done',    'Устранено',                      'int', +1],
+  ['#', 'Охват'],
+  ['people',  'Жителей затронуто',              'int', -1],
+  ['mkd',     'МКД затронуто',                  'int', -1],
+  ['soc',     'Соцобъектов затронуто',          'int', -1],
+  ['np',      'Населённых пунктов затронуто',   'int', -1],
+  ['#', 'Время устранения'],
+  ['avgU',    'Среднее время устранения',       'h',   -1],
+  ['medU',    'Медиана времени устранения',     'h',   -1],
+  ['longU',   'Устраняли дольше суток',         'int', -1],
+  ['#', 'Отклонения: доклад и норматив'],
+  ['avgD',    'Среднее время до фиксации',      'h',   -1],
+  ['medD',    'Медиана времени до фиксации',    'h',   -1],
+  ['late24',  'Доклад позже суток',             'int', -1],
+  ['anom',    'Аномалий: доклад раньше аварии', 'int', -1],
+  ['planBad', 'Плановые: нарушен срок ' + NORM_H + ' ч', 'int', -1],
+];
+
+const dynVal = (v, kind) => v === null || v === undefined || Number.isNaN(v)
+  ? '—' : (kind === 'h' ? fmtHM(v) : fmtN(v));
+
+/* Δ со знаком. Минус — типографский: обычный дефис в колонке чисел читается
+   как перенос, а не как знак. */
+function dynDelta(v, kind){
+  if(v === null || Number.isNaN(v)) return '—';
+  if(v === 0) return kind === 'h' ? '0' : '0';
+  return (v > 0 ? '+' : '−') + (kind === 'h' ? fmtHM(Math.abs(v)) : fmtN(Math.abs(v)));
+}
+
+function dynCls(v, dir){
+  if(v === null || Number.isNaN(v) || v === 0) return 'd-flat';
+  const arrow = v > 0 ? 'd-up' : 'd-dn';
+  if(!dir) return arrow + ' d-flat';
+  return arrow + ((v > 0) === (dir > 0) ? ' d-good' : ' d-bad');
+}
+
+/* Доля изменения. От нулевой базы процент не считается: «рост на бесконечность»
+   ничего не сообщает, абсолютного Δ рядом достаточно. */
+function dynPct(cur, base){
+  if(cur === null || base === null || Number.isNaN(cur) || Number.isNaN(base) || base === 0) return '—';
+  const p = (cur - base) / Math.abs(base) * 100;
+  if(Math.abs(p) < 0.05) return '0%';
+  return (p > 0 ? '+' : '−') + fmtN(Math.abs(p), Math.abs(p) < 10 ? 1 : 0) + '%';
+}
+
+/* Разрез по ОМСУ или РСО: строка попадает в таблицу, если встретилась хоть в
+   одном окне. Пропавший из отчётного периода округ — тоже результат, и он
+   должен быть виден, поэтому объединение, а не пересечение. */
+function dynBreak(A, B, key){
+  const m = new Map();
+  const put = (list, side) => {
+    for(const r of list){
+      let o = m.get(r[key]);
+      if(!o){ o = { name: r[key], a: { n: 0, p: 0, u: [], d: [] },
+                                  b: { n: 0, p: 0, u: [], d: [] } }; m.set(r[key], o); }
+      const t = o[side];
+      t.n++;
+      t.p += (r.people || 0);
+      if(r.ustrH !== null) t.u.push(r.ustrH);
+      if(r.diff !== null) t.d.push(r.diff);
+    }
+  };
+  put(A, 'a'); put(B, 'b');
+  return [...m.values()].map(o => {
+    const au = avg(o.a.u), bu = avg(o.b.u);
+    const ad = avg(o.a.d), bd = avg(o.b.d);
+    return { name: o.name,
+             an: o.a.n, bn: o.b.n, dn: o.a.n - o.b.n,
+             ap: o.a.p, bp: o.b.p, dp: o.a.p - o.b.p,
+             au: au, bu: bu, du: (au === null || bu === null) ? null : r2(au - bu),
+             ad: ad, bd: bd, dd: (ad === null || bd === null) ? null : r2(ad - bd) };
+  });
+}
+
+/* Жалобы по воде за произвольное окно, ключ — «стебель» названия округа.
+   null, если свод это окно не покрывает: ноль там означал бы «жалоб не было»,
+   а их за эти дни просто не собирали — на этой разнице строятся выводы. */
+function dynZhCounts(w){
+  if(!ZH || !ZH.days || !w || !w.from || !w.to) return null;
+  const from = isoDay(w.from), to = isoDay(w.to);
+  if(from < ZH.from || to > ZH.to) return null;
+  const out = new Map();
+  for(const day in ZH.days){
+    if(day < from || day > to) continue;
+    const byOmsu = ZH.days[day];
+    for(const omsu in byOmsu){
+      const v = byOmsu[omsu], k = zhStem(omsu);
+      out.set(k, (out.get(k) || 0) + (v[0] || 0) + (v[1] || 0));
+    }
+  }
+  return out;
+}
+
+/* Жалобы приклеиваются только к разрезу по ОМСУ: в своде ЕЦУР нет ни РСО,
+   ни номеров заявок, сопоставить их с исполнителем не по чему. */
+function dynZhJoin(rows, A, B){
+  const za = dynZhCounts(A), zb = dynZhCounts(B);
+  for(const o of rows){
+    const k = zhStem(o.name);
+    o.az = za ? (za.get(k) || 0) : null;
+    o.bz = zb ? (zb.get(k) || 0) : null;
+    o.dz = (o.az === null || o.bz === null) ? null : o.az - o.bz;
+  }
+  return rows;
+}
+
+/* ключ · подпись · выравнивание · dir (0 — значение, -1 — Δ, где рост плохо) · формат */
+const DYN_COLS = [
+  ['name', 'ОМСУ',         'l', 0, 't'],
+  ['an',   'Инц. отчёт',   'r', 0, 'int'],
+  ['bn',   'Инц. сравн.',  'r', 0, 'int'],
+  ['dn',   'Δ инц.',       'r', -1, 'int'],
+  ['ap',   'Жит. отчёт',   'r', 0, 'int'],
+  ['bp',   'Жит. сравн.',  'r', 0, 'int'],
+  ['dp',   'Δ жит.',       'r', -1, 'int'],
+  ['au',   'Устр. отчёт',  'r', 0, 'h'],
+  ['bu',   'Устр. сравн.', 'r', 0, 'h'],
+  ['du',   'Δ устр.',      'r', -1, 'h'],
+  ['ad',   'Фикс. отчёт',  'r', 0, 'h'],
+  ['bd',   'Фикс. сравн.', 'r', 0, 'h'],
+  ['dd',   'Δ фикс.',      'r', -1, 'h'],
+];
+// жалобы ЕЦУР приклеиваются только к ОМСУ — в своде нет разреза по РСО
+const DYN_COLS_ZH = [
+  ['az',   'Жалоб отчёт',  'r', 0, 'int'],
+  ['bz',   'Жалоб сравн.', 'r', 0, 'int'],
+  ['dz',   'Δ жалоб',      'r', -1, 'int'],
+];
+
+/* Столбцы в обе стороны от нуля. Обычная гистограмма тут не годится: половина
+   значений отрицательные, и «длина от левого края» их не покажет. */
+function barsDiv(data, W, kind){
+  W = Math.round(W || 640);
+  const mt = 10, mr = 62;
+  const rowH = Math.min(38, Math.max(23, Math.round(300 / Math.max(data.length, 1))));
+  const barH = Math.max(10, Math.round(rowH * 0.48));
+  const longest = data.reduce((a, d) => Math.max(a, d.k.length), 0);
+  const ml = Math.round(Math.min(Math.max(longest * 7 + 16, 110), W * 0.42));
+  const maxCh = Math.max(8, Math.floor((ml - 16) / 7));
+  const H = mt + data.length * rowH + 18;
+  const iw = Math.max(60, W - ml - mr);
+  const half = iw / 2, zero = ml + half;
+  const max = Math.max(...data.map(d => Math.abs(d.v)), 0.0001);
+  const cBad  = isDark() ? '#e57373' : '#a51f1f';
+  const cGood = isDark() ? '#4bbd4b' : '#0a7a0a';
+  const lab = v => (v > 0 ? '+' : v < 0 ? '−' : '') +
+    (kind === 'h' ? fmtHM(Math.abs(v)) : fmtN(Math.abs(v)));
+  // Подпись значения уходит наружу от нуля, поэтому самому длинному столбцу
+  // нельзя дорастать до края поля: иначе подпись «−42 ч 56 мин» наезжает
+  // на колонку названий ОМСУ и затирает её.
+  const gut = data.reduce((a, d) => Math.max(a, lab(d.v).length), 0) * 7 + 12;
+  const barMax = Math.max(20, half - gut);
+
+  const bars = data.map((d, i) => {
+    const y = mt + i * rowH;
+    const w = Math.max(Math.abs(d.v) > 0 ? 2 : 0, barMax * Math.abs(d.v) / max);
+    const x = d.v >= 0 ? zero : zero - w;
+    const by = y + (rowH - barH) / 2;
+    const ty = y + rowH / 2 + 4.5;
+    // подпись уходит наружу от нуля, чтобы не наезжать на столбец
+    const tx = d.v >= 0 ? zero + w + 7 : zero - w - 7;
+    const anchor = d.v >= 0 ? 'start' : 'end';
+    return `<g class="bar" data-tip="${esc(d.tip || (d.k + ' — ' + lab(d.v)))}">
+        <text class="ax" x="${ml - 10}" y="${ty}" text-anchor="end">${esc(d.k.length > maxCh ? d.k.slice(0, maxCh - 1) + '…' : d.k)}</text>
+        <rect x="${x}" y="${by}" width="${w}" height="${barH}" rx="3" ry="3" fill="${d.v >= 0 ? cBad : cGood}"/>
+        <text class="val" x="${tx}" y="${ty}" text-anchor="${anchor}">${lab(d.v)}</text>
+      </g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">
+      <line class="g-line" x1="${zero}" y1="${mt - 4}" x2="${zero}" y2="${H - 12}"/>
+      ${bars}
+    </svg>`;
+}
+
+/* ---------- догрузка окна базы с ЕДДС ----------
+   Обычный запрос живого режима заменяет DATA целиком. Здесь так нельзя: базу
+   грузим ради сравнения с текущим периодом, и заменив выгрузку мы бы этот
+   период потеряли — сравнивать стало бы не с чем. Поэтому подмешиваем. */
+
+/* Какие дни базы ещё не загружены. Просить у ЕДДС то, что уже есть, незачем:
+   лишние страницы и двойной счёт в «исходной сводке» внизу листа. */
+/* Какие дни уже спрашивали. По датам самих заявок судить об этом нельзя: день,
+   в который не было ни одного инцидента, выглядел бы незагруженным, и кнопка
+   предлагала бы его снова и снова. Поэтому помним запрошенные интервалы —
+   для файла это, за неимением лучшего, диапазон его заявок. */
+function dynSpans(){
+  if(!DATA) return [];
+  if(!DATA.spans) DATA.spans = (DATA.from && DATA.to)
+    ? [{ from: isoDay(DATA.from), to: isoDay(DATA.to) }] : [];
+  return DATA.spans;
+}
+
+/* Первый непокрытый кусок окна. Возвращается один интервал: после его загрузки
+   функция вызывается снова и найдёт следующий, если он остался. */
+function dynGap(w){
+  if(!DATA || !w || !w.from || !w.to) return null;
+  const to = isoDay(w.to), sp = dynSpans();
+  const covered = d => sp.some(x => d >= x.from && d <= x.to);
+  let a = null, b = null;
+  for(let d = isoDay(w.from); d <= to; d = dyShift(d, 1)){
+    if(covered(d)){ if(a) break; continue; }
+    if(!a) a = d;
+    b = d;
+  }
+  return a ? { from: a, to: b } : null;
+}
+
+/* Заявка опознаётся по id: свежая версия вытесняет старую, остальное дописывается.
+   Окна запрашиваются непересекающиеся, поэтому счётчик исходных строк складывается
+   без двойного счёта. */
+function dynMerge(fresh){
+  const byId = new Map(DATA.recs.map(r => [r.id, r]));
+  let added = 0;
+  for(const r of fresh.recs){
+    if(!byId.has(r.id)) added++;
+    byId.set(r.id, r);
+  }
+  const recs = [...byId.values()];
+  recs.sort((a, b) => (a.diff === null) - (b.diff === null) || (b.diff ?? 0) - (a.diff ?? 0));
+  const dates = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
+  DATA = { recs, total: DATA.total + fresh.total, spans: dynSpans(),
+           from: dates[0] || null, to: dates[dates.length - 1] || null };
+  return added;
+}
+
+/* Незагруженные куски обоих окон. Пересчитывается после каждой подгрузки:
+   первый запрос расширяет DATA, и второй пробел от этого может исчезнуть. */
+function dynGaps(){
+  const out = [];
+  for(const w of [dynNow(), cmp]){
+    if(!w || !w.from || !w.to) continue;
+    const g = dynGap(w);
+    if(g && !out.some(o => o.from === g.from && o.to === g.to)) out.push(g);
+  }
+  return out;
+}
+
+async function dynLoadMissing(btn){
+  if(!LIVE || liveBusy) return;
+  if(!dynGaps().length){ renderDyn(); return; }
+
+  // Окно А запоминаем до подмешивания: DATA.from после него уезжает назад, и поля
+  // периода в шапке, если они не были заданы вручную, подхватили бы новую границу —
+  // отчётный период молча съехал бы на догруженное.
+  const A = dynNow();
+  const say = t => { if(btn) btn.textContent = t; liveSay(t, 'busy'); };
+  liveBusy = true;
+  if(btn) btn.disabled = true;
+
+  let added = 0, skipped = 0, done = [];
+  try{
+    // окон два, но окно может быть разорвано загруженным куском посередине,
+    // поэтому проходов чуть больше; каждый раз пробелы пересчитываются заново
+    for(let pass = 0; pass < 4; pass++){
+      const gap = dynGaps()[0];
+      if(!gap) break;
+      const ot = siteDay(gap.from), doo = siteDay(gap.to);
+      say('Запрашиваю ' + ot + ' — ' + doo + '…');
+      let grid = null, bad = 0, empty = false;
+      try{
+        const res = await fetchReport(ot, doo, say);
+        grid = res.grid; bad = res.bad;
+      }catch(e){
+        if(!e.empty) throw e;                 // сбой связи — интервал не считаем спрошенным
+        empty = true;
+      }
+      // сайт ответил — значит интервал спрошен, даже если заявок в нём не нашлось.
+      // Иначе следующий проход попросит ровно то же самое.
+      dynSpans().push(gap);
+      if(empty){ done.push(ot + ' — ' + doo + ' (заявок нет)'); continue; }
+      try{
+        added += dynMerge(build(grid));
+      }catch(e){
+        if(!e.empty) throw e;
+        done.push(ot + ' — ' + doo + ' (заявок нет)');
+        continue;
+      }
+      skipped += bad;
+      done.push(ot + ' — ' + doo);
+    }
+    req.from = req.from || isoDay(A.from);
+    req.to   = req.to   || isoDay(A.to);
+    liveArmed = false;            // перерисовка полей периода не должна дёргать сайт
+    renderFilters();
+    liveArmed = LIVE;
+    applyFilters();               // карточка с кнопкой пересобирается здесь же
+    const t = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    liveSay('Догружено: +' + fmtN(added) + ' заявок за ' + done.join(', ') +
+      ' · всего ' + fmtN(DATA.recs.length) + ' · ' + t +
+      (skipped ? ' · пропущено строк: ' + skipped : ''), '');
+  }catch(e){
+    liveSay(e.message || String(e), 'bad');
+    if(btn){ btn.disabled = false; btn.textContent = '↻ Повторить догрузку'; }
+  }finally{ liveBusy = false; }
+}
+
+/* Сортировка разреза. Строки без времени устранения уезжают вниз при любом
+   направлении: «нет данных» — это не «ноль часов», и мешать их с числами нельзя. */
+function dynSorted(rows, st){
+  const dir = st.dir;
+  return rows.sort((x, y) => {
+    if(st.key === 'name') return dir * x.name.localeCompare(y.name, 'ru');
+    const a = x[st.key], b = y[st.key];
+    if(a === null && b === null) return x.name.localeCompare(y.name, 'ru');
+    if(a === null) return 1;
+    if(b === null) return -1;
+    return dir * (a - b) || x.name.localeCompare(y.name, 'ru');
+  });
+}
+
+function dynBreakHtml(rows, first, st, cols){
+  const head = cols.map(([k, t, al], i) =>
+    '<th class="sortable' + (al === 'r' ? ' r' : '') + '" data-dk="' + k + '">' +
+    esc(i === 0 ? first : t) +
+    (st.key === k ? (st.dir > 0 ? ' ▲' : ' ▼') : '') + '</th>').join('');
+  const cell = (o, c) => {
+    const v = o[c[0]], dir = c[3], kind = c[4];
+    if(kind === 't') return '<td>' + esc(v) + '</td>';
+    if(dir) return '<td class="r ' + dynCls(v, dir) + '">' + esc(dynDelta(v, kind)) + '</td>';
+    return '<td class="r"' + (kind === 'h' ? ' ' + hTip(v) : '') + '>' + esc(dynVal(v, kind)) + '</td>';
+  };
+  const body = rows.length
+    ? rows.map(o => '<tr>' + cols.map(c => cell(o, c)).join('') + '</tr>').join('')
+    : '<tr><td colspan="' + cols.length + '" class="mute">В обоих окнах пусто.</td></tr>';
+  return '<thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody>';
+}
+
+/* ---------- отрисовка листа ---------- */
+
+/* Кнопка живёт внутри сообщения о непокрытом окне и пересобирается вместе с ним,
+   поэтому обработчик вешаем здесь — на каждой отрисовке. */
+const dynLoadBtn = () => LIVE
+  ? '<button class="btn btn-sm dyn-load" id="dyn-load">↓ Догрузить недостающие дни с ЕДДС</button>'
+  : '';
+
+function dynFill(when, kpis, note, tbl, omsu, rso){
+  document.getElementById('dy-when').innerHTML = when;
+  document.getElementById('dyn-kpis').innerHTML = kpis;
+  document.getElementById('dyn-note').textContent = note;
+  document.getElementById('dyn-tbl').innerHTML = tbl;
+  document.getElementById('dyn-omsu').innerHTML = omsu;
+  document.getElementById('dyn-rso').innerHTML = rso || omsu;
+  const b = document.getElementById('dyn-load');
+  if(b) b.addEventListener('click', () => dynLoadMissing(b));
+}
+
+function renderDyn(){
+  if(!DATA) return;
+  const dyc = document.getElementById('dyn-charts');
+  SLOTS.dyn.clear();
+  const A = dynNow(), B = { from: cmp.from, to: cmp.to };
+  const spanA = dynSpan(A), spanB = dynSpan(B);
+
+  const when =
+    '<div><span class="tag">Отчётный период</span><b>' + esc(dynLabel(A)) + '</b>' +
+      (spanA ? ' · ' + fmtN(spanA) + ' дн.' : '') + ' · ' + dynSrc() + '</div>' +
+    '<div><span class="tag">Период сравнения</span><b>' + esc(dynLabel(B)) + '</b>' +
+      (spanB ? ' · ' + fmtN(spanB) + ' дн.' : '') + '</div>';
+
+  if(!B.from || !B.to){
+    dyc.innerHTML = '';
+    dynFill(when +
+      '<div class="dyn-msg dyn-hint">Выберите период сравнения — тот, с которым сверяем отчётный. ' +
+      'Кнопка <b>«Предыдущий период»</b> возьмёт столько же дней подряд перед текущим, ' +
+      '<b>«Год назад»</b> — тот же интервал прошлого года.</div>',
+      '', 'период сравнения не выбран',
+      '<tbody><tr><td class="mute">Сравнивать пока не с чем.</td></tr></tbody>',
+      '<tbody><tr><td class="mute">Сравнивать пока не с чем.</td></tr></tbody>',
+      '<tbody><tr><td class="mute">Сравнивать пока не с чем.</td></tr></tbody>');
+    return;
+  }
+
+  const covB = dynCover(B), covA = dynCover(A);
+  const range = dRu(dayStart(isoDay(DATA.from))) + ' — ' + dRu(dayStart(isoDay(DATA.to)));
+  let msg = '';
+  if(covB === 'none'){
+    dyc.innerHTML = '';
+    dynFill(when +
+      '<div class="dyn-msg dyn-bad">В загруженной выгрузке нет ни одного дня из периода сравнения: ' +
+      'она охватывает <b>' + esc(range) + '</b>. Показать нули здесь нельзя — ноль означал бы ' +
+      '«инцидентов не было», а на деле эти дни просто не запрашивали.' +
+      (LIVE ? ' Догрузите его — данные добавятся к отчётному периоду, а не заменят его.'
+            : ' Загрузите выгрузку, покрывающую обе даты.') + '</div>' +
+      (LIVE && dynGaps().length ? '<div class="dyn-msg">' + dynLoadBtn() + '</div>' : ''),
+      '', 'нет данных за период сравнения',
+      '<tbody><tr><td class="mute">Нет данных за период сравнения.</td></tr></tbody>',
+      '<tbody><tr><td class="mute">Нет данных за период сравнения.</td></tr></tbody>',
+      '<tbody><tr><td class="mute">Нет данных за период сравнения.</td></tr></tbody>');
+    return;
+  }
+  if(covB === 'part' || covA === 'part')
+    msg += '<div class="dyn-msg dyn-warn">Окно выходит за границы выгрузки (<b>' + esc(range) +
+      '</b>): часть дней в ней отсутствует, и сравнение по ним занижено.' +
+      (LIVE ? ' Недостающие дни можно догрузить — уже загруженные повторно не запрашиваются.' : '') +
+      '</div>' + (LIVE && dynGaps().length
+        ? '<div class="dyn-msg">' + dynLoadBtn() + '</div>' : '');
+  if(spanA && spanB && spanA !== spanB)
+    msg += '<div class="dyn-msg dyn-warn">Окна разной длины: <b>' + fmtN(spanA) + '</b> и <b>' +
+      fmtN(spanB) + '</b> дн. Абсолютные счётчики несопоставимы напрямую — ' +
+      'смотрите на средние и медианы либо выровняйте периоды кнопкой «Предыдущий период».</div>';
+
+  const lA = dynSlice(A), lB = dynSlice(B);
+  const sA = dynStats(lA), sB = dynStats(lB);
+
+  // ---- плитки: то, ради чего лист и открывают
+  const tile = (title, key, kind, dir, sub) => {
+    const cur = sA[key], base = sB[key];
+    const d = (cur === null || base === null) ? null : (kind === 'h' ? r2(cur - base) : cur - base);
+    const cls = dynCls(d, dir);
+    return '<div class="kpi' + (cls.includes('d-bad') ? ' k-crit' : '') + '">' +
+      '<div class="eyebrow">' + esc(title) + '</div>' +
+      '<div class="v">' + esc(dynVal(cur, kind)) + '</div>' +
+      '<div class="d ' + cls + '">' + esc(dynDelta(d, kind)) + ' · ' + esc(dynPct(cur, base)) + '</div>' +
+      '<div class="s">сравнение: ' + esc(dynVal(base, kind)) + (sub ? ' · ' + esc(sub) : '') + '</div>' +
+      '</div>';
+  };
+  const kpis =
+    tile('Инцидентов', 'n', 'int', -1, 'ОМСУ: ' + fmtN(sA.omsuN)) +
+    tile('Аварийных и неплановых', 'avar', 'int', -1, 'плановых: ' + fmtN(sA.plan)) +
+    tile('Жителей затронуто', 'people', 'int', -1, 'МКД: ' + fmtN(sA.mkd)) +
+    tile('Среднее время устранения', 'avgU', 'h', -1, 'по ' + fmtN(sA.nU) + ' заявкам') +
+    tile('Среднее время до фиксации', 'avgD', 'h', -1, 'по ' + fmtN(sA.nD) + ' заявкам') +
+    tile('Плановые: нарушен срок', 'planBad', 'int', -1, 'из ' + fmtN(sA.planN) + ' плановых');
+
+  // ---- таблица метрик
+  const rows = DYN_ROWS.map(row => {
+    if(row[0] === '#')
+      return '<tr class="row-grp"><td colspan="5">' + esc(row[1]) + '</td></tr>';
+    const [key, label, kind, dir] = row;
+    const cur = sA[key], base = sB[key];
+    const d = (cur === null || base === null) ? null : (kind === 'h' ? r2(cur - base) : cur - base);
+    return '<tr><td>' + esc(label) + '</td>' +
+      '<td class="r">' + esc(dynVal(cur, kind)) + '</td>' +
+      '<td class="r">' + esc(dynVal(base, kind)) + '</td>' +
+      '<td class="r ' + dynCls(d, dir) + '">' + esc(dynDelta(d, kind)) + '</td>' +
+      '<td class="r ' + dynCls(d, dir) + '">' + esc(dynPct(cur, base)) + '</td></tr>';
+  }).join('');
+  const tbl =
+    '<thead><tr><th>Метрика</th><th class="r">Отчётный период</th><th class="r">Период сравнения</th>' +
+    '<th class="r">Δ</th><th class="r">Δ %</th></tr></thead><tbody>' + rows + '</tbody>';
+
+  // ---- разрезы: ОМСУ и РСО считаются и сортируются одинаково
+  const om = dynSorted(dynZhJoin(dynBreak(lA, lB, 'omsu'), A, B), DSORT);
+  const rs = dynSorted(dynBreak(lA, lB, 'rso'), RSORT);
+
+  // почему в колонке жалоб может стоять «—» — пишем прямо в подписи карточки
+  const za = dynZhCounts(A), zb = dynZhCounts(B);
+  document.getElementById('dyn-omsu-note').textContent =
+    'фиксация — от возникновения до доклада' +
+    (za && zb ? ' · жалобы ЕЦУР по ХВС и водоотведению'
+      : ' · жалобы не показаны: свод ЕЦУР ' + (!ZH ? 'не загружен'
+          : 'не покрывает ' + (!za && !zb ? 'оба окна' : !za ? 'отчётный период' : 'период сравнения')));
+
+  dynFill(when + msg, kpis,
+    'отчётный ' + dynLabel(A) + ' · сравнения ' + dynLabel(B),
+    tbl,
+    dynBreakHtml(om, 'ОМСУ', DSORT, DYN_COLS.concat(DYN_COLS_ZH)),
+    dynBreakHtml(rs, 'РСО', RSORT, DYN_COLS));
+
+  // ---- диаграммы изменений
+  const byN = om.filter(o => o.dn !== 0).sort((a, b) => Math.abs(b.dn) - Math.abs(a.dn)).slice(0, 14)
+    .sort((a, b) => b.dn - a.dn)
+    .map(o => ({ k: o.name, v: o.dn,
+                 tip: o.name + ': ' + fmtN(o.an) + ' против ' + fmtN(o.bn) + ' — ' + dynDelta(o.dn, 'int') }));
+  const byU = om.filter(o => o.du !== null && o.du !== 0)
+    .sort((a, b) => Math.abs(b.du) - Math.abs(a.du)).slice(0, 14)
+    .sort((a, b) => b.du - a.du)
+    .map(o => ({ k: o.name, v: o.du,
+                 tip: o.name + ': ' + fmtHM(o.au) + ' против ' + fmtHM(o.bu) + ' — ' + dynDelta(o.du, 'h') }));
+
+  dyc.innerHTML =
+    (byN.length ? chartCard('dyn', 'Где изменилось число инцидентов',
+        'красный — рост, зелёный — снижение · до 14 ОМСУ с наибольшим расхождением',
+        W => barsDiv(byN, W, 'int'))
+      : '<section class="card"><header><h3>Где изменилось число инцидентов</h3></header>' +
+        '<div class="body"><span class="mute">Расхождений нет.</span></div></section>') +
+    (byU.length ? chartCard('dyn', 'Где изменилось время устранения',
+        'красный — стало дольше, зелёный — быстрее · только ОМСУ с данными АВР в обоих окнах',
+        W => barsDiv(byU, W, 'h'))
+      : '<section class="card"><header><h3>Где изменилось время устранения</h3></header>' +
+        '<div class="body"><span class="mute">Сравнивать нечего: в одном из окон нет времён устранения.</span></div></section>');
+  fillCharts('dyn');
+
+  for(const [id, st] of [['dyn-omsu', DSORT], ['dyn-rso', RSORT]])
+    document.getElementById(id).querySelectorAll('[data-dk]').forEach(th =>
+      th.addEventListener('click', () => {
+        const k = th.dataset.dk;
+        // по имени — сначала А→Я, по числам — сначала наибольшее: так нужный конец списка сверху
+        if(st.key === k) st.dir = -st.dir;
+        else { st.key = k; st.dir = k === 'name' ? 1 : -1; }
+        renderDyn();
+      }));
+}
+
+/* ---------- выбор базы: поля и пресеты ---------- */
+const dyShift = (iso, days) => isoDay(new Date(dayStart(iso).getTime() + days * 86400000));
+
+/* Окно задано, только когда обе даты на месте и «по» не раньше «с»:
+   половина диапазона — это ещё не выбор, а «по» раньше «с» — опечатка,
+   молча считать по которой нечего. */
+function dyWin(fromEl, toEl){
+  const f = dayStart(document.getElementById(fromEl).value);
+  const t = dayEnd(document.getElementById(toEl).value);
+  return (f && t && f <= t) ? { from: f, to: t } : { from: null, to: null };
+}
+
+function dyRead(){
+  cur = dyWin('dy-afrom', 'dy-ato');
+  cmp = dyWin('dy-from', 'dy-to');
+  renderDyn();
+}
+
+function dySet(fromIso, toIso){
+  document.getElementById('dy-from').value = fromIso || '';
+  document.getElementById('dy-to').value = toIso || '';
+  dyRead();
+}
+
+function dyClear(){
+  for(const id of ['dy-afrom', 'dy-ato', 'dy-from', 'dy-to'])
+    document.getElementById(id).value = '';
+  dyRead();
+}
+
+function dyPreset(kind){
+  const A = dynNow();
+  if(!A.from || !A.to) return;
+  const from = isoDay(A.from), to = isoDay(A.to), span = dynSpan(A);
+  if(kind === 'prev') return dySet(dyShift(from, -span), dyShift(from, -1));
+  // «год назад» — тот же календарный интервал, сдвинутый на год: 366 дней
+  // високосного года иначе съехали бы на сутки
+  const back = iso => { const d = dayStart(iso);
+    return isoDay(new Date(d.getFullYear() - 1, d.getMonth(), d.getDate())); };
+  dySet(back(from), back(to));
+}
+
+for(const id of ['dy-afrom', 'dy-ato', 'dy-from', 'dy-to'])
+  document.getElementById(id).addEventListener('change', dyRead);
+document.getElementById('dy-prev').addEventListener('click', () => dyPreset('prev'));
+document.getElementById('dy-year').addEventListener('click', () => dyPreset('year'));
+document.getElementById('dy-clear').addEventListener('click', dyClear);
+
+
+/* ---------- сводная ---------- */
+let PSORT = { key: 'name', dir: 1 };     // name | avg | n
+
+function pivotModel(){
+  const tree = new Map();
+  for(const r of VIEW){
+    if(!tree.has(r.omsu)) tree.set(r.omsu, new Map());
+    const t = tree.get(r.omsu);
+    if(!t.has(r.rso)) t.set(r.rso, []);
+    t.get(r.rso).push(r);
+  }
+  return [...tree.entries()];
+}
+
+const groupAvg = list => avg(list.map(r => r.diff).filter(v => v !== null));
+
+// сортировка одинаково применяется на уровне ОМСУ и на уровне РСО
+function sortGroups(entries){
+  return [...entries].sort((a, b) => {
+    if(PSORT.key === 'name') return a[0].localeCompare(b[0], 'ru') * PSORT.dir;
+    const la = a[1] instanceof Map ? [...a[1].values()].flat() : a[1];
+    const lb = b[1] instanceof Map ? [...b[1].values()].flat() : b[1];
+    if(PSORT.key === 'n') return (la.length - lb.length) * PSORT.dir;
+    return ((groupAvg(la) ?? -1e12) - (groupAvg(lb) ?? -1e12)) * PSORT.dir;
+  });
+}
+function sortLeaves(list){
+  return [...list].sort((a, b) => PSORT.key === 'name'
+    ? a.id.localeCompare(b.id, 'ru') * PSORT.dir
+    : ((a.diff ?? -1e12) - (b.diff ?? -1e12)) * PSORT.dir);
+}
+
+function renderPivot(){
+  const cell = a => { const v = groupAvg(a);
+    return `<td class="r" ${hTip(v)}>${fmtHM(v)}</td><td class="r">${fmtN(a.length)}</td>`; };
+  const arrow = k => PSORT.key === k ? (PSORT.dir === 1 ? ' ↑' : ' ↓') : '';
+  const th = (k, label, cls) =>
+    `<th class="sortable ${cls || ''}" data-psort="${k}" title="Сортировать">${esc(label)}${arrow(k)}</th>`;
+
+  let html = `<thead><tr>
+      ${th('name', 'Название ОМСУ')}
+      ${th('name', 'РСО (исполнитель)')}
+      <th>ID заявки</th>
+      ${th('avg', 'Среднее время', 'r')}
+      ${th('n', 'Кол-во заявок', 'r')}
+      <th></th>
+    </tr></thead><tbody>`;
+
+  for(const [omsu, rsos] of sortGroups(pivotModel())){
+    const all = [...rsos.values()].flat();
+    const openM = !collapsed.has('m:' + omsu);
+    html += `<tr class="row-mr tw" data-tog="m:${esc(omsu)}">
+        <td><span class="caret">${openM ? '▾' : '▸'}</span>${esc(omsu)}</td>
+        <td></td><td></td>${cell(all)}<td></td></tr>`;
+    if(!openM) continue;
+
+    for(const [rso, list] of sortGroups([...rsos.entries()])){
+      const kR = 'r:' + omsu + '|' + rso;
+      const openR = !collapsed.has(kR);
+      html += `<tr class="row-rso tw" data-tog="${esc(kR)}">
+          <td></td><td><span class="caret">${openR ? '▾' : '▸'}</span>${esc(rso)}</td>
+          <td></td>${cell(list)}<td></td></tr>`;
+      if(!openR) continue;
+
+      for(const r of sortLeaves(list)){
+        html += `<tr class="row-id">
+            <td></td><td></td><td class="mono">${esc(r.id)}</td>
+            <td class="r" ${hTip(r.diff)}>${fmtHM(r.diff)}</td><td class="r">1</td>
+            <td class="c"><button class="btn btn-sm" data-open="${esc(r.id)}">Открыть заявку</button></td>
+          </tr>`;
+      }
+    }
+  }
+  const allD = VIEW.map(r => r.diff).filter(v => v !== null);
+  html += `<tr class="row-total"><td>Общий итог</td><td></td><td></td>
+      <td class="r" ${hTip(avg(allD))}>${fmtHM(avg(allD))}</td>
+      <td class="r">${fmtN(VIEW.length)}</td><td></td></tr>`;
+  html += '</tbody>';
+
+  const t = document.getElementById('pivot');
+  t.innerHTML = html;
+  t.querySelectorAll('[data-psort]').forEach(h => h.addEventListener('click', () => {
+    const k = h.dataset.psort;
+    // по названию логичнее начинать с А-Я, по числам — с худших
+    if(PSORT.key === k) PSORT.dir *= -1;
+    else PSORT = { key: k, dir: k === 'name' ? 1 : -1 };
+    renderPivot();
+  }));
+  t.querySelectorAll('[data-tog]').forEach(tr => tr.addEventListener('click', e => {
+    if(e.target.closest('button')) return;
+    const k = tr.dataset.tog;
+    collapsed.has(k) ? collapsed.delete(k) : collapsed.add(k);
+    renderPivot();
+  }));
+  t.querySelectorAll('[data-open]').forEach(b =>
+    b.addEventListener('click', () => openCard(b.dataset.open)));
+}
+
+/* ---------- реестр ---------- */
+const COLS = [
+  ['id','ID', 'mono', r => esc(r.id)],
+  ['omsu','ОМСУ', '', r => esc(r.omsu)],
+  ['rso','РСО', '', r => esc(r.rso)],
+  ['start','Начало события', 'r', r => fmtDT(r.start)],
+  ['fix','Зафиксировано', 'r', r => fmtDT(r.fix)],
+  ['diff','Разница', 'r', r => {
+      if(r.diff === null) return '—';
+      const cls = r.diff > 24 ? 'p-crit' : r.diff > 3 ? 'p-ser' : r.diff > 1 ? 'p-warn' : '';
+      const t = `<span ${hTip(r.diff)}>${fmtHM(r.diff)}</span>`;
+      return cls ? `<span class="pill ${cls}" ${hTip(r.diff)}>${fmtHM(r.diff)}</span>` : t;
+    }],
+  ['anom','Аномалия', 'c', r => r.anom === 'Да' ? '<span class="pill p-crit">Да</span>' : '<span class="pill p-mute">Нет</span>'],
+  ['plan3','3 суток', 'c', r => r.plan3 === 'Нет' ? '<span class="pill p-ser">Нет</span>'
+      : r.plan3 === 'Да' ? '<span class="pill p-good">Да</span>' : '<span class="pill p-mute">—</span>'],
+  ['short','Не уложились на', 'r', r => `<span ${hTip(r.short)}>${fmtHM(r.short)}</span>`],
+  ['obj','Объект', '', r => esc(r.obj)],
+  ['people','Жителей', 'r', r => fmtN(r.people)],
+  ['ustrH','Устранено за', 'r', r => `<span ${hTip(r.ustrH)}>${fmtHM(r.ustrH)}</span>`],
+  ['type','Тип', '', r => esc(r.type)],
+  ['status','Статус', 'c', r => r.status === 'В работе'
+      ? '<span class="pill p-warn">В работе</span>' : '<span class="pill p-mute">Устранено</span>'],
+];
+
+function renderTable(){
+  const sorted = [...VIEW].sort((a, b) => {
+    const k = SORT.key;
+    let x = a[k], y = b[k];
+    if(x instanceof Date) x = +x; if(y instanceof Date) y = +y;
+    if(x === null || x === undefined || x === '') return 1;
+    if(y === null || y === undefined || y === '') return -1;
+    if(typeof x === 'number' && typeof y === 'number') return (x - y) * SORT.dir;
+    return String(x).localeCompare(String(y), 'ru') * SORT.dir;
+  });
+  const shown = sorted.slice(0, LIMIT);
+
+  const head = COLS.map(([k, t, cls]) =>
+    `<th class="sortable ${cls === 'mono' ? '' : cls}" data-sort="${k}">${esc(t)}${
+      SORT.key === k ? (SORT.dir === 1 ? ' ↑' : ' ↓') : ''}</th>`).join('') + '<th></th>';
+
+  const body = shown.map(r => '<tr>' + COLS.map(([k, t, cls, fn]) =>
+      `<td class="${cls}">${fn(r)}</td>`).join('') +
+      `<td class="c"><button class="btn btn-sm" data-open="${esc(r.id)}">Открыть заявку</button></td></tr>`).join('');
+
+  const t = document.getElementById('tbl');
+  t.innerHTML = `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
+  t.querySelectorAll('[data-sort]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if(SORT.key === k) SORT.dir *= -1; else { SORT.key = k; SORT.dir = -1; }
+    renderTable();
+  }));
+  t.querySelectorAll('[data-open]').forEach(b =>
+    b.addEventListener('click', () => openCard(b.dataset.open)));
+
+  document.getElementById('tbl-note').textContent =
+    'показано ' + fmtN(shown.length) + ' из ' + fmtN(VIEW.length);
+  document.getElementById('more').hidden = shown.length >= VIEW.length;
+}
+
+const dRu = d => d ? d.toLocaleDateString('ru-RU') : '—';
+
+// период выбранных сейчас записей — по дате возникновения события
+function viewPeriod(){
+  const ds = VIEW.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
+  return ds.length ? [ds[0], ds[ds.length - 1]] : [null, null];
+}
+
+function renderFoot(){
+  const full = DATA.from && DATA.to ? dRu(DATA.from) + ' — ' + dRu(DATA.to) : '—';
+  const [vf, vt] = viewPeriod();
+  const narrowed = period.from || period.to;
+  const shown = vf ? dRu(vf) + ' — ' + dRu(vt) : '—';
+
+  document.getElementById('foot').innerHTML =
+    `Период выгрузки: <b>${esc(full)}</b>. В исходной сводке ${fmtN(DATA.total)} записей, ` +
+    `по объектам ВС/ВО отобрано ${fmtN(DATA.recs.length)}. ` +
+    (narrowed ? `Сейчас показан период <b>${esc(shown)}</b> — ${fmtN(VIEW.length)} заявок. ` : '') +
+    `Разница = «зафиксировано» − «начало события». Отрицательная разница у плановых заявок — ` +
+    `штатное уведомление заранее, аномалией не считается. Норматив уведомления о плановых работах — ${NORM_H} ч.`;
+  document.getElementById('scope').textContent =
+    'Объекты ВС/ВО · ' + (narrowed ? shown : full) + ' · ' + fmtN(VIEW.length) + ' инцидентов';
+}
+
+/* ---------- карточка заявки ---------- */
+function openCard(id){
+  const r = DATA.recs.find(x => x.id === id);
+  if(!r) return;
+  document.getElementById('m-title').textContent = 'Заявка № ' + r.id;
+  const rows = [
+    ['ОМСУ', esc(r.omsu)],
+    ['РСО (исполнитель)', esc(r.rso)],
+    ['Объект', esc(r.obj)],
+    ['Тип отключения', esc(r.type)],
+    ['Причина', esc(r.prich) || '—'],
+    ['Начало события', fmtDT(r.start)],
+    ['Зафиксировано в системе', fmtDT(r.fix)],
+    ['Разница', r.diff === null ? '—'
+      : `<b>${fmtHM(r.diff)}</b> <span style="color:var(--ink-3)">(${fmtN(r.diff, 2)} ч)</span>`],
+    ['Аномалия', r.anom === 'Да'
+      ? '<span class="pill p-crit">Да</span> — доклад раньше события по аварийной заявке'
+      : '<span class="pill p-mute">Нет</span>'],
+    ['Уведомили за 3 суток', r.plan3 === ''
+      ? '<span class="pill p-mute">—</span> норматив только для плановых'
+      : r.plan3 === 'Да' ? '<span class="pill p-good">Да</span>'
+      : `<span class="pill p-ser">Нет</span> — не уложились на ${fmtHM(r.short)}`],
+    ['Завершение работ', fmtDT(r.close)],
+    ['Статус', r.status === 'В работе'
+      ? '<span class="pill p-warn">В работе</span>' : '<span class="pill p-mute">Устранено</span>'],
+    ['Устранено за', r.ustrH === null ? (esc(r.ustrTxt) || '—')
+      : `<b>${fmtHM(r.ustrH)}</b> <span style="color:var(--ink-3)">(${fmtN(r.ustrH, 2)} ч; в сводке: ${esc(r.ustrTxt)})</span>`],
+    ['Охват', `жителей ${fmtN(r.people)} · МКД ${fmtN(r.mkd)} · нас. пунктов ${fmtN(r.np)} · соцобъектов ${fmtN(r.soc)}`],
+  ];
+  document.getElementById('m-body').innerHTML =
+    '<dl class="kv">' + rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('') + '</dl>' +
+    (r.text ? `<div class="msg">${esc(r.text)}</div>` : '');
+  document.getElementById('m-copy').onclick = () => {
+    navigator.clipboard?.writeText(r.id);
+    document.getElementById('m-copy').textContent = 'Скопировано';
+    setTimeout(() => document.getElementById('m-copy').textContent = 'Копировать ID', 1400);
+  };
+  document.getElementById('modal').classList.add('open');
+}
+function closeCard(){ document.getElementById('modal').classList.remove('open'); }
+
+/* ============================================================
+   6. Выгрузка в Excel — сборка xlsx своими руками
+   ============================================================ */
+const CRC_T = (() => {
+  const t = new Uint32Array(256);
+  for(let n = 0; n < 256; n++){
+    let c = n;
+    for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(u8){
+  let c = 0xFFFFFFFF;
+  for(let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function makeZip(entries){
+  const enc = new TextEncoder();
+  const parts = [], cdir = [];
+  let off = 0;
+  for(const e of entries){
+    const nameB = enc.encode(e.name);
+    const orig = enc.encode(e.text);
+    const crc = crc32(orig);
+    let data = orig, method = 0;
+    if(typeof CompressionStream !== 'undefined'){
+      try{
+        const ab = await new Response(new Blob([orig]).stream()
+          .pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+        const z = new Uint8Array(ab);
+        if(z.length < orig.length){ data = z; method = 8; }
+      }catch(_){ /* остаётся без сжатия */ }
+    }
+    const lh = new Uint8Array(30 + nameB.length);
+    const dv = new DataView(lh.buffer);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0, true);
+    dv.setUint16(8, method, true); dv.setUint16(10, 0, true); dv.setUint16(12, 0, true);
+    dv.setUint32(14, crc, true); dv.setUint32(18, data.length, true); dv.setUint32(22, orig.length, true);
+    dv.setUint16(26, nameB.length, true); dv.setUint16(28, 0, true);
+    lh.set(nameB, 30);
+    parts.push(lh, data);
+    cdir.push({ nameB, crc, comp: data.length, orig: orig.length, off, method });
+    off += lh.length + data.length;
+  }
+  let cdLen = 0;
+  for(const c of cdir){
+    const h = new Uint8Array(46 + c.nameB.length);
+    const dv = new DataView(h.buffer);
+    dv.setUint32(0, 0x02014b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 20, true);
+    dv.setUint16(8, 0, true); dv.setUint16(10, c.method, true);
+    dv.setUint32(16, c.crc, true); dv.setUint32(20, c.comp, true); dv.setUint32(24, c.orig, true);
+    dv.setUint16(28, c.nameB.length, true); dv.setUint32(42, c.off, true);
+    h.set(c.nameB, 46);
+    parts.push(h); cdLen += h.length;
+  }
+  const eo = new Uint8Array(22), dv = new DataView(eo.buffer);
+  dv.setUint32(0, 0x06054b50, true);
+  dv.setUint16(8, cdir.length, true); dv.setUint16(10, cdir.length, true);
+  dv.setUint32(12, cdLen, true); dv.setUint32(16, off, true);
+  parts.push(eo);
+  return new Blob(parts, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+const XE = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
+                               .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+function colLetter(n){ let s = ''; while(n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - 1 - m) / 26; } return s; }
+const serial = d => (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes()) / 86400000) + 25569;
+
+// индексы стилей в cellXfs (порядок ниже в styles.xml)
+const XF = { def:0, head:1, title:2, sub:3, text:4, num:5, dt:6, int:7, ctr:8,
+             anomYes:9, planNo:10, planYes:11, work:12,
+             dtRed:13, dtOrg:14, dtYel:15, dtGry:16,
+             numRed:17, numOrg:18, numYel:19, numGry:20, short:21, dtWork:22, bold:23 };
+
+const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="DD.MM.YYYY HH:MM"/></numFmts>
+<fonts count="9">
+<font><sz val="10"/><name val="Calibri"/></font>
+<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+<font><b/><sz val="13"/><name val="Calibri"/></font>
+<font><i/><sz val="10"/><color rgb="FF52514E"/><name val="Calibri"/></font>
+<font><b/><sz val="10"/><color rgb="FFA21C1C"/><name val="Calibri"/></font>
+<font><b/><sz val="10"/><color rgb="FF9A3B00"/><name val="Calibri"/></font>
+<font><b/><sz val="10"/><color rgb="FF0A6B0A"/><name val="Calibri"/></font>
+<font><b/><sz val="10"/><color rgb="FF9A5B00"/><name val="Calibri"/></font>
+<font><b/><sz val="10"/><name val="Calibri"/></font>
+</fonts>
+<fills count="9">
+<fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF1C5CAB"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF6D5D5"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFCE3D2"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFDF2CE"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE8EEF7"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFDECC4"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF8CFCF"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="2">
+<border><left/><right/><top/><bottom/><diagonal/></border>
+<border><left style="thin"><color rgb="FFD0D0CC"/></left><right style="thin"><color rgb="FFD0D0CC"/></right><top style="thin"><color rgb="FFD0D0CC"/></top><bottom style="thin"><color rgb="FFD0D0CC"/></bottom><diagonal/></border>
+</borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="24">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="2" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="4" fillId="8" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="5" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="6" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="7" fillId="7" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="5" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="6" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="2" fontId="0" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="2" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="2" fontId="0" fillId="5" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="2" fontId="0" fillId="6" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="2" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="164" fontId="0" fillId="7" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="8" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+<dxfs count="0"/>
+<tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>
+</styleSheet>`;
+
+const EXPORT_COLS = [
+  ['№', 5], ['ID заявки', 11], ['Название ОМСУ', 24], ['Название РСО (исполнитель)', 40],
+  ['Начало события', 17], ['Зафиксировано в системе', 17],
+  ['Разница, ч', 11], ['Разница (ч и мин)', 15], ['Аномалия', 11],
+  ['Уведомили за 3 суток', 13],
+  ['Не уложились на, ч', 13], ['Не уложились (ч и мин)', 16], ['Отключённый объект', 24],
+  ['Жителей', 10], ['МКД', 8], ['Нас. пунктов', 8], ['Соцобъектов', 8],
+  ['Завершение работ', 17], ['Статус', 12],
+  ['Устранено за', 15], ['Устранено, ч', 11], ['Устранено (ч и мин)', 16],
+  ['Устранено нарастающим итогом, ч', 15],
+  ['Тип отключения', 17], ['Причина отключения', 42],
+];
+
+function periodLabel(recs){
+  const ds = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
+  return ds.length ? dRu(ds[0]) + ' — ' + dRu(ds[ds.length - 1]) : '—';
+}
+
+function cellS(ref, v, s){ const t = XE(v); return t === ''
+  ? `<c r="${ref}" s="${s}"/>`
+  : `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${t}</t></is></c>`; }
+function cellN(ref, v, s){ return (v === null || v === undefined || Number.isNaN(v))
+  ? `<c r="${ref}" s="${s}"/>` : `<c r="${ref}" s="${s}"><v>${v}</v></c>`; }
+
+function sheetMain(recs){
+  const N = EXPORT_COLS.length, last = colLetter(N);
+  const cols = '<cols>' + EXPORT_COLS.map(([, w], i) =>
+    `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
+
+  let rows = '';
+  rows += `<row r="1" ht="17"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
+    XE('Задержка доклада о технологических нарушениях: объекты водоснабжения и водоотведения (ВЗУ, сети ВС, КНС, КОС, сети ВО)') +
+    '</t></is></c></row>';
+  rows += `<row r="2" ht="30"><c r="A2" s="${XF.sub}" t="inlineStr"><is><t xml:space="preserve">` +
+    XE('Период (по началу события): ' + periodLabel(recs) + '. Записей: ' + recs.length + '. ' +
+       'Разница = «зафиксировано в системе» − «начало события». Отрицательная величина у плановых заявок = уведомление заранее. ' +
+       'Норматив уведомления о плановых работах — ' + NORM_H + ' ч.') +
+    '</t></is></c></row>';
+
+  rows += '<row r="4" ht="34">' + EXPORT_COLS.map(([t], i) =>
+    cellS(colLetter(i + 1) + '4', t, XF.head)).join('') + '</row>';
+
+  let cum = 0;
+  recs.forEach((r, i) => {
+    const rn = 5 + i;
+    const d = r.diff;
+    const fill = d === null ? null : d > 24 ? 'Red' : d > 3 ? 'Org' : d > 1 ? 'Yel' : d < 0 ? 'Gry' : null;
+    const dtS = fill ? XF['dt' + fill] : XF.dt;
+    const nS  = fill ? XF['num' + fill] : XF.num;
+    if(r.ustrH !== null) cum = r2(cum + r.ustrH);
+
+    const wS = r.status === 'В работе' ? XF.dtWork : XF.dt;
+    const hm = v => v === null || v === undefined ? '' : fmtHM(v);   // «26 ч 46 мин»
+    let n = 0;
+    const c = [];
+    const put = mk => { n++; c.push(mk(colLetter(n) + rn)); };
+
+    put(L => cellN(L, i + 1, XF.int));
+    put(L => cellS(L, r.id, XF.int));
+    put(L => cellS(L, r.omsu, XF.text));
+    put(L => cellS(L, r.rso, XF.text));
+    put(L => r.start ? cellN(L, serial(r.start), dtS) : `<c r="${L}" s="${dtS}"/>`);
+    put(L => r.fix ? cellN(L, serial(r.fix), dtS) : `<c r="${L}" s="${dtS}"/>`);
+    put(L => cellN(L, d, nS));
+    put(L => cellS(L, hm(d), fill ? XF['num' + fill] : XF.int));
+    put(L => cellS(L, r.anom, r.anom === 'Да' ? XF.anomYes : XF.ctr));
+    put(L => cellS(L, r.plan3, r.plan3 === 'Нет' ? XF.planNo : r.plan3 === 'Да' ? XF.planYes : XF.ctr));
+    put(L => cellN(L, r.short, r.plan3 === 'Нет' ? XF.short : XF.num));
+    put(L => cellS(L, hm(r.short), r.plan3 === 'Нет' ? XF.short : XF.int));
+    put(L => cellS(L, r.obj, XF.text));
+    put(L => cellN(L, r.people, XF.int));
+    put(L => cellN(L, r.mkd, XF.int));
+    put(L => cellN(L, r.np, XF.int));
+    put(L => cellN(L, r.soc, XF.int));
+    put(L => r.close ? cellN(L, serial(r.close), wS) : `<c r="${L}" s="${wS}"/>`);
+    put(L => cellS(L, r.status, r.status === 'В работе' ? XF.work : XF.ctr));
+    put(L => cellS(L, r.ustrTxt, XF.text));
+    put(L => cellN(L, r.ustrH, XF.num));
+    put(L => cellS(L, hm(r.ustrH), XF.int));
+    put(L => cellN(L, cum, XF.num));
+    put(L => cellS(L, r.type, XF.text));
+    put(L => cellS(L, r.prich, XF.text));
+    if(n !== EXPORT_COLS.length) throw new Error('Рассинхрон колонок выгрузки: ' + n + ' вместо ' + EXPORT_COLS.length);
+    rows += `<row r="${rn}">` + c.join('') + '</row>';
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<dimension ref="A1:${last}${4 + recs.length}"/>
+<sheetViews><sheetView tabSelected="1" workbookViewId="0">
+<pane xSplit="4" ySplit="4" topLeftCell="E5" activePane="bottomRight" state="frozen"/>
+</sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="15"/>
+${cols}
+<sheetData>${rows}</sheetData>
+<autoFilter ref="A4:${last}${4 + recs.length}"/>
+<mergeCells count="2"><mergeCell ref="A1:${last}1"/><mergeCell ref="A2:${last}2"/></mergeCells>
+</worksheet>`;
+}
+
+function sheetPivot(recs){
+  const tree = new Map();
+  for(const r of recs){
+    if(!tree.has(r.omsu)) tree.set(r.omsu, new Map());
+    const t = tree.get(r.omsu);
+    if(!t.has(r.rso)) t.set(r.rso, []);
+    t.get(r.rso).push(r);
+  }
+  const stat = a => { const d = a.map(x => x.diff).filter(v => v !== null);
+    return [d.length ? r2(avg(d)) : null, a.length]; };
+
+  let rows = `<row r="1"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
+    XE('Сводная: среднее время от возникновения инцидента до фиксации в системе') + '</t></is></c></row>';
+  rows += `<row r="2"><c r="A2" s="${XF.sub}" t="inlineStr"><is><t xml:space="preserve">` +
+    XE('Значения в часах. Отрицательные значения (плановые работы, уведомление заранее) участвуют в среднем.') +
+    '</t></is></c></row>';
+  rows += '<row r="4">' +
+    ['Название ОМСУ','Название РСО (исполнитель)','Среднее время, ч','Среднее время (ч и мин)','Кол-во заявок']
+    .map((t, i) => cellS(colLetter(i + 1) + '4', t, XF.head)).join('') + '</row>';
+
+  const line = (rn, a, bb, m, n, st) =>
+    `<row r="${rn}">${cellS('A' + rn, a, st)}${cellS('B' + rn, bb, st)}` +
+    `${cellN('C' + rn, m, XF.num)}${cellS('D' + rn, m === null ? '' : fmtHM(m), XF.int)}` +
+    `${cellN('E' + rn, n, XF.int)}</row>`;
+
+  let rn = 5;
+  for(const [omsu, rsos] of [...tree.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru'))){
+    for(const [rso, list] of [...rsos.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru'))){
+      const [m, n] = stat(list);
+      rows += line(rn++, omsu, rso, m, n, XF.text);
+    }
+    const [m, n] = stat([...rsos.values()].flat());
+    rows += line(rn++, omsu + ' Итог', '', m, n, XF.bold);
+  }
+  const [m, n] = stat(recs);
+  rows += line(rn, 'Общий итог', '', m, n, XF.bold);
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<cols><col min="1" max="2" width="34" customWidth="1"/><col min="3" max="5" width="17" customWidth="1"/></cols>
+<sheetData>${rows}</sheetData>
+<autoFilter ref="A4:E${rn}"/>
+</worksheet>`;
+}
+
+const NOTES = [
+  ['Выборка', 'Только инциденты, у которых отмечен хотя бы один объект из группы ВС/ВО: ВЗУ, Сети водоснабжения, КНС, КОС, Сети водоотведения.'],
+  ['Начало события', 'Поле d_create — «дата и время возникновения тех. нарушения».'],
+  ['Зафиксировано в системе', 'Поле d_doklad — «дата и время доклада о техн. нарушении».'],
+  ['Разница, ч', 'Зафиксировано − Начало, в часах с сотыми. Положительная = доклад с опозданием. Отрицательная = заявку завели ДО начала события.'],
+  ['Аномалия', '«Да» — разница отрицательная при типе «Аварийная заявка» или «Неплановая заявка». Для аварии это невозможно: время возникновения проставлено задним числом или ошибочно. Для плановых заявок отрицательная разница аномалией не считается.'],
+  ['Уведомили за 3 суток', 'Только для плановых заявок. Норматив: о плановых работах должно быть известно минимум за ' + NORM_H + ' часа до начала. «Да» — заявка занесена за ' + NORM_H + ' ч и более до начала события.'],
+  ['Не уложились на, ч', NORM_H + ' часов минус фактическая заблаговременность. Заполняется только там, где в предыдущей графе «Нет».'],
+  ['Завершение работ', 'Поле d_close — «дата и время устранения техн. нарушения».'],
+  ['Статус', '«Устранено» — время завершения проставлено. «В работе» — время завершения отсутствует.'],
+  ['Устранено за / Устранено, ч', 'Поле t_ustr — продолжительность АВР текстом и та же величина сквозным числом в часах. В исходнике встречаются только три единицы: день, час, мин.'],
+  ['Колонки «(ч и мин)»', 'Та же величина, что в соседней числовой колонке, но словами: 26,77 ч → «26 ч 46 мин». Это текст — сортировать и суммировать нужно по числовой колонке рядом. Минус означает, что заявку завели раньше события.'],
+  ['Устранено нарастающим итогом, ч', 'Накопительная сумма продолжительности АВР по строкам в порядке сортировки.'],
+  ['Охват населения', 'cnt_people (жителей), cnt_mkd (МКД), cnt_nas_punkt (населённых пунктов), Соцобъектов = больницы + поликлиники + школы + детсады. Фильтр «Жителей затронуто» отбирает по cnt_people включительно: «0 — 0» оставит заявки, где не затронут никто. Заявки с прочерком проходят только с галочкой «без данных».'],
+  ['Заливка', 'Красная — задержка более 24 ч; оранжевая — более 3 ч; жёлтая — более 1 ч; серо-голубая — доклад раньше события.'],
+  ['Лист «Сводная»', 'Здесь это обычная таблица с посчитанными средними, а не живая сводная Excel: браузер не умеет собирать объект PivotTable. Чтобы получить интерактивную сводную, выделите диапазон и вставьте сводную таблицу средствами Excel.'],
+  ['Важно', 'Поле «вид нарушения» в исходной сводке у всех записей = «Технологический сбой». Аварийность определяйте по колонке «Тип отключения».'],
+  ['Листы «Динамика»', 'Сравнение двух окон времени: отчётного периода и периода сравнения, заданных на листе «Динамика» в дашборде. Δ = отчётный − сравнения. Все фильтры, кроме периода, применяются к обоим окнам одинаково — иначе сравнивались бы разные выборки.'],
+  ['Время на листах «Динамика»', 'В десятичных часах (3,74 = 3 ч 44 мин), чтобы работали сортировка, сводные и формулы. Пустая ячейка — величины нет: например, в окне не было ни одной заявки с проставленным временем АВР. Это не ноль.'],
+  ['Жалобы на листе «Динамика ОМСУ»', 'Свод ДоброДел/ЕЦУР по ХВС и водоотведению, собранный кликером. Пусто означает, что свод не покрывает это окно: за те дни жалобы не собирали, и ноль поставить нельзя. В разрезе РСО жалоб нет — в своде только округа.'],
+];
+
+/* ---------- листы «Динамика» ----------
+   В книгу кладём числа, а не подписи: время — в десятичных часах, чтобы по нему
+   работали сортировка, сводные и формулы. Читаемое «3 ч 44 мин» остаётся на
+   экране, здесь оно только мешало бы считать. */
+
+const dynPctNum = (cur, base) =>
+  (cur === null || base === null || !base || Number.isNaN(cur) || Number.isNaN(base))
+    ? null : r2((cur - base) / Math.abs(base) * 100);
+
+// строка листа: числа пишем числами, текст — текстом, пустое — пустой ячейкой
+function dynXmlRow(rn, vals, styleText){
+  return `<row r="${rn}">` + vals.map((v, i) => {
+    const ref = colLetter(i + 1) + rn;
+    if(v === null || v === undefined || v === '') return `<c r="${ref}" s="${XF.int}"/>`;
+    return typeof v === 'number'
+      ? cellN(ref, v, Number.isInteger(v) ? XF.int : XF.num)
+      : cellS(ref, String(v), styleText || XF.text);
+  }).join('') + '</row>';
+}
+
+// общая для трёх листов шапка: что с чем сравнивали
+function dynXmlHead(A, B, extra){
+  const spanA = dynSpan(A), spanB = dynSpan(B);
+  let rows = `<row r="1"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
+    XE('Динамика: отчётный период против периода сравнения') + '</t></is></c></row>';
+  const sub = (rn, t) => `<row r="${rn}"><c r="A${rn}" s="${XF.sub}" t="inlineStr">` +
+    `<is><t xml:space="preserve">${XE(t)}</t></is></c></row>`;
+  rows += sub(2, 'Отчётный период: ' + dynLabel(A) + (spanA ? ' (' + spanA + ' дн.)' : '') +
+              '   ·   Период сравнения: ' + dynLabel(B) + (spanB ? ' (' + spanB + ' дн.)' : '') +
+              (spanA && spanB && spanA !== spanB
+                ? '   ·   ВНИМАНИЕ: окна разной длины, абсолютные счётчики несопоставимы напрямую' : ''));
+  rows += sub(3, extra + ' Δ = отчётный − сравнения. Фильтры, кроме периода, применены к обоим окнам одинаково.');
+  return rows;
+}
+
+function dynNoBase(){
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cols><col min="1" max="1" width="90" customWidth="1"/></cols>
+<sheetData><row r="1"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
+    XE('Динамика') + `</t></is></c></row>
+<row r="3"><c r="A3" s="${XF.text}" t="inlineStr"><is><t>` +
+    XE('Период сравнения не выбран — на листе «Динамика» задайте второе окно, ' +
+       'и в следующей выгрузке эти листы заполнятся.') +
+    '</t></is></c></row></sheetData></worksheet>';
+}
+
+/* Лист метрик: те же 17 показателей, что на экране. */
+function sheetDyn(){
+  const A = dynNow(), B = { from: cmp.from, to: cmp.to };
+  if(!B.from || !B.to) return dynNoBase();
+  const sA = dynStats(dynSlice(A)), sB = dynStats(dynSlice(B));
+
+  let rows = dynXmlHead(A, B, 'Время — в десятичных часах.');
+  rows += '<row r="5">' +
+    ['Раздел', 'Метрика', 'Единица', 'Отчётный период', 'Период сравнения', 'Δ', 'Δ %']
+      .map((t, i) => cellS(colLetter(i + 1) + '5', t, XF.head)).join('') + '</row>';
+
+  let rn = 6, group = '';
+  for(const row of DYN_ROWS){
+    if(row[0] === '#'){ group = row[1]; continue; }
+    const [key, label, kind] = row;
+    const cur = sA[key], base = sB[key];
+    const d = (cur === null || base === null) ? null : r2(cur - base);
+    rows += dynXmlRow(rn++, [group, label, kind === 'h' ? 'часы' : 'шт.',
+      cur === null ? null : (kind === 'h' ? r2(cur) : cur),
+      base === null ? null : (kind === 'h' ? r2(base) : base),
+      d, dynPctNum(cur, base)]);
+  }
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<cols><col min="1" max="1" width="30" customWidth="1"/><col min="2" max="2" width="38" customWidth="1"/>
+<col min="3" max="3" width="10" customWidth="1"/><col min="4" max="7" width="19" customWidth="1"/></cols>
+<sheetData>${rows}</sheetData>
+<autoFilter ref="A5:G${rn - 1}"/>
+</worksheet>`;
+}
+
+/* Разрез по ОМСУ или РСО — теми же колонками, что и на экране. */
+function sheetDynBreak(key){
+  const A = dynNow(), B = { from: cmp.from, to: cmp.to };
+  if(!B.from || !B.to) return dynNoBase();
+  const isOm = key === 'omsu';
+  let list = dynBreak(dynSlice(A), dynSlice(B), key);
+  if(isOm) list = dynZhJoin(list, A, B);
+  list = dynSorted(list, isOm ? DSORT : RSORT);
+
+  const cols = isOm ? DYN_COLS.concat(DYN_COLS_ZH) : DYN_COLS;
+  const hdr = cols.map((c, i) => i === 0 ? (isOm ? 'ОМСУ' : 'РСО')
+                                         : c[1] + (c[4] === 'h' ? ', ч' : ''));
+  let rows = dynXmlHead(A, B, isOm
+    ? 'Время — в десятичных часах. Жалобы — свод ЕЦУР по ХВС и водоотведению; пусто означает, что свод это окно не покрывает.'
+    : 'Время — в десятичных часах. Жалоб в разрезе РСО нет: в своде ЕЦУР только округа, без исполнителя.');
+  rows += '<row r="5">' + hdr.map((t, i) =>
+    cellS(colLetter(i + 1) + '5', t, XF.head)).join('') + '</row>';
+
+  let rn = 6;
+  for(const o of list)
+    rows += dynXmlRow(rn++, cols.map(c => {
+      const v = o[c[0]];
+      if(c[4] === 't') return v;
+      if(v === null || v === undefined) return null;
+      return c[4] === 'h' ? r2(v) : v;
+    }));
+
+  const last = colLetter(cols.length);
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="5" topLeftCell="B6" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>
+<cols><col min="1" max="1" width="42" customWidth="1"/><col min="2" max="${cols.length}" width="16" customWidth="1"/></cols>
+<sheetData>${rows}</sheetData>
+<autoFilter ref="A5:${last}${rn - 1}"/>
+</worksheet>`;
+}
+
+function sheetNotes(){
+  let rows = `<row r="1"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
+             XE('Пояснения к расчёту') + '</t></is></c></row>';
+  NOTES.forEach(([a, b], i) => {
+    const rn = 3 + i;
+    rows += `<row r="${rn}">${cellS('A' + rn, a, XF.bold)}${cellS('B' + rn, b, XF.text)}</row>`;
+  });
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cols><col min="1" max="1" width="34" customWidth="1"/><col min="2" max="2" width="95" customWidth="1"/></cols>
+<sheetData>${rows}</sheetData></worksheet>`;
+}
+
+async function exportXlsx(){
+  const recs = DATA.recs.filter(passes);
+  if(!recs.length){ alert('При текущих фильтрах не осталось ни одной заявки.'); return; }
+  const btn = document.getElementById('xls');
+  btn.disabled = true; btn.textContent = 'Собираю…';
+  try{
+    // листы перечислены один раз: связи, типы и содержимое собираются отсюда,
+    // иначе при добавлении листа легко разъехаться нумерации rId
+    const SH = [
+      ['Задержка доклада ВС-ВО', () => sheetMain(recs)],
+      ['Сводная',                () => sheetPivot(recs)],
+      ['Динамика',               () => sheetDyn()],
+      ['Динамика ОМСУ',          () => sheetDynBreak('omsu')],
+      ['Динамика РСО',           () => sheetDynBreak('rso')],
+      ['Пояснения',              () => sheetNotes()],
+    ];
+    const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets>${SH.map(([n], i) =>
+  `<sheet name="${XE(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`;
+    const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${SH.map((_, i) =>
+  `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('\n')}
+<Relationship Id="rId${SH.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+    const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+${SH.map((_, i) =>
+  `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('\n')}
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`;
+    const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+
+    const blob = await makeZip([
+      { name: '[Content_Types].xml', text: ct },
+      { name: '_rels/.rels', text: rootRels },
+      { name: 'xl/workbook.xml', text: wb },
+      { name: 'xl/_rels/workbook.xml.rels', text: rels },
+      { name: 'xl/styles.xml', text: STYLES },
+      ...SH.map(([, make], i) => ({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', text: make() })),
+    ]);
+    // имя файла — по фактическому периоду отобранных записей, а не всей выгрузки
+    const ds = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
+    const per = ds.length ? isoDay(ds[0]) + '_' + isoDay(ds[ds.length - 1]) : 'выгрузка';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Анализ_задержки_доклада_ВС-ВО_' + per + '.xlsx';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }catch(e){
+    alert('Не удалось собрать файл: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Скачать Excel';
+  }
+}
+
+/* ============================================================
+   7. Связывание
+   ============================================================ */
+// общая часть для обоих источников: показать разобранные данные
+function showData(keepFilters){
+  if(!keepFilters) for(const k of Object.keys(sel)) delete sel[k];
+  collapsed.clear(); lcollapsed.clear(); lopenRso.clear();
+  for(const [omsu] of pivotModelAll()){ collapsed.add('m:' + omsu); lcollapsed.add('m:' + omsu); }
+  document.getElementById('landing').hidden = true;
+  document.getElementById('app').hidden = false;
+  document.getElementById('tabs').hidden = false;
+  document.getElementById('xls').disabled = false;
+  liveArmed = false;              // перерисовка фильтров не должна сама дёргать сайт
+  renderFilters();
+  liveArmed = LIVE;
+  applyFilters();
+  setPage(PAGE);
+}
+
+/* ---------- живой режим: запрос отчёта у ЕДДС ---------- */
+function liveSay(text, kind){
+  const b = document.getElementById('live-badge');
+  b.hidden = !text;
+  b.className = 'live-badge' + (kind ? ' ' + kind : '');
+  document.getElementById('live-text').textContent = text || '';
+}
+function scheduleLive(){
+  if(!liveArmed) return;
+  clearTimeout(liveTimer);
+  liveSay('Период изменён — обновляю…', 'busy');
+  liveTimer = setTimeout(loadLive, 700);   // даём договорить обе даты
+}
+
+async function loadLive(){
+  if(!LIVE || liveBusy) return;
+  const ot = siteDay(req.from), doo = siteDay(req.to);
+  if(!ot || !doo){ liveSay('Укажите обе даты периода', 'bad'); return; }
+
+  liveBusy = true;
+  clearTimeout(liveTimer);
+  liveSay('Запрашиваю отчёт…', 'busy');
+  const err = document.getElementById('err');
+  err.hidden = true;
+  const had = !!DATA;
+  try{
+    const { grid, pages, bad, badLen } = await fetchReport(ot, doo, t => liveSay(t, 'busy'));
+    DATA = build(grid);                       // те же правила, что и для файла
+    req.from = req.from || isoDay(DATA.from);
+    req.to   = req.to   || isoDay(DATA.to);
+    // спрошено ровно окно запроса, а не диапазон пришедших заявок: крайние дни
+    // могли оказаться пустыми, и лист «Динамика» иначе счёл бы их незагруженными
+    DATA.spans = [{ from: req.from, to: req.to }];
+    showData(had);                            // фильтры переживают обновление
+    const t = new Date().toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+    liveSay('Данные из ЕДДС · ' + fmtN(DATA.recs.length) + ' заявок · обновлено ' + t +
+      (bad ? ' · пропущено строк: ' + bad : ''), '');
+  }catch(e){
+    const msg = e.empty
+      ? 'За ' + ot + ' — ' + doo + ' заявок по объектам ВС/ВО нет.'
+      : (e.message || String(e));
+    if(had){
+      // прежние данные не выбрасываем — иначе один пустой период стирает всю картину
+      liveSay(msg + ' Показан прежний период.', 'bad');
+    }else{
+      liveSay('', '');
+      err.textContent = msg + (e.empty ? ' Выберите другой период.' : '');
+      err.hidden = false;
+    }
+  }finally{
+    liveBusy = false;
+  }
+}
+
+async function load(file){
+  const err = document.getElementById('err');
+  err.hidden = true;
+  try{
+    // Два входа с одинаковой сеткой: книга Excel с кнопки «Excel» в АРМ ЕДДС и
+    // JSON от кнопки-закладки, которая снимает ту же таблицу прямо со страницы отчёта.
+    // В обоих случаях нулевая строка — машинные имена полей, дальше данные.
+    let grid;
+    if(/\.json$/i.test(file.name)){
+      try{ grid = JSON.parse(await file.text()); }
+      catch(_){ throw new Error('Файл JSON повреждён — не удалось его разобрать.'); }
+      if(!Array.isArray(grid) || !Array.isArray(grid[0]))
+        throw new Error('Это не выгрузка с сайта: в JSON ожидался массив строк таблицы.');
+    }else{
+      grid = (await readWorkbook(await file.arrayBuffer())).grid;
+    }
+    DATA = build(grid);
+    req = { from: isoDay(DATA.from), to: isoDay(DATA.to) };
+    showData(false);
+    liveSay('', '');
+  }catch(e){
+    err.textContent = e.message || String(e);
+    err.hidden = false;
+  }
+}
+function pivotModelAll(){
+  const t = new Map();
+  for(const r of DATA.recs) if(!t.has(r.omsu)) t.set(r.omsu, 1);
+  return [...t.entries()];
+}
+
+/* стартовый экран живого режима: период по умолчанию — последние 7 дней */
+if(LIVE){
+  const drop = document.getElementById('drop');
+  const start = document.getElementById('live-start');
+  drop.hidden = true;
+  start.hidden = false;
+  const f = document.getElementById('lv-from'), t = document.getElementById('lv-to');
+  const today = new Date();
+  const week = new Date(today.getTime() - 6 * 86400000);
+  f.value = isoDay(week); t.value = isoDay(today);
+  const go = () => {
+    if(!f.value || !t.value){ liveSay('Укажите обе даты периода', 'bad'); return; }
+    req = { from: f.value, to: t.value };
+    loadLive();
+  };
+  document.getElementById('lv-go').addEventListener('click', go);
+  [f, t].forEach(i => i.addEventListener('keydown', e => { if(e.key === 'Enter') go(); }));
+  document.getElementById('pick').textContent = 'Загрузить файл';
+  // область читается целиком и это десятки страниц отчёта, поэтому запрос сам не стартует:
+  // сначала период, потом «Загрузить»
+}
+
+const fileEl = document.getElementById('file');
+document.getElementById('pick').addEventListener('click', () => fileEl.click());
+document.getElementById('pick2').addEventListener('click', () => fileEl.click());
+fileEl.addEventListener('change', e => { if(e.target.files[0]) load(e.target.files[0]); });
+
+/* ---------- приём свода жалоб ---------- */
+const zhFileEl = document.getElementById('zh-file');
+document.getElementById('zh-pick').addEventListener('click', () => zhFileEl.click());
+zhFileEl.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const err = document.getElementById('err');
+  try{
+    let grid;
+    if(/\.json$/i.test(file.name)){
+      const txt = await file.text();
+      // принимаем и data.js от кликера: там та же сетка внутри PRELOADED_ROWS
+      const m = /PRELOADED_ROWS\s*=\s*(\[[\s\S]*?\]);/.exec(txt);
+      grid = JSON.parse(m ? m[1] : txt);
+    }else{
+      grid = (await readWorkbook(await file.arrayBuffer())).grid;
+    }
+    zhIngest(grid);
+    err.hidden = true;
+    if(DATA) applyFilters();
+  }catch(ex){
+    err.textContent = 'Свод жалоб: ' + (ex.message || String(ex));
+    err.hidden = false;
+  }finally{ zhFileEl.value = ''; }
+});
+
+/* На старте поднимаем прошлый свод из памяти браузера, чтобы график был сразу,
+   и молча спрашиваем помощника — вдруг он запущен и свод уже свежее. */
+(function zhBoot(){
+  try{
+    const raw = localStorage.getItem(ZH_KEY);
+    if(raw) ZH = JSON.parse(raw);
+  }catch(_){ ZH = null; }
+  zhPoll();
+})();
+
+document.getElementById('xls').addEventListener('click', exportXlsx);
+document.getElementById('more-btn').addEventListener('click', () => { LIMIT += 200; renderTable(); });
+document.getElementById('m-close').addEventListener('click', closeCard);
+document.getElementById('modal').addEventListener('click', e => {
+  if(e.target.id === 'modal') closeCard();
+});
+addEventListener('keydown', e => { if(e.key === 'Escape'){ closeCard(); closeAllPanels(); } });
+addEventListener('click', e => { if(!e.target.closest('.ms')) closeAllPanels(); });
+
+const drop = document.getElementById('drop');
+['dragenter','dragover'].forEach(ev => addEventListener(ev, e => {
+  e.preventDefault(); drop && drop.classList.add('over');
+}));
+['dragleave','drop'].forEach(ev => addEventListener(ev, e => {
+  e.preventDefault();
+  if(ev === 'dragleave' && e.relatedTarget) return;
+  drop && drop.classList.remove('over');
+}));
+addEventListener('drop', e => {
+  const f = e.dataTransfer?.files?.[0];
+  if(f) load(f);
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if(DATA){ renderCharts(); renderLeadCharts(); }
+});
+// при изменении размера окна карточки меняют ширину — пересобираем диаграммы под неё
+let rsz;
+addEventListener('resize', () => {
+  if(!DATA) return;
+  clearTimeout(rsz);
+  rsz = setTimeout(() => fillCharts(PAGE), 150);
+});
+document.getElementById('pv-collapse').addEventListener('click', () => {
+  collapsed.clear();
+  for(const [omsu] of pivotModel()) collapsed.add('m:' + omsu);
+  renderPivot();
+});
+document.getElementById('pv-expand').addEventListener('click', () => { collapsed.clear(); renderPivot(); });
+
+document.getElementById('lv-collapse').addEventListener('click', () => {
+  lcollapsed.clear(); lopenRso.clear();
+  for(const [omsu] of leadTree()) lcollapsed.add('m:' + omsu);
+  renderLeadTable();
+});
+// разворачиваем только уровень ОМСУ: РСО остаются свёрнутыми
+document.getElementById('lv-expand').addEventListener('click', () => {
+  lcollapsed.clear(); lopenRso.clear();
+  renderLeadTable();
+});
+
+// переключение вида: дерево ОМСУ → РСО → заявка либо сплошной список заявок
+document.getElementById('lv-flat').addEventListener('click', e => {
+  LFLAT = !LFLAT;
+  LFLAT_N = 300;
+  // ключ сортировки живёт в обоих видах не всякий: переносим на подходящий по умолчанию
+  const flatKeys = LEAD_FLAT_COLS.map(([k]) => k);
+  if(LFLAT && !flatKeys.includes(LSORT.key)) LSORT = { key: 'omsu', dir: 1 };
+  if(!LFLAT && (LSORT.key === 'omsu' || LSORT.key === 'rso')) LSORT = { key: 'n', dir: -1 };
+  const b = e.currentTarget;
+  b.textContent = LFLAT ? 'В разрезе ОМСУ' : 'В разрезе заявок';
+  b.setAttribute('aria-pressed', String(LFLAT));
+  b.classList.toggle('btn-primary', LFLAT);
+  // сворачивать в списке нечего
+  document.getElementById('lv-collapse').disabled = LFLAT;
+  document.getElementById('lv-expand').disabled = LFLAT;
+  document.getElementById('lead-note').textContent =
+    LFLAT ? 'заявки списком · ОМСУ и РСО — столбцы' : 'ОМСУ → РСО → заявка';
+  renderLeadTable();
+});
+
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-page]');
+  if(b) setPage(b.dataset.page);
+});
+</script>
+<script src="/static/edds-module.js?v=20260915" defer></script>
+</body></html>

@@ -12,6 +12,7 @@ FULL_ACCESS_ROLES = {"admin", "администратор", "руководит�
 
 # Полный список модулей платформы
 ALL_MODULE_IDS = [
+    "edds",
     "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
     "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
     "water_rm", "tools",
@@ -19,6 +20,7 @@ ALL_MODULE_IDS = [
 ]
 
 MODULE_NAMES = {
+    "edds": "ЕДДС — контроль заявок",
     "edo": "Заполненность данных", "overdue": "Просроченные задачи",
     "watercontrol": "Контроль воды", "utnkr": "Технадзор УТНКР",
     "cameras": "Проверка камер и предписания", "appeals": "Эмпатичные ответы",

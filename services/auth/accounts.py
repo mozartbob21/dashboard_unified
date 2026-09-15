@@ -86,6 +86,7 @@ def list_accounts():
     with get_db_connection() as conn:
         rows = conn.execute(
             "SELECT u.id,u.username,u.email,u.role,u.modules,u.is_active,u.created_at, "
+            "(SELECT archived_at FROM account_archives a WHERE a.user_id=u.id) AS archived_at, "
             "(u.id=c.manager_user_id) AS is_manager, "
             "(u.id=c.manager_user_id OR EXISTS (SELECT 1 FROM account_managers m WHERE m.user_id=u.id)) AS can_manage_users "
             "FROM users u CROSS JOIN account_control c "
@@ -159,6 +160,8 @@ def save_account(payload, user_id=None, *, actor):
                 row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
                 if not row:
                     raise HTTPException(404, "Пользователь не найден")
+                if conn.execute("SELECT 1 FROM account_archives WHERE user_id=?", (user_id,)).fetchone() and (payload.is_active or payload.can_manage_users is True):
+                    raise HTTPException(400, "Сначала восстановите пользователя из архива")
                 if username != row["username"].lower():
                     raise HTTPException(400, "Логин существующего пользователя менять нельзя")
                 manager = conn.execute("SELECT manager_user_id FROM account_control WHERE id=1").fetchone()[0]
@@ -179,3 +182,28 @@ def save_account(payload, user_id=None, *, actor):
                     conn.execute("INSERT INTO account_notifications(message) VALUES (?)", (f"Учётная запись «{username}»: {action} право «Управление пользователями».",))
     except sqlite3.IntegrityError:
         raise HTTPException(409, "Учётная запись с такими данными уже существует")
+
+
+def archive_account(user_id, actor, restore=False):
+    with get_db_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        parent_id=conn.execute("SELECT manager_user_id FROM account_control WHERE id=1").fetchone()[0]
+        actor_row=conn.execute("SELECT id FROM users WHERE username=? AND is_active=1", (actor.get('username'),)).fetchone()
+        parent=bool(actor_row and actor_row['id']==parent_id)
+        delegated=bool(actor_row and conn.execute("SELECT 1 FROM account_managers WHERE user_id=?",(actor_row['id'],)).fetchone())
+        if actor.get('kc_sub') or not (parent or delegated):
+            raise HTTPException(403, "Требуется право управления")
+        if user_id==parent_id:
+            raise HTTPException(400, "Родительскую учётную запись нельзя архивировать")
+        if not parent and conn.execute("SELECT 1 FROM account_managers WHERE user_id=?",(user_id,)).fetchone():
+            raise HTTPException(403, "Только родительская учётная запись может архивировать управляющих")
+        row=conn.execute("SELECT username FROM users WHERE id=?",(user_id,)).fetchone()
+        if not row: raise HTTPException(404,"Пользователь не найден")
+        if restore:
+            changed=conn.execute("DELETE FROM account_archives WHERE user_id=?",(user_id,)).rowcount
+        else:
+            changed=conn.execute("INSERT OR IGNORE INTO account_archives(user_id) VALUES (?)",(user_id,)).rowcount
+        if changed:
+            conn.execute("UPDATE users SET is_active=0 WHERE id=?",(user_id,))
+            action='восстановлена из архива (вход пока отключён)' if restore else 'перемещена в архив, вход запрещён'
+            conn.execute("INSERT INTO account_notifications(message) VALUES (?)",(f"Учётная запись «{row['username']}»: {action}.",))

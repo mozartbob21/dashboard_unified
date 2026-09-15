@@ -132,6 +132,8 @@ from services.auth.accounts import initialize_access_control, is_account_manager
 from routers.users import router as users_router
 initialize_access_control()
 app.include_router(users_router)
+from routers.edds import router as edds_router
+app.include_router(edds_router)
 # =========================
 # ROUTERS
 # =========================
@@ -996,6 +998,7 @@ def has_local_git_changes():
 # =========================
 
 PATH_MODULE_MAP = {
+    "/edds": "edds",
     "/edo": "edo",
     "/overdue": "overdue",
     "/mgkh-rm": "mgkh_rm",

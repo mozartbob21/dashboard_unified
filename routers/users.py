@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, StrictBool, StrictStr
+from typing import Literal
 
 from core.web import templates
 from core.roles import MODULE_NAMES
 from services.auth.accounts import require_account_manager, list_accounts, save_account
 from services.auth.accounts import list_notifications, read_notifications
 from services.auth.accounts import is_parent_manager
+from services.auth.accounts import archive_account
 
 router = APIRouter(dependencies=[Depends(require_account_manager)])
 
@@ -22,6 +24,36 @@ class AccountPayload(BaseModel):
 
 class ReadNotificationsPayload(BaseModel):
     through_id: int = Field(ge=0)
+
+
+class IntegrationPayload(BaseModel):
+    username: StrictStr = Field(min_length=1,max_length=254)
+    password: StrictStr = Field(default='',max_length=1024)
+
+
+@router.get('/api/users/integrations/{service}')
+async def integration_status(service: Literal['edds','edds_arm']):
+    from services.auth.integrations import credential_status
+    return credential_status(service)
+
+
+@router.put('/api/users/integrations/{service}')
+async def integration_save(payload: IntegrationPayload, service: Literal['edds','edds_arm']):
+    from services.auth.integrations import save_credentials
+    save_credentials(payload.username,payload.password,service)
+    return {'ok':True}
+
+
+@router.post('/api/users/{user_id}/archive')
+async def users_archive(user_id: int, request: Request):
+    archive_account(user_id, request.state.user)
+    return {'ok': True}
+
+
+@router.post('/api/users/{user_id}/restore')
+async def users_restore(user_id: int, request: Request):
+    archive_account(user_id, request.state.user, restore=True)
+    return {'ok': True}
 
 
 @router.get("/api/users/notifications")

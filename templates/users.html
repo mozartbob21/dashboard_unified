@@ -8,7 +8,7 @@
   <script src="/static/users.js?v=20260915-delegation" defer></script>
 </head>
 <body>
-  <header><a href="/">Нейрона</a><span>Управление доступом</span><a href="/logout">Выйти</a></header>
+  <header><a href="/" class="system-link">← Перейти в систему</a><span>Админ-панель Нейроны</span><a href="/logout">Выйти</a></header>
   <main>
     <div class="page-heading"><div><p class="eyebrow">УЧЁТНЫЕ ЗАПИСИ</p><h1>Пользователи и права</h1><p>Назначайте каждому пользователю только нужные блоки.</p></div><button id="newUser" type="button">+ Создать пользователя</button></div>
     <p class="common-note">ИИ-чат, автозапуск и история доступны всем вошедшим пользователям. В автозапуске и истории отображаются только назначенные блоки. Расписание каждого блока общее для системы.</p>
@@ -24,6 +24,7 @@
     <div class="workspace">
       <section class="panel" aria-label="Список пользователей">
         <label for="userSearch">Поиск по логину или почте</label><input id="userSearch" type="search" placeholder="Найти пользователя…">
+        <label for="userArchiveFilter">Показать</label><select id="userArchiveFilter"><option value="current">Текущие пользователи</option><option value="archived">Архив</option><option value="all">Все пользователи</option></select>
         <p id="userCount" class="muted"></p><div id="userList"></div>
       </section>
       <section class="panel editor" aria-labelledby="editorTitle">
@@ -48,9 +49,23 @@
           </fieldset>
           <p id="managerNote" class="common-note" hidden>Родительская учётная запись. Её нельзя отключить или лишить права управления. Только она выдаёт и отзывает права других управляющих.</p>
           <button id="saveUser" type="submit">Сохранить изменения</button>
+          <button id="archiveUser" type="button" class="secondary" hidden>В архив</button>
+          <p id="archiveNote" class="common-note" hidden>Пользователь в архиве. Вход запрещён; данные и права сохранены. После восстановления включите учётную запись отдельно.</p>
         </form>
       </section>
     </div>
+    <section class="panel" style="margin-top:24px" aria-labelledby="integrationsTitle">
+      <h2 id="integrationsTitle">Логины и пароли</h2>
+      <p>Доступ к внешним системам. Сохранённые пароли не отображаются. Пустое поле оставляет прежний пароль.</p>
+      <form id="integrationForm">
+        <label>Система<select name="service"><option value="edds">ЕДДС · сбор жалоб Добродела</option><option value="edds_arm">АРМ ЕДДС</option></select></label>
+        <label>Логин<input name="username" required maxlength="254" autocomplete="off"></label>
+        <label>Пароль<input name="password" type="password" maxlength="1024" autocomplete="new-password"></label>
+        <p id="integrationStatus" role="status"></p>
+        <button type="submit">Сохранить доступ</button>
+      </form>
+      <p class="muted">Дашборд АРМ сейчас использует загруженную выгрузку. Сбор жалоб Добродела запускается из блока ЕДДС или планировщика.</p>
+    </section>
   </main>
 </body>
 </html>

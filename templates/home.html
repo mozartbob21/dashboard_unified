@@ -938,6 +938,8 @@
         .wide-pair .module-card{grid-column:auto !important;width:100%;}
         @media(max-width:1080px){.wide-pair{grid-template-columns:1fr;}}
     </style>
+<link rel="stylesheet" href="/static/module-layout.css?v=20260915">
+<script src="/static/module-layout.js?v=20260915" defer></script>
 </head>
 
 
@@ -1022,7 +1024,7 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
+                        <button id="whatsNewButton" class="profile-menu-item" type="button"> ✅ v 2.8</button>
                         {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <div class="profile-menu-divider"></div>
@@ -1110,6 +1112,7 @@
         </section>
         {% endif %}
 
+        <div class="module-view-controls" role="group" aria-label="Вид блоков"><span>Блоки системы</span><button type="button" data-module-view="cards" title="Карточки" aria-label="Карточки" aria-pressed="true">▦</button><button type="button" data-module-view="list" title="Список" aria-label="Список" aria-pressed="false">☰</button></div>
         <section class="modules-grid">
 
 
@@ -1527,19 +1530,16 @@
 
 
 
-        </section>
-
-        {% if "water_rm" in user_modules %}
-        <section class="modules-grid">
-            <article data-module="water_rm" class="card module-card">
-                <div class="module-head"><div class="head-pills"><span class="pill primary">Водоснабжение</span><span class="pill primary">Redmine</span></div></div>
-                <h2 class="module-title">Проверка задач по качеству воды</h2>
-                <div class="module-description is-collapsed">Контроль задач по качеству воды в Redmine.</div>
-                <div class="tag-row"><span class="tag">Проверка задач</span><span class="tag">Качество воды</span></div>
-                <div class="action-panel"><a href="/water-rm" class="module-link">Открыть модуль →</a></div>
-            </article>
-        </section>
+        {% if "edds" in user_modules %}
+        <article data-module="edds" class="card module-card">
+          <div class="module-head"><div class="head-pills"><span class="pill primary">ЕДДС</span><span class="pill primary">Мониторинг</span></div></div>
+          <h2 class="module-title">ЕДДС — контроль заявок</h2>
+          <div class="module-description is-collapsed">Задержка доклада по объектам водоснабжения и водоотведения, динамика и свод жалоб Добродела.</div>
+          <div class="tag-row"><span class="tag">Задержка доклада</span><span class="tag">Динамика</span><span class="tag">Жалобы</span></div>
+          <div class="action-panel"><a href="/edds" class="module-link">Открыть модуль →</a></div>
+        </article>
         {% endif %}
+        </section>
 
         <div class="wide-pair">
 {% if "water-dashboard" in user_modules %}
@@ -1726,7 +1726,7 @@
                 { id: "ecur", name: "ЕЦУР — жалобы", path: "/ecur", icon: "📮" },
                 { id: "water-dashboard", name: "Качество водоснабжения", path: "/water-dashboard", icon: "🌊" },
                 { id: "tools", name: "Полезные инструменты", path: "/tools", icon: "🧰" },
-                { id: "water_rm", name: "Задачи по качеству воды", path: "/water-rm", icon: "💧" },
+                { id: "edds", name: "ЕДДС — мониторинг", path: "/edds", icon: "📡" },
                 { id: "summarizer", name: "Сумматор", path: "/summarizer", icon: "📑" },
                 { id: "zips", name: "Остатки ЗиП РСО", path: "/zips", icon: "🧰" },
             ].filter(module => allowedModules.includes(module.id));
