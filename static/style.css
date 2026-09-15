@@ -1668,7 +1668,10 @@ textarea:focus {
 .module-card {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
+    /* Grid stretches the card; percentage heights create a sizing cycle in WebKit. */
+    min-height: 0;
+    min-width: 0;
+    height: auto;
 }
 
 .module-head {
@@ -4566,7 +4569,7 @@ html[data-theme="kreml"] .secondary-button {
 @media (prefers-reduced-motion: no-preference) {
     .metric-card,
     .module-card {
-        animation: premium-fade-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+        animation: none;
     }
 }
 
@@ -5563,7 +5566,8 @@ html[data-glass="on"] .card::after {
     pointer-events: none;
     background: radial-gradient(120% 60% at 20% 0%, rgba(255,255,255,.35), transparent 60%);
     mix-blend-mode: soft-light;
-    animation: glass-sheen 9s ease-in-out infinite alternate;
+    /* Keep the glass highlight static, including during remote desktop sessions. */
+    animation: none;
 }
 html[data-theme="dark"][data-glass="on"] .card::after {
     background: radial-gradient(120% 60% at 20% 0%, rgba(255,255,255,.14), transparent 60%);

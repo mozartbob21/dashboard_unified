@@ -101,6 +101,8 @@ html[data-theme="dark"] button[data-copy-btn] {
   border: 1px solid var(--border-color, #334155) !important;
 }
 </style>
+<link rel="stylesheet" href="/static/floating-table-header.css?v=20260913">
+<script src="/static/floating-table-header.js?v=20260913" defer></script>
 </head>
 
 <body class="compact-module-page">
@@ -406,7 +408,7 @@ html[data-theme="dark"] button[data-copy-btn] {
             <div class="card">
                 <h2>Детализация по позициям</h2>
 
-                <div class="table-wrap">
+                <div class="table-wrap" data-floating-header>
                     <table>
                         <thead>
                             <tr>
@@ -846,7 +848,7 @@ html[data-theme="dark"] button[data-copy-btn] {
             if (themeMode === "auto-moscow") {
                 activeTheme = isDaytimeInMoscow() ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
 
             const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
@@ -938,7 +940,7 @@ html[data-theme="dark"] button[data-copy-btn] {
                 const isDay = isDaytimeInMoscow();
                 activeTheme = isDay ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
             if (!themeToggle) return;
             const icon = themeToggle.querySelector(".theme-toggle-icon");

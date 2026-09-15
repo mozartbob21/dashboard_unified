@@ -47,6 +47,37 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- История запусков модулей
+CREATE TABLE IF NOT EXISTS account_control (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    manager_user_id INTEGER UNIQUE REFERENCES users(id),
+    grants_migrated INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO account_control (id) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS account_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_read INTEGER NOT NULL DEFAULT 0
+);
+CREATE TRIGGER IF NOT EXISTS notify_account_created AFTER INSERT ON users
+BEGIN
+    INSERT INTO account_notifications(message)
+    VALUES ('Создана учётная запись «' || NEW.username || '». Проверьте и назначьте доступные блоки.');
+END;
+CREATE TRIGGER IF NOT EXISTS notify_account_access AFTER UPDATE OF modules,is_active,password_hash ON users
+WHEN (NEW.modules != OLD.modules OR NEW.is_active != OLD.is_active OR NEW.password_hash != OLD.password_hash)
+AND (SELECT grants_migrated FROM account_control WHERE id=1)=1
+BEGIN
+    INSERT INTO account_notifications(message) VALUES (
+        'Учётная запись «' || NEW.username || '»: ' ||
+        CASE WHEN NEW.modules != OLD.modules THEN 'изменён доступ к блокам; ' ELSE '' END ||
+        CASE WHEN NEW.is_active != OLD.is_active THEN
+            CASE WHEN NEW.is_active=1 THEN 'включена; ' ELSE 'отключена; ' END ELSE '' END ||
+        CASE WHEN NEW.password_hash != OLD.password_hash THEN 'изменён пароль; ' ELSE '' END
+    );
+END;
+
 CREATE TABLE IF NOT EXISTS run_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT UNIQUE NOT NULL,

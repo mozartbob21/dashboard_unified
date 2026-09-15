@@ -122,7 +122,8 @@ async def login_submit(
         "role": user.get("role", ""),
     })
 
-    response = RedirectResponse(url="/", status_code=303)
+    from services.auth.accounts import is_account_manager
+    response = RedirectResponse(url="/users" if is_account_manager(user) else "/", status_code=303)
     response.set_cookie(
         key="access_token",
         value=access_token,

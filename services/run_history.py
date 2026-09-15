@@ -200,24 +200,23 @@ def record_finish(
         )
 
 
-def get_recent(limit: int = 5) -> list[dict]:
+def get_recent(limit: int = 5, modules: list[str] | None = None) -> list[dict]:
     """Возвращает последние N запусков с человекочитаемыми полями."""
+    if modules is not None and not modules:
+        return []
+    where = "" if modules is None else " WHERE module_id IN (" + ",".join("?" for _ in modules) + ")"
+    params = [] if modules is None else list(modules)
     with get_db_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM run_history ORDER BY started_at DESC LIMIT ?",
-            (limit,),
+            "SELECT * FROM run_history" + where + " ORDER BY started_at DESC LIMIT ?",
+            [*params, max(1, min(int(limit), MAX_RECORDS))],
         ).fetchall()
     return [_enrich(_row_to_dict(r)) for r in rows]
 
 
-def get_all(limit: int = MAX_RECORDS) -> list[dict]:
+def get_all(limit: int = MAX_RECORDS, modules: list[str] | None = None) -> list[dict]:
     """Все записи (с ограничением)."""
-    with get_db_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM run_history ORDER BY started_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-    return [_enrich(_row_to_dict(r)) for r in rows]
+    return get_recent(limit, modules=modules)
 
 
 # ─── Внутренние helpers ─────────────────────────────────────────────

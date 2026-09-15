@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Пользователи и доступ — Нейрона</title>
+  <link rel="stylesheet" href="/static/users.css?v=20260915">
+  <script src="/static/users.js?v=20260915" defer></script>
+</head>
+<body>
+  <header><a href="/">Нейрона</a><span>Управление доступом</span><a href="/logout">Выйти</a></header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">УЧЁТНЫЕ ЗАПИСИ</p><h1>Пользователи и права</h1><p>Назначайте каждому пользователю только нужные блоки.</p></div><button id="newUser" type="button">+ Создать пользователя</button></div>
+    <p class="common-note">ИИ-чат, автозапуск и история доступны всем вошедшим пользователям. В автозапуске и истории отображаются только назначенные блоки. Расписание каждого блока общее для системы.</p>
+    <div id="message" role="status" aria-live="polite"></div>
+    <p id="sessionNotice" class="common-note" hidden>Данные формы оставлены на этой странице. <a href="/login" target="_blank" rel="noopener">Войти как user_manager в новой вкладке</a>, затем вернитесь и повторите сохранение. Не обновляйте эту страницу до сохранения.</p>
+    <details class="panel" id="notificationsPanel">
+      <summary id="notificationCount">Уведомления управляющего</summary>
+      <p>Новые учётные записи, изменения доступа и ошибки сохранения. Последние 100 событий.</p>
+      <button id="refreshNotifications" type="button" class="secondary">Обновить</button>
+      <button id="readNotifications" type="button" class="secondary">Отметить показанные прочитанными</button>
+      <ul id="notificationList"></ul>
+    </details>
+    <div class="workspace">
+      <section class="panel" aria-label="Список пользователей">
+        <label for="userSearch">Поиск по логину или почте</label><input id="userSearch" type="search" placeholder="Найти пользователя…">
+        <p id="userCount" class="muted"></p><div id="userList"></div>
+      </section>
+      <section class="panel editor" aria-labelledby="editorTitle">
+        <h2 id="editorTitle">Выберите пользователя</h2>
+        <p id="editorHint" class="muted">Откройте учётную запись слева или создайте новую.</p>
+        <form id="userForm" hidden>
+          <div class="fields">
+            <label>Логин<input name="username" required minlength="3" maxlength="32" autocomplete="off"></label>
+            <label>Почта<input name="email" type="email" maxlength="254" autocomplete="off"></label>
+          </div>
+          <label>Новый пароль<input name="password" type="password" minlength="12" maxlength="72" autocomplete="new-password"><span class="muted">Для существующей записи оставьте пустым, чтобы сохранить пароль.</span></label>
+          <label class="check"><input name="is_active" type="checkbox" checked> Учётная запись активна</label>
+          <fieldset id="moduleChoices"><legend>Доступные блоки</legend>
+            <div class="selection-actions"><button id="selectAll" type="button" class="secondary">Выбрать все</button><button id="clearAll" type="button" class="secondary">Снять все</button></div>
+            <div class="modules">
+            {% for module_id, label in module_names.items() %}
+              <label class="check module"><input type="checkbox" name="modules" value="{{ module_id }}">{{ label }}</label>
+            {% endfor %}
+            </div>
+          </fieldset>
+          <p id="managerNote" class="common-note" hidden>Эта учётная запись управляет пользователями. Её нельзя отключить или назначить ей рабочие блоки; пароль и почту можно изменить.</p>
+          <button id="saveUser" type="submit">Сохранить изменения</button>
+        </form>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

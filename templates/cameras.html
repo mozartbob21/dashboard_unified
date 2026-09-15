@@ -701,7 +701,7 @@ groupBy: "{{ group_by }}"
             if (themeMode === "auto-moscow") {
                 activeTheme = isDaytimeInMoscow() ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
 
             const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
@@ -793,7 +793,7 @@ groupBy: "{{ group_by }}"
                 const isDay = isDaytimeInMoscow();
                 activeTheme = isDay ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
             if (!themeToggle) return;
             const icon = themeToggle.querySelector(".theme-toggle-icon");
@@ -881,4 +881,3 @@ groupBy: "{{ group_by }}"
 
 </body>
 </html>
-

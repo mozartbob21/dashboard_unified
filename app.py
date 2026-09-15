@@ -108,6 +108,7 @@ from core.roles import (
     check_module_access,
     effective_modules,
     require_admin_or_full,
+    allowed_history_modules,
 )
 
 
@@ -127,6 +128,10 @@ app.mount(
     name="generated",
 )
 from core.web import templates
+from services.auth.accounts import initialize_access_control, is_account_manager
+from routers.users import router as users_router
+initialize_access_control()
+app.include_router(users_router)
 # =========================
 # ROUTERS
 # =========================
@@ -1004,6 +1009,17 @@ PATH_MODULE_MAP = {
     "/municipality-report": "municipality-report",
     "/ecur": "ecur",
     "/water-dashboard": "water-dashboard",
+    "/water-rm": "water_rm",
+    "/api/cds": "cds",
+    "/tools": "tools",
+    "/summarizer": "summarizer",
+    "/zips": "zips",
+    "/zip": "zips",
+    "/zip_curator": "zips",
+    "/zip_curator.html": "zips",
+    "/zip_curator_original.html": "zips",
+    "/zip-curator": "zips",
+    "/municipality-report.pdf": "municipality-report",
 }
 
 PUBLIC_PATH_PREFIXES = (
@@ -1033,6 +1049,13 @@ async def auth_middleware(request: Request, call_next):
     user = get_user_from_token(token)
 
     if not user:
+        if path == "/api/users" or path.startswith("/api/users/"):
+            import logging
+            logging.getLogger("auth").warning("users_api: authentication required method=%s cookie_present=%s", request.method, bool(token))
+            return JSONResponse(status_code=401, content={
+                "code": "auth_required",
+                "detail": "Сессия завершена или недействительна. Войдите снова как user_manager. Изменения не сохранены.",
+            })
         if path == "/" or request.method == "GET":
             return RedirectResponse(url="/login", status_code=302)
         return JSONResponse(
@@ -1041,14 +1064,33 @@ async def auth_middleware(request: Request, call_next):
         )
 
     for path_prefix, module_id in PATH_MODULE_MAP.items():
-        if path.startswith(path_prefix):
+        if path == path_prefix or path.startswith(path_prefix + "/"):
             # ← ЗДЕСЬ единственная замена: has_module_access → check_module_access
             if not check_module_access(user, module_id):
-                return RedirectResponse(url="/?error=no_access", status_code=302)
+                return JSONResponse(status_code=403, content={"detail": "Нет доступа к этому блоку"})
             break
 
     request.state.user = user
-    return await call_next(request)
+    # Downloads must obey the same module grants as the page that produces them.
+    if path.startswith("/data/"):
+        directory = path.split("/")[2]
+        data_modules = {
+            "edo": "edo", "overdue": "overdue", "watercontrol": "watercontrol",
+            "utnkr": "utnkr", "cameras": "cameras", "cds": "cds", "appeals": "appeals",
+            "mgkh_rm": "mgkh_rm", "ecur": "ecur", "water_dashboard": "water-dashboard",
+            "water_rm": "water_rm", "tools": "tools", "zip_curator": "zips", "summarizer": "summarizer",
+        }
+        if directory not in data_modules or not check_module_access(user, data_modules[directory]):
+            return JSONResponse(status_code=403, content={"detail": "Нет доступа к этим данным"})
+    if path.startswith("/generated/prescriptions/") and not check_module_access(user, "cameras"):
+        return JSONResponse(status_code=403, content={"detail": "Нет доступа к этим данным"})
+    response = await call_next(request)
+    if (path == "/api/users" or path.startswith("/api/users/")) and "/notifications" not in path and request.method in {"PUT", "POST"} and response.status_code >= 400 and is_account_manager(user):
+        from services.auth.accounts import notify_manager
+        import logging
+        logging.getLogger("auth").warning("users_api: save rejected path=%s status=%s", path, response.status_code)
+        notify_manager(f"Не удалось сохранить учётную запись ({path}, HTTP {response.status_code}). Подробности ошибки показаны в форме.")
+    return response
 
 # =========================
 # SECURITY: RATE-LIMIT + ЗАГОЛОВКИ
@@ -1092,6 +1134,7 @@ async def home(request: Request, error: str = ""):
             "user_role": user.get("role", ""),
             "user_username": user.get("username", ""),
             "access_error": error,
+            "can_manage_users": is_account_manager(user),
         },
     )
 
@@ -1746,14 +1789,14 @@ async def save_watercontrol_personal_message(payload: dict):
 
 
 @app.get("/api/summary")
-async def api_summary():
+async def api_summary(request: Request):
     edo_result = load_json_file(EDO_RESULT_FILE)
     overdue_result = load_json_file(OVERDUE_RESULT_FILE)
     watercontrol_result = load_json_file(WATERCONTROL_RESULT_FILE)
     utnkr_result = load_json_file(UTNKR_RESULT_FILE)
     cameras_state = load_json_file(CAMERAS_STATE_FILE)
 
-    return {
+    summary = {
         "ok": True,
         "modules": {
             "edo": {
@@ -1781,25 +1824,21 @@ async def api_summary():
             },
         },
     }
+    summary["modules"] = {m: data for m, data in summary["modules"].items() if check_module_access(request.state.user, m)}
+    return summary
 
 
 @app.get("/api/history/recent")
 async def api_history_recent(request: Request, limit: int = 10):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
-    role = (user.get("role") or "").strip().lower()
-    if role not in {"admin", "администратор"} and role not in FULL_ACCESS_ROLES:
-        raise HTTPException(status_code=403, detail="Доступ только для администратора")
-    return run_history.get_recent(limit)
+    return run_history.get_recent(limit, modules=allowed_history_modules(user))
 
 @app.get("/api/history/all")
 async def api_history_all(request: Request, limit: int = 200):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
-    role = (user.get("role") or "").strip().lower()
-    if role not in {"admin", "администратор"} and role not in FULL_ACCESS_ROLES:
-        raise HTTPException(status_code=403, detail="Доступ только для администратора")
-    return run_history.get_all(limit)
+    return run_history.get_all(limit, modules=allowed_history_modules(user))
 
 
 @app.get("/system/git/check")
@@ -2651,9 +2690,9 @@ except Exception as e:
 try:
     from services.scheduler import router as scheduler_router, start as start_scheduler
     from fastapi import Depends
-    app.include_router(scheduler_router, dependencies=[Depends(require_admin_or_full)])
+    app.include_router(scheduler_router)
     start_scheduler()
-    print("[scheduler] router connected (admin-only), loop started")
+    print("[scheduler] router connected (per-module access), loop started")
 except Exception as e:
     print(f"[scheduler] init error: {e}")
 
@@ -2661,10 +2700,6 @@ except Exception as e:
 async def scheduler_page(request: Request):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
-
-    role = (user.get("role") or "").strip().lower()
-    if role not in ADMIN_ROLES and role not in FULL_ACCESS_ROLES:
-        return RedirectResponse(url="/", status_code=303)
 
     return templates.TemplateResponse(
         request,

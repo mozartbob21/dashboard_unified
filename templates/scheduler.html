@@ -97,7 +97,7 @@
     height: 10px;
     border-radius: 50%;
     background: var(--sch-success);
-    animation: sch-pulse 2s infinite;
+    animation: none;
     flex-shrink: 0;
 }
 
@@ -429,7 +429,7 @@
         if (themeMode === "auto-moscow") {
             activeTheme = isDaytimeInMoscow() ? "light" : "dark";
         }
-        root.setAttribute("data-theme", activeTheme);
+        if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
         if (!themeToggle) return;
         const icon = themeToggle.querySelector(".theme-toggle-icon");
         const text = themeToggle.querySelector(".theme-toggle-text");
@@ -593,7 +593,10 @@
     }
 
     // Load
+    let lastJobs = null, jobsLoading = false;
     async function loadJobs() {
+        if (jobsLoading || document.hidden) return;
+        jobsLoading = true;
         try {
             const data = await apiGet(API + '/jobs');
             jobs = data.jobs || [];
@@ -613,10 +616,14 @@
             const enabled = jobs.filter(function(j) { return j.enabled; }).length;
             meta.textContent = enabled + ' из ' + jobs.length + ' модулей активны';
 
-            renderJobs();
+            const snapshot = JSON.stringify(jobs);
+            const editing = document.activeElement && document.activeElement.matches('#jobsGrid select, #jobsGrid input');
+            if (snapshot !== lastJobs && !editing) { renderJobs(); lastJobs = snapshot; }
         } catch (e) {
             document.getElementById('statusText').textContent = 'Ошибка загрузки';
             document.getElementById('statusDot').classList.add('stopped');
+        } finally {
+            jobsLoading = false;
         }
     }
 

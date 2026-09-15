@@ -814,7 +814,7 @@ html[data-theme="dark"] button[data-copy-btn] {
             if (themeMode === "auto-moscow") {
                 activeTheme = isDaytimeInMoscow() ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
 
             const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");

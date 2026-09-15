@@ -60,7 +60,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Карточка обращения {{ item.request_id }} — Нейрона ИИ</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=stable_cards_20260912">
 
     <style id="appeal-empathy-layout-fix">
         /* === Новый компактный экран эмпатичной доработки обращения === */
@@ -605,7 +605,7 @@
             if (themeMode === "auto-moscow") {
                 activeTheme = isDaytimeInMoscow() ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
 
             const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
@@ -697,7 +697,7 @@
                 const isDay = isDaytimeInMoscow();
                 activeTheme = isDay ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
             if (!themeToggle) return;
             const icon = themeToggle.querySelector(".theme-toggle-icon");

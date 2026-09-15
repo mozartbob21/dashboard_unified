@@ -1065,7 +1065,7 @@
     function applyTheme(themeMode) {
         var activeTheme = themeMode;
         if (themeMode === "auto-moscow") activeTheme = isDaytimeInMoscow() ? "light" : "dark";
-        root.setAttribute("data-theme", activeTheme);
+        if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
         root.dataset.theme = activeTheme;
         var toggle = document.getElementById("themeToggleBtn");
         if (!toggle) return;

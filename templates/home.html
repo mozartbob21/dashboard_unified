@@ -32,7 +32,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Нейрона ИИ — Единая точка входа</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=stable_cards_20260912">
 
     <style>
 /* ===== КОМПАКТНАЯ ГЕРОЙ-СЕКЦИЯ ===== */
@@ -582,12 +582,13 @@
         .module-card { 
             padding: 16px 18px !important;
             position: relative;
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            transform-style: preserve-3d;
+            transition: border-color 0.15s ease;
+            transform: none !important;
+            transform-style: flat;
         }
         
         .module-card.card-info-open {
-            transform: scale(1.02);
+            transform: none;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
         }
         
@@ -893,7 +894,7 @@
         /* ===== /КОЛОКОЛЬЧИК УВЕДОМЛЕНИЙ ===== */
  /* ===== ПРЕМИУМ-КАРТОЧКИ: 2 В РЯД ===== */
 .modules-grid {
-    grid-template-columns: repeat(6, 1fr) !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
 }
 
 /* обычные модули: по 2 колонки из 6 = 3 в ряд */
@@ -1022,6 +1023,7 @@
                         </div>
                         <div class="profile-menu-divider"></div>
                         <button id="whatsNewButton" class="profile-menu-item" type="button">🆕 Что нового (v2.5)</button>
+                        {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <div class="profile-menu-divider"></div>
                         <div class="profile-menu-info">Окружение: Локально</div>
@@ -1076,7 +1078,7 @@
                 <div id="quickActionsContainer" class="quick-actions-links">
                 </div>
             </div>
-            <a href="/tools" class="quick-glass">🧰 <span>Полезные инструменты</span></a>
+            {% if "tools" in user_modules %}<a href="/tools" class="quick-glass">🧰 <span>Полезные инструменты</span></a>{% endif %}
             <button id="configureQuickActionsBtn" class="quick-actions-configure-btn" type="button">
                 <span>⚙️</span> Настроить
             </button>
@@ -1109,9 +1111,10 @@
         {% endif %}
 
         <section class="modules-grid">
-            
-            {% if true %}
-            <article class="card module-card">
+
+
+            {% if "edo" in user_modules %}
+<article data-module="edo" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">ЭДО</span>
@@ -1146,10 +1149,12 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
+{% endif %}
 
-            {% if true %}
-            <article class="card module-card">
+
+
+            {% if "overdue" in user_modules %}
+<article data-module="overdue" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">Просрочки</span>
@@ -1184,10 +1189,12 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
+{% endif %}
 
-            {% if true %}
-            <article class="card module-card">
+
+
+            {% if "watercontrol" in user_modules %}
+<article data-module="watercontrol" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">Контроль воды</span>
@@ -1222,10 +1229,12 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
+{% endif %}
 
-            {% if true %}
-            <article class="card module-card">
+
+
+            {% if "utnkr" in user_modules %}
+<article data-module="utnkr" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">УТНКР</span>
@@ -1260,10 +1269,12 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
+{% endif %}
 
-            {% if true %}
-            <article class="card module-card">
+
+
+            {% if "cameras" in user_modules %}
+<article data-module="cameras" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">Камеры</span>
@@ -1298,10 +1309,12 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
+{% endif %}
 
-            {% if true %}
-            <article class="card module-card module-card-appeals-beta">
+
+
+            {% if "appeals" in user_modules %}
+<article data-module="appeals" class="card module-card module-card-appeals-beta">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">ИИ Ответы</span>
@@ -1328,8 +1341,10 @@
                     <a href="/appeals" class="module-link">Открыть модуль →</a>
                 </div>
             </article>
-            {% endif %}
-            <article class="card module-card">
+{% endif %}
+
+            {% if "summarizer" in user_modules %}
+<article data-module="summarizer" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">ИИ</span>
@@ -1356,10 +1371,12 @@
                     <a href="/summarizer" class="module-link">Открыть модуль →</a>
                 </div>
             </article>
-            
+{% endif %}
 
-            {% if true %}
-            <article class="card module-card module-card-appeals-beta">
+
+
+            {% if "cds" in user_modules %}
+<article data-module="cds" class="card module-card module-card-appeals-beta">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">Диспетчерская</span>
@@ -1394,10 +1411,12 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
+{% endif %}
 
-            {% if true %}
-            <article class="card module-card">
+
+
+            {% if "mgkh_rm" in user_modules %}
+<article data-module="mgkh_rm" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">ЖКХ Redmine</span>
@@ -1433,10 +1452,12 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
-            {% if true %}
+{% endif %}
 
-            <article class="card module-card">
+
+
+            {% if "zips" in user_modules %}
+<article data-module="zips" class="card module-card">
     <div class="module-head">
         <div class="head-pills">
             <span class="pill primary">Склад</span>
@@ -1459,10 +1480,12 @@
         <a href="/zips" class="module-link">Открыть дашборд →</a>
     </div>
 </article>
-            {% endif %}
-            
-            {% if true %}
-            <article class="card module-card">
+{% endif %}
+
+
+
+            {% if "ecur" in user_modules %}
+<article data-module="ecur" class="card module-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">ЕЦУР</span>
@@ -1497,17 +1520,30 @@
                     </a>
                 </div>
             </article>
-            {% endif %}
-        
+{% endif %}
 
-        
-            
+
+
+
+
 
         </section>
 
+        {% if "water_rm" in user_modules %}
+        <section class="modules-grid">
+            <article data-module="water_rm" class="card module-card">
+                <div class="module-head"><div class="head-pills"><span class="pill primary">Водоснабжение</span><span class="pill primary">Redmine</span></div></div>
+                <h2 class="module-title">Проверка задач по качеству воды</h2>
+                <div class="module-description is-collapsed">Контроль задач по качеству воды в Redmine.</div>
+                <div class="tag-row"><span class="tag">Проверка задач</span><span class="tag">Качество воды</span></div>
+                <div class="action-panel"><a href="/water-rm" class="module-link">Открыть модуль →</a></div>
+            </article>
+        </section>
+        {% endif %}
+
         <div class="wide-pair">
-{% if true %}
-<article class="card module-card module-card-municipality-report highlight-premium-card">
+{% if "water-dashboard" in user_modules %}
+<article data-module="water-dashboard" class="card module-card module-card-municipality-report highlight-premium-card">
     <div class="module-head">
         <div class="head-pills">
             <span class="pill primary">Сводный дашборд</span>
@@ -1539,8 +1575,8 @@
     </div>
 </article>
 {% endif %}
-{% if true %}
-            <article class="card module-card module-card-municipality-report highlight-premium-card">
+{% if "municipality-report" in user_modules %}
+            <article data-module="municipality-report" class="card module-card module-card-municipality-report highlight-premium-card">
                 <div class="module-head">
                     <div class="head-pills">
                         <span class="pill primary">Сводный отчёт</span>
@@ -1676,6 +1712,7 @@
     {% if true %}
     <script>
         (function () {
+            const allowedModules = {{ user_modules | tojson }};
             const ALL_MODULES = [
                 { id: "edo", name: "Заполненность данных", path: "/edo", icon: "📋" },
                 { id: "cameras", name: "Проверить камеры", path: "/cameras", icon: "📹" },
@@ -1689,7 +1726,10 @@
                 { id: "ecur", name: "ЕЦУР — жалобы", path: "/ecur", icon: "📮" },
                 { id: "water-dashboard", name: "Качество водоснабжения", path: "/water-dashboard", icon: "🌊" },
                 { id: "tools", name: "Полезные инструменты", path: "/tools", icon: "🧰" },
-            ];
+                { id: "water_rm", name: "Задачи по качеству воды", path: "/water-rm", icon: "💧" },
+                { id: "summarizer", name: "Сумматор", path: "/summarizer", icon: "📑" },
+                { id: "zips", name: "Остатки ЗиП РСО", path: "/zips", icon: "🧰" },
+            ].filter(module => allowedModules.includes(module.id));
 
             const DEFAULT_SELECTION = ["edo", "cameras", "overdue", "utnkr"];
 
@@ -1825,7 +1865,8 @@
         const unread = items.filter(n => !readIds.has(n.id)).length;
         if (unread > 0) {
             badge.hidden = false;
-            badge.textContent = unread > 99 ? "99+" : String(unread);
+            const label = unread > 99 ? "99+" : String(unread);
+            if (badge.textContent !== label) badge.textContent = label;
         } else {
             badge.hidden = true;
         }
@@ -1865,6 +1906,7 @@
     }
 
     async function reload() {
+        if (document.hidden) return;
         try {
             const r = await fetch("/api/notifications");
             if (!r.ok) throw new Error("HTTP " + r.status);
@@ -1874,7 +1916,7 @@
             items = [];
         }
         renderBadge();
-        renderList();
+        if (!dropdown.hidden) renderList();
     }
 
     function openMenu() {
@@ -1953,8 +1995,8 @@
                 const isDay = isDaytimeInMoscow();
                 activeTheme = isDay ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
-            root.dataset.theme = activeTheme;
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
+            // The attribute above already sets dataset.theme; avoid a duplicate style invalidation.
             if (typeof markActiveMenu === "function") markActiveMenu(themeMode);
             if (!themeToggle) return;
             const icon = themeToggle.querySelector(".theme-toggle-icon");
@@ -2130,21 +2172,28 @@
                     <span class="history-status-label status-${status}">${escapeHtml(statusLabel)}</span>
                 </div>`;
         }
+        let lastHistoryHtml = null;
+        function updateHistory(html) {
+            if (lastHistoryHtml !== html) { listEl.innerHTML = html; lastHistoryHtml = html; }
+        }
         function renderEmpty() {
-            listEl.innerHTML = `
+            updateHistory(`
                 <div class="history-empty">
                     <div class="history-empty-icon">📭</div>
                     <div class="history-empty-title">Пока нет ни одного запуска модулей</div>
-                </div>`;
+                </div>`);
         }
         function renderError() {
-            listEl.innerHTML = `
+            updateHistory(`
                 <div class="history-empty">
                     <div class="history-empty-icon">⚠️</div>
                     <div class="history-empty-title">Не удалось загрузить историю</div>
-                </div>`;
+                </div>`);
         }
+        let historyLoading = false;
         async function loadHistory() {
+            if (historyLoading || document.hidden) return;
+            historyLoading = true;
             try {
                 const resp = await fetch("/api/history/recent", {
                     credentials: "same-origin",
@@ -2153,10 +2202,12 @@
                 if (!resp.ok) throw new Error("HTTP " + resp.status);
                 const data = await resp.json();
                 if (!Array.isArray(data) || data.length === 0) { renderEmpty(); return; }
-                listEl.innerHTML = data.slice(0, 5).map(renderItem).join("");
+                updateHistory(data.slice(0, 5).map(renderItem).join(""));
             } catch (err) {
                 console.warn("[history-widget]", err);
                 renderError();
+            } finally {
+                historyLoading = false;
             }
         }
         if (refreshBtn) {

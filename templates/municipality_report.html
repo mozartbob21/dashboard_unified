@@ -973,7 +973,7 @@
                 activeTheme = isDaytimeInMoscow() ? "light" : "dark";
             }
 
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
 
             if (activeTheme === "dark") {

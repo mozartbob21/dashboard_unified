@@ -15,11 +15,13 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 
 from utils.db import get_db_connection
 from services.run_history import MODULE_LABELS, MODULE_ICONS
+from core.roles import check_module_access
+from services.auth.security import get_user_from_token
 
 # ─── Конфигурация ───────────────────────────────────────────────────
 
@@ -408,16 +410,27 @@ def is_running() -> bool:
 
 # ─── FastAPI Router ─────────────────────────────────────────────────
 
-router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
+def require_job_access(request: Request):
+    user = getattr(request.state, "user", None) or get_user_from_token(request.cookies.get("access_token"))
+    if not user:
+        raise HTTPException(401, "Требуется авторизация")
+    module_id = request.path_params.get("module_id")
+    if module_id and not check_module_access(user, module_id):
+        raise HTTPException(403, "Нет доступа к этому блоку")
+    request.state.user = user
+    return user
+
+
+router = APIRouter(prefix="/api/scheduler", tags=["scheduler"], dependencies=[Depends(require_job_access)])
 
 
 @router.get("/jobs")
-async def api_get_jobs():
+async def api_get_jobs(request: Request):
     """Список всех задач планировщика."""
     return {
         "ok": True,
         "scheduler_running": is_running(),
-        "jobs": get_all_jobs(),
+        "jobs": [j for j in get_all_jobs() if check_module_access(request.state.user, j["module_id"])],
     }
 
 
@@ -481,12 +494,12 @@ async def api_run_now(module_id: str):
 
 
 @router.get("/status")
-async def api_scheduler_status():
+async def api_scheduler_status(request: Request):
     """Общий статус планировщика."""
     return {
         "ok": True,
         "running": is_running(),
         "tick_interval": TICK_INTERVAL,
-        "total_jobs": len(MODULE_COMMANDS),
-        "enabled_jobs": sum(1 for j in get_all_jobs() if j["enabled"]),
+        "total_jobs": sum(check_module_access(request.state.user, m) for m in MODULE_COMMANDS),
+        "enabled_jobs": sum(1 for j in get_all_jobs() if j["enabled"] and check_module_access(request.state.user, j["module_id"])),
     }

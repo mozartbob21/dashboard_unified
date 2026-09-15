@@ -1,0 +1,14 @@
+/* A viewport header keeps working when the original table scrolls horizontally. */
+.floating-table-header {
+    position: fixed;
+    top: 0;
+    z-index: 40;
+    overflow: hidden;
+    pointer-events: none;
+    background: var(--bg, #f4f7fb);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .16);
+}
+.floating-table-header[hidden] { display: none !important; }
+.floating-table-header table { table-layout: fixed; margin: 0; min-width: 0; }
+.floating-table-header th { box-sizing: border-box; }
+@media print { .floating-table-header { display: none !important; } }

@@ -19,7 +19,7 @@ MAX_ATTEMPTS = 5
 RESEND_COOLDOWN_SECONDS = 60
 
 DEFAULT_ROLE = "Пользователь"
-DEFAULT_MODULES = ["edo", "overdue", "watercontrol"]
+DEFAULT_MODULES = []  # Блоки назначает управляющий учётными записями.
 
 USERNAME_RE = re.compile(r"^[a-zA-Zа-яА-ЯёЁ0-9_.\-]{3,32}$")
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")

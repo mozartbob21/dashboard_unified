@@ -32,7 +32,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Остатки ЗиП РСО — Дашборд</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=hard_override_20260527_164035">
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=stable_cards_20260912">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         /* ===== Общие стили ===== */
@@ -866,7 +866,7 @@
                 const currentHour = now.getHours() + now.getMinutes() / 60;
                 activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
             }
-            root.setAttribute("data-theme", activeTheme);
+            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
             root.dataset.theme = activeTheme;
             if (themeToggle) {
                 const icon = themeToggle.querySelector(".theme-toggle-icon");
