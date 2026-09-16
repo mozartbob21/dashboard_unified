@@ -3209,9 +3209,22 @@ async def zc_delete_municipality(payload: dict = None):
     return {"ok": zc.delete_municipality_override((payload or {}).get("organization"))}
 
 @app.post("/zip_curator/api/scan")
-async def zc_scan():
-    added, skipped = zc.scan_folder()
-    return {"added": added, "skipped": skipped}
+async def zc_scan(payload: dict = None):
+    import os
+    from fastapi.responses import JSONResponse
+    from starlette.concurrency import run_in_threadpool
+
+    folder_url = str((payload or {}).get("public_url") or os.getenv("ZIP_FOLDER_A_URL") or "").strip()
+    try:
+        if folder_url:
+            return await run_in_threadpool(zc.sync_and_scan_folder_a, folder_url)
+        added, skipped = await run_in_threadpool(zc.scan_folder)
+        return {"added": added, "skipped": skipped, "files": 0, "downloaded": 0, "state": zc.load_state()}
+    except Exception as error:
+        return JSONResponse(
+            {"ok": False, "error": f"Не удалось обновить папку А: {error}"},
+            status_code=502,
+        )
 
 @app.post("/zip_curator/api/upload")
 async def zc_upload(request: Request):
@@ -3225,20 +3238,34 @@ async def zc_upload(request: Request):
             parsed.append(p)
         except Exception:
             continue
-    return {"added": zc.ingest(parsed)}
+    return {"added": zc.ingest(parsed), "state": zc.load_state()}
 
 @app.post("/zip_curator/api/approve")
 async def zc_approve(payload: dict = None):
-    return {"ok": zc.approve(int((payload or {}).get("idx", -1)))}
+    ok = zc.approve(int((payload or {}).get("idx", -1)))
+    published = zc.PUBLISHED_FILE.exists()
+    return {"ok": ok, "published": published, "state": zc.load_state()}
 
 @app.post("/zip_curator/api/reject")
 async def zc_reject(payload: dict = None):
-    return {"ok": zc.reject(int((payload or {}).get("idx", -1)))}
+    ok = zc.reject(int((payload or {}).get("idx", -1)))
+    return {"ok": ok, "state": zc.load_state()}
 
 @app.post("/zip_curator/api/edit")
 async def zc_edit(payload: dict = None):
     p = payload or {}
-    return {"ok": zc.edit_item(int(p.get("pi", -1)), int(p.get("ii", -1)), p.get("cat"), p.get("grp"))}
+    ok = zc.edit_item(int(p.get("pi", -1)), int(p.get("ii", -1)), p.get("cat"), p.get("grp"))
+    return {"ok": ok, "state": zc.load_state()}
+
+
+@app.get("/zip_curator/api/files/{file_path:path}")
+async def zc_source_file(file_path: str):
+    from fastapi.responses import FileResponse, Response
+
+    path = zc.resolve_source_file(file_path)
+    if path is None:
+        return Response(status_code=404)
+    return FileResponse(path, filename=path.name)
 
 @app.get("/zip_curator/api/export")
 async def zc_export():
@@ -3266,7 +3293,7 @@ async def zc_dict():
 # ===============================
 # ПУБЛИКАЦИЯ СОГЛАСОВАННОЙ ТАБЛИЦЫ (куратор -> дашборд, без Яндекс.Диска)
 # ===============================
-ZIP_PUB_FILE = BASE_DIR / "data" / "zip_curator" / "published.json"
+ZIP_PUB_FILE = zc.PUBLISHED_FILE
 
 @app.post("/zip_curator/api/publish")
 async def zc_publish(request: Request):

@@ -1,13 +1,18 @@
-"""Куратор ЗиП: локальные алгоритмы без облачных зависимостей."""
-import io, json, re, zipfile
+"""Куратор ЗиП: загрузка исходников, согласование и локальная публикация."""
+import hashlib, io, json, os, re, zipfile
 from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+import requests
+
 BASE = Path(__file__).resolve().parents[2]
 DATA = BASE / "data" / "zip_curator"
 INPUT_DIR = Path(__import__("os").getenv("ZIP_INPUT_DIR", str(DATA / "input")))
+FOLDER_A_DIR = INPUT_DIR / "folder_a"
 STATE_FILE = DATA / "state.json"
+PUBLISHED_FILE = DATA / "published.json"
+FOLDER_A_MANIFEST_FILE = DATA / "folder_a_manifest.json"
 MUNICIPALITY_OVERRIDES_FILE = DATA / "municipality_overrides.json"
 DICT_JSON = Path(__file__).with_name("zip_dict.json")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -167,15 +172,89 @@ def parse_reestr(rows, fname):
         items.append({"name": name, "unitRaw": str(r[1] or "").strip() if len(r) > 1 else "", "qty": q})
     return {"rso": rso, "date": date, "items": items}
 
+def _atomic_write_json(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _clean_from_published():
+    """Restore the approved registry when upgrading from published.json-only storage."""
+    if not PUBLISHED_FILE.exists():
+        return {}
+    try:
+        rows = json.loads(PUBLISHED_FILE.read_text(encoding="utf-8")).get("rows") or []
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return {}
+    if len(rows) < 2:
+        return {}
+    header = [norm(v) for v in rows[0]]
+
+    def column(fragment):
+        return next((i for i, value in enumerate(header) if fragment in value), -1)
+
+    indexes = {
+        "rso": column("рсо"), "okrug": column("округ"), "name": column("наимен"),
+        "cat": column("категор"), "grp": column("групп"), "qty": column("кол"),
+        "unit": column("ед"), "water": column("вод"), "date": column("дата"),
+    }
+    if indexes["rso"] < 0 or indexes["name"] < 0:
+        return {}
+
+    clean = {}
+    for row in rows[1:]:
+        if not isinstance(row, list):
+            continue
+        value = lambda key, default="": row[indexes[key]] if 0 <= indexes[key] < len(row) else default
+        rso = str(value("rso") or "").strip()
+        name = str(value("name") or "").strip()
+        if not rso or not name:
+            continue
+        key = norm(rso)
+        entry = clean.setdefault(key, {
+            "rso": rso,
+            "okrug": str(value("okrug") or "").strip(),
+            "date": str(value("date") or "").strip(),
+            "items": [],
+        })
+        qty = value("qty", None)
+        try:
+            qty = float(str(qty).replace(",", ".")) if qty not in (None, "") else None
+        except (TypeError, ValueError):
+            qty = None
+        item_norm = norm(name)
+        entry["items"].append({
+            "name": name,
+            "nn": item_norm,
+            "cat": str(value("cat") or "").strip() or None,
+            "grp": str(value("grp") or "").strip() or None,
+            "qty": qty,
+            "unit": str(value("unit") or "").strip() or None,
+            "unitRaw": str(value("unit") or "").strip(),
+            "unitUnknown": not bool(str(value("unit") or "").strip()),
+            "water": bool(str(value("water") or "").strip()),
+            "via": "published",
+        })
+    return clean
+
+
 def load_state():
     if STATE_FILE.exists():
-        try: return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        try:
+            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            if isinstance(state, dict):
+                state.setdefault("pending", [])
+                state.setdefault("clean", {})
+                return state
         except Exception: pass
-    return {"pending": [], "clean": {}}
+    state = {"pending": [], "clean": _clean_from_published()}
+    if state["clean"]:
+        save_state(state)
+    return state
 
 def save_state(st):
-    DATA.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
+    _atomic_write_json(STATE_FILE, st)
 
 def _enrich(p):
     for it in p["items"]:
@@ -194,9 +273,14 @@ def ingest(list_of_parsed):
     save_state(st)
     return added
 
-def scan_folder():
-    INPUT_DIR.mkdir(parents=True, exist_ok=True)
-    files = sorted(INPUT_DIR.glob("*.xls*"), key=lambda p: p.stat().st_mtime, reverse=True)
+def scan_folder(scan_dir=None):
+    scan_dir = Path(scan_dir or INPUT_DIR)
+    scan_dir.mkdir(parents=True, exist_ok=True)
+    files = sorted(
+        (p for p in scan_dir.rglob("*") if p.is_file() and re.search(r"\.xlsx?$", p.name, re.I)),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     taken, skipped = {}, 0
     for f in files:
         try: rows = read_xlsx_rows(f.read_bytes())
@@ -205,13 +289,134 @@ def scan_folder():
         if not p["items"]: continue
         key = norm(p["rso"])
         if key in taken: skipped += 1; continue
-        p["fname"] = f.name; p["uploaded"] = int(f.stat().st_mtime)
+        p["fname"] = f.name
+        p["uploaded"] = int(f.stat().st_mtime * 1000)
+        try:
+            p["local_file"] = f.relative_to(INPUT_DIR).as_posix()
+        except ValueError:
+            p["local_file"] = f.name
         taken[key] = p
     return ingest(list(taken.values())), skipped
 
+
+def _safe_remote_name(item, used):
+    original = Path(str(item.get("name") or "registry.xlsx")).name
+    cleaned = re.sub(r"[^0-9A-Za-zА-Яа-яЁё._() -]+", "_", original).strip(" .") or "registry.xlsx"
+    candidate = cleaned
+    remote_path = str(item.get("path") or original)
+    if candidate.casefold() in used:
+        stem, suffix = Path(cleaned).stem, Path(cleaned).suffix
+        candidate = f"{stem}-{hashlib.sha1(remote_path.encode('utf-8')).hexdigest()[:8]}{suffix}"
+    used.add(candidate.casefold())
+    return candidate
+
+
+def sync_folder_a(public_url, timeout=45):
+    """Download Excel files from public Yandex.Disk folder A to persistent local storage."""
+    public_url = str(public_url or "").strip()
+    if not public_url:
+        raise ValueError("Не указана ссылка на папку А")
+
+    api_url = "https://cloud-api.yandex.net/v1/disk/public/resources"
+    files = []
+    offset = 0
+    with requests.Session() as session:
+        while offset <= 2000:
+            response = session.get(
+                api_url,
+                params={"public_key": public_url, "limit": 200, "offset": offset},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            items = ((payload.get("_embedded") or {}).get("items") or [])
+            files.extend(
+                item for item in items
+                if item.get("type") == "file" and re.search(r"\.xlsx?$", str(item.get("name") or ""), re.I)
+            )
+            if len(items) < 200:
+                break
+            offset += 200
+
+        FOLDER_A_DIR.mkdir(parents=True, exist_ok=True)
+        previous = {}
+        if FOLDER_A_MANIFEST_FILE.exists():
+            try:
+                previous = {
+                    str(item.get("remote_path")): item
+                    for item in json.loads(FOLDER_A_MANIFEST_FILE.read_text(encoding="utf-8")).get("files", [])
+                }
+            except (OSError, json.JSONDecodeError, AttributeError):
+                previous = {}
+
+        used, manifest, downloaded, reused = set(), [], 0, 0
+        for item in sorted(files, key=lambda value: str(value.get("path") or value.get("name") or "")):
+            local_name = _safe_remote_name(item, used)
+            local_path = FOLDER_A_DIR / local_name
+            remote_path = str(item.get("path") or item.get("name") or local_name)
+            checksum = str(item.get("md5") or "")
+            old = previous.get(remote_path) or {}
+            unchanged = local_path.exists() and checksum and checksum == str(old.get("md5") or "")
+            if unchanged:
+                reused += 1
+            else:
+                href = item.get("file")
+                if not href:
+                    link_response = session.get(
+                        api_url + "/download",
+                        params={"public_key": public_url, "path": remote_path},
+                        timeout=timeout,
+                    )
+                    link_response.raise_for_status()
+                    href = link_response.json().get("href")
+                if not href:
+                    raise RuntimeError(f"Нет ссылки для скачивания файла {item.get('name')}")
+                file_response = session.get(href, timeout=timeout)
+                file_response.raise_for_status()
+                tmp_path = local_path.with_suffix(local_path.suffix + ".part")
+                tmp_path.write_bytes(file_response.content)
+                os.replace(tmp_path, local_path)
+                downloaded += 1
+
+            modified = item.get("modified") or item.get("created")
+            if modified:
+                try:
+                    timestamp = datetime.fromisoformat(str(modified).replace("Z", "+00:00")).timestamp()
+                    os.utime(local_path, (timestamp, timestamp))
+                except (OSError, ValueError):
+                    pass
+            manifest.append({
+                "name": item.get("name"),
+                "local_name": local_name,
+                "remote_path": remote_path,
+                "md5": checksum,
+                "modified": modified,
+                "size": item.get("size"),
+            })
+
+    active_names = {item["local_name"] for item in manifest}
+    removed = 0
+    for path in FOLDER_A_DIR.iterdir():
+        if path.is_file() and re.search(r"\.xlsx?$", path.name, re.I) and path.name not in active_names:
+            path.unlink()
+            removed += 1
+    _atomic_write_json(FOLDER_A_MANIFEST_FILE, {
+        "source": public_url,
+        "synced_at": datetime.now().isoformat(timespec="seconds"),
+        "files": manifest,
+    })
+    return {"files": len(manifest), "downloaded": downloaded, "reused": reused, "removed": removed}
+
+
+def sync_and_scan_folder_a(public_url):
+    result = sync_folder_a(public_url)
+    added, skipped = scan_folder(FOLDER_A_DIR)
+    result.update({"added": added, "skipped": skipped, "state": load_state()})
+    return result
+
 def approve(idx):
     st = load_state()
-    if idx >= len(st["pending"]): return False
+    if idx < 0 or idx >= len(st["pending"]): return False
     p = st["pending"].pop(idx)
     g = {}
     for it in p["items"]: g.setdefault(it["nn"], []).append(it)
@@ -221,15 +426,19 @@ def approve(idx):
         if len(arr) > 1: b["qty"] = sum(x.get("qty") or 0 for x in arr)
         merged.append(b)
     st["clean"][norm(p["rso"])] = {"rso": p["rso"], "okrug": p.get("okrug") or resolve_municipality(p["rso"]), "date": p.get("date"), "items": merged}
-    save_state(st); return True
+    save_state(st)
+    publish_clean(st)
+    return True
 
 def reject(idx):
     st = load_state()
-    if idx >= len(st["pending"]): return False
+    if idx < 0 or idx >= len(st["pending"]): return False
     st["pending"].pop(idx); save_state(st); return True
 
 def edit_item(pi, ii, cat, grp):
     st = load_state()
+    if pi < 0 or ii < 0:
+        return False
     try:
         it = st["pending"][pi]["items"][ii]
         it["cat"] = cat or None; it["grp"] = grp or None; it["via"] = "override"
@@ -238,12 +447,33 @@ def edit_item(pi, ii, cat, grp):
     except Exception: return False
 
 def export_rows():
-    st = load_state()
+    return export_rows_from_state(load_state())
+
+
+def export_rows_from_state(st):
     rows = [["РСО","Округ","Наименование","Категория","Группа","Количество","Ед.","Водоподготовка","Дата"]]
     for c in st["clean"].values():
         for it in c["items"]:
             rows.append([c["rso"], c["okrug"], it["name"], it.get("cat") or "не указано", it.get("grp") or "", it.get("qty"), it.get("unit") or "", "да" if it.get("water") else "", c.get("date") or ""])
     return rows
+
+
+def publish_clean(st=None):
+    rows = export_rows_from_state(st or load_state())
+    payload = {
+        "rows": rows,
+        "published_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    _atomic_write_json(PUBLISHED_FILE, payload)
+    return payload
+
+
+def resolve_source_file(file_path):
+    candidate = (INPUT_DIR / str(file_path or "")).resolve()
+    root = INPUT_DIR.resolve()
+    if candidate == root or root not in candidate.parents or not candidate.is_file():
+        return None
+    return candidate
 
 def write_xlsx(rows, path):
     def esc(s): return str(s).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
@@ -254,8 +484,11 @@ def write_xlsx(rows, path):
         for c, v in enumerate(row):
             ref = ""
             n = c
-            while True: ref = chr(65 + n % 26) + ref; n = n//26 - 1
-            if n < 0: pass
+            while True:
+                ref = chr(65 + n % 26) + ref
+                n = n//26 - 1
+                if n < 0:
+                    break
             ref += str(r)
             if isinstance(v, (int, float)):
                 sheet.append(f'<c r="{ref}"><v>{v}</v></c>')

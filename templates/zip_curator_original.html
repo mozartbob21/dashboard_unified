@@ -10,6 +10,10 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,Arial,sans-serif;font-size:14px;line-height:1.45}
   .top{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .top-leading{display:flex;align-items:center;gap:12px;min-width:0}
+  .back-link{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-weight:600;font-size:13px;text-decoration:none;white-space:nowrap;transition:.18s ease}
+  .back-link:hover{border-color:var(--blue);color:var(--blue-d);transform:translateX(-1px)}
+  .back-link-arrow{font-size:17px;line-height:1}
   .brand{font-weight:700;font-size:16px}.brand b{color:var(--green)}.brand small{display:block;color:var(--ink3);font-weight:400;font-size:11px}
   .wrap{max-width:1240px;margin:0 auto;padding:16px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:14px}
@@ -37,11 +41,15 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .mini{color:var(--ink3);font-size:12px}
   input[type=file]{display:none}
+  @media(max-width:680px){.top{align-items:flex-start;flex-direction:column}.top-leading{align-items:flex-start}.back-link-text{display:none}.back-link{width:38px;padding:0;justify-content:center}.brand{font-size:14px}}
 </style>
 </head>
 <body>
 <div class="top">
-  <div class="brand">Куратор · проверка и согласование<small>Остатки <b>ЗиП РСО</b> · без сервера, всё в этом файле</small></div>
+  <div class="top-leading">
+    <a class="back-link" href="/zips" aria-label="Назад в дашборд ЗИП"><span class="back-link-arrow" aria-hidden="true">←</span><span class="back-link-text">Назад в ЗИП</span></a>
+    <div class="brand">Куратор · проверка и согласование<small>Остатки <b>ЗиП РСО</b> · файлы и очередь сохраняются в системе</small></div>
+  </div>
   <div class="mini" id="hstatus"></div>
 </div>
 <div class="wrap">
@@ -57,7 +65,7 @@
       <div class="sep"></div>
       <button class="btn" id="btnLoadClean">Загрузить текущие данные (Диск B)</button>
       <button class="btn green" id="btnSaveClean">⬇ Скачать итоговый эксель</button>
-<button class="btn green" id="btnPublish">💾 Сохранить в систему</button><button class="btn green" id="btnPublish">📤 Опубликовать в систему</button>
+      <button class="btn green" id="btnPublish">📤 Повторно опубликовать в ЗИП</button>
     </div>
     <div class="status" id="status"></div>
     <input type="file" id="fiManual" accept=".xlsx,.xls" multiple>
@@ -78,7 +86,7 @@
   <h2>На согласовании <span class="mini" id="pendCount"></span></h2>
   <div id="pending"><div class="card"><div class="empty">Пусто. Нажмите «Обновить данные» или «Загрузить файлы вручную».</div></div></div>
 
-  <h2>Согласовано — пойдёт на Диск B <span class="mini" id="cleanCount"></span></h2>
+  <h2>Согласовано — опубликовано в ЗИП <span class="mini" id="cleanCount"></span></h2>
   <div id="clean" class="card"><div class="empty">Пока ничего не согласовано.</div></div>
 </div>
 <div class="toast" id="toast"></div>
@@ -131,6 +139,18 @@ function classify(name){const nn=norm(name);const r=D.dict[nn];if(r)return{cat:r
   for(const kw of D.kws){if(nn.includes(kw[0]))return{cat:kw[1],grp:kw[2],water:false,via:'keyword'};}
   return{cat:null,grp:null,water:false,via:null};}
 function fmtDate(d){if(d instanceof Date)return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();return '';}
+function applyServerState(state){
+  PENDING=Array.isArray(state&&state.pending)?state.pending:[];
+  CLEAN=state&&state.clean&&typeof state.clean==='object'?state.clean:{};
+  render();
+}
+async function loadServerState(){
+  try{
+    const r=await fetch('/zip_curator/api/state',{cache:'no-store'}),d=await r.json();
+    if(!r.ok)throw new Error(d.error||('HTTP '+r.status));
+    applyServerState(d);
+  }catch(e){toast('Не удалось восстановить состояние куратора: '+e.message,5000);}
+}
 
 function parseWB(wb, fname){
   const ws=wb.Sheets[wb.SheetNames[0]];
@@ -203,67 +223,14 @@ const MAX_DOWNLOADS=200;  // страховка: свежие идут перв�
 
 async function fetchFromDrive(){
   if(!YANDEX_FOLDER_A_URL){toast('Укажите ссылку на папку A в начале файла');return;}
-  toast('Читаю папку A…',6000);
-  const PK=encodeURIComponent(YANDEX_FOLDER_A_URL);
-  // 1) список файлов (постранично)
-  let files=[];
+  toast('Синхронизирую папку А и сохраняю файлы…',12000);
   try{
-    let offset=0;
-    while(true){
-      const r=await fetch(`https://cloud-api.yandex.net/v1/disk/public/resources?public_key=${PK}&limit=200&offset=${offset}`,{cache:'no-store'});
-      const d=await r.json();
-      if(!r.ok)throw new Error(d.message||d.description||('HTTP '+r.status));
-      const items=(d._embedded&&d._embedded.items)||[];
-      files=files.concat(items.filter(it=>it.type==='file'&&/\.(xlsx|xls)$/i.test(it.name)));
-      if(items.length<200)break; offset+=200;
-      if(offset>2000)break;
-    }
-  }catch(e){toast('Не удалось прочитать папку A: '+e.message,6000);return;}
-  if(!files.length){toast('В папке A нет файлов Excel');return;}
-
-  // 2) свежие — первыми (по дате загрузки на Диск)
-  const upOf=f=>new Date(f.modified||f.created||0).getTime();
-  files.sort((a,b)=>upOf(b)-upOf(a));
-
-  // 3) идём сверху вниз: первое вхождение РСО = его последняя версия, остальные пропускаем
-  const cache=md5cacheGet();
-  const taken={};          // норм.РСО -> запись реестра
-  const skipped=[];        // устаревшие версии (для отчёта и проверки периода)
-  let downloads=0, failed=0;
-  for(const f of files){
-    const known=f.md5&&cache[f.md5];
-    if(known&&taken[known]){ skipped.push({rso:known,uploaded:upOf(f),name:f.name,date:null}); continue; } // без скачивания
-    if(downloads>=MAX_DOWNLOADS)break;
-    let wb;
-    try{
-      let href=f.file;
-      if(!href){
-        const r=await fetch(`https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=${PK}&path=${encodeURIComponent(f.path)}`,{cache:'no-store'});
-        const d=await r.json(); if(!d.href)throw new Error(d.message||'нет ссылки на скачивание');
-        href=d.href;
-      }
-      const rr=await fetch(href,{cache:'no-store'}); if(!rr.ok)throw new Error('HTTP '+rr.status);
-      wb=XLSX.read(new Uint8Array(await rr.arrayBuffer()),{type:'array',cellDates:true});
-      downloads++;
-    }catch(e){console.warn('пропущен',f.name,e);failed++;continue;}
-    let p; try{p=parseWB(wb,f.name);}catch(e){console.warn(f.name,e);failed++;continue;}
-    if(!p.items.length){failed++;continue;}
-    const key=norm(p.rso);
-    if(f.md5){cache[f.md5]=key;}
-    if(taken[key]){ skipped.push({rso:key,uploaded:upOf(f),name:f.name,date:p.date}); continue; }
-    p.uploaded=upOf(f); p.fname=f.name;
-    taken[key]=p;
-  }
-  md5cacheSet(cache);
-
-  const list=Object.values(taken);
-  if(!list.length){toast(failed?'Файлы из папки A не удалось прочитать':'Нет подходящих файлов');return;}
-  // 4) предупреждение: взяли более позднюю загрузку, но период у неё старее пропущенной
-  list.forEach(p=>{
-    const older=skipped.filter(s=>s.rso===norm(p.rso)&&s.date);
-    if(older.some(s=>cmpDate(s.date,p.date)>0))p.periodWarn=true;
-  });
-  ingestWorkbooks(list.map(p=>({ready:p})), skipped.length);
+    const r=await fetch('/zip_curator/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({public_url:YANDEX_FOLDER_A_URL})});
+    const d=await r.json();
+    if(!r.ok||d.ok===false)throw new Error(d.error||('HTTP '+r.status));
+    applyServerState(d.state||{});
+    toast(`Папка А обновлена: файлов ${d.files||0}, скачано ${d.downloaded||0}, реестров ${d.added||0}${d.skipped?`, старых версий ${d.skipped}`:''}`,5000);
+  }catch(e){toast('Не удалось обновить папку А: '+e.message,6000);}
 }
 // сравнение дат вида дд.мм.гггг: >0 если a новее b
 function cmpDate(a,b){
@@ -273,16 +240,20 @@ function cmpDate(a,b){
 }
 
 // ---- согласование ----
-function approve(idx){
-  const p=PENDING[idx];
-  const g={}; p.items.forEach(it=>{(g[it.nn]=g[it.nn]||[]).push(it);});
-  const merged=[]; Object.values(g).forEach(arr=>{const b=arr[0]; if(arr.length>1)b.qty=arr.reduce((a,x)=>a+(x.qty||0),0); merged.push(b);});
-  merged.forEach(it=>{if(it.cat){const cur=D.dict[it.nn]; if(it.via==='override'||!cur){D.dict[it.nn]=[it.cat,it.grp,it.water?1:0];dictDirty=true;}}});
-  CLEAN[norm(p.rso)]={rso:p.rso,okrug:p.okrug||resolveMunicipality(p.rso),date:p.date,items:merged};
-  PENDING.splice(idx,1); render(); toast('Согласовано: '+p.rso+(dictDirty?' · справочник дополнен':''),3200);
-publishToSystem(true);
+async function approve(idx){
+  const p=PENDING[idx]; if(!p)return;
+  try{
+    const r=await fetch('/zip_curator/api/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx})}),d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
+    applyServerState(d.state||{});
+    try{const channel=new BroadcastChannel('zip-curator-updates');channel.postMessage({type:'published'});channel.close();}catch(e){}
+    toast('Согласовано и опубликовано в ЗИП: '+p.rso,4000);
+  }catch(e){toast('Не удалось согласовать: '+e.message,5000);}
 }
-function reject(idx){const p=PENDING[idx];PENDING.splice(idx,1);render();toast('Убрано: '+p.rso);}
+async function reject(idx){const p=PENDING[idx];if(!p)return;
+  try{const r=await fetch('/zip_curator/api/reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx})}),d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));applyServerState(d.state||{});toast('Убрано: '+p.rso);
+  }catch(e){toast('Не удалось убрать: '+e.message,5000);}}
 
 // ---- правка категории ----
 function editRow(btn,pi,ii){
@@ -293,9 +264,13 @@ function editRow(btn,pi,ii){
 }
 function grpSel(pi,ii,cat,grp){const gs=cat?(D.groupsByCat[cat]||[]):[];
   return `<select onchange="onGrp(${pi},${ii},this)"><option value="">— группа —</option>${gs.map(g=>`<option ${g===grp?'selected':''}>${esc(g)}</option>`).join('')}</select>`;}
+function persistEdit(pi,ii){const it=PENDING[pi]&&PENDING[pi].items[ii];if(!it)return;
+  fetch('/zip_curator/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pi,ii,cat:it.cat,grp:it.grp})})
+    .then(async r=>{const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));})
+    .catch(e=>toast('Не удалось сохранить правку: '+e.message,5000));}
 function onCat(pi,ii,sel){const it=PENDING[pi].items[ii];it.cat=sel.value||null;it.grp=null;it.via='override';
-  sel.closest('tr').querySelector('.jg').innerHTML=grpSel(pi,ii,it.cat,null);}
-function onGrp(pi,ii,sel){PENDING[pi].items[ii].grp=sel.value||null;}
+  sel.closest('tr').querySelector('.jg').innerHTML=grpSel(pi,ii,it.cat,null);persistEdit(pi,ii);}
+function onGrp(pi,ii,sel){PENDING[pi].items[ii].grp=sel.value||null;PENDING[pi].items[ii].via='override';persistEdit(pi,ii);}
 
 // ---- отрисовка ----
 function render(){
@@ -311,7 +286,7 @@ function render(){
     const up=p.uploaded?new Date(p.uploaded).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
     return `<div class="card"><div class="rhead">
       <div><b style="font-size:15px">${esc(p.rso)}</b> ${p.okrug?`· <span style="color:var(--green-d)">${esc(p.okrug)}</span>`:`<span class="badge b-amber">муниципалитет не определён</span> <button class="btn sm" onclick="openMunicipalityEditor(${pi})">Указать</button>`}
-        <div class="mini">${esc(p.fname||'')} · дата остатков: <b>${esc(p.date||'—')}</b>${up?` · загружен: ${esc(up)}`:''} · ${p.items.length} позиций</div>
+        <div class="mini">${p.local_file?`<a href="/zip_curator/api/files/${p.local_file.split('/').map(encodeURIComponent).join('/')}" target="_blank" rel="noopener">${esc(p.fname||'файл')}</a>`:esc(p.fname||'')} · дата остатков: <b>${esc(p.date||'—')}</b>${up?` · загружен: ${esc(up)}`:''} · ${p.items.length} позиций</div>
         <div style="margin-top:6px">${uncl?`<span class="badge b-amber">${uncl} не классиф.</span> `:''}${nou?`<span class="badge b-rose">${nou} без единицы</span> `:''}${bad?`<span class="badge b-rose">${bad} без кол-ва</span> `:''}${(!uncl&&!nou&&!bad)?'<span class="badge b-green">✓ всё распознано</span>':''}${p.periodWarn?' <span class="badge b-rose" title="Более ранняя загрузка содержит более свежий период — проверьте, тот ли файл взят">загружен позже, но период старее — проверьте</span>':''}</div></div>
       <div class="bar"><button class="btn sm" onclick="toggleView(${pi})">Посмотреть</button>
         <button class="btn sm ghost" onclick="reject(${pi})">Убрать</button>
@@ -430,8 +405,9 @@ async function loadClean(f){
 $('#btnDrive').onclick=fetchFromDrive;
 $('#btnManual').onclick=()=>$('#fiManual').click();
 $('#fiManual').onchange=async e=>{if(e.target.files.length){
-  const {keep,skipped}=pickLatestPerRso(await readFilesToWB(e.target.files));
-  ingestWorkbooks(keep,skipped); e.target.value='';}};
+  const form=new FormData();Array.from(e.target.files).forEach(file=>form.append('file',file));
+  try{const r=await fetch('/zip_curator/api/upload',{method:'POST',body:form}),d=await r.json();if(!r.ok)throw new Error(d.error||('HTTP '+r.status));applyServerState(d.state||{});toast('Загружено реестров: '+(d.added||0));}
+  catch(err){toast('Не удалось загрузить файлы: '+err.message,5000);}e.target.value='';}};
 $('#btnLoadDict').onclick=()=>$('#fiDict').click();
 $('#fiDict').onchange=e=>{if(e.target.files[0]){loadDict(e.target.files[0]);e.target.value='';}};
 $('#btnSaveDict').onclick=saveDict;
@@ -469,7 +445,7 @@ function publishClean(silent){
 $('#btnPublish').onclick=()=>publishClean(false);
 if(!YANDEX_FOLDER_A_URL)$('#cfgWarn').innerHTML='<div class="warn"><b>Кнопка «Обновить данные» не настроена.</b> Впишите ссылку на папку A (Яндекс.Диск) в начале файла, или пользуйтесь «Загрузить файлы вручную».</div>';
 render();
-loadMunicipalityOverrides();
+(async()=>{await loadServerState();await loadMunicipalityOverrides();})();
 </script>
 </body>
 </html>

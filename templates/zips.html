@@ -927,7 +927,7 @@
 <script>
     // ================== НАСТРОЙКА ==================
     const YANDEX_PUBLIC_URL = "https://disk.yandex.ru/i/cSXcB5AMqJ81pQ";
-    const AUTO_REFRESH_MIN = 5;    // автообновление, минут (0 — выключить)
+    const AUTO_REFRESH_MIN = 1;    // резервная проверка публикации куратора
     // ===============================================
 
     let ROWS = [];
@@ -1564,6 +1564,14 @@
 
     buildMS();
     load();
+    try {
+        const zipUpdates = new BroadcastChannel('zip-curator-updates');
+        zipUpdates.onmessage = event => {
+            if (event.data && event.data.type === 'published') load();
+        };
+    } catch (e) {
+        // Старые браузеры продолжат обновляться по таймеру ниже.
+    }
     if (AUTO_REFRESH_MIN > 0) setInterval(load, AUTO_REFRESH_MIN * 60000);
 </script>
 
