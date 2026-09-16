@@ -179,14 +179,7 @@ def _atomic_write_json(path, payload):
     os.replace(tmp, path)
 
 
-def _clean_from_published():
-    """Restore the approved registry when upgrading from published.json-only storage."""
-    if not PUBLISHED_FILE.exists():
-        return {}
-    try:
-        rows = json.loads(PUBLISHED_FILE.read_text(encoding="utf-8")).get("rows") or []
-    except (OSError, json.JSONDecodeError, AttributeError):
-        return {}
+def _clean_from_rows(rows):
     if len(rows) < 2:
         return {}
     header = [norm(v) for v in rows[0]]
@@ -237,6 +230,17 @@ def _clean_from_published():
             "via": "published",
         })
     return clean
+
+
+def _clean_from_published():
+    """Restore the approved registry when upgrading from published.json-only storage."""
+    if not PUBLISHED_FILE.exists():
+        return {}
+    try:
+        rows = json.loads(PUBLISHED_FILE.read_text(encoding="utf-8")).get("rows") or []
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return {}
+    return _clean_from_rows(rows)
 
 
 def load_state():
@@ -458,14 +462,62 @@ def export_rows_from_state(st):
     return rows
 
 
-def publish_clean(st=None):
-    rows = export_rows_from_state(st or load_state())
+def _published_rows():
+    if not PUBLISHED_FILE.exists():
+        return []
+    try:
+        payload = json.loads(PUBLISHED_FILE.read_text(encoding="utf-8"))
+        rows = payload.get("rows") or []
+        return rows if isinstance(rows, list) else []
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return []
+
+
+def merge_rows_by_rso(current_rows, incoming_rows):
+    """Replace only RSO present in incoming rows and retain every other published RSO."""
+    if len(incoming_rows) < 2:
+        raise ValueError("Нет строк для публикации")
+    incoming_header = incoming_rows[0]
+    header_norm = [norm(value) for value in incoming_header]
+    rso_index = next((i for i, value in enumerate(header_norm) if "рсо" in value), -1)
+    if rso_index < 0:
+        raise ValueError("В таблице отсутствует колонка РСО")
+
+    def row_rso(row):
+        return norm(row[rso_index]) if isinstance(row, list) and rso_index < len(row) else ""
+
+    incoming_data = [row for row in incoming_rows[1:] if row_rso(row)]
+    incoming_rso = {row_rso(row) for row in incoming_data}
+    retained = []
+    if len(current_rows) > 1:
+        current_header = [norm(value) for value in current_rows[0]]
+        current_rso_index = next((i for i, value in enumerate(current_header) if "рсо" in value), -1)
+        if current_rso_index >= 0:
+            for row in current_rows[1:]:
+                key = norm(row[current_rso_index]) if isinstance(row, list) and current_rso_index < len(row) else ""
+                if key and key not in incoming_rso:
+                    retained.append(row)
+    return [incoming_header, *retained, *incoming_data], incoming_rso
+
+
+def publish_rows(rows, st=None):
+    merged_rows, incoming_rso = merge_rows_by_rso(_published_rows(), rows)
     payload = {
-        "rows": rows,
+        "rows": merged_rows,
         "published_at": datetime.now().isoformat(timespec="seconds"),
     }
     _atomic_write_json(PUBLISHED_FILE, payload)
+    state = st or load_state()
+    state["clean"] = _clean_from_rows(merged_rows)
+    save_state(state)
+    payload["updated_rso"] = len(incoming_rso)
+    payload["total_rso"] = len(state["clean"])
     return payload
+
+
+def publish_clean(st=None):
+    state = st or load_state()
+    return publish_rows(export_rows_from_state(state), state)
 
 
 def resolve_source_file(file_path):

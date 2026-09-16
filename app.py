@@ -3297,18 +3297,22 @@ ZIP_PUB_FILE = zc.PUBLISHED_FILE
 
 @app.post("/zip_curator/api/publish")
 async def zc_publish(request: Request):
-    import json as _j
-    from datetime import datetime
+    from fastapi.responses import JSONResponse
+
     payload = await request.json()
     rows = payload.get("rows") or []
     if len(rows) < 2:
         return {"ok": False, "error": "нет согласованных строк"}
-    ZIP_PUB_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_text(ZIP_PUB_FILE, _j.dumps(
-        {"rows": rows,
-         "published_at": datetime.now().isoformat(timespec="seconds")},
-        ensure_ascii=False))
-    return {"ok": True, "rows": len(rows) - 1}
+    try:
+        result = zc.publish_rows(rows)
+        return {
+            "ok": True,
+            "rows": len(result["rows"]) - 1,
+            "updated_rso": result["updated_rso"],
+            "total_rso": result["total_rso"],
+        }
+    except ValueError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
 
 @app.get("/zip_curator/api/published")
 async def zc_published():
