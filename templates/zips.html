@@ -714,6 +714,47 @@
             background: rgba(255,255,255,0.05);
         }
 
+        .zip-view-tabs {
+            display: inline-flex;
+            gap: 5px;
+            margin-bottom: 18px;
+            padding: 5px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--panel);
+        }
+        .zip-view-tab {
+            min-height: 38px;
+            padding: 0 15px;
+            border: 0;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--ink3);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .zip-view-tab.active {
+            background: linear-gradient(135deg, var(--blue), #7c3aed);
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(67, 56, 202, .2);
+        }
+        .zip-view-pane[hidden] { display: none !important; }
+        .contacts-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+        .contacts-head h2 { margin:0 0 5px; }
+        #contactsMessage:empty { display:none; }
+        .contacts-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+        .contacts-summary { display:flex; flex-wrap:wrap; gap:9px; margin:16px 0; }
+        .contacts-summary .stat { min-width:150px; }
+        .contacts-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+        .contacts-toolbar input { flex:1; min-width:220px; }
+        .contacts-table td { vertical-align:top; }
+        .contact-main { font-weight:700; color:var(--ink); }
+        .contact-secondary { margin-top:3px; color:var(--ink3); font-size:12px; }
+        .contact-link { color:var(--blue-d); text-decoration:none; }
+        .contact-link:hover { text-decoration:underline; }
+        [data-theme="dark"] .zip-view-tabs { background:#111827; }
+
         @media (max-width: 768px) {
             .topbar { flex-direction: column; align-items: stretch; }
             .top-actions { justify-content: center; flex-wrap: wrap; }
@@ -721,6 +762,9 @@
             .zips-dashboard .row { flex-direction: column; align-items: stretch; }
             .zips-dashboard .field { min-width: unset; }
             .zips-dashboard .ms-btn { min-width: unset; width: 100%; }
+            .contacts-head { flex-direction:column; }
+            .contacts-toolbar { align-items:stretch; flex-direction:column; }
+            .contacts-toolbar input { width:100%; }
         }
     </style>
 {% endblock %}
@@ -786,6 +830,12 @@
     <!-- ===== СОДЕРЖИМОЕ ДАШБОРДА ===== -->
     <div class="zips-dashboard">
         <div class="wrap">
+            <nav class="zip-view-tabs" aria-label="Разделы ЗИП">
+                <button class="zip-view-tab active" type="button" data-zip-view="inventory" aria-selected="true">Остатки ЗИП</button>
+                <button class="zip-view-tab" type="button" data-zip-view="contacts" aria-selected="false">Контакты ответственных от РСО</button>
+            </nav>
+
+            <section id="zipInventoryPane" class="zip-view-pane">
             <!-- Блок статуса и кнопки обновления -->
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                 <span id="upd" class="mini">загрузка…</span>
@@ -836,6 +886,34 @@
             </div>
             <div class="tblbox" id="stale"></div>
             <div class="mini">Считается по дате остатков относительно сегодняшнего дня. Показываются все РСО из данных, независимо от фильтров выше.</div>
+            </section>
+
+            <section id="zipContactsPane" class="zip-view-pane" hidden>
+                <div class="card contacts-head">
+                    <div>
+                        <h2>Контакты ответственных от РСО</h2>
+                        <div class="mini">Загрузите .xlsx, .csv, .txt, .doc, .docx или .json. Совпавшие контакты обновятся, новые добавятся, остальные останутся без изменений.</div>
+                    </div>
+                    <div class="contacts-actions">
+                        <input id="contactsFile" type="file" accept=".xlsx,.csv,.txt,.doc,.docx,.json" hidden>
+                        <button class="btn primary" id="contactsUpload" type="button">Загрузить контакты</button>
+                    </div>
+                </div>
+                <div id="contactsMessage" class="note"></div>
+                <div class="contacts-summary" id="contactsSummary"></div>
+                <div class="card">
+                    <div class="contacts-toolbar">
+                        <input id="contactsSearch" type="search" placeholder="Поиск по РСО, ФИО, телефону, почте…">
+                        <span class="mini" id="contactsUpdated"></span>
+                    </div>
+                    <div class="tblbox">
+                        <table class="contacts-table">
+                            <thead><tr><th>РСО</th><th>Ответственный</th><th>Контакты</th><th>Муниципалитет</th><th></th></tr></thead>
+                            <tbody id="contactsBody"><tr><td colspan="5" class="empty">Контакты ещё не загружены.</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 </div>
@@ -1573,6 +1651,117 @@
         // Старые браузеры продолжат обновляться по таймеру ниже.
     }
     if (AUTO_REFRESH_MIN > 0) setInterval(load, AUTO_REFRESH_MIN * 60000);
+
+    // ── Отдельный раздел контактов ответственных от РСО ──
+    const contactState = { items: [], loaded: false, updatedAt: null, sourceFile: null };
+    const contactPane = document.getElementById('zipContactsPane');
+    const inventoryPane = document.getElementById('zipInventoryPane');
+    const contactBody = document.getElementById('contactsBody');
+    const contactSearch = document.getElementById('contactsSearch');
+
+    function setZipView(view) {
+        const contacts = view === 'contacts';
+        contactPane.hidden = !contacts;
+        inventoryPane.hidden = contacts;
+        document.querySelectorAll('[data-zip-view]').forEach(button => {
+            const active = button.dataset.zipView === view;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-selected', String(active));
+        });
+        try { localStorage.setItem('zips-active-view', view); } catch (e) {}
+        if (contacts && !contactState.loaded) loadContacts();
+    }
+
+    function contactRows() {
+        const query = norm(contactSearch.value || '');
+        if (!query) return contactState.items;
+        return contactState.items.filter(item => norm([
+            item.rso, item.municipality, item.person, item.position,
+            item.phone, item.email, item.note
+        ].join(' ')).includes(query));
+    }
+
+    function renderContacts(data) {
+        contactState.items = Array.isArray(data.items) ? data.items : [];
+        contactState.updatedAt = data.updated_at || contactState.updatedAt;
+        contactState.sourceFile = data.source_file || contactState.sourceFile;
+        const rows = contactRows();
+        const rsoCount = new Set(contactState.items.map(item => norm(item.rso)).filter(Boolean)).size;
+        document.getElementById('contactsSummary').innerHTML =
+            `<div class="stat blue"><div class="n">${contactState.items.length.toLocaleString('ru-RU')}</div><div class="l">контактов</div></div>` +
+            `<div class="stat green"><div class="n">${rsoCount.toLocaleString('ru-RU')}</div><div class="l">РСО</div></div>`;
+        document.getElementById('contactsUpdated').textContent = contactState.updatedAt
+            ? `обновлено ${new Date(contactState.updatedAt).toLocaleString('ru-RU')}${contactState.sourceFile ? ` · ${contactState.sourceFile}` : ''}`
+            : 'данные ещё не загружались';
+        if (!rows.length) {
+            contactBody.innerHTML = `<tr><td colspan="5" class="empty">${contactState.items.length ? 'По вашему запросу ничего не найдено.' : 'Контакты ещё не загружены.'}</td></tr>`;
+            return;
+        }
+        contactBody.innerHTML = rows.map(item => {
+            const phone = item.phone ? `<a class="contact-link" href="tel:${String(item.phone).replace(/[^+\d]/g, '')}">${esc(item.phone)}</a>` : '—';
+            const email = item.email ? `<a class="contact-link" href="mailto:${encodeURIComponent(item.email)}">${esc(item.email)}</a>` : '';
+            return `<tr>
+                <td><div class="contact-main">${esc(item.rso || '—')}</div>${item.note ? `<div class="contact-secondary">${esc(item.note)}</div>` : ''}</td>
+                <td><div class="contact-main">${esc(item.person || '—')}</div><div class="contact-secondary">${esc(item.position || '')}</div></td>
+                <td>${phone}${email ? `<div class="contact-secondary">${email}</div>` : ''}</td>
+                <td>${esc(item.municipality || '—')}</td>
+                <td><button class="btn" type="button" data-contact-delete="${esc(item.id || '')}" style="padding:4px 8px;font-size:12px">Удалить</button></td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function loadContacts() {
+        const message = document.getElementById('contactsMessage');
+        message.textContent = 'Загрузка контактов…';
+        try {
+            const response = await fetch('/zip_curator/api/contacts', { cache: 'no-store' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            contactState.loaded = true;
+            renderContacts(data);
+            message.textContent = '';
+        } catch (error) {
+            message.textContent = 'Не удалось загрузить контакты: ' + error.message;
+        }
+    }
+
+    document.querySelectorAll('[data-zip-view]').forEach(button => {
+        button.addEventListener('click', () => setZipView(button.dataset.zipView));
+    });
+    contactSearch.addEventListener('input', () => renderContacts({
+        items: contactState.items,
+        updated_at: contactState.updatedAt,
+        source_file: contactState.sourceFile
+    }));
+    document.getElementById('contactsUpload').addEventListener('click', () => document.getElementById('contactsFile').click());
+    document.getElementById('contactsFile').addEventListener('change', async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const message = document.getElementById('contactsMessage');
+        message.textContent = 'Импортирую контакты…';
+        const form = new FormData(); form.append('file', file);
+        try {
+            const response = await fetch('/zip_curator/api/contacts/import', { method: 'POST', body: form });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
+            contactState.loaded = true;
+            renderContacts(data.data);
+            message.textContent = `Добавлено: ${data.added}, обновлено: ${data.updated}, всего: ${data.total}.`;
+        } catch (error) {
+            message.textContent = 'Импорт не выполнен: ' + error.message;
+        }
+        event.target.value = '';
+    });
+    contactBody.addEventListener('click', async event => {
+        const button = event.target.closest('[data-contact-delete]');
+        if (!button || !confirm('Удалить этот контакт?')) return;
+        const response = await fetch('/zip_curator/api/contacts/' + encodeURIComponent(button.dataset.contactDelete), { method: 'DELETE' });
+        const data = await response.json();
+        if (response.ok && data.ok) renderContacts(data.data);
+    });
+    let initialZipView = 'inventory';
+    try { initialZipView = localStorage.getItem('zips-active-view') || 'inventory'; } catch (e) {}
+    setZipView(initialZipView === 'contacts' ? 'contacts' : 'inventory');
 </script>
 
 <a href="/zip_curator_original.html" class="topbar-redmine-btn" style="position:fixed;right:18px;bottom:18px;z-index:99" style="margin-right:10px">🧰 Куратор ЗиП</a>

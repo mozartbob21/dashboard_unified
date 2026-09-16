@@ -1,28 +1,30 @@
 <!doctype html>
-<html lang="ru" data-theme="light"><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ru">
+<head>
 <meta charset="utf-8">
+<script>
+(function(){
+  var mode=localStorage.getItem('neurona-theme-mode')||'auto-moscow';
+  var active=mode;
+  if(mode==='auto-moscow'){
+    var now=new Date(),start=new Date(now.getFullYear(),0,0);
+    var day=Math.floor((now-start)/86400000);
+    var decl=.409*Math.sin(2*Math.PI*(day-80)/365),lat=55.7558*Math.PI/180;
+    var cosH=(Math.sin(-.83*Math.PI/180)-Math.sin(lat)*Math.sin(decl))/(Math.cos(lat)*Math.cos(decl));
+    var H=cosH>=1?0:cosH<=-1?Math.PI:Math.acos(cosH);
+    var sunrise=(12-H*12/Math.PI-37.6173/15+3+24)%24;
+    var sunset=(12+H*12/Math.PI-37.6173/15+3+24)%24;
+    var hour=now.getHours()+now.getMinutes()/60;
+    active=hour>=sunrise&&hour<sunset?'light':'dark';
+  }
+  document.documentElement.setAttribute('data-theme',active);
+})();
+</script>
 <!-- Кодировку объявляем сами: файл открывают и с диска, и изнутри АРМ ЕДДС.
      Если сервер отдаст страницу без charset, браузер уйдёт в windows-1251,
      и сломается не только вид — перестанут совпадать разборы по русским
      словам: «час» в t_ustr, «Аварийная заявка» в type_otkl, причины. -->
 <title>Мониторинг ЕДДС — задержка доклада по объектам ВС/ВО</title>
-<script>
-(function(){
-  var mode='auto-moscow';
-  try{mode=localStorage.getItem('neurona-theme-mode')||mode}catch(_){}
-  var theme=mode;
-  if(mode==='auto-moscow'){
-    var now=new Date(),start=new Date(now.getFullYear(),0,0),day=Math.floor((now-start)/86400000);
-    var decl=.409*Math.sin(2*Math.PI*(day-80)/365),lat=55.7558*Math.PI/180;
-    var cosH=(Math.sin(-.83*Math.PI/180)-Math.sin(lat)*Math.sin(decl))/(Math.cos(lat)*Math.cos(decl));
-    var h=cosH>=1?0:cosH<=-1?Math.PI:Math.acos(cosH);
-    var sunrise=(12-h*12/Math.PI-37.6173/15+3+24)%24,sunset=(12+h*12/Math.PI-37.6173/15+3+24)%24;
-    var hour=now.getHours()+now.getMinutes()/60;
-    theme=hour>=sunrise&&hour<sunset?'light':'dark';
-  }
-  document.documentElement.dataset.theme=theme==='dark'?'dark':'light';
-})();
-</script>
 <style>
 :root{
   color-scheme: light;
@@ -50,9 +52,20 @@
   --r:10px;
   --mono:ui-monospace,"Cascadia Mono","Consolas","Segoe UI Mono",monospace;
   --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  /* Связка с единым родительским шаблоном шапки. */
+  --bg:var(--ground);
+  --bg-soft:var(--surface-2);
+  --card:var(--surface);
+  --card-strong:var(--surface);
+  --text:var(--ink);
+  --muted:var(--ink-2);
+  --border:var(--line);
+  --border-strong:var(--ink-3);
+  --primary:var(--accent);
+  --primary-2:var(--accent-ink);
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
+  :root:not([data-theme]){
     color-scheme: dark;
     --ground:#0c1013;
     --surface:#161b1f;
@@ -100,6 +113,22 @@
   --crit-bg:#331c1c;
   --grid:#242c32;
   --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 24px -14px rgba(0,0,0,.8);
+}
+:root[data-theme="kreml"]{
+  color-scheme:light;
+  --ground:#e6d2b5;
+  --surface:#f3e4ca;
+  --surface-2:#efe1c9;
+  --ink:#3a201c;
+  --ink-2:#704f47;
+  --ink-3:#92736a;
+  --line:rgba(126,47,44,.2);
+  --line-soft:rgba(126,47,44,.11);
+  --accent:#a0473f;
+  --accent-soft:rgba(160,71,63,.12);
+  --accent-ink:#7e2f2c;
+  --grid:rgba(126,47,44,.12);
+  --shadow:0 10px 30px rgba(74,30,26,.12);
 }
 
 *{box-sizing:border-box}
@@ -189,18 +218,37 @@ main{padding:20px; display:flex; flex-direction:column; gap:16px}
 
 /* диапазон по охвату жителей */
 .f-range .rg-row{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
-.f-range input[type=number]{width:84px; max-width:84px; text-align:right; -moz-appearance:textfield}
+.f-range input[type=number],
+.f-range input.rg-num{width:84px; max-width:84px; text-align:right; -moz-appearance:textfield}
 .f-range input[type=number]::-webkit-outer-spin-button,
 .f-range input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
-.f-range.on input[type=number]{border-color:var(--accent); background:var(--accent-soft)}
+/* часы — обычное текстовое поле: type=number в браузере не принимает запятую,
+   а «1,5 часа» пишут именно так */
+.f-range.on input[type=number],
+.f-range.on input.rg-num{border-color:var(--accent); background:var(--accent-soft)}
 .rg-dash{color:var(--ink-3); font-size:12px}
 .rg-na{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--ink-3);
   cursor:pointer; white-space:nowrap; user-select:none}
 .rg-na input{width:13px; height:13px; max-width:none; padding:0; margin:0;
   border:0; background:none; accent-color:var(--accent)}
 .rg-hint{font-size:11px; color:var(--ink-3); white-space:nowrap}
-/* принудительный перенос: диапазон по жителям живёт отдельной строкой,
-   чтобы не разрывать выпадашки и поля периода */
+/* карточка заявки во всплывашке на карте */
+.pop-h{font-weight:600; font-size:13px; margin-bottom:2px}
+.pop-sub{font-size:11px; color:var(--ink-3); margin-bottom:6px}
+.pop{border-collapse:collapse; font-size:12px; line-height:1.45}
+/* position:static обязателен. Общий стиль th делает шапки таблиц липкими
+   (position:sticky; top:0) — и во всплывашке подписи прилипали к её верху,
+   уезжая вниз от своих значений, как только текст переносился на две строки.
+   Заодно снимаем оттуда фон, рамку и отступы: тут это не шапка таблицы. */
+.pop th{position:static; z-index:auto; background:none; border:0;
+  text-align:left; font-weight:600; font-size:10.5px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--ink-3);
+  padding:2px 10px 2px 0; vertical-align:top; white-space:nowrap}
+.pop td{padding:2px 0; border:0; vertical-align:top; max-width:230px}
+.pop-na{color:var(--ink-3)}
+
+/* принудительный перенос: диапазоны по жителям и по времени живут отдельной
+   строкой, чтобы не разрывать выпадашки и поля периода */
 .fl-break{flex:0 0 100%; height:0; margin:0; padding:0}
 
 /* карточка «жалобы и инциденты», пока свод не загружен */
@@ -211,6 +259,8 @@ main{padding:20px; display:flex; flex-direction:column; gap:16px}
   border:1px solid var(--line); border-radius:5px; padding:1px 5px}
 .zh-bad{color:var(--crit)}
 .zh-meta{font-size:12px; color:var(--ink-3)}
+/* та же плашка, но про удачу: приём координат сообщает результат, а не ошибку */
+.err.ok{background:var(--good-bg); color:var(--good)}
 .filters .btn{margin-left:auto}
 
 /* ---------- живой режим: дашборд внутри вкладки АРМ ЕДДС ---------- */
@@ -256,6 +306,11 @@ main{padding:20px; display:flex; flex-direction:column; gap:16px}
   box-shadow:var(--shadow); padding:8px; display:flex; flex-direction:column; gap:7px;
 }
 .ms-panel[hidden]{display:none}
+/* Подложка под раскрытым списком. Список длинный и перекрывает кнопки нижних
+   рядов строки фильтров; без подложки клик по закрытому месту попадал не в
+   кнопку, а в чужую строку с галочкой — и молча переключал не тот фильтр.
+   Теперь первый клик мимо просто закрывает список, как в обычных выпадашках. */
+.ms-back{position:fixed; inset:0; z-index:39; background:transparent}
 .ms-search{width:100%; max-width:none !important}
 .ms-acts{display:flex; gap:6px}
 .ms-acts button{
@@ -272,6 +327,57 @@ main{padding:20px; display:flex; flex-direction:column; gap:16px}
 .ms-opt input{margin:2px 0 0; max-width:none; accent-color:var(--accent)}
 .ms-opt.hide{display:none}
 .ms-empty{padding:8px 6px; color:var(--ink-3); font-size:12.5px}
+
+/* ---------- стили Leaflet, встроенные ----------
+   Раньше они тянулись с cdnjs вместе с библиотекой, и это оказалось ловушкой:
+   при недоступном CSS карта всё равно «строилась», но без него тайлам не
+   задаётся position:absolute — картинки текут по потоку, складываясь мозаикой,
+   кнопки управления уезжают, теплового слоя не видно. Выглядит как сломанная
+   карта, а не как отсутствующий файл стилей. Одиннадцать килобайт того стоят:
+   на два сетевых запроса меньше и на один способ сломаться тоже.
+   Ссылки на images/marker-icon.png внутри безвредны — стандартные маркеры и
+   переключатель слоёв здесь не используются. */
+.leaflet-image-layer,.leaflet-layer,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-pane,.leaflet-pane>canvas,.leaflet-pane>svg,.leaflet-tile,.leaflet-tile-container,.leaflet-zoom-box{position:absolute;left:0;top:0}.leaflet-container{overflow:hidden}.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-user-drag:none}.leaflet-tile::selection{background:0 0}.leaflet-safari .leaflet-tile{image-rendering:-webkit-optimize-contrast}.leaflet-safari .leaflet-tile-container{width:1600px;height:1600px;-webkit-transform-origin:0 0}.leaflet-marker-icon,.leaflet-marker-shadow{display:block}.leaflet-container .leaflet-overlay-pane svg{max-width:none!important;max-height:none!important}.leaflet-container .leaflet-marker-pane img,.leaflet-container .leaflet-shadow-pane img,.leaflet-container .leaflet-tile,.leaflet-container .leaflet-tile-pane img,.leaflet-container img.leaflet-image-layer{max-width:none!important;max-height:none!important;width:auto;padding:0}.leaflet-container img.leaflet-tile{mix-blend-mode:plus-lighter}.leaflet-container.leaflet-touch-zoom{-ms-touch-action:pan-x pan-y;touch-action:pan-x pan-y}.leaflet-container.leaflet-touch-drag{-ms-touch-action:pinch-zoom;touch-action:none;touch-action:pinch-zoom}.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom{-ms-touch-action:none;touch-action:none}.leaflet-container{-webkit-tap-highlight-color:transparent}.leaflet-container a{-webkit-tap-highlight-color:rgba(51,181,229,.4)}.leaflet-tile{filter:inherit;visibility:hidden}.leaflet-tile-loaded{visibility:inherit}.leaflet-zoom-box{width:0;height:0;-moz-box-sizing:border-box;box-sizing:border-box;z-index:800}.leaflet-overlay-pane svg{-moz-user-select:none}.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-shadow-pane{z-index:500}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}.leaflet-map-pane canvas{z-index:100}.leaflet-map-pane svg{z-index:200}.leaflet-vml-shape{width:1px;height:1px}.lvml{behavior:url(#default#VML);display:inline-block;position:absolute}.leaflet-control{position:relative;z-index:800;pointer-events:visiblePainted;pointer-events:auto}.leaflet-bottom,.leaflet-top{position:absolute;z-index:1000;pointer-events:none}.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-control{float:left;clear:both}.leaflet-right .leaflet-control{float:right}.leaflet-top .leaflet-control{margin-top:10px}.leaflet-bottom .leaflet-control{margin-bottom:10px}.leaflet-left .leaflet-control{margin-left:10px}.leaflet-right .leaflet-control{margin-right:10px}.leaflet-fade-anim .leaflet-popup{opacity:0;-webkit-transition:opacity .2s linear;-moz-transition:opacity .2s linear;transition:opacity .2s linear}.leaflet-fade-anim .leaflet-map-pane .leaflet-popup{opacity:1}.leaflet-zoom-animated{-webkit-transform-origin:0 0;-ms-transform-origin:0 0;transform-origin:0 0}svg.leaflet-zoom-animated{will-change:transform}.leaflet-zoom-anim .leaflet-zoom-animated{-webkit-transition:-webkit-transform .25s cubic-bezier(0,0,.25,1);-moz-transition:-moz-transform .25s cubic-bezier(0,0,.25,1);transition:transform .25s cubic-bezier(0,0,.25,1)}.leaflet-pan-anim .leaflet-tile,.leaflet-zoom-anim .leaflet-tile{-webkit-transition:none;-moz-transition:none;transition:none}.leaflet-zoom-anim .leaflet-zoom-hide{visibility:hidden}.leaflet-interactive{cursor:pointer}.leaflet-grab{cursor:-webkit-grab;cursor:-moz-grab;cursor:grab}.leaflet-crosshair,.leaflet-crosshair .leaflet-interactive{cursor:crosshair}.leaflet-control,.leaflet-popup-pane{cursor:auto}.leaflet-dragging .leaflet-grab,.leaflet-dragging .leaflet-grab .leaflet-interactive,.leaflet-dragging .leaflet-marker-draggable{cursor:move;cursor:-webkit-grabbing;cursor:-moz-grabbing;cursor:grabbing}.leaflet-image-layer,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-pane>svg path,.leaflet-tile-container{pointer-events:none}.leaflet-image-layer.leaflet-interactive,.leaflet-marker-icon.leaflet-interactive,.leaflet-pane>svg path.leaflet-interactive,svg.leaflet-image-layer.leaflet-interactive path{pointer-events:visiblePainted;pointer-events:auto}.leaflet-container{background:#ddd;outline-offset:1px}.leaflet-container a{color:#0078a8}.leaflet-zoom-box{border:2px dotted #38f;background:rgba(255,255,255,.5)}.leaflet-container{font-family:"Helvetica Neue",Arial,Helvetica,sans-serif;font-size:12px;font-size:.75rem;line-height:1.5}.leaflet-bar{box-shadow:0 1px 5px rgba(0,0,0,.65);border-radius:4px}.leaflet-bar a{background-color:#fff;border-bottom:1px solid #ccc;width:26px;height:26px;line-height:26px;display:block;text-align:center;text-decoration:none;color:#000}.leaflet-bar a,.leaflet-control-layers-toggle{background-position:50% 50%;background-repeat:no-repeat;display:block}.leaflet-bar a:focus,.leaflet-bar a:hover{background-color:#f4f4f4}.leaflet-bar a:first-child{border-top-left-radius:4px;border-top-right-radius:4px}.leaflet-bar a:last-child{border-bottom-left-radius:4px;border-bottom-right-radius:4px;border-bottom:none}.leaflet-bar a.leaflet-disabled{cursor:default;background-color:#f4f4f4;color:#bbb}.leaflet-touch .leaflet-bar a{width:30px;height:30px;line-height:30px}.leaflet-touch .leaflet-bar a:first-child{border-top-left-radius:2px;border-top-right-radius:2px}.leaflet-touch .leaflet-bar a:last-child{border-bottom-left-radius:2px;border-bottom-right-radius:2px}.leaflet-control-zoom-in,.leaflet-control-zoom-out{font:bold 18px 'Lucida Console',Monaco,monospace;text-indent:1px}.leaflet-touch .leaflet-control-zoom-in,.leaflet-touch .leaflet-control-zoom-out{font-size:22px}.leaflet-control-layers{box-shadow:0 1px 5px rgba(0,0,0,.4);background:#fff;border-radius:5px}.leaflet-control-layers-toggle{background-image:url(images/layers.png);width:36px;height:36px}.leaflet-retina .leaflet-control-layers-toggle{background-image:url(images/layers-2x.png);background-size:26px 26px}.leaflet-touch .leaflet-control-layers-toggle{width:44px;height:44px}.leaflet-control-layers .leaflet-control-layers-list,.leaflet-control-layers-expanded .leaflet-control-layers-toggle{display:none}.leaflet-control-layers-expanded .leaflet-control-layers-list{display:block;position:relative}.leaflet-control-layers-expanded{padding:6px 10px 6px 6px;color:#333;background:#fff}.leaflet-control-layers-scrollbar{overflow-y:scroll;overflow-x:hidden;padding-right:5px}.leaflet-control-layers-selector{margin-top:2px;position:relative;top:1px}.leaflet-control-layers label{display:block;font-size:13px;font-size:1.08333em}.leaflet-control-layers-separator{height:0;border-top:1px solid #ddd;margin:5px -10px 5px -6px}.leaflet-default-icon-path{background-image:url(images/marker-icon.png)}.leaflet-container .leaflet-control-attribution{background:#fff;background:rgba(255,255,255,.8);margin:0}.leaflet-control-attribution,.leaflet-control-scale-line{padding:0 5px;color:#333;line-height:1.4}.leaflet-control-attribution a{text-decoration:none}.leaflet-control-attribution a:focus,.leaflet-control-attribution a:hover{text-decoration:underline}.leaflet-attribution-flag{display:inline!important;vertical-align:baseline!important;width:1em;height:.6669em}.leaflet-left .leaflet-control-scale{margin-left:5px}.leaflet-bottom .leaflet-control-scale{margin-bottom:5px}.leaflet-control-scale-line{border:2px solid #777;border-top:none;line-height:1.1;padding:2px 5px 1px;white-space:nowrap;-moz-box-sizing:border-box;box-sizing:border-box;background:rgba(255,255,255,.8);text-shadow:1px 1px #fff}.leaflet-control-scale-line:not(:first-child){border-top:2px solid #777;border-bottom:none;margin-top:-2px}.leaflet-control-scale-line:not(:first-child):not(:last-child){border-bottom:2px solid #777}.leaflet-touch .leaflet-bar,.leaflet-touch .leaflet-control-attribution,.leaflet-touch .leaflet-control-layers{box-shadow:none}.leaflet-touch .leaflet-bar,.leaflet-touch .leaflet-control-layers{border:2px solid rgba(0,0,0,.2);background-clip:padding-box}.leaflet-popup{position:absolute;text-align:center;margin-bottom:20px}.leaflet-popup-content-wrapper{padding:1px;text-align:left;border-radius:12px}.leaflet-popup-content{margin:13px 24px 13px 20px;line-height:1.3;font-size:13px;font-size:1.08333em;min-height:1px}.leaflet-popup-content p{margin:17px 0;margin:1.3em 0}.leaflet-popup-tip-container{width:40px;height:20px;position:absolute;left:50%;margin-top:-1px;margin-left:-20px;overflow:hidden;pointer-events:none}.leaflet-popup-tip{width:17px;height:17px;padding:1px;margin:-10px auto 0;pointer-events:auto;-webkit-transform:rotate(45deg);-moz-transform:rotate(45deg);-ms-transform:rotate(45deg);transform:rotate(45deg)}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff;color:#333;box-shadow:0 3px 14px rgba(0,0,0,.4)}.leaflet-container a.leaflet-popup-close-button{position:absolute;top:0;right:0;border:none;text-align:center;width:24px;height:24px;font:16px/24px Tahoma,Verdana,sans-serif;color:#757575;text-decoration:none;background:0 0}.leaflet-container a.leaflet-popup-close-button:focus,.leaflet-container a.leaflet-popup-close-button:hover{color:#585858}.leaflet-popup-scrolled{overflow:auto}.leaflet-oldie .leaflet-popup-content-wrapper{-ms-zoom:1}.leaflet-oldie .leaflet-popup-tip{width:24px;margin:0 auto}.leaflet-oldie .leaflet-control-layers,.leaflet-oldie .leaflet-control-zoom,.leaflet-oldie .leaflet-popup-content-wrapper,.leaflet-oldie .leaflet-popup-tip{border:1px solid #999}.leaflet-div-icon{background:#fff;border:1px solid #666}.leaflet-tooltip{position:absolute;padding:6px;background-color:#fff;border:1px solid #fff;border-radius:3px;color:#222;white-space:nowrap;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}.leaflet-tooltip.leaflet-interactive{cursor:pointer;pointer-events:auto}.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before,.leaflet-tooltip-top:before{position:absolute;pointer-events:none;border:6px solid transparent;background:0 0;content:""}.leaflet-tooltip-bottom{margin-top:6px}.leaflet-tooltip-top{margin-top:-6px}.leaflet-tooltip-bottom:before,.leaflet-tooltip-top:before{left:50%;margin-left:-6px}.leaflet-tooltip-top:before{bottom:0;margin-bottom:-12px;border-top-color:#fff}.leaflet-tooltip-bottom:before{top:0;margin-top:-12px;margin-left:-6px;border-bottom-color:#fff}.leaflet-tooltip-left{margin-left:-6px}.leaflet-tooltip-right{margin-left:6px}.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{top:50%;margin-top:-6px}.leaflet-tooltip-left:before{right:0;margin-right:-12px;border-left-color:#fff}.leaflet-tooltip-right:before{left:0;margin-left:-12px;border-right-color:#fff}@media print{.leaflet-control{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.leaflet-cluster-anim .leaflet-marker-icon,.leaflet-cluster-anim .leaflet-marker-shadow{-webkit-transition:-webkit-transform .3s ease-out,opacity .3s ease-in;-moz-transition:-moz-transform .3s ease-out,opacity .3s ease-in;-o-transition:-o-transform .3s ease-out,opacity .3s ease-in;transition:transform .3s ease-out,opacity .3s ease-in}.leaflet-cluster-spider-leg{-webkit-transition:-webkit-stroke-dashoffset .3s ease-out,-webkit-stroke-opacity .3s ease-in;-moz-transition:-moz-stroke-dashoffset .3s ease-out,-moz-stroke-opacity .3s ease-in;-o-transition:-o-stroke-dashoffset .3s ease-out,-o-stroke-opacity .3s ease-in;transition:stroke-dashoffset .3s ease-out,stroke-opacity .3s ease-in}
+
+/* ---------- лист «Карта» ---------- */
+/* Высота в пикселях, а не в vh: при vh контейнер меняет размер на каждое
+   появление полосы прокрутки, и Leaflet приходится пересчитывать заново. */
+#map-canvas{height:640px; width:100%; border-radius:var(--r)}
+.leaflet-container{background:var(--surface-2); font:inherit}
+/* у кнопок панели Leaflet ширина жёстко 26px — текстовая подпись в них не влезает */
+.leaflet-bar a.map-selbtn{width:auto; height:30px; line-height:30px; padding:0 12px;
+  font-size:13px; font-weight:650; white-space:nowrap}
+.map-bar{display:flex; flex-wrap:wrap; gap:12px; align-items:center}
+/* у .btn свой display, и он перебивает атрибут hidden — как это было с бейджем */
+#geo-live[hidden]{display:none}
+.map-status{font-size:12.5px; color:var(--ink-2); line-height:1.5}
+.map-status b{color:var(--ink); font-variant-numeric:tabular-nums}
+.map-bad{color:var(--crit)}
+.map-warn{color:var(--serious)}
+/* подписи кластеров рисуем сами: у стандартных цифра — это число маркеров,
+   а нам нужно уметь показать ещё и сумму жителей */
+.cl-ico{display:flex; align-items:center; justify-content:center; border-radius:50%;
+  font-weight:750; font-variant-numeric:tabular-nums; color:#fff;
+  border:2px solid rgba(255,255,255,.75); box-shadow:0 1px 4px rgba(0,0,0,.35)}
+/* образцы цвета в легенде — те же краски, что и на карте */
+.lg{display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:2px}
+.lg span{display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
+.lg i{width:11px; height:11px; border-radius:50%; display:inline-block;
+  border:1px solid rgba(255,255,255,.7); box-shadow:0 0 0 1px var(--line)}
+.lg-grad{width:86px; height:10px; border-radius:3px; border:1px solid var(--line);
+  background:linear-gradient(90deg,#3a4fa0,#1fa3c4,#2ecc71,#f1c40f,#f76707,#e03131,#7f0000)}
+.cl-s{background:#3987e5; font-size:11px}
+.cl-m{background:#e0892a; font-size:12px}
+.cl-l{background:#cc4444; font-size:12.5px}
+/* одиночная заявка — тот же кружок, но потоньше обводкой: так видно, что это
+   не группа, и при этом число на месте */
+.cl-one{border-style:dashed; opacity:.92}
+/* плашка активного выделения — видна на всех листах, иначе цифры «поедут» необъяснимо */
+.box-chip{display:flex; align-items:center; gap:8px; padding:5px 10px; border-radius:999px;
+  background:var(--accent-soft); border:1px solid var(--accent); font-size:12px; font-weight:650}
+.box-chip button{border:0; background:transparent; cursor:pointer; color:var(--accent);
+  font-weight:750; font-size:13px; padding:0 2px}
 
 /* ---------- лист «Динамика»: отчётный период против периода сравнения ---------- */
 .dyn-bar{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end}
@@ -424,76 +530,20 @@ td.c,th.c{text-align:center}
   font-size:12px; font-weight:600; box-shadow:var(--shadow); white-space:nowrap;
 }
 
-.foot{padding:8px 20px 28px; color:var(--ink-3); font-size:11.5px; line-height:1.7}
+/* внизу страницы больше ничего не печатаем: пояснения переехали в подсказки
+   и на лист «Пояснения» в выгрузке */
 @media (prefers-reduced-motion: reduce){*{transition:none !important}}
-
-
-/* ---------- единая оболочка Нейроны ---------- */
-:root{
-  --ground:#f4f7fb;--surface:rgba(255,255,255,.9);--surface-2:#f7f8ff;
-  --ink:#102033;--ink-2:#637083;--ink-3:#7e8ba0;
-  --line:rgba(40,65,95,.14);--line-soft:rgba(40,65,95,.08);
-  --accent:#3867ff;--accent-2:#6c4dff;--accent-soft:rgba(56,103,255,.11);--accent-ink:#2a4fcc;
-  --shadow:0 18px 56px rgba(22,31,51,.12);--r:20px;
-  --sans:"Avenir Next","SF Pro Text",-apple-system,BlinkMacSystemFont,"Segoe UI Variable",sans-serif;
-}
-:root[data-theme="dark"]{
-  --ground:#070b16;--surface:rgba(16,24,43,.9);--surface-2:#111a2e;
-  --ink:#edf3ff;--ink-2:#aebbd0;--ink-3:#8290a7;
-  --line:rgba(255,255,255,.12);--line-soft:rgba(255,255,255,.075);
-  --accent:#6f8cff;--accent-2:#9b6dff;--accent-soft:rgba(111,140,255,.15);--accent-ink:#8fa4ff;
-  --shadow:0 24px 72px rgba(0,0,0,.32);
-}
-body{
-  min-height:100vh;background-color:var(--ground);color:var(--ink);
-  background-image:radial-gradient(circle at 10% 8%,rgba(76,111,255,.17),transparent 30%),radial-gradient(circle at 86% 14%,rgba(155,109,255,.15),transparent 28%);
-}
-body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.3;background-image:linear-gradient(rgba(127,143,170,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(127,143,170,.08) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom,#000,transparent 75%)}
-.system-header{
-  position:sticky;top:16px;z-index:40;width:min(1540px,calc(100% - 48px));margin:16px auto 0;padding:11px 14px;
-  display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:24px;
-  box-shadow:var(--shadow);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)
-}
-.system-brand{display:flex;align-items:center;gap:12px;margin-right:auto;color:inherit;text-decoration:none;min-width:220px}
-.system-brand img{width:44px;height:44px;border-radius:13px;box-shadow:0 8px 22px rgba(56,103,255,.22)}
-.system-brand-copy{display:flex;flex-direction:column;line-height:1.2}
-.system-brand-copy strong{font-size:16px;letter-spacing:-.025em}
-.system-brand-copy span{margin-top:3px;color:var(--ink-2);font-size:12px}
-.system-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.system-status{flex:0 1 auto;max-width:420px;color:var(--ink-2);font-size:12px}
-.topbar{
-  position:relative;z-index:20;width:min(1540px,calc(100% - 48px));margin:20px auto 0;padding:24px 26px;
-  background:var(--surface);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)
-}
-.brand::before{content:'ОПЕРАЦИОННЫЙ МОНИТОРИНГ';margin-bottom:8px;color:var(--accent);font-size:10px;font-weight:750;letter-spacing:.15em}
-.brand strong{font-size:clamp(20px,2vw,28px);font-weight:700;letter-spacing:-.035em}
-.brand span{margin-top:5px;font-size:13px;color:var(--ink-2)}
-.btn{padding:10px 15px;border-radius:12px;border-color:var(--line);text-decoration:none}
-.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;box-shadow:0 10px 24px rgba(78,82,240,.22)}
-.drop{margin:42px auto;max-width:760px;padding:54px 48px;background:var(--surface);border-radius:24px;box-shadow:var(--shadow)}
-.drop h2{font-size:24px;margin-bottom:10px;letter-spacing:-.035em}
-.drop p{max-width:590px;margin:0 auto 26px;font-size:14px;line-height:1.65;color:var(--ink-2)}
-.drop .hint{max-width:620px;margin:24px auto 0;font-size:13px;line-height:1.75;color:var(--ink-2)}
-main{width:min(1540px,calc(100% - 48px));margin:0 auto;padding:20px 0 40px}
-.filters,.card{border-radius:var(--r);box-shadow:var(--shadow)}
-.foot{width:min(1540px,calc(100% - 48px));margin:0 auto;padding:8px 0 28px}
-@media(max-width:760px){
-  .system-header,.topbar,main,.foot{width:min(100% - 24px,1540px)}
-  .system-header{top:8px;margin-top:8px;border-radius:18px}.system-brand{min-width:0}.system-brand-copy span{display:none}
-  .system-actions{width:100%}.system-actions .btn{flex:1;justify-content:center}.topbar{padding:20px;border-radius:20px}
-  .drop{margin:24px 12px;padding:36px 20px}
-}
-
 </style>
-<link rel="stylesheet" href="/static/module-shell.css?v=20260915-2">
-</head><body class="unified-module-page">
-<header class="system-header">
-  <a class="system-brand" href="/">
-    <img src="/static/logo.svg" alt="Нейрона ИИ">
-    <span class="system-brand-copy"><strong>Нейрона ИИ</strong><span>ЕДДС — контроль заявок</span></span>
+<link rel="stylesheet" href="/static/module-shell.css?v=20260916-2">
+</head>
+<body class="unified-module-page">
+<header class="unified-shell-topbar shell-generated">
+  <a class="system-shell-brand" href="/">
+    <img class="brand-logo" src="/static/logo.svg" alt="Нейрона ИИ">
+    <span class="system-shell-brand-copy"><strong class="brand-title">Нейрона ИИ</strong><span>ЕДДС — контроль заявок</span></span>
   </a>
   <span class="system-status" id="eddsStatus" role="status" aria-live="polite"></span>
-  <div class="system-actions">
+  <div class="system-shell-actions">
     <button class="btn shell-control" id="eddsRefresh" type="button">↻ Обновить жалобы</button>
     <a class="btn shell-control system-back-button" href="/">← К модулям</a>
   </div>
@@ -507,13 +557,17 @@ main{width:min(1540px,calc(100% - 48px));margin:0 auto;padding:20px 0 40px}
     <button type="button" role="tab" data-page="lead"  aria-selected="true">Руководителю</button>
     <button type="button" role="tab" data-page="delay" aria-selected="false">Задержка доклада</button>
     <button type="button" role="tab" data-page="dyn"   aria-selected="false">Динамика</button>
+    <button type="button" role="tab" data-page="map"   aria-selected="false">Карта</button>
   </div>
   <span class="live-badge" id="live-badge" hidden><span class="live-dot"></span><span id="live-text"></span></span>
-  <input type="file" id="file" accept=".xlsx,.json" hidden>
+  <input type="file" id="file" accept=".xlsx,.csv,.json" hidden>
   <button class="btn" id="pick">Загрузить выгрузку</button>
   <input type="file" id="zh-file" accept=".xlsx,.json" hidden>
   <button class="btn" id="zh-pick"
           title="Свод жалоб ДоброДел/ЕЦУР для графика на листе «Руководителю»">Жалобы</button>
+  <input type="file" id="geo-file" accept=".xlsx,.csv" hidden>
+  <button class="btn" id="geo-pick"
+          title="«Отчёт по заявкам» из АРМ ЕДДС с полями «Номер заявки», «Широта», «Долгота» — для карты">Координаты</button>
   <button class="btn btn-primary" id="xls" disabled>Скачать Excel</button>
 </div>
 
@@ -562,7 +616,9 @@ main{width:min(1540px,calc(100% - 48px));margin:0 auto;padding:20px 0 40px}
         <span class="note" id="lead-note">ОМСУ → РСО → заявка</span>
         <div class="pivot-tools">
           <button class="btn btn-sm" id="lv-collapse">Свернуть всё</button>
-          <button class="btn btn-sm" id="lv-expand">Развернуть ОМСУ</button>
+          <button class="btn btn-sm" id="lv-expand">Развернуть верхний уровень</button>
+          <button class="btn btn-sm" id="lv-root" aria-pressed="false"
+            title="Поменять порядок: сверху РСО, внутри — округа, в которых эта РСО работает">Сначала РСО</button>
           <button class="btn btn-sm" id="lv-flat" aria-pressed="false"
             title="Показать заявки сплошным списком, с ОМСУ и РСО отдельными столбцами">В разрезе заявок</button>
         </div>
@@ -663,7 +719,68 @@ main{width:min(1540px,calc(100% - 48px));margin:0 auto;padding:20px 0 40px}
     </section>
   </section>
 
-  <div class="foot" id="foot"></div>
+  <!-- ЛИСТ 4: инциденты на карте -->
+  <section class="page" id="page-map" role="tabpanel" aria-label="Карта" hidden>
+    <section class="card">
+      <header>
+        <h3>Инциденты на карте</h3>
+        <span class="note">координаты — из «Отчёта по заявкам», кнопка «Координаты» в шапке</span>
+      </header>
+      <div class="body">
+        <div class="map-bar">
+          <div class="seg" role="group" aria-label="Вид карты">
+            <button type="button" data-mk="heat"   aria-pressed="true"
+              title="Тепловое пятно: где инциденты сгущаются">Тепловая</button>
+            <button type="button" data-mk="points" aria-pressed="false">Точки с количеством</button>
+          </div>
+          <div class="seg" role="group" aria-label="Что показывать интенсивностью">
+            <button type="button" data-mw="n"      aria-pressed="true">Число инцидентов</button>
+            <button type="button" data-mw="people" aria-pressed="false"
+              title="Сумма охвата: сколько жителей задето всеми заявками вместе">Охват жителей</button>
+            <button type="button" data-mw="avg"    aria-pressed="false"
+              title="Средний охват на одну заявку: если к одним и тем же домам приходили несколько раз, сумма показывает больше людей, чем там живёт">Охват в среднем</button>
+          </div>
+          <button class="btn btn-sm" id="map-fit">Показать все</button>
+          <button class="btn btn-sm" id="geo-live" hidden
+            title="Запросить координаты у АРМ ЕДДС заново — обычно они подтягиваются сами">↻ Обновить координаты</button>
+        </div>
+        <div class="map-status" id="map-status"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="body" style="padding:0">
+        <div id="map-canvas"></div>
+      </div>
+    </section>
+
+    <div class="charts" id="map-charts"></div>
+
+    <section class="card">
+      <header>
+        <h3>Кто не заполняет координаты</h3>
+        <span class="note" id="geo-rate-note"></span>
+      </header>
+      <div class="body" style="padding-bottom:4px">
+        <div class="map-status">Заявка без координат на карту не попадает — её просто негде
+        показать. Здесь видно, за чей счёт карта неполная. Чтобы посмотреть или выгрузить
+        сами такие заявки, поставьте в фильтре <b>«Координаты»</b> значение <b>«Нет»</b>.
+        <b>«Заполнено неверно»</b> — координаты в отчёте есть, но указывают за пределы
+        Московской области: на карте такая заявка встала бы в чужом регионе, поэтому
+        её тоже не выводим. В выгрузке у каждой такой заявки в колонке
+        <b>«Координаты — примечание»</b> стоят сами забракованные цифры.</div>
+      </div>
+      <div class="scroll scroll-full"><table id="geo-omsu"></table></div>
+    </section>
+
+    <section class="card">
+      <header><h3>То же в разрезе РСО</h3>
+        <span class="note">сортировка — щелчком по столбцу</span></header>
+      <div class="scroll scroll-full"><table id="geo-rso"></table></div>
+    </section>
+  </section>
+
+
 </main>
 
 <div class="modal" id="modal">
@@ -707,7 +824,8 @@ const SITE = {
 };
 // Обычно определяется по адресу системы. Параметр ?live=1 включает режим принудительно —
 // пригодится, если АРМ откроют по другому имени хоста, и для проверки на стенде.
-const LIVE = false; // Embedded dashboard uses uploaded ARM exports.
+const LIVE = location.protocol !== 'file:' &&
+  (location.hostname === SITE.host || /(^|[?&])live=1(&|$)/.test(location.search));
 
 // Колонки таблицы отчёта идут ровно в том же порядке, что и строка машинных имён полей
 // в выгрузке Excel. Благодаря этому оба источника отдают build() одинаковую сетку.
@@ -910,6 +1028,48 @@ function rowsOfReport(doc){
   return out;
 }
 
+/* Выгрузка одним запросом — то же, что кнопка «CSV» на странице отчёта.
+   Там обычная форма method="POST" на тот же адрес, а кнопка — submit с
+   именем saveToCSV. Повторяем её ровно: те же поля, что и у формы.
+
+   Чекбоксы resources[...] не шлём совсем: незаполненные = «все ресурсы».
+   Отбор по ВС/ВО дашборд делает сам, по объектам; сняв ресурс на стороне
+   сайта, мы потеряли бы заявки ещё до разбора.
+
+   Зачем это вместо постраничного чтения: неделя по области — это 106 страниц
+   и 106 запросов, каждый из которых разбирается регулярками по вёрстке. Здесь
+   один запрос и стабильный формат с машинными именами полей. */
+async function fetchReportCsv(ot, doo){
+  const body = new URLSearchParams();
+  body.set('act', SITE.act);
+  body.set('id', SITE.id);
+  body.set('date_ot', ot);
+  body.set('date_do', doo);
+  body.set('id_tu_mun_raion', SITE.omsu);
+  body.set('saveToCSV', '1');
+
+  const url = SITE.path + '?act=' + encodeURIComponent(SITE.act) + '&id=' + encodeURIComponent(SITE.id);
+  let r;
+  try{
+    r = await fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body,
+    });
+  }catch(_){ throw new Error('Не получилось обратиться к АРМ ЕДДС.'); }
+  if(!r.ok) throw new Error('АРМ ЕДДС ответил кодом ' + r.status + ' на запрос CSV.');
+
+  const txt = (await r.text()).replace(/^\uFEFF/, '');
+  // вместо файла могла прийти страница: истёкшая сессия или отказ
+  if(/^\s*<(!doctype|html)/i.test(txt))
+    throw new Error(/act=login/.test(txt)
+      ? 'Сессия истекла. Войдите в АРМ ЕДДС заново.'
+      : 'Вместо CSV пришла страница.');
+  const grid = csvGrid(txt);
+  if(!grid.length) throw new Error('CSV пришёл пустым.');
+  return grid;
+}
+
 // Тянет отчёт за период, обходя пагинацию. say() — показ хода работы.
 async function fetchReport(ot, doo, say){
   const get = async p => {
@@ -989,7 +1149,22 @@ function build(grid){
     if(!F.has(need)) throw new Error('В выгрузке нет обязательного поля «' + need + '».');
 
   const get = (row, name) => F.has(name) ? row[F.get(name)] : null;
-  const rows = grid.slice(hdr + 1).filter(r => r && S(r[0]) !== '');
+
+  /* Строка заявки обязана начинаться с номера. Выгрузка АРМ этого не гарантирует:
+     свободный текст с переводами строк («Информация и принятые меры», адреса)
+     выгружается без кавычек, и одна заявка разваливается на обрывки — «д.Сырьево»,
+     «ТП-910241». У таких кусков номера нет, колонки съехали, и в фильтры лезут
+     даты вместо РСО и нули вместо типа отключения. Отбрасываем их, но считаем:
+     молча терять строки нельзя, это повод перевыгрузить период.
+
+     Два признака настоящей строки: номер заявки числом и разбираемая дата
+     возникновения. Обрывок не проходит хотя бы по одному — обычно у него
+     вместо даты кусок адреса. На недельной выгрузке эта пара отсекла ровно
+     228 битых строк и ни одной годной: строк с верным типом отключения, но
+     без даты, не нашлось вовсе. */
+  const all = grid.slice(hdr + 1).filter(r => r && S(r[0]) !== '');
+  const rows = all.filter(r => /^\d+$/.test(S(r[0])) && parseDT(get(r, 'd_create')));
+  const broken = all.length - rows.length;
 
   const recs = [];
   let total = 0;
@@ -1036,6 +1211,8 @@ function build(grid){
       np: cnt('cnt_nas_punkt'),
       // если хоть одна составляющая не указана, общее число соцобъектов неизвестно
       soc: socParts.includes(null) ? null : socParts.reduce((x, v) => x + v, 0),
+      // координаты приходят отдельным отчётом и прирастают позже, в geoBind()
+      lat: null, lon: null, geoFill: 'Нет',
       ustrTxt: S(get(row, 't_ustr')),
       ustrH: dm === null ? null : r2(dm / 60),
       status: close ? 'Устранено' : 'В работе',
@@ -1054,7 +1231,8 @@ function build(grid){
   recs.sort((a, b) => (a.diff === null) - (b.diff === null) || (b.diff ?? 0) - (a.diff ?? 0));
 
   const dates = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
-  return { recs, total, from: dates[0] || null, to: dates[dates.length - 1] || null };
+  return { recs, total, broken,
+           from: dates[0] || null, to: dates[dates.length - 1] || null };
 }
 
 /* ============================================================
@@ -1078,6 +1256,9 @@ const FILTERS = [
   { k:'rso',    label:'РСО' },
   { k:'obj',    label:'Объект' },
   { k:'prich',  label:'Причина' },
+  // обычное измерение фильтра: так «только без координат» работает и на листах,
+  // и в выгрузке, без единой отдельной кнопки
+  { k:'geoFill', label:'Координаты' },
 ];
 // фильтры, где у одной заявки может быть отмечено сразу несколько значений
 const MULTI = { obj: 'objs', prich: 'prichs' };
@@ -1085,6 +1266,216 @@ const sel = {};                       // ключ фильтра -> Set выбр
 let query = '';
 let period = { from: null, to: null };   // границы по дате возникновения события
 let ppl = { min: null, max: null, na: false };  // диапазон охвата жителей, na = брать и «не указано»
+let ust = { min: null, max: null, na: false };  // то же самое по времени устранения, в часах
+
+/* ============================================================
+   Координаты заявок
+
+   В сводке svod_doc координат нет вовсе, поэтому широту и долготу приносит
+   отдельный «Отчёт по заявкам» из АРМ ЕДДС. Связываем по номеру заявки — он
+   же id_cds_claim. Храним только «номер → [широта, долгота]»: это не
+   персональные данные, и такой словарь спокойно лежит в памяти браузера,
+   прирастая с каждой загрузкой. Благодаря этому отчёт грузят один раз, а не
+   при каждом открытии листа.
+   ============================================================ */
+const GEO_KEY = 'edds_claim_geo_v1';
+const GEO_KEEP = 200000;           // потолок словаря, чтобы не упереться в квоту
+let GEO = null;                    // { updated, n, pts: { '425044': [55.12, 37.34] } }
+let GEO_NOTE = '';                 // чем объяснить отсутствие точек
+
+/* Московская область с запасом. Точка вне этих границ — не «дальний округ»,
+   а перепутанные или битые колонки: молча показать её на карте значит
+   нарисовать инцидент посреди океана. */
+const inMO = (la, lo) => la >= 54.0 && la <= 57.2 && lo >= 34.8 && lo <= 40.8;
+const geo6 = v => Math.round(v * 1e6) / 1e6;
+const geoId = v => String(v ?? '').replace(/\D/g, '');
+
+/* Разбор CSV состоянием, а не делением по строкам. В «Отчёте по заявкам» есть
+   поля «Описание заявки» и «Адреса отключённых объектов» — свободный текст, где
+   встречаются и точка с запятой, и перевод строки. Наивный split разрывал одну
+   заявку на обрывки: на живом отчёте из 743 записей получалось 3102 строки,
+   и почти все номера терялись. */
+function parseCsv(txt, sep){
+  const rows = [];
+  let row = [], cell = '', q = false, fresh = true;   // fresh — мы в начале поля
+  for(let i = 0; i < txt.length; i++){
+    const c = txt[i];
+    if(q){
+      if(c === '"'){
+        if(txt[i + 1] === '"'){ cell += '"'; i++; }   // удвоенная кавычка — это одна кавычка
+        else q = false;
+      }else cell += c;
+      continue;
+    }
+    // Кавычка открывает поле только в его начале, внутри текста она обычный
+    // символ. Выгрузка ЕДДС местами экранирует криво («СНТ ""Сырьево""»), и
+    // если переключаться на любой кавычке, режим слетает посреди описания —
+    // переводы строк начинают рвать запись. На сводке за неделю из-за этого
+    // получалось 3658 записей вместо 2282 и 405 инцидентов ВС/ВО вместо 701.
+    if(c === '"' && fresh){ q = true; fresh = false; continue; }
+    if(c === sep){ row.push(cell); cell = ''; fresh = true; continue; }
+    if(c === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; fresh = true; continue; }
+    if(c === '\r') continue;
+    cell += c; fresh = false;
+  }
+  if(cell.length || row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+
+/* Разделитель определяем по результату, а не по частоте символов: берём тот,
+   что даёт больше колонок в шапке. */
+function csvGrid(txt){
+  const a = parseCsv(txt, ';'), b = parseCsv(txt, ',');
+  const wa = a.length ? a[0].length : 0, wb = b.length ? b[0].length : 0;
+  return wa >= wb ? a : b;
+}
+
+function geoSave(){
+  if(!GEO || !GEO.pts) return;
+  try{ localStorage.setItem(GEO_KEY, JSON.stringify(GEO)); return; }catch(_){}
+  // квота кончилась — режем четверть самых старых номеров и пробуем ещё раз.
+  // Ключи-числа браузер держит по возрастанию, так что первыми уходят давние заявки.
+  const ks = Object.keys(GEO.pts);
+  for(const k of ks.slice(0, Math.ceil(ks.length * 0.25))) delete GEO.pts[k];
+  GEO.n = Object.keys(GEO.pts).length;
+  try{ localStorage.setItem(GEO_KEY, JSON.stringify(GEO)); }catch(_){}
+}
+
+/* Разбор отчёта. Колонки ищем по заголовкам, а не по номерам: состав полей в
+   «Отчёте по заявкам» выбирается галочками, и порядок меняется от выгрузки к выгрузке. */
+function geoIngest(grid){
+  if(!Array.isArray(grid) || !grid.length)
+    throw new Error('Ожидалась таблица отчёта: первая строка — заголовки колонок.');
+  const norm = v => String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  let hdr = -1, iLat = -1, iLon = -1, iId = -1;
+  for(let i = 0; i < Math.min(grid.length, 25); i++){
+    const row = grid[i];
+    if(!Array.isArray(row)) continue;
+    const c = row.map(norm);
+    const la = c.findIndex(v => /широт/.test(v));
+    const lo = c.findIndex(v => /долгот/.test(v));
+    if(la < 0 || lo < 0) continue;
+    let id = c.findIndex(v => /номер/.test(v) && /заявк/.test(v));
+    if(id < 0) id = c.findIndex(v => /id_cds_claim|^№\s*заявк|^номер$|^№$/.test(v));
+    hdr = i; iLat = la; iLon = lo; iId = id;
+    break;
+  }
+  if(hdr < 0) throw new Error('В файле не нашлось колонок «Широта» и «Долгота». ' +
+    'В АРМ ЕДДС: Отчёты → Отчёт по заявкам, отметьте поля «Номер заявки», «Широта», «Долгота».');
+  if(iId < 0) throw new Error('Координаты в файле есть, а колонки «Номер заявки» нет — ' +
+    'связать их с инцидентами не с чем. Отметьте это поле в отчёте.');
+
+  const pts = {}, bad = {};
+  let ok = 0, noNum = 0, noCoord = 0, outside = 0, swapped = 0;
+  for(let i = hdr + 1; i < grid.length; i++){
+    const r = grid[i];
+    if(!r || !r.length) continue;
+    const id = geoId(r[iId]);
+    if(!id){ noNum++; continue; }
+    let la = numOf(r[iLat]), lo = numOf(r[iLon]);
+    if(la === null || lo === null || (la === 0 && lo === 0)){ noCoord++; continue; }
+    // широта области ~55, долгота ~37: перепутанные местами колонки видно сразу
+    if(!inMO(la, lo) && inMO(lo, la)){ const t = la; la = lo; lo = t; swapped++; }
+    // на карту не пойдёт, но запомним: «координат нет» и «координаты в отчёте
+    // есть, только негодные» — разные разговоры, и второй адресован тому, кто
+    // их заполнял
+    if(!inMO(la, lo)){ outside++; bad[id] = [geo6(la), geo6(lo)]; continue; }
+    pts[id] = [geo6(la), geo6(lo)];
+    ok++;
+  }
+  if(!ok) throw new Error('Ни одной пригодной пары координат: строк с номером и координатами — 0. ' +
+    'Проверьте, что отчёт сформирован за нужный период и поля отмечены.');
+
+  const base = (GEO && GEO.pts) ? GEO.pts : {};
+  let fresh = 0;
+  for(const k in pts){ if(!(k in base)) fresh++; base[k] = pts[k]; }
+  const keys = Object.keys(base);
+  if(keys.length > GEO_KEEP) for(const k of keys.slice(0, keys.length - GEO_KEEP)) delete base[k];
+  // брак копим так же, но отдельно и с тем же потолком: его на порядок меньше
+  const bbase = (GEO && GEO.bad) ? GEO.bad : {};
+  for(const k in bad) if(!(k in base)) bbase[k] = bad[k];
+  const bkeys = Object.keys(bbase);
+  if(bkeys.length > GEO_KEEP) for(const k of bkeys.slice(0, bkeys.length - GEO_KEEP)) delete bbase[k];
+  GEO = { updated: fmtDT(new Date()), pts: base, bad: bbase, n: Object.keys(base).length };
+  GEO_NOTE = ''; geoSave();
+  return { ok, fresh, noNum, noCoord, outside, swapped, total: GEO.n };
+}
+
+/* Запрос координат прямо из АРМ — то же, что кнопка «Сформировать» на листе
+   «Отчёт по заявкам». Там форма method="POST" без action, то есть POST уходит
+   на адрес самой страницы; полей отчёта запрашиваем ровно три — номер, широту
+   и долготу. Остальные фильтры (ресурсы, типы заявок, районы) не трогаем:
+   незаполненные означают «все», а сузив их, мы потеряли бы заявки.
+
+   Формат дат тут свой, ДД.ММ.ГГГГ — не такой, как у сводного отчёта. */
+const GEO_SITE = { act: 'cds_claim_report', id: '3654' };
+const geoDay = iso => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  return m ? m[3] + '.' + m[2] + '.' + m[1] : '';
+};
+
+async function geoFetchLive(fromIso, toIso){
+  const ot = geoDay(fromIso), doo = geoDay(toIso);
+  if(!ot || !doo) throw new Error('Не задан период.');
+
+  const body = new URLSearchParams();
+  body.set('start', ot);
+  body.set('end', doo);
+  // чекбоксы формы шлются как «on» — так же, как их отправил бы браузер
+  for(const f of ['id_cds_claim', 'lat_', 'lon_']) body.set('fields[' + f + ']', 'on');
+  body.set('submit', '1');
+
+  const url = SITE.path + '?act=' + encodeURIComponent(GEO_SITE.act) +
+              '&id=' + encodeURIComponent(GEO_SITE.id);
+  let r;
+  try{
+    r = await fetch(url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body,
+    });
+  }catch(_){ throw new Error('Не получилось обратиться к АРМ ЕДДС.'); }
+  if(!r.ok) throw new Error('АРМ ЕДДС ответил кодом ' + r.status + '.');
+
+  let txt = (await r.text()).replace(/^﻿/, '');
+
+  // Ответом бывает и сам файл, и страница со ссылкой на него — в АРМ отчёт
+  // складывается в файл вида EDDS_claim_report_<время>.csv. Разбираем оба случая.
+  if(/^\s*<(!doctype|html)/i.test(txt)){
+    if(/act=login/.test(txt)) throw new Error('Сессия истекла. Войдите в АРМ ЕДДС заново.');
+    const m = /href\s*=\s*["']([^"']*EDDS_claim_report[^"']*\.csv)["']/i.exec(txt) ||
+              /href\s*=\s*["']([^"']+\.csv)["']/i.exec(txt);
+    if(!m) throw new Error('В ответе нет ни файла, ни ссылки на него.');
+    const link = new URL(m[1], location.origin + SITE.path).href;
+    const r2 = await fetch(link, { credentials: 'same-origin' });
+    if(!r2.ok) throw new Error('Файл отчёта не скачался (код ' + r2.status + ').');
+    txt = (await r2.text()).replace(/^﻿/, '');
+  }
+  const grid = csvGrid(txt);
+  if(!grid.length) throw new Error('Отчёт пришёл пустым.');
+  return grid;
+}
+
+/* Проставляем координаты записям. Отдельным проходом, а не поиском на месте:
+   карта, выгрузка и карточка заявки берут r.lat/r.lon напрямую. */
+function geoBind(){
+  if(!DATA) return 0;
+  const pts = (GEO && GEO.pts) || {};
+  const bad = (GEO && GEO.bad) || {};
+  let hit = 0;
+  for(const r of DATA.recs){
+    const k = geoId(r.id);
+    const p = pts[k];
+    if(p){ r.lat = p[0]; r.lon = p[1]; hit++; }
+    else { r.lat = null; r.lon = null; }
+    r.geoBad = p ? null : (bad[k] || null);
+    r.geoFill = p ? 'Есть' : 'Нет';
+  }
+  return hit;
+}
+
+const geoHave = () => VIEW.filter(r => r.lat !== null).length;
 
 /* ============================================================
    Жалобы ДоброДел / ЕЦУР рядом с инцидентами
@@ -1095,7 +1486,7 @@ let ppl = { min: null, max: null, na: false };  // диапазон охвата
    здесь нет, поэтому он спокойно лежит в памяти браузера.
    ============================================================ */
 const ZH_KEY = 'edds_water_complaints_v1';
-const ZH_URL = '/edds/water-daily';
+const ZH_URL = 'http://127.0.0.1:8765/api/water-daily';
 let ZH = null;        // разобранный свод
 let ZH_NOTE = '';     // чем объяснить пустую карточку
 let ZH_BUILDING = false;   // кликер прямо сейчас идёт в ДоброДел
@@ -1313,7 +1704,7 @@ async function zhFetch(){
     ZH_BUILDING = false;
     ZH_NOTE = e.name === 'AbortError'
       ? 'Помощник кликера не ответил за 2,5 секунды.'
-      : 'Не удалось получить свод с сервера системы.';
+      : 'Помощник кликера на 127.0.0.1:8765 не отвечает.';
   }finally{ clearTimeout(t); }
   return false;
 }
@@ -1368,6 +1759,13 @@ function optionsFor(k){
 }
 
 function passes(r){
+  return passesNoBox(r) && inGeoBox(r);
+}
+
+/* Всё, кроме выделенной на карте области. Сама карта рисуется по этому набору:
+   если бы она показывала уже отфильтрованное выделением, за пределами рамки
+   стало бы пусто — и поправить или расширить выделение было бы не по чему. */
+function passesNoBox(r){
   if(period.from || period.to){
     if(!r.start) return false;                     // без даты возникновения судить не о чем
     if(period.from && r.start < period.from) return false;
@@ -1376,18 +1774,35 @@ function passes(r){
   return passesBase(r);
 }
 
+/* Рамка, выделенная на карте, работает как обычный фильтр — её видят все листы
+   и выгрузка. Заявка без координат в рамку попасть не может: это не «она вне
+   области», а «мы не знаем, где она», и молча оставлять её в выборке нельзя. */
+function inGeoBox(r){
+  if(!geoBox) return true;
+  if(r.lat === null || r.lon === null) return false;
+  return r.lat >= geoBox.s && r.lat <= geoBox.n && r.lon >= geoBox.w && r.lon <= geoBox.e;
+}
+
 /* Все фильтры, кроме периода. Отдельно от passes() ради листа «Динамика»: там
    один и тот же срез считается в двух окнах времени, и окно — единственное,
    что между ними отличается. Если бы период сидел внутри, период сравнения
    отфильтровалась бы по текущему периоду и всегда выходила пустой. */
-function passesBase(r){
+function passesBase(r, skipKey){
   if(ppl.min !== null || ppl.max !== null){
     // охват не указан (в выгрузке прочерк) — в диапазон не попадает, пока не разрешили галочкой
     if(r.people === null){ if(!ppl.na) return false; }
     else if((ppl.min !== null && r.people < ppl.min) ||
             (ppl.max !== null && r.people > ppl.max)) return false;
   }
+  if(ust.min !== null || ust.max !== null){
+    // времени нет у тех, кого ещё не устранили: такие в диапазон часов не попадают,
+    // пока их не позвали галочкой — иначе «до 2 ч» тихо включало бы незакрытые заявки
+    if(r.ustrH === null){ if(!ust.na) return false; }
+    else if((ust.min !== null && r.ustrH < ust.min) ||
+            (ust.max !== null && r.ustrH > ust.max)) return false;
+  }
   for(const { k } of FILTERS){
+    if(k === skipKey) continue;        // измерение, которое вызывающий считает сам
     const s = sel[k];
     if(!s || !s.size) continue;        // пустой набор = «все»
     const mk = MULTI[k];
@@ -1412,6 +1827,9 @@ function applyFilters(){
   renderLeadKpis(); renderLeadTable(); renderLeadCharts();
   renderKpis(); renderCharts(); renderPivot(); renderTable(); renderFoot();
   renderDyn();
+  renderBoxChip();
+  renderMapCharts();
+  if(PAGE === 'map') renderMap();
 }
 
 function setPage(p){
@@ -1419,6 +1837,11 @@ function setPage(p){
   document.getElementById('page-lead').hidden  = p !== 'lead';
   document.getElementById('page-delay').hidden = p !== 'delay';
   document.getElementById('page-dyn').hidden   = p !== 'dyn';
+  document.getElementById('page-map').hidden   = p !== 'map';
+  const gl = document.getElementById('geo-live');
+  if(gl) gl.hidden = !LIVE;
+  geoPickLabel();
+  if(p === 'map'){ renderMapCharts(); renderMap(); }
   document.querySelectorAll('#tabs [data-page]').forEach(b =>
     b.setAttribute('aria-selected', String(b.dataset.page === p)));
   fillCharts(p);   // у скрытого листа ширины не было — рисуем при показе
@@ -1493,6 +1916,8 @@ function renderFilters(){
   // верх шкалы охвата берём из самих данных, чтобы подсказка не была абстрактной
   const pplTop = fmtN(DATA.recs.reduce((m, r) => r.people !== null && r.people > m ? r.people : m, 0));
   const pplOn = ppl.min !== null || ppl.max !== null;
+  const ustTop = fmtN(DATA.recs.reduce((m, r) => r.ustrH !== null && r.ustrH > m ? r.ustrH : m, 0), 1);
+  const ustOn = ust.min !== null || ust.max !== null;
 
   el.innerHTML = FILTERS.map(f => {
     const opts = optionsFor(f.k);
@@ -1545,6 +1970,20 @@ function renderFilters(){
         <span class="rg-hint">пустое поле — без ограничения · в текущей выборке от 0 до ${pplTop} чел.</span>
       </div>
     </div>
+    <div class="f f-range${ustOn ? ' on' : ''}" id="f-ust">
+      <label for="us-min">Устраняли, часов</label>
+      <div class="rg-row">
+        <input id="us-min" type="text" class="rg-num" inputmode="decimal"
+               placeholder="любое" value="${ust.min ?? ''}" aria-label="Время устранения, от, часов">
+        <span class="rg-dash">—</span>
+        <input id="us-max" type="text" class="rg-num" inputmode="decimal"
+               placeholder="любое" value="${ust.max ?? ''}" aria-label="Время устранения, до, часов">
+        <label class="rg-na" title="Заявки без времени устранения — как правило, ещё не закрытые. Без галочки диапазон часов их отсекает.">
+          <input type="checkbox" id="us-na"${ust.na ? ' checked' : ''}> без данных
+        </label>
+        <span class="rg-hint">в часах, можно дробью: 1,5 · в выборке от 0 до ${ustTop} ч</span>
+      </div>
+    </div>
     <button class="btn" id="fl-reset">Сбросить всё</button>`;
 
   el.querySelectorAll('.ms').forEach(wrap => {
@@ -1558,6 +1997,23 @@ function renderFilters(){
       if(open) return;
       panel.hidden = false;
       btn.setAttribute('aria-expanded', 'true');
+      // подложка ловит клики мимо списка, чтобы они не проваливались в то,
+      // что список собой закрыл
+      const back = document.createElement('div');
+      back.className = 'ms-back';
+      back.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const x = e.clientX, y = e.clientY;
+        closeAllPanels();                       // подложка снимается здесь же
+        // Клик, который человек и задумывал. Подложка перехватила его, чтобы он
+        // не угодил в строку раскрытого списка, накрывшего собой соседний
+        // фильтр, — но терять его незачем: отдаём тому, кто оказался под курсором.
+        const under = document.elementFromPoint(x, y);
+        if(!under || under.closest('.ms-panel')) return;
+        if(/^(INPUT|SELECT|TEXTAREA)$/.test(under.tagName)) under.focus();
+        under.click();
+      });
+      document.body.appendChild(back);
       panel.querySelector('.ms-search')?.focus();
     });
 
@@ -1632,6 +2088,26 @@ function renderFilters(){
   }));
   pNa.addEventListener('change', readPpl);
 
+  const uMin = document.getElementById('us-min');
+  const uMax = document.getElementById('us-max');
+  const uNa  = document.getElementById('us-na');
+  // часы, в отличие от жителей, бывают дробными: «полтора часа» вводят и через
+  // запятую, и через точку, поэтому запятую приводим к точке, а не выбрасываем
+  const ustNum = v => { const n = parseFloat(String(v).replace(',', '.'));
+    return Number.isFinite(n) && n >= 0 ? n : null; };
+  const readUst = () => {
+    ust.min = ustNum(uMin.value);
+    ust.max = ustNum(uMax.value);
+    ust.na  = uNa.checked;
+    document.getElementById('f-ust').classList.toggle('on', ust.min !== null || ust.max !== null);
+    applyFilters();
+  };
+  let tu;
+  [uMin, uMax].forEach(i => i.addEventListener('input', () => {
+    clearTimeout(tu); tu = setTimeout(readUst, 250);
+  }));
+  uNa.addEventListener('change', readUst);
+
   const reload = document.getElementById('fl-reload');
   if(reload) reload.addEventListener('click', () => {
     req.from = fFrom.value; req.to = fTo.value;
@@ -1645,12 +2121,16 @@ function renderFilters(){
   document.getElementById('fl-reset').addEventListener('click', () => {
     for(const k of Object.keys(sel)) delete sel[k];
     query = '';
+    geoBox = null;                     // «сбросить всё» снимает и выделение на карте
     el.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
     el.querySelectorAll('.ms').forEach(w => msLabel(w.dataset.k));
     document.getElementById('fl-q').value = '';
     ppl.min = ppl.max = null; ppl.na = false;
     pMin.value = ''; pMax.value = '';
     document.getElementById('f-ppl').classList.remove('on');
+    ust.min = ust.max = null; ust.na = false;
+    uMin.value = ''; uMax.value = '';
+    document.getElementById('f-ust').classList.remove('on');
     // в живом режиме сброс не должен дёргать сайт — возвращаем запрошенный период
     fFrom.value = LIVE ? (req.from || isoDay(DATA.from)) : isoDay(DATA.from);
     fTo.value   = LIVE ? (req.to   || isoDay(DATA.to))   : isoDay(DATA.to);
@@ -1664,6 +2144,7 @@ function closeAllPanels(){
     p.hidden = true;
     p.parentElement.querySelector('.ms-btn').setAttribute('aria-expanded', 'false');
   });
+  document.querySelectorAll('.ms-back').forEach(b => b.remove());
 }
 
 function renderKpis(){
@@ -1758,11 +2239,15 @@ function barsV(data, unit, W){
 // горизонтальные столбцы; hours = подписывать длительностью «26 ч 46 мин»;
 // W — фактическая ширина карточки: колонка подписей и высота строки подстраиваются под неё,
 // чтобы на узкой карточке диаграмма не сжималась вместе с текстом
-function barsH(data, unit, dec, hours, W){
+function barsH(data, unit, dec, hours, W, tight){
   W = Math.round(W || 640);
   const mt = 8, mr = hours ? 118 : 70;
-  // высота строки: мало строк — строки выше, диаграмма заполняет карточку
-  const rowH = Math.min(46, Math.max(26, Math.round(340 / Math.max(data.length, 1))));
+  /* Высота строки: мало строк — строки выше, диаграмма заполняет карточку.
+     tight — для карточек под картой: там разрез идёт довеском к самой карте,
+     и растягиваться на пол-экрана ему незачем. */
+  const rowH = tight
+    ? Math.min(26, Math.max(19, Math.round(180 / Math.max(data.length, 1))))
+    : Math.min(46, Math.max(26, Math.round(340 / Math.max(data.length, 1))));
   const barH = Math.max(11, Math.round(rowH * 0.5));
   // 7 px на символ — оценка для кириллицы 13 px; заниженная приводила к обрезке подписи слева
   const longest = data.reduce((a, d) => Math.max(a, d.k.length), 0);
@@ -1774,7 +2259,8 @@ function barsH(data, unit, dec, hours, W){
   const lab = d => hours ? fmtHM(d.v) : fmtN(d.v, dec);
   const tip = d => esc(d.k) + ' — ' + lab(d) +
     (hours ? ` (${fmtN(d.v, 2)} ч)` : (unit ? ' ' + unit : '')) +
-    (d.n ? ', заявок: ' + d.n : '');
+    (d.n ? ', заявок: ' + d.n : '') +
+    (d.tip ? ': ' + esc(d.tip) : '');   // что именно свёрнуто в «прочие»
   const bars = data.map((d, i) => {
     const y = mt + i * rowH, w = Math.max(d.v > 0 ? 2 : 0, iw * d.v / max);
     const by = y + (rowH - barH) / 2;          // столбец по центру строки
@@ -1791,8 +2277,9 @@ function barsH(data, unit, dec, hours, W){
 /* Карточка рисуется в два прохода: сначала пустое тело, затем — когда ширина карточки
    уже известна — сама диаграмма под эту ширину. Иначе SVG с фиксированным viewBox
    сжимается браузером вместе с подписями и на узкой карточке всё становится мелким. */
-const SLOTS = { lead: new Map(), delay: new Map(), dyn: new Map() };
-const CHART_ROOT = { lead: 'lead-charts', delay: 'charts', dyn: 'dyn-charts' };
+const SLOTS = { lead: new Map(), delay: new Map(), dyn: new Map(), map: new Map() };
+const CHART_ROOT = { lead: 'lead-charts', delay: 'charts', dyn: 'dyn-charts',
+                     map: 'map-charts' };
 const CHART_PAD = 32;   // .body padding слева и справа
 
 /* Круговая (кольцевая) диаграмма: подходит там, где категорий немного и важна доля.
@@ -2028,7 +2515,7 @@ let LFLAT = false;
 let LFLAT_N = 300;                   // столько строк показываем сразу: область даёт длинные списки
 
 const LEAD_COLS = [
-  ['name',   'ОМСУ / РСО / заявка', ''],
+  ['name',   'ОМСУ / РСО / заявка', ''],   // подпись подменяется под текущий порядок
   ['n',      'Инцидентов', 'r'],
   ['zh',     'Жалоб ЕЦУР', 'r'],
   ['avar',   'Аварийных', 'r'],
@@ -2057,13 +2544,20 @@ const LEAD_FLAT_COLS = [
   ['prich',  'Причины', ''],
 ];
 
+/* Порядок уровней: 'omsu' — округ, внутри его РСО; 'rso' — наоборот, РСО,
+   а внутри округа, в которых она работает. Вторая раскладка отвечает на другой
+   вопрос: не «что творится в округе», а «где эта РСО рвётся». */
+let LROOT = 'omsu';
+const rootKey = () => LROOT === 'rso' ? 'rso' : 'omsu';
+const kidKey  = () => LROOT === 'rso' ? 'omsu' : 'rso';
+
 function leadTree(){
-  const t = new Map();
+  const t = new Map(), a = rootKey(), b = kidKey();
   for(const r of VIEW){
-    if(!t.has(r.omsu)) t.set(r.omsu, new Map());
-    const m = t.get(r.omsu);
-    if(!m.has(r.rso)) m.set(r.rso, []);
-    m.get(r.rso).push(r);
+    if(!t.has(r[a])) t.set(r[a], new Map());
+    const m = t.get(r[a]);
+    if(!m.has(r[b])) m.set(r[b], []);
+    m.get(r[b]).push(r);
   }
   return [...t.entries()];
 }
@@ -2105,7 +2599,11 @@ function renderLeadTable(){
   // жалобы есть только в разрезе ОМСУ: в своде нет ни РСО, ни номеров заявок
   const zhOmsu = zhOmsuCounts();
   const zhCov = zhCover();
-  const hasZh = !!(ZH && ZH.days);
+  /* Свод ДоброДела знает только округа. Когда сверху РСО, её жалоб не существует,
+     а числа округа пришлось бы повторять под каждой РСО — и сумма по столбцу
+     стала бы больше, чем жалоб было на самом деле. Поэтому в этом порядке
+     колонку просто не показываем, а не заполняем прочерками. */
+  const hasZh = !!(ZH && ZH.days) && LROOT === 'omsu';
   const groups = leadTree().map(([omsu, m]) => ({
     name: omsu,
     a: aggr([...m.values()].flat()),
@@ -2145,7 +2643,9 @@ function renderLeadTable(){
           ' выбранных — с ' + dRu(dayStart(zhCov.from)) + ' по ' + dRu(dayStart(zhCov.to)) +
           '. Инциденты считаются за весь период, поэтому колонки напрямую ' +
           'не сопоставимы. Клик — сортировка.');
-  let html = '<thead><tr>' + LEAD_COLS.filter(([k]) => k !== 'zh' || hasZh).map(([k, t, cls]) => noSort(k)
+  let html = '<thead><tr>' + LEAD_COLS.filter(([k]) => k !== 'zh' || hasZh)
+    .map(([k, t, cls]) => [k, k === 'name' ? leadHead() : t, cls])
+    .map(([k, t, cls]) => noSort(k)
       ? `<th class="${cls}">${esc(t)}</th>`
       : `<th class="sortable ${cls}" data-lsort="${k}" title="${k === 'zh' ? esc(zhTitle) : 'Сортировать'}">${esc(t)}${arrow(k)}</th>`).join('') +
     '<th></th></tr></thead><tbody>';
@@ -2504,23 +3004,70 @@ function zhCardHtml(){
       W => zhChart(ts.arr, W, 'ppl'), seg);
 }
 
-function renderLeadCharts(){
-  // 1. объекты
-  const objs = WATER.map(([, l]) => ({ k: l, v: VIEW.filter(r => r.objs.includes(l)).length }))
+/* Разрезы по объектам и по причинам считаются одинаково на листе «Руководителю»
+   и под картой, поэтому лежат отдельно: на карте та же выборка, что и везде,
+   вместе с выделенной рамкой — она обычный фильтр и входит в VIEW. */
+function objData(){
+  return WATER.map(([, l]) => ({ k: l, v: VIEW.filter(r => r.objs.includes(l)).length }))
     .filter(d => d.v > 0).sort((a, b) => b.v - a.v);
+}
 
-  // 2. причины — у заявки может быть отмечено несколько причин,
-  //    поэтому сумма столбцов больше числа заявок
+function causeData(){
+  // у заявки может быть отмечено несколько причин, поэтому сумма столбцов
+  // больше числа заявок; причин немного (справочник закрытый) — показываем все
   const cz = new Map();
   let noCause = 0;
   for(const r of VIEW){
     if(!r.prichs.length){ noCause++; continue; }
     for(const p of r.prichs) cz.set(p, (cz.get(p) || 0) + 1);
   }
-  // причин немного (справочник закрытый) — карточка широкая, показываем все
-  const causes = [...cz.entries()].map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v);
-  const causeAll = [...causes];
-  if(noCause) causeAll.push({ k: NO_CAUSE, v: noCause });
+  const out = [...cz.entries()].map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v);
+  if(noCause) out.push({ k: NO_CAUSE, v: noCause });
+  return out;
+}
+
+/* Хвост длинного разреза сворачиваем в одну строку: под картой важно увидеть
+   главное, не пролистывая. Что именно свёрнуто — в подсказке столбика.
+   «Причина не указана» остаётся отдельной строкой при любом раскладе: это не
+   мелочь, а вопрос к тому, кто заполняет карточки. */
+function compactTop(data, n){
+  const na = data.filter(d => d.k === NO_CAUSE);
+  const rest = data.filter(d => d.k !== NO_CAUSE);
+  if(rest.length <= n) return data;
+  const head = rest.slice(0, n), tail = rest.slice(n);
+  return head.concat([{ k: 'Прочие · ' + tail.length,
+    v: tail.reduce((a, d) => a + d.v, 0),
+    tip: tail.map(d => d.k + ' — ' + fmtN(d.v)).join(' · ') }], na);
+}
+
+/* Те же два разреза под самой картой: обвёл область — и видно, из-за чего и на
+   чём там рвётся, не уходя на другой лист. Оба — столбиками и в обрез по
+   высоте: главное здесь карта, а не разрезы. Полные, во всю карточку, живут
+   на листе «Руководителю». */
+function renderMapCharts(){
+  const c = document.getElementById('map-charts');
+  if(!c || !DATA) return;
+  const causes = compactTop(causeData(), 7), objs = objData();
+  const cut = causes.some(d => d.tip) ? ' · хвост свёрнут в «прочие», полный разрез — ' +
+    'на листе «Руководителю»' : '';
+  const where = geoBox ? ' · только выделенная область' : '';
+  SLOTS.map.clear();
+  c.innerHTML =
+    (causes.length ? chartCard('map', 'Инциденты по причинам',
+        'заявок' + cut + where,
+        W => barsH(causes, 'заявок', 0, false, W, true)) : '') +
+    (objs.length ? chartCard('map', 'Инциденты по объектам',
+        'заявок · у заявки бывает несколько объектов' + where,
+        W => barsH(objs, 'заявок', 0, false, W, true)) : '');
+  fillCharts('map');
+}
+
+function renderLeadCharts(){
+  // 1. объекты
+  const objs = objData();
+
+  // 2. причины
+  const causeAll = causeData();
 
   // 3. РСО по числу инцидентов
   const topRso = (() => {
@@ -2868,6 +3415,7 @@ function dynMerge(fresh){
   recs.sort((a, b) => (a.diff === null) - (b.diff === null) || (b.diff ?? 0) - (a.diff ?? 0));
   const dates = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
   DATA = { recs, total: DATA.total + fresh.total, spans: dynSpans(),
+           broken: (DATA.broken || 0) + (fresh.broken || 0),
            from: dates[0] || null, to: dates[dates.length - 1] || null };
   return added;
 }
@@ -3190,6 +3738,686 @@ document.getElementById('dy-year').addEventListener('click', () => dyPreset('yea
 document.getElementById('dy-clear').addEventListener('click', dyClear);
 
 
+/* ============================================================
+   Лист «Карта»
+
+   Библиотеку тянем с cdnjs и только при первом открытии листа: без интернета
+   остальной дашборд обязан работать как работал, поэтому загрузка ленивая,
+   а неудача — это сообщение на карточке, а не сломанный лист.
+   ============================================================ */
+const LEAF = {
+  // стили встроены в этот файл выше — по сети тянем только код
+  js:  ['https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'],
+};
+let MAP = null, HEAT = null, CLUSTER = null, BOXRECT = null, DRAGRECT = null;
+let LEAF_READY = false, LEAF_FAIL = false;
+let MAPKIND = 'heat';        // heat | points
+let MAPW = 'n';              // n | people (сумма охвата) | avg (средний охват на заявку)
+let geoBox = null;           // { s, w, n, e } — выделенная рамка
+let mapSel = false, mapStart = null;
+
+/* Ограничение по времени обязательно. Заблокированный прокси не отвечает
+   ошибкой — он просто молчит, и onerror не срабатывает никогда. Без таймаута
+   ожидание висит вечно: лист «Карта» остаётся пустым, без единого слова о том,
+   что происходит, потому что код до сообщения так и не доходит. */
+const LEAF_WAIT = 12000;
+const withTimeout = (p, ms, what) => Promise.race([
+  p, new Promise((_, rej) => setTimeout(() => rej(new Error('нет ответа: ' + what)), ms)),
+]);
+
+const loadJs = src => withTimeout(new Promise((res, rej) => {
+  const t = document.createElement('script');
+  t.src = src; t.onload = res; t.onerror = () => rej(new Error('не загрузился: ' + src));
+  document.head.appendChild(t);
+}), LEAF_WAIT, src);
+
+let LEAF_WHY = '';
+async function ensureLeaflet(){
+  if(LEAF_READY) return true;
+  if(LEAF_FAIL) return false;
+  try{
+    for(const src of LEAF.js) await loadJs(src);   // строго по очереди: плагины ждут L
+    if(typeof L === 'undefined') throw new Error('библиотека загрузилась, но L не появился');
+    LEAF_READY = true;
+  }catch(e){
+    LEAF_FAIL = true;
+    LEAF_WHY = e.message || String(e);
+  }
+  return LEAF_READY;
+}
+
+/* Точки берём до выделения: карта показывает всю отфильтрованную выборку,
+   а рамка поверх неё — то, что выбрано. */
+function mapRecs(){
+  return DATA ? DATA.recs.filter(r => r.lat !== null && passesNoBox(r)) : [];
+}
+// оба «охватных» режима взвешивают одним и тем же — жителями; расходятся они
+// только в том, что писать на кружке группы: сумму или среднее
+const wPeople = () => MAPW !== 'n';
+const mapW = r => wPeople() ? (r.people || 0) : 1;
+
+/* Ноль в графе «жителей» — это незаполненная карточка, а не пустой двор.
+   В выгрузке за неделю таких 215 из 698, и у 191 из них заодно нули в МКД и в
+   населённых пунктах: аварии на сетях водоснабжения, которые якобы никого не
+   задели. Для суммы разницы нет — ноль ничего не прибавляет, — но среднее они
+   утягивают вниз вдвое (871 против 1181), поэтому на карте считаем их
+   неизвестными: в среднее не берём, на значке пишем «н/д». Сами цифры в
+   реестре, разрезах и выгрузке остаются как есть. */
+const wKnown = r => r.people !== null && r.people > 0;
+
+// короткая подпись на кружке кластера: «1 240» в 40 пикселей не влезает
+function shortN(v){
+  if(v < 1000) return String(Math.round(v));
+  if(v < 1000000) return (v / 1000).toFixed(v < 10000 ? 1 : 0).replace('.', ',') + 'к';
+  return (v / 1000000).toFixed(1).replace('.', ',') + 'м';
+}
+
+/* Пороги окраски кружков. Отдельной функцией, чтобы легенда брала их отсюда же
+   и не разъезжалась с картой при правке. */
+const clusterLim = () => wPeople() ? [2000, 20000] : [20, 100];
+const CL_COLOR = { s: '#3987e5', m: '#e0892a', l: '#cc4444' };
+
+
+
+/* Что означает цвет прямо сейчас. Без этого он означает три разные вещи —
+   плотность, величину группы и тип заявки — и догадаться невозможно. */
+function mapLegend(){
+  const dot = (c, t) => '<span><i style="background:' + c + '"></i>' + t + '</span>';
+  if(MAPKIND === 'heat'){
+    const what = wPeople() ? 'больше жителей задето рядом' : 'больше инцидентов рядом';
+    return '<div class="lg"><span>Цвет — плотность:</span>' +
+      '<span><i class="lg-grad" style="border-radius:3px;width:86px;height:10px"></i>' +
+      'реже → чаще</span><span>чем краснее, тем ' + what + '</span></div>' +
+      '<div class="lg"><span class="mute">Заливка показывает сгущение, а не величину ' +
+      'одной заявки: сколько именно — в режиме «Точки с количеством».</span></div>';
+  }
+  const [a, b] = clusterLim();
+  const unit = MAPW === 'avg'    ? 'жителей в среднем на заявку'
+             : MAPW === 'people' ? 'жителей'
+             :                     'заявок';
+  return '<div class="lg">' +
+    '<span>Число в кружке — сколько ' + unit + ', цвет по величине:</span>' +
+    dot(CL_COLOR.s, 'до ' + fmtN(a)) +
+    dot(CL_COLOR.m, fmtN(a) + ' — ' + fmtN(b - 1)) +
+    dot(CL_COLOR.l, 'от ' + fmtN(b)) +
+    '<span class="mute">пунктиром — одна заявка</span></div>' +
+    (MAPW === 'avg'
+      ? '<div class="lg"><span class="mute">Среднее — только по заявкам, где охват ' +
+        'заполнен. Ноль жителей на аварии считаем незаполненной карточкой, а не ' +
+        'пустым двором: на значке такой заявки «н/д», и среднее она не занижает.' +
+        '</span></div>'
+      : '');
+}
+
+/* Что писать про охват рядом с числом инцидентов.
+
+   Сумма отвечает на вопрос «сколько человеко-отключений», а не «сколько людей
+   пострадало»: если к одному дому за период приезжали трижды, его жителей она
+   посчитает трижды. Поэтому в режиме среднего показываем ещё и оценку без
+   повторов — по заявкам, стоящим ровно в одной точке, берём наибольший охват,
+   а не сумму. Оценка снизу: разные заявки в соседних домах она по-прежнему
+   складывает, потому что общих жителей у них нет. */
+function mapPeopleNote(pts){
+  if(!wPeople()) return '';
+  const kn = pts.filter(wKnown);
+  if(!kn.length) return ' · <span class="mute">охват жителей нигде не указан</span>';
+  const sum = kn.reduce((a, r) => a + r.people, 0);
+  if(MAPW !== 'avg') return ' · охват <b>' + fmtN(sum) + '</b> жителей';
+
+  const byXY = new Map();
+  for(const r of kn){
+    const k = r.lat.toFixed(5) + '|' + r.lon.toFixed(5);
+    byXY.set(k, Math.max(byXY.get(k) || 0, r.people));
+  }
+  let uniq = 0;
+  for(const v of byXY.values()) uniq += v;
+  // «чел.» вместо «жителей»: число здесь любое, а склонять его в живом тексте
+  // («1 181 житель», «428 жителей») — лишняя возня ради одной строки
+  return ' · в среднем <b>' + fmtN(Math.round(sum / kn.length)) + '</b> чел. на заявку' +
+    ' · без повторов по адресу <b>' + fmtN(uniq) + '</b> чел.' +
+    (kn.length < pts.length
+      ? ' <span class="mute">(охват указан у ' + fmtN(kn.length) + ' из ' +
+        fmtN(pts.length) + ')</span>'
+      : '');
+}
+
+/* Карточка заявки по щелчку. Раньше здесь были четыре строки подряд без
+   подписей, и «Аварийная заявка» читалась как продолжение названия РСО.
+   Теперь каждая величина названа, а пустые поля не прячем: незаполненная
+   причина — это тоже то, что видно с карты и о чём есть что спросить. */
+function mapPopup(r){
+  const row = (k, v) => '<tr><th>' + k + '</th><td>' + v + '</td></tr>';
+  const ustr = r.ustrH !== null ? esc(fmtHM(r.ustrH))
+             : r.status === 'В работе' ? '<span class="pop-na">ещё в работе</span>'
+             : '<span class="pop-na">не указано</span>';
+  return '<div class="pop-h">Заявка № ' + esc(r.id) + '</div>' +
+    '<div class="pop-sub">' + esc(r.omsu) + (r.type ? ' · ' + esc(r.type) : '') + '</div>' +
+    '<table class="pop">' +
+    row('РСО',       r.rso   ? esc(r.rso)   : '<span class="pop-na">не указана</span>') +
+    row('Объект',    r.obj   ? esc(r.obj)   : '<span class="pop-na">не указан</span>') +
+    row('Причина',   r.prich ? esc(r.prich) : '<span class="pop-na">не указана</span>') +
+    row('Жителей',   wKnown(r) ? fmtN(r.people)
+                               : '<span class="pop-na">в сводке не указано</span>') +
+    row('Устраняли', ustr) +
+    '</table>';
+}
+
+/* Значок один и тот же для группы и для одиночной заявки: одиночная — это
+   просто группа из одной. Раньше она рисовалась безымянной точкой, и рядом с
+   подписанными кружками читалась как что-то другое. */
+function mapIcon(v, single, label){
+  const lim = clusterLim();
+  const cls = v >= lim[1] ? 'cl-l' : v >= lim[0] ? 'cl-m' : 'cl-s';
+  const d = (v >= lim[1] ? 46 : v >= lim[0] ? 40 : 34) - (single ? 8 : 0);
+  return L.divIcon({
+    html: '<div class="cl-ico ' + cls + (single ? ' cl-one' : '') +
+          '" style="width:' + d + 'px;height:' + d + 'px">' +
+          (label === undefined ? shortN(v) : label) + '</div>',
+    className: '', iconSize: [d, d],
+  });
+}
+
+function mapClusterIcon(cl){
+  const ms = cl.getAllChildMarkers();
+  if(!wPeople()) return mapIcon(ms.length, false);
+  // null — охват не указан; в сумме такие просто ничего не добавляют,
+  // а в среднем их нельзя считать нулями, иначе группа занижается из-за
+  // незаполненного поля, а не из-за того, что людей мало
+  const w = ms.map(m => m.options.wgt).filter(v => v !== null);
+  const sum = w.reduce((a, b) => a + b, 0);
+  if(MAPW !== 'avg') return mapIcon(sum, false);
+  return mapIcon(w.length ? Math.round(sum / w.length) : 0, false,
+                 w.length ? undefined : 'н/д');
+}
+
+function mapClearLayers(){
+  for(const k of ['HEAT', 'CLUSTER']){
+    const l = k === 'HEAT' ? HEAT : CLUSTER;
+    if(l && MAP) MAP.removeLayer(l);
+  }
+  HEAT = null; CLUSTER = null;
+}
+
+/* Рамка выделения: тянем мышью при включённом режиме. Карту на это время
+   перестаём таскать, иначе жест уезжает вместе с подложкой. */
+function mapAddSelect(){
+  const ctl = L.control({ position: 'topright' });
+  ctl.onAdd = function(){
+    const d = L.DomUtil.create('div', 'leaflet-bar');
+    // ширину задаём в самом элементе: у Leaflet в .leaflet-bar a она жёстко 26px,
+    // и текстовая подпись иначе вылезает за пределы кнопки и обрезается картой
+    d.innerHTML = '<a href="#" id="map-sel" class="map-selbtn" ' +
+      'style="width:auto;min-width:0;padding:0 12px" ' +
+      'title="Выделить область — протяните по карте прямоугольник">◻ Область</a>';
+    L.DomEvent.disableClickPropagation(d);
+    d.querySelector('#map-sel').onclick = e => {
+      L.DomEvent.preventDefault(e);
+      mapSel = !mapSel;
+      d.querySelector('#map-sel').style.background = mapSel ? 'var(--accent-soft)' : '';
+      MAP.getContainer().style.cursor = mapSel ? 'crosshair' : '';
+      if(mapSel) MAP.dragging.disable(); else MAP.dragging.enable();
+      renderMapStatus();
+    };
+    return d;
+  };
+  ctl.addTo(MAP);
+
+  MAP.on('mousedown', e => {
+    if(!mapSel) return;
+    mapStart = e.latlng;
+    if(DRAGRECT) MAP.removeLayer(DRAGRECT);
+    DRAGRECT = L.rectangle([mapStart, mapStart],
+      { color: '#2a78d6', weight: 2, fillOpacity: 0.08 }).addTo(MAP);
+  });
+  MAP.on('mousemove', e => {
+    if(!mapSel || !mapStart) return;
+    DRAGRECT.setBounds(L.latLngBounds(mapStart, e.latlng));
+  });
+  MAP.on('mouseup', e => {
+    if(!mapSel || !mapStart) return;
+    const b = L.latLngBounds(mapStart, e.latlng);
+    mapStart = null; mapSel = false;
+    MAP.dragging.enable();
+    MAP.getContainer().style.cursor = '';
+    const btn = document.getElementById('map-sel');
+    if(btn) btn.style.background = '';
+    if(DRAGRECT){ MAP.removeLayer(DRAGRECT); DRAGRECT = null; }
+    // клик без протяжки — это не выделение, а промах: рамку в один пиксель
+    // применять нельзя, иначе выборка молча обнулится
+    if(b.getNorth() - b.getSouth() < 1e-4 && b.getEast() - b.getWest() < 1e-4){
+      renderMapStatus(); return;
+    }
+    geoBox = { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() };
+    applyFilters();
+  });
+}
+
+function clearGeoBox(){
+  geoBox = null;
+  applyFilters();
+}
+
+/* Подложки по порядку предпочтения.
+
+   Одного источника не хватает: из сети АРМ ЕДДС серверы OpenStreetMap отдают
+   451 «Access blocked» — это их собственная блокировка диапазона, а не запрет
+   файрвола, потому что библиотеки с cdnjs оттуда грузятся. Зато там доступен
+   РГИС Московской области — его же использует штатная «Карта технологических
+   отключений» в самом АРМ. Снаружи всё наоборот: РГИС не отвечает, OSM живой.
+   Поэтому источник не выбираем заранее, а переключаем по факту. */
+/* Источники подложки — только обычные XYZ, в схеме слippy-map.
+
+   РГИС Московской области (rgis.mosreg.ru/wmts/m10) сюда не годится, хотя его
+   и показывает штатная «Карта технологических отключений»: это WMTS со своей
+   нумерацией матриц, и по координатам {z}/{x}/{y} он отдаёт настоящие, но
+   чужие тайлы — карта складывается кашей, где Волоколамск оказывается восточнее
+   Клина. Чтобы взять его подложкой, нужен разбор его TileMatrixSet, а не
+   подстановка адреса. */
+/* Подложка одна: OSM с русскими подписями — её и выбрали. Ни перебора, ни
+   выбора из списка: лишний источник здесь не запасной аэродром, а способ
+   однажды молча подсунуть карту, которую смотреть не хотели. Если сервер не
+   ответит, честнее сказать об этом и предложить повторить. */
+/* Подложка должна работать из сети ЕДДС, а туда наружу хода нет: OpenStreetMap
+   отдаёт 451 «Access blocked» (их собственное решение, причём с кодом 200 и
+   картинкой-заглушкой, так что автоматически это не отличить), а зарубежные
+   серверы без VPN попросту недоступны. Из живых российских остаются два.
+
+   Взят 2ГИС: обычная сетка Web Mercator, подписи по-русски, светлый фон, на
+   котором видна тепловая заливка. Яндекс не подходит принципиально — у него
+   эллиптический Меркатор, и его тайлы смещены относительно обычной сетки:
+   на одних и тех же координатах он рисует Пушкино там, где на самом деле
+   Балашиха. Инциденты встали бы не на свои места, а заметить это на глаз
+   почти невозможно. */
+const TILE = { name: '2ГИС',
+  url: 'https://tile{s}.maps.2gis.com/tiles?x={x}&y={y}&z={z}',
+  opts: { subdomains: '0123', maxZoom: 18, attribution: '© 2ГИС' } };
+const TILE_WAIT = 12000;   // столько ждём первый тайл, прежде чем признать отказ
+
+let tileIdx = -1, tileLayer = null, tileFails = 0, tileNote = '', tileWatch = null;
+let tileOk = 0;   // сколько тайлов реально отрисовалось
+
+function useTiles(){
+  if(tileLayer) MAP.removeLayer(tileLayer);
+  clearTimeout(tileWatch);
+  tileFails = 0; tileIdx = 0;
+  const fail = why => {
+    clearTimeout(tileWatch); tileWatch = null;
+    tileNote = 'Подложка ' + why + '. Точки на карте есть, фона под ними нет.';
+    if(PAGE === 'map') renderMapStatus();
+  };
+  tileOk = 0;
+  tileLayer = L.tileLayer(TILE.url, TILE.opts).addTo(MAP);
+  // Сервер может не отвечать вовсе — тогда ошибки не будет, браузер просто
+  // ждёт до своего таймаута, а человек смотрит на пустой прямоугольник.
+  tileWatch = setTimeout(() => fail('не отвечает'), TILE_WAIT);
+  tileLayer.on('tileload', () => { tileOk++; });
+  tileLayer.on('tileerror', () => {
+    if(++tileFails >= 3 && !tileOk) fail('недоступна');   // ни один тайл не дошёл
+  });
+  /* Внимание: событие load у слоя означает «работа закончена», а не «получилось».
+     Оно приходит и когда все до одного тайлы упали — на блокировке 451 их было
+     24, и обработчик успеха снимал сторожа и обнулял счётчик ошибок, из-за чего
+     карта молча оставалась пустой. Успехом считаем только реально пришедшие тайлы. */
+  tileLayer.on('load', () => {
+    if(!tileOk) return fail('недоступна');
+    clearTimeout(tileWatch); tileWatch = null; tileFails = 0;
+    if(tileNote){ tileNote = ''; if(PAGE === 'map') renderMapStatus(); }
+  });
+}
+
+/* Вкладку только что показали — размеры контейнера браузер ещё не посчитал, он
+   нулевой. Leaflet, построенный на нулевом размере, берёт бессмысленный зум и
+   раскладывает тайлы мозаикой с дырами, а fitBounds по такому контейнеру даёт
+   совсем не тот охват. Поэтому ждём настоящий размер, а не гадаем с таймером. */
+function whenSized(el, fn, tries){
+  if(el.clientWidth > 50 && el.clientHeight > 50) return fn();
+  if((tries || 0) > 60) return fn();            // что-то не так с версткой — рисуем как есть
+  requestAnimationFrame(() => whenSized(el, fn, (tries || 0) + 1));
+}
+
+function ensureMap(){
+  if(MAP) return MAP;
+  MAP = L.map('map-canvas', { scrollWheelZoom: true, preferCanvas: true })
+         .setView([55.75, 37.6], 8);
+  useTiles();
+  MAP.attributionControl.setPrefix('');
+  mapAddSelect();
+  // Контейнер меняет размер и потом: свернули фильтры, повернули экран,
+  // появилась полоса прокрутки. Наблюдатель надёжнее разовых таймеров.
+  if(window.ResizeObserver){
+    new ResizeObserver(() => {
+      // Скрытая вкладка — это тоже изменение размера, на ноль. Пересчитать по
+      // нему карту нельзя: тепловой слой возьмёт холст нулевой ширины и упадёт
+      // на getImageData. Ноль просто пропускаем, вернёмся при показе.
+      const c = document.getElementById('map-canvas');
+      if(MAP && c && c.clientWidth > 50 && c.clientHeight > 50) MAP.invalidateSize();
+    }).observe(document.getElementById('map-canvas'));
+  }
+  return MAP;
+}
+
+function mapFit(){
+  const pts = mapRecs();
+  if(!MAP || !pts.length) return;
+  try{ MAP.fitBounds(L.latLngBounds(pts.map(r => [r.lat, r.lon])).pad(0.12)); }catch(_){}
+}
+
+function renderMapStatus(){
+  const el = document.getElementById('map-status');
+  if(!el) return;
+  if(!DATA){ el.textContent = ''; return; }
+  const all = DATA.recs.filter(passesNoBox);
+  const pts = all.filter(r => r.lat !== null);
+  const noGeo = all.length - pts.length;
+  let h = '';
+
+  if(!GEO || !GEO.n){
+    h = '<div class="map-bad">Координаты не загружены.' +
+        (GEO_NOTE ? ' ' + esc(GEO_NOTE) : '') + '</div>' +
+        '<div>Нажмите <b>«Координаты»</b> в шапке и выберите «Отчёт по заявкам» из АРМ ЕДДС ' +
+        '(Отчёты → Отчёт по заявкам) с отмеченными полями «Номер заявки», «Широта», «Долгота». ' +
+        'Загруженное запоминается — второй раз отчёт не понадобится.</div>';
+  }else if(!pts.length){
+    h = '<div class="map-warn">Ни у одной заявки из текущей выборки нет координат.</div>' +
+        '<div>В памяти ' + fmtN(GEO.n) + ' координат, но ни одна не совпала по номеру: ' +
+        'скорее всего, отчёт сформирован за другой период. Загрузите отчёт за тот же период, ' +
+        'что и сводка.</div>';
+  }else if(LEAF_FAIL){
+    // отдельной веткой: renderMap() пишет сообщение до return, а finally его
+    // тут же перерисовывает — значит, говорить о беде должен именно этот код
+    h = '<div class="map-bad">Не удалось загрузить библиотеку карты' +
+        (LEAF_WHY ? ' — ' + esc(LEAF_WHY) : '') + '.</div>' +
+        '<div>Карта берёт Leaflet с cdnjs.cloudflare.com. Без доступа туда она работать ' +
+        'не будет, но остальные листы и выгрузка от этого не страдают — точки просто негде ' +
+        'нарисовать. <a href="#" id="leaf-retry">Попробовать ещё раз</a></div>';
+  }else{
+    h = '<div>На карте: <b>' + fmtN(pts.length) + '</b> инцидентов' +
+        mapPeopleNote(pts) +
+        (noGeo ? ' · <span class="map-warn">без координат: <b>' + fmtN(noGeo) +
+                 '</b> — на карте их нет</span>' : '') + '</div>';
+    h += mapLegend();
+    if(tileNote) h += '<div class="map-warn">' + esc(tileNote) +
+      ' <a href="#" id="tile-retry">Повторить</a></div>';
+    h += geoBox
+      ? '<div>Выделена область: в ней <b>' + fmtN(VIEW.length) + '</b> инцидентов. ' +
+        'Она работает как обычный фильтр — её видят все листы и кнопка «Скачать Excel». ' +
+        '<button class="btn btn-sm" id="map-unbox">Снять выделение</button></div>'
+      : '<div>Кнопка <b>«Область»</b> справа на карте — протяните прямоугольник, и выборка ' +
+        'сузится до него на всех листах и в выгрузке.' +
+        (mapSel ? ' <b>Режим выделения включён — тяните рамку.</b>' : '') + '</div>';
+  }
+  el.innerHTML = h;
+  const ub = document.getElementById('map-unbox');
+  if(ub) ub.addEventListener('click', clearGeoBox);
+  const tr = document.getElementById('tile-retry');
+  if(tr) tr.addEventListener('click', e => {
+    e.preventDefault();
+    tileNote = '';
+    if(MAP) useTiles();
+    renderMapStatus();
+  });
+  const rt = document.getElementById('leaf-retry');
+  if(rt) rt.addEventListener('click', e => {
+    e.preventDefault();
+    LEAF_FAIL = false; LEAF_WHY = '';
+    renderMap();
+  });
+}
+
+let mapBusy = false;
+async function renderMap(){
+  const el = document.getElementById('map-status');
+  if(!DATA || !el) return;
+  document.querySelectorAll('[data-mk]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.mk === MAPKIND)));
+  document.querySelectorAll('[data-mw]').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.mw === MAPW)));
+
+  const pts = mapRecs();
+  renderGeoRating();
+  if(!pts.length){ renderMapStatus(); return; }
+  if(mapBusy) return;
+  mapBusy = true;
+  try{
+    // ждать можно секунды, и всё это время человек должен видеть, чего ждёт
+    if(!LEAF_READY && !LEAF_FAIL)
+      el.innerHTML = '<div>Загружаю библиотеку карты…</div>';
+    if(!await ensureLeaflet()) return;   // причину покажет renderMapStatus() из finally
+    const canvas = document.getElementById('map-canvas');
+    await new Promise(res => whenSized(canvas, res));
+    ensureMap();
+    MAP.invalidateSize();
+    mapClearLayers();
+
+    if(MAPKIND === 'heat'){
+      // Вес нормируем по 95-му перцентилю: одна авария на 90 тысяч жителей
+      // иначе перекрасит всю область в один цвет, а остальное станет невидимым.
+      let norm = 1;
+      if(wPeople()){
+        const ws = pts.map(mapW).filter(v => v > 0).sort((a, b) => a - b);
+        norm = ws.length ? (ws[Math.floor(ws.length * 0.95)] || 1) : 1;
+      }
+      /* Тепловая показывает сгущение, а не величину одной заявки, поэтому
+         «в среднем» для неё смысла не имеет: она взвешивается жителями так же,
+         как в режиме суммы. Среднее отличает кружки на «Точках с количеством». */
+      const data = pts.map(r => [r.lat, r.lon,
+        wPeople() ? Math.min(1, Math.max(0.05, mapW(r) / norm)) : 1]);
+      /* Штатный градиент leaflet.heat доводит до красного только при накоплении
+         в единицу, а до неё на области не добирается ничто: очаги выходили
+         зелёными, и карта не показывала, где горит. Поэтому задаём свой —
+         красный начинается с 0,58 шкалы, а max опущен до 0,4, чтобы реальные
+         сгущения до него доходили. Радиус и блюр поджаты: с широким размытием
+         пики расползаются и сливаются в одно пятно. Замер по пикселям: было
+         0% красного, стало около 23% при сохранении переходов. */
+      HEAT = L.heatLayer(data, {
+        radius: 22, blur: 11, maxZoom: 14, minOpacity: 0.25, max: 0.4,
+        gradient: { 0.08: '#3a4fa0', 0.2: '#1fa3c4', 0.32: '#2ecc71',
+                    0.45: '#f1c40f', 0.58: '#f76707', 0.7: '#e03131', 1: '#7f0000' },
+      }).addTo(MAP);
+    }else{
+      CLUSTER = L.markerClusterGroup({
+        chunkedLoading: true, showCoverageOnHover: false,
+        maxClusterRadius: 55, iconCreateFunction: mapClusterIcon,
+      });
+      for(const r of pts){
+        const w = mapW(r);
+        const unknown = wPeople() && !wKnown(r);
+        const m = L.marker([r.lat, r.lon],
+          { icon: mapIcon(w, true, unknown ? 'н/д' : undefined),
+            wgt: unknown ? null : w });
+        // по умолчанию Leaflet жмёт всплывашку под самое узкое место, и длинное
+        // название РСО рассыпается по одному слову на строку
+        m.bindPopup(mapPopup(r), { minWidth: 230, maxWidth: 330 });
+        CLUSTER.addLayer(m);
+      }
+      CLUSTER.addTo(MAP);
+    }
+
+    if(BOXRECT){ MAP.removeLayer(BOXRECT); BOXRECT = null; }
+    if(geoBox){
+      BOXRECT = L.rectangle([[geoBox.s, geoBox.w], [geoBox.n, geoBox.e]],
+        { color: '#2a78d6', weight: 2, dashArray: '5,4', fillOpacity: 0.05 }).addTo(MAP);
+    }
+    // охват считаем только когда контейнер уже настоящего размера
+    if(!MAP._fitted){ MAP.invalidateSize(); mapFit(); MAP._fitted = true; }
+  }finally{
+    mapBusy = false;
+    renderMapStatus();
+    renderGeoRating();
+  }
+}
+
+/* ---------- кто не заполняет координаты ----------
+   Считаем по той же выборке, что и всё остальное, но без рамки на карте:
+   рамка отбирает заявки с координатами, и внутри неё «не заполнено» всегда 0. */
+let GSORT  = { key: 'no', dir: -1 };    // дерево ОМСУ: name | n | yes | no | share
+let GSORT2 = { key: 'no', dir: -1 };    // сводная по РСО, сортируется отдельно
+const GEO_COLS = [
+  ['name',  '',                  'l'],
+  ['n',     'Заявок',            'r'],
+  ['yes',   'С координатами',    'r'],
+  ['no',    'Не заполнены',      'r'],
+  // отдельной колонкой: пустое поле и координата посреди Тверской области —
+  // разные разговоры с исполнителем, хотя на карту не попадают обе
+  ['bad',   'Заполнено неверно', 'r'],
+  ['share', 'Доля проблемных, %','r'],
+];
+
+/* Рейтинг считаем в обход самого фильтра «Координаты»: иначе, отобрав
+   «только без координат», мы получили бы у всех ровно 100%, и вопрос
+   «кто не заполняет» ответил бы сам себе. Рамку на карте тоже не учитываем —
+   внутри неё по определению одни заполненные. */
+function passesRate(r){
+  if(period.from || period.to){
+    if(!r.start) return false;
+    if(period.from && r.start < period.from) return false;
+    if(period.to && r.start > period.to) return false;
+  }
+  return passesBase(r, 'geoFill');
+}
+
+// доля считается от обеих бед сразу: на карте нет ни тех, ни других
+const geoShare = o => Object.assign(o, { share: o.n ? r2((o.no + o.bad) / o.n * 100) : null });
+// заявка без координат делится на два случая: их не было в отчёте вовсе —
+// и они там были, но указывали не на Московскую область
+const geoMiss = r => r.lat !== null ? null : (r.geoBad ? 'bad' : 'no');
+
+function geoRating(key){
+  const m = new Map();
+  for(const r of DATA.recs){
+    if(!passesRate(r)) continue;
+    let o = m.get(r[key]);
+    if(!o){ o = { name: r[key], n: 0, yes: 0, no: 0, bad: 0 }; m.set(r[key], o); }
+    o.n++;
+    const miss = geoMiss(r);
+    if(miss === null) o.yes++; else o[miss]++;
+  }
+  return [...m.values()].map(geoShare);
+}
+
+/* То же, но деревом: округ → его РСО. Ругать округ целиком мало толку —
+   заявки заводят конкретные организации, и внутри одного ОМСУ они ведут себя
+   очень по-разному. */
+function geoRatingTree(){
+  const m = new Map();
+  for(const r of DATA.recs){
+    if(!passesRate(r)) continue;
+    let o = m.get(r.omsu);
+    if(!o){ o = { name: r.omsu, n: 0, yes: 0, no: 0, bad: 0, kids: new Map() }; m.set(r.omsu, o); }
+    let k = o.kids.get(r.rso);
+    if(!k){ k = { name: r.rso, n: 0, yes: 0, no: 0, bad: 0 }; o.kids.set(r.rso, k); }
+    o.n++; k.n++;
+    const miss = geoMiss(r);
+    if(miss === null){ o.yes++; k.yes++; } else { o[miss]++; k[miss]++; }
+  }
+  for(const o of m.values()){
+    geoShare(o);
+    o.kids = [...o.kids.values()].map(geoShare)
+      .sort((a, b) => (b.no + b.bad) - (a.no + a.bad) ||
+                      String(a.name).localeCompare(String(b.name), 'ru'));
+  }
+  return [...m.values()];
+}
+
+const geoPill = v => v === null ? '—' :
+  '<span class="pill ' + (v >= 80 ? 'p-crit' : v >= 40 ? 'p-ser' : v > 0 ? 'p-warn' : 'p-good') +
+  '">' + fmtN(v, 0) + '%</span>';
+
+const geoCells = o =>
+  '<td class="r">' + fmtN(o.n) + '</td>' +
+  '<td class="r">' + fmtN(o.yes) + '</td>' +
+  '<td class="r"><b>' + fmtN(o.no) + '</b></td>' +
+  '<td class="r">' + (o.bad
+    ? '<span class="pill p-ser" title="Координаты в отчёте есть, но указывают за пределы ' +
+      'Московской области — на карту такие не выводим">' + fmtN(o.bad) + '</span>'
+    : '<span class="mute">0</span>') + '</td>' +
+  '<td class="r">' + geoPill(o.share) + '</td>';
+
+/* Раскрытые округа. По умолчанию закрыты: список длинный, и раскрытым целиком
+   он нечитаем — сначала видно, кто хуже всех, потом уже за чей счёт. */
+const geoOpen = new Set();
+
+function geoRatingHtml(rows, first, st, tree){
+  const dir = st.dir;
+  rows.sort((x, y) => {
+    if(st.key === 'name') return dir * String(x.name).localeCompare(String(y.name), 'ru');
+    return dir * (x[st.key] - y[st.key]) || String(x.name).localeCompare(String(y.name), 'ru');
+  });
+  const head = GEO_COLS.map(([k, t, al], i) =>
+    '<th class="sortable' + (al === 'r' ? ' r' : '') + '" data-gk="' + k + '">' +
+    esc(i === 0 ? first : t) + (st.key === k ? (dir > 0 ? ' ▲' : ' ▼') : '') + '</th>').join('');
+
+  let body = '';
+  for(const o of rows){
+    if(tree){
+      const open = geoOpen.has(o.name);
+      body += '<tr class="row-mr tw" data-geo-omsu="' + esc(o.name) + '">' +
+        '<td><span class="caret">' + (open ? '▾' : '▸') + '</span>' + esc(o.name) +
+        ' <span class="cnt">' + fmtN(o.kids.length) + ' РСО</span></td>' +
+        geoCells(o) + '</tr>';
+      if(open) for(const k of o.kids)
+        body += '<tr class="row-rso"><td>' + esc(k.name) + '</td>' + geoCells(k) + '</tr>';
+    }else{
+      body += '<tr><td>' + esc(o.name) + '</td>' + geoCells(o) + '</tr>';
+    }
+  }
+  if(!body) body = '<tr><td colspan="' + GEO_COLS.length + '" class="mute">Нет данных.</td></tr>';
+  return '<thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody>';
+}
+
+function renderGeoRating(){
+  const om = document.getElementById('geo-omsu'), rs = document.getElementById('geo-rso');
+  if(!om || !DATA) return;
+  om.innerHTML = geoRatingHtml(geoRatingTree(), 'ОМСУ', GSORT, true);
+  rs.innerHTML = geoRatingHtml(geoRating('rso'), 'РСО', GSORT2);
+  const note = document.getElementById('geo-rate-note');
+  if(note){
+    const all = DATA.recs.filter(passesRate);
+    const no  = all.filter(r => geoMiss(r) === 'no').length;
+    const bad = all.filter(r => geoMiss(r) === 'bad').length;
+    note.textContent = all.length
+      ? 'не заполнены ' + fmtN(no) + (bad ? ' · заполнено неверно ' + fmtN(bad) : '') +
+        ' из ' + fmtN(all.length) +
+        ' (' + fmtN((no + bad) / all.length * 100, 0) + '%)'
+      : '';
+  }
+  om.querySelectorAll('[data-geo-omsu]').forEach(tr =>
+    tr.addEventListener('click', () => {
+      const k = tr.dataset.geoOmsu;
+      if(geoOpen.has(k)) geoOpen.delete(k); else geoOpen.add(k);
+      renderGeoRating();
+    }));
+
+  for(const [el, st] of [[om, GSORT], [rs, GSORT2]])
+    el.querySelectorAll('[data-gk]').forEach(th => th.addEventListener('click', () => {
+      const k = th.dataset.gk;
+      // по названию — А→Я, по числам — сначала худшие: нужный конец списка сверху
+      if(st.key === k) st.dir = -st.dir;
+      else { st.key = k; st.dir = k === 'name' ? 1 : -1; }
+      renderGeoRating();
+    }));
+}
+
+/* Плашка выделения в строке фильтров: на других листах рамка невидима, и без
+   напоминания цифры выглядели бы необъяснимо заниженными. */
+function renderBoxChip(){
+  const bar = document.getElementById('filters');
+  if(!bar) return;
+  let chip = document.getElementById('box-chip');
+  if(!geoBox){ if(chip) chip.remove(); return; }
+  if(!chip){
+    chip = document.createElement('div');
+    chip.id = 'box-chip';
+    chip.className = 'box-chip';
+    bar.appendChild(chip);
+  }
+  chip.innerHTML = 'Область на карте: ' + fmtN(VIEW.length) + ' заявок ' +
+    '<button type="button" title="Снять выделение">✕</button>';
+  chip.querySelector('button').addEventListener('click', clearGeoBox);
+}
+
 /* ---------- сводная ---------- */
 let PSORT = { key: 'name', dir: 1 };     // name | avg | n
 
@@ -3356,20 +4584,27 @@ function viewPeriod(){
   return ds.length ? [ds[0], ds[ds.length - 1]] : [null, null];
 }
 
+/* Подвала со сносками больше нет — он занимал экран и повторял одно и то же на
+   всех листах. Осталась строка под заголовком; то, что раньше объяснялось там
+   словами, живёт в подсказке к ней и на листе «Пояснения» в выгрузке. */
 function renderFoot(){
   const full = DATA.from && DATA.to ? dRu(DATA.from) + ' — ' + dRu(DATA.to) : '—';
   const [vf, vt] = viewPeriod();
   const narrowed = period.from || period.to;
   const shown = vf ? dRu(vf) + ' — ' + dRu(vt) : '—';
 
-  document.getElementById('foot').innerHTML =
-    `Период выгрузки: <b>${esc(full)}</b>. В исходной сводке ${fmtN(DATA.total)} записей, ` +
-    `по объектам ВС/ВО отобрано ${fmtN(DATA.recs.length)}. ` +
-    (narrowed ? `Сейчас показан период <b>${esc(shown)}</b> — ${fmtN(VIEW.length)} заявок. ` : '') +
-    `Разница = «зафиксировано» − «начало события». Отрицательная разница у плановых заявок — ` +
-    `штатное уведомление заранее, аномалией не считается. Норматив уведомления о плановых работах — ${NORM_H} ч.`;
-  document.getElementById('scope').textContent =
+  const sc = document.getElementById('scope');
+  sc.textContent =
     'Объекты ВС/ВО · ' + (narrowed ? shown : full) + ' · ' + fmtN(VIEW.length) + ' инцидентов';
+  sc.title =
+    'Период выгрузки: ' + full + '. В исходной сводке ' + fmtN(DATA.total) + ' записей, ' +
+    'по объектам ВС/ВО отобрано ' + fmtN(DATA.recs.length) + '.' +
+    (DATA.broken ? '\nПропущено битых строк: ' + fmtN(DATA.broken) + ' — в выгрузке текст ' +
+      'с переносами строк идёт без кавычек, и заявка разваливается на куски без номера. ' +
+      'Это дефект самой выгрузки; на счётчики такие строки не влияют.' : '') +
+    '\nРазница = «зафиксировано» − «начало события». Отрицательная разница у плановых ' +
+    'заявок — штатное уведомление заранее, аномалией не считается. Норматив уведомления ' +
+    'о плановых работах — ' + NORM_H + ' ч.';
 }
 
 /* ---------- карточка заявки ---------- */
@@ -3400,6 +4635,14 @@ function openCard(id){
     ['Устранено за', r.ustrH === null ? (esc(r.ustrTxt) || '—')
       : `<b>${fmtHM(r.ustrH)}</b> <span style="color:var(--ink-3)">(${fmtN(r.ustrH, 2)} ч; в сводке: ${esc(r.ustrTxt)})</span>`],
     ['Охват', `жителей ${fmtN(r.people)} · МКД ${fmtN(r.mkd)} · нас. пунктов ${fmtN(r.np)} · соцобъектов ${fmtN(r.soc)}`],
+    ['Координаты', r.lat !== null
+      ? `${fmtN(r.lat, 6)}, ${fmtN(r.lon, 6)} <a href="#" data-geo="${r.lat},${r.lon}">показать на карте</a>`
+      : r.geoBad
+        ? `<span class="mute">—</span> в отчёте есть, но забракованы: ` +
+          `<b>${fmtN(r.geoBad[0], 6)}, ${fmtN(r.geoBad[1], 6)}</b> — это за пределами ` +
+          `Московской области, на карте такая точка встала бы не туда. ` +
+          `Вопрос к тому, кто заполнял заявку.`
+        : '<span class="mute">—</span> нет в загруженном отчёте по заявкам'],
   ];
   document.getElementById('m-body').innerHTML =
     '<dl class="kv">' + rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('') + '</dl>' +
@@ -3486,11 +4729,14 @@ const serial = d => (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getH
 const XF = { def:0, head:1, title:2, sub:3, text:4, num:5, dt:6, int:7, ctr:8,
              anomYes:9, planNo:10, planYes:11, work:12,
              dtRed:13, dtOrg:14, dtYel:15, dtGry:16,
-             numRed:17, numOrg:18, numYel:19, numGry:20, short:21, dtWork:22, bold:23 };
+             numRed:17, numOrg:18, numYel:19, numGry:20, short:21, dtWork:22, bold:23,
+             // текст сообщения без переноса: с переносом строка в 400 символов
+             // растянула бы её на пол-экрана, а отдельные сообщения доходят до 16 тысяч
+             addr:24, geo:25 };
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<numFmts count="1"><numFmt numFmtId="164" formatCode="DD.MM.YYYY HH:MM"/></numFmts>
+<numFmts count="2"><numFmt numFmtId="164" formatCode="DD.MM.YYYY HH:MM"/><numFmt numFmtId="165" formatCode="0.000000"/></numFmts>
 <fonts count="9">
 <font><sz val="10"/><name val="Calibri"/></font>
 <font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
@@ -3518,11 +4764,11 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <border><left style="thin"><color rgb="FFD0D0CC"/></left><right style="thin"><color rgb="FFD0D0CC"/></right><top style="thin"><color rgb="FFD0D0CC"/></top><bottom style="thin"><color rgb="FFD0D0CC"/></bottom><diagonal/></border>
 </borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="24">
+<cellXfs count="26">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
 <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
-<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>
 <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
 <xf numFmtId="2" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
 <xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
@@ -3543,6 +4789,8 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="2" fontId="0" fillId="4" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
 <xf numFmtId="164" fontId="0" fillId="7" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>
 <xf numFmtId="0" fontId="8" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 <dxfs count="0"/>
@@ -3560,7 +4808,18 @@ const EXPORT_COLS = [
   ['Устранено за', 15], ['Устранено, ч', 11], ['Устранено (ч и мин)', 16],
   ['Устранено нарастающим итогом, ч', 15],
   ['Тип отключения', 17], ['Причина отключения', 42],
+  ['Широта', 12], ['Долгота', 12], ['Координаты — примечание', 46],
+  ['Адрес и описание (как на сайте)', 90],
 ];
+
+/* Что не так с координатами заявки. Пусто — значит всё в порядке; остальное
+   написано так, чтобы строку можно было переслать исполнителю как есть. */
+function geoNote(r){
+  if(r.lat !== null) return '';
+  if(!r.geoBad) return 'не заполнены';
+  return 'заполнено неверно: ' + fmtN(r.geoBad[0], 6) + ', ' + fmtN(r.geoBad[1], 6) +
+         ' — за пределами Московской области, на карту не выводится';
+}
 
 function periodLabel(recs){
   const ds = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
@@ -3579,10 +4838,10 @@ function sheetMain(recs){
     `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('') + '</cols>';
 
   let rows = '';
-  rows += `<row r="1" ht="17"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
+  rows += `<row r="1"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
     XE('Задержка доклада о технологических нарушениях: объекты водоснабжения и водоотведения (ВЗУ, сети ВС, КНС, КОС, сети ВО)') +
     '</t></is></c></row>';
-  rows += `<row r="2" ht="30"><c r="A2" s="${XF.sub}" t="inlineStr"><is><t xml:space="preserve">` +
+  rows += `<row r="2"><c r="A2" s="${XF.sub}" t="inlineStr"><is><t xml:space="preserve">` +
     XE('Период (по началу события): ' + periodLabel(recs) + '. Записей: ' + recs.length + '. ' +
        'Разница = «зафиксировано в системе» − «начало события». Отрицательная величина у плановых заявок = уведомление заранее. ' +
        'Норматив уведомления о плановых работах — ' + NORM_H + ' ч.') +
@@ -3631,6 +4890,12 @@ function sheetMain(recs){
     put(L => cellN(L, cum, XF.num));
     put(L => cellS(L, r.type, XF.text));
     put(L => cellS(L, r.prich, XF.text));
+    put(L => cellN(L, r.lat, XF.geo));
+    put(L => cellN(L, r.lon, XF.geo));
+    // у заполненных заявок примечание пустое: пусть в глаза бросается только то,
+    // с чем надо идти к исполнителю
+    put(L => cellS(L, geoNote(r), XF.text));
+    put(L => cellS(L, r.text, XF.addr));
     if(n !== EXPORT_COLS.length) throw new Error('Рассинхрон колонок выгрузки: ' + n + ' вместо ' + EXPORT_COLS.length);
     rows += `<row r="${rn}">` + c.join('') + '</row>';
   });
@@ -3645,8 +4910,11 @@ function sheetMain(recs){
 ${cols}
 <sheetData>${rows}</sheetData>
 <autoFilter ref="A4:${last}${4 + recs.length}"/>
-<mergeCells count="2"><mergeCell ref="A1:${last}1"/><mergeCell ref="A2:${last}2"/></mergeCells>
 </worksheet>`;
+  /* Объединённых ячеек здесь нет намеренно. Заголовок и пояснение раньше были
+     растянуты на всю ширину через mergeCells, и Excel из-за них отказывал в
+     обычной вставке: «Данная команда неприменима для объединённых ячеек».
+     Текст никуда не делся — он просто лежит в A1 и A2 и выходит за край. */
 }
 
 function sheetPivot(recs){
@@ -3711,10 +4979,15 @@ const NOTES = [
   ['Охват населения', 'cnt_people (жителей), cnt_mkd (МКД), cnt_nas_punkt (населённых пунктов), Соцобъектов = больницы + поликлиники + школы + детсады. Фильтр «Жителей затронуто» отбирает по cnt_people включительно: «0 — 0» оставит заявки, где не затронут никто. Заявки с прочерком проходят только с галочкой «без данных».'],
   ['Заливка', 'Красная — задержка более 24 ч; оранжевая — более 3 ч; жёлтая — более 1 ч; серо-голубая — доклад раньше события.'],
   ['Лист «Сводная»', 'Здесь это обычная таблица с посчитанными средними, а не живая сводная Excel: браузер не умеет собирать объект PivotTable. Чтобы получить интерактивную сводную, выделите диапазон и вставьте сводную таблицу средствами Excel.'],
+  ['Адрес и описание (как на сайте)', 'Поле text_message — то, что дежурный вписывает в АРМ ЕДДС. Адрес инцидента находится внутри этого текста, вперемешку с описанием: отдельного поля под адрес в выгрузке нет. Поле name_gp_sp («поселение») в сводке пустое у всех записей, поэтому в выгрузку не выводится. Текст показан целиком и без переноса — щёлкните по ячейке, полностью он виден в строке формул; чтобы читать в самой ячейке, включите перенос текста.'],
+  ['Широта / Долгота', 'Координаты места, где заявка была создана. В сводке svod_doc их нет — они берутся из отдельного «Отчёта по заявкам» (АРМ ЕДДС → Отчёты → Отчёт по заявкам, поля «Номер заявки», «Широта», «Долгота») и связываются с инцидентом по номеру заявки. Пусто означает, что этой заявки не было в загруженном отчёте: период отчёта не совпал с периодом сводки. Координаты, выпавшие за границы Московской области, отбрасываются при загрузке — это признак перепутанных колонок, а не дальнего округа.'],
+  ['Листы «Координаты ОМСУ/РСО»', 'Сколько заявок осталось без координат и по чьей вине. Две беды разведены по колонкам: «Не заполнены» — координат в «Отчёте по заявкам» нет вовсе; «Заполнено неверно» — они там есть, но указывают за пределы Московской области (например, 57,2 с. ш. у заявки из Пушкинского округа — это уже Тверская область, в 140 км от адреса). На карту не попадают ни те, ни другие, поэтому доля в процентах считается от суммы. Считается по той же выборке, что и остальные листы, но без выделенной на карте области: внутри рамки отбираются заявки с координатами, и «не заполнено» там всегда ноль. Доля — от числа заявок этого ОМСУ или РСО; при двух-трёх заявках 100% ещё ни о чём не говорит.'],
+  ['Координаты — примечание', 'Пусто — с координатами всё в порядке. «Не заполнены» — заявки не было в загруженном «Отчёте по заявкам»: либо координаты не внесли, либо отчёт сформирован за другой период. «Заполнено неверно: широта, долгота» — координаты внесены, но лежат вне Московской области; сами забракованные цифры приведены здесь же, чтобы строку можно было переслать исполнителю как есть.'],
   ['Важно', 'Поле «вид нарушения» в исходной сводке у всех записей = «Технологический сбой». Аварийность определяйте по колонке «Тип отключения».'],
   ['Листы «Динамика»', 'Сравнение двух окон времени: отчётного периода и периода сравнения, заданных на листе «Динамика» в дашборде. Δ = отчётный − сравнения. Все фильтры, кроме периода, применяются к обоим окнам одинаково — иначе сравнивались бы разные выборки.'],
   ['Время на листах «Динамика»', 'В десятичных часах (3,74 = 3 ч 44 мин), чтобы работали сортировка, сводные и формулы. Пустая ячейка — величины нет: например, в окне не было ни одной заявки с проставленным временем АВР. Это не ноль.'],
   ['Жалобы на листе «Динамика ОМСУ»', 'Свод ДоброДел/ЕЦУР по ХВС и водоотведению, собранный кликером. Пусто означает, что свод не покрывает это окно: за те дни жалобы не собирали, и ноль поставить нельзя. В разрезе РСО жалоб нет — в своде только округа.'],
+  ['«Неприменимо для нескольких фрагментов»', 'Это Excel об одном выделении из нескольких кусков, а не о файле: в книге нет ни объединённых ячеек, ни скрытых строк, ни заранее наложенных фильтров. Такое выделение получается, когда куски набраны через Ctrl, когда выделены целые строки отфильтрованного списка (видимые строки идут вразрыв) и когда в такой разорванный диапазон пытаются вставить. Копируйте цельный прямоугольник, а перед вставкой снимите фильтр: «Данные» → «Очистить». Вырезание (Ctrl+X) разорванного выделения Excel не разрешает в любом случае — копируйте и удаляйте.'],
 ];
 
 /* ---------- листы «Динамика» ----------
@@ -3833,6 +5106,53 @@ function sheetDynBreak(key){
 </worksheet>`;
 }
 
+/* Рейтинг заполнения координат — тем же составом, что на экране. */
+function sheetGeoRate(key){
+  const isOm = key === 'omsu';
+  const rows = geoRating(key).sort((a, b) => b.no - a.no ||
+    String(a.name).localeCompare(String(b.name), 'ru'));
+  const all = DATA.recs.filter(passesRate);
+  const no  = all.filter(r => geoMiss(r) === 'no').length;
+  const bad = all.filter(r => geoMiss(r) === 'bad').length;
+
+  let out = `<row r="1"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
+    XE('Заполнение координат заявки: ' + (isOm ? 'в разрезе ОМСУ' : 'в разрезе РСО')) +
+    '</t></is></c></row>';
+  out += `<row r="2"><c r="A2" s="${XF.sub}" t="inlineStr"><is><t xml:space="preserve">` +
+    XE('Всего в выборке ' + all.length + ' заявок. Не заполнены координаты у ' + no +
+       ', заполнены неверно у ' + bad + ' — вместе ' +
+       (all.length ? Math.round((no + bad) / all.length * 100) : 0) + '%. ' +
+       'Координаты берутся из «Отчёта по заявкам» АРМ ЕДДС и связываются по номеру заявки. ' +
+       '«Заполнено неверно» — координаты в отчёте есть, но указывают за пределы Московской ' +
+       'области; на карте такая заявка встала бы в чужом регионе, поэтому не выводится. ' +
+       'Сами забракованные цифры — в реестре, колонка «Координаты — примечание». ' +
+       'Фильтр «Координаты» на этот лист не влияет: иначе, отобрав только незаполненные, ' +
+       'мы получили бы у всех 100%.') +
+    '</t></is></c></row>';
+  out += '<row r="4">' + [isOm ? 'ОМСУ' : 'РСО', 'Заявок', 'С координатами',
+      'Не заполнены', 'Заполнено неверно', 'Доля проблемных, %']
+    .map((t, i) => cellS(colLetter(i + 1) + '4', t, XF.head)).join('') + '</row>';
+
+  let rn = 5;
+  for(const o of rows){
+    out += `<row r="${rn}">` +
+      cellS('A' + rn, String(o.name), XF.text) +
+      cellN('B' + rn, o.n, XF.int) +
+      cellN('C' + rn, o.yes, XF.int) +
+      cellN('D' + rn, o.no, XF.int) +
+      cellN('E' + rn, o.bad, XF.int) +
+      cellN('F' + rn, o.share, XF.num) + '</row>';
+    rn++;
+  }
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<cols><col min="1" max="1" width="42" customWidth="1"/><col min="2" max="6" width="17" customWidth="1"/></cols>
+<sheetData>${out}</sheetData>
+<autoFilter ref="A4:F${Math.max(rn - 1, 4)}"/>
+</worksheet>`;
+}
+
 function sheetNotes(){
   let rows = `<row r="1"><c r="A1" s="${XF.title}" t="inlineStr"><is><t>` +
              XE('Пояснения к расчёту') + '</t></is></c></row>';
@@ -3860,6 +5180,8 @@ async function exportXlsx(){
       ['Динамика',               () => sheetDyn()],
       ['Динамика ОМСУ',          () => sheetDynBreak('omsu')],
       ['Динамика РСО',           () => sheetDynBreak('rso')],
+      ['Координаты ОМСУ',        () => sheetGeoRate('omsu')],
+      ['Координаты РСО',         () => sheetGeoRate('rso')],
       ['Пояснения',              () => sheetNotes()],
     ];
     const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -3921,6 +5243,8 @@ function showData(keepFilters){
   document.getElementById('app').hidden = false;
   document.getElementById('tabs').hidden = false;
   document.getElementById('xls').disabled = false;
+  geoBind();                      // координаты из памяти — до первого расчёта фильтров
+  geoPickLabel();                 // в живом режиме кнопка меняет смысл: не файл, а запрос
   liveArmed = false;              // перерисовка фильтров не должна сама дёргать сайт
   renderFilters();
   liveArmed = LIVE;
@@ -3954,7 +5278,19 @@ async function loadLive(){
   err.hidden = true;
   const had = !!DATA;
   try{
-    const { grid, pages, bad, badLen } = await fetchReport(ot, doo, t => liveSay(t, 'busy'));
+    // Сначала пробуем выгрузку одним запросом. Если сайт её не отдал —
+    // возвращаемся к чтению страниц: способ медленный, но проверенный, и
+    // терять из-за этого весь живой режим незачем.
+    let grid, bad = 0, via = 'CSV';
+    try{
+      liveSay('Запрашиваю выгрузку CSV…', 'busy');
+      grid = await fetchReportCsv(ot, doo);
+    }catch(eCsv){
+      via = 'страницы';
+      liveSay('CSV не получился (' + (eCsv.message || eCsv) + ') — читаю страницами…', 'busy');
+      const res = await fetchReport(ot, doo, t => liveSay(t, 'busy'));
+      grid = res.grid; bad = res.bad;
+    }
     DATA = build(grid);                       // те же правила, что и для файла
     req.from = req.from || isoDay(DATA.from);
     req.to   = req.to   || isoDay(DATA.to);
@@ -3964,7 +5300,10 @@ async function loadLive(){
     showData(had);                            // фильтры переживают обновление
     const t = new Date().toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
     liveSay('Данные из ЕДДС · ' + fmtN(DATA.recs.length) + ' заявок · обновлено ' + t +
-      (bad ? ' · пропущено строк: ' + bad : ''), '');
+      ' · ' + via + (bad ? ' · пропущено строк: ' + bad : ''), '');
+    // координаты за тот же период — следом и без вопросов; ждать их незачем,
+    // сводка уже на экране
+    geoAuto();
   }catch(e){
     const msg = e.empty
       ? 'За ' + ot + ' — ' + doo + ' заявок по объектам ВС/ВО нет.'
@@ -3986,15 +5325,18 @@ async function load(file){
   const err = document.getElementById('err');
   err.hidden = true;
   try{
-    // Два входа с одинаковой сеткой: книга Excel с кнопки «Excel» в АРМ ЕДДС и
-    // JSON от кнопки-закладки, которая снимает ту же таблицу прямо со страницы отчёта.
-    // В обоих случаях нулевая строка — машинные имена полей, дальше данные.
+    // Три входа с одинаковой сеткой: книга Excel и CSV с кнопок «Excel» и «CSV»
+    // в АРМ ЕДДС, плюс JSON от кнопки-закладки, которая снимает ту же таблицу
+    // прямо со страницы отчёта. Во всех случаях где-то в первых строках идут
+    // машинные имена полей, дальше данные — их и ищет build().
     let grid;
     if(/\.json$/i.test(file.name)){
       try{ grid = JSON.parse(await file.text()); }
       catch(_){ throw new Error('Файл JSON повреждён — не удалось его разобрать.'); }
       if(!Array.isArray(grid) || !Array.isArray(grid[0]))
         throw new Error('Это не выгрузка с сайта: в JSON ожидался массив строк таблицы.');
+    }else if(/\.csv$/i.test(file.name)){
+      grid = csvGrid((await file.text()).replace(/^\uFEFF/, ''));   // из АРМ приходит UTF-8 с BOM
     }else{
       grid = (await readWorkbook(await file.arrayBuffer())).grid;
     }
@@ -4066,6 +5408,86 @@ zhFileEl.addEventListener('change', async e => {
   }finally{ zhFileEl.value = ''; }
 });
 
+/* ---------- приём отчёта с координатами ---------- */
+/* Плашка одна на всех, поэтому и таймер автоскрытия должен быть один: иначе
+   отложенное скрытие от прошлого сообщения прячет следующее прямо под руками. */
+let noteTimer = null;
+function showNote(html, ok, ms){
+  const err = document.getElementById('err');
+  clearTimeout(noteTimer); noteTimer = null;
+  err.className = 'err' + (ok ? ' ok' : '');
+  err.innerHTML = html;
+  err.hidden = false;
+  if(ms) noteTimer = setTimeout(() => { err.hidden = true; err.className = 'err'; }, ms);
+}
+
+const geoFileEl = document.getElementById('geo-file');
+/* В живом режиме кнопка спрашивает АРМ — открывать проводник там незачем,
+   отчёт лежит в той же системе. Из файла на диске до АРМ не достучаться,
+   поэтому там она по-прежнему открывает выбор файла. */
+document.getElementById('geo-pick').addEventListener('click', e => {
+  if(LIVE && DATA) geoAskArm(e.currentTarget);
+  else geoFileEl.click();
+});
+
+/* Подпись и подсказка должны говорить, что именно произойдёт по нажатию. */
+function geoPickLabel(){
+  const b = document.getElementById('geo-pick');
+  if(!b) return;
+  b.title = (LIVE && DATA)
+    ? 'Запросить широту и долготу у АРМ ЕДДС за текущий период (Отчёты → Отчёт по заявкам)'
+    : '«Отчёт по заявкам» из АРМ ЕДДС с полями «Номер заявки», «Широта», «Долгота» — для карты';
+  b.textContent = (LIVE && DATA) ? '↻ Координаты' : 'Координаты';
+}
+geoFileEl.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const err = document.getElementById('err');
+  const btn = document.getElementById('geo-pick');
+  const was = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Читаю…';
+  try{
+    let grid;
+    if(/\.csv$/i.test(file.name)){
+      grid = csvGrid((await file.text()).replace(/^\uFEFF/, ''));   // из АРМ приходит UTF-8 с BOM
+    }else{
+      grid = (await readWorkbook(await file.arrayBuffer())).grid;
+    }
+    const st = geoIngest(grid);
+    const bound = geoBind();
+    if(DATA){
+      // в фильтре появилось значение «Есть» — список надо пересобрать.
+      // liveArmed снимаем, чтобы перерисовка полей периода не дёрнула сайт
+      liveArmed = false; renderFilters(); liveArmed = LIVE;
+      applyFilters();
+    }
+    const bits = ['Координаты: принято ' + fmtN(st.ok) +
+      (st.fresh !== st.ok ? ' (новых ' + fmtN(st.fresh) + ')' : '') +
+      ', всего в памяти ' + fmtN(st.total)];
+    if(DATA) bits.push('привязано к ' + fmtN(bound) + ' из ' + fmtN(DATA.recs.length) + ' инцидентов');
+    if(st.swapped) bits.push('перепутанных широта/долгота исправлено: ' + fmtN(st.swapped));
+    if(st.outside) bits.push('вне границ области отброшено: ' + fmtN(st.outside));
+    if(st.noCoord) bits.push('без координат: ' + fmtN(st.noCoord));
+    err.className = 'err ok';
+    err.textContent = bits.join(' · ');
+    err.hidden = false;
+    setTimeout(() => { err.hidden = true; err.className = 'err'; }, 12000);
+  }catch(ex){
+    err.className = 'err';
+    err.textContent = 'Координаты: ' + (ex.message || String(ex));
+    err.hidden = false;
+  }finally{ btn.disabled = false; btn.textContent = was; geoFileEl.value = ''; }
+});
+
+/* Прошлый словарь координат поднимаем сразу: он копится между сеансами,
+   и повторно грузить отчёт не нужно. */
+(function geoBoot(){
+  try{
+    const raw = localStorage.getItem(GEO_KEY);
+    if(raw) GEO = JSON.parse(raw);
+  }catch(_){ GEO = null; }
+})();
+
 /* На старте поднимаем прошлый свод из памяти браузера, чтобы график был сразу,
    и молча спрашиваем помощника — вдруг он запущен и свод уже свежее. */
 (function zhBoot(){
@@ -4120,7 +5542,33 @@ document.getElementById('lv-collapse').addEventListener('click', () => {
   for(const [omsu] of leadTree()) lcollapsed.add('m:' + omsu);
   renderLeadTable();
 });
-// разворачиваем только уровень ОМСУ: РСО остаются свёрнутыми
+/* Подписи, зависящие от порядка: шапка первой колонки и строка под заголовком. */
+function leadHead(){
+  return LROOT === 'rso' ? 'РСО / ОМСУ / заявка' : 'ОМСУ / РСО / заявка';
+}
+function leadNote(){
+  if(LFLAT) return 'заявки списком · ОМСУ и РСО — столбцы';
+  return LROOT === 'rso'
+    ? 'РСО → ОМСУ → заявка · жалоб ЕЦУР здесь нет: свод собирается по округам'
+    : 'ОМСУ → РСО → заявка';
+}
+
+document.getElementById('lv-root').addEventListener('click', e => {
+  LROOT = LROOT === 'omsu' ? 'rso' : 'omsu';
+  // ключи свёрнутого состояния хранят имена: после смены порядка они уже про
+  // другой уровень, и оставлять их — значит открыть не то, что человек открывал
+  lcollapsed.clear(); lopenRso.clear();
+  const b = e.currentTarget;
+  b.textContent = LROOT === 'rso' ? 'Сначала ОМСУ' : 'Сначала РСО';
+  b.setAttribute('aria-pressed', String(LROOT === 'rso'));
+  b.classList.toggle('btn-primary', LROOT === 'rso');
+  // сортировка по жалобам в разрезе РСО осталась бы указателем на исчезнувшую колонку
+  if(LROOT === 'rso' && LSORT.key === 'zh') LSORT = { key: 'n', dir: -1 };
+  document.getElementById('lead-note').textContent = leadNote();
+  renderLeadTable();
+});
+
+// разворачиваем только верхний уровень: вложенный остаётся свёрнутым
 document.getElementById('lv-expand').addEventListener('click', () => {
   lcollapsed.clear(); lopenRso.clear();
   renderLeadTable();
@@ -4141,9 +5589,92 @@ document.getElementById('lv-flat').addEventListener('click', e => {
   // сворачивать в списке нечего
   document.getElementById('lv-collapse').disabled = LFLAT;
   document.getElementById('lv-expand').disabled = LFLAT;
-  document.getElementById('lead-note').textContent =
-    LFLAT ? 'заявки списком · ОМСУ и РСО — столбцы' : 'ОМСУ → РСО → заявка';
+  document.getElementById('lv-root').disabled = LFLAT;   // в списке уровней нет
+  document.getElementById('lead-note').textContent = leadNote();
   renderLeadTable();
+});
+
+document.querySelectorAll('[data-mk]').forEach(b =>
+  b.addEventListener('click', () => { MAPKIND = b.dataset.mk; renderMap(); }));
+document.querySelectorAll('[data-mw]').forEach(b =>
+  b.addEventListener('click', () => { MAPW = b.dataset.mw; renderMap(); }));
+document.getElementById('map-fit').addEventListener('click', mapFit);
+
+/* Итог разбора — одной строкой, чтобы и кнопка, и автозагрузка говорили одинаково. */
+function geoSummary(st, bound){
+  return 'Координаты из АРМ: принято ' + fmtN(st.ok) +
+    ', привязано к ' + fmtN(bound) + ' из ' + fmtN(DATA.recs.length) + ' инцидентов' +
+    (st.outside ? ' · вне границ области отброшено: ' + fmtN(st.outside) : '') +
+    (st.noCoord ? ' · без координат в АРМ: ' + fmtN(st.noCoord) : '');
+}
+
+/* Окна, за которые координаты в этом сеансе уже спрашивали. Без этого каждая
+   перерисовка живого режима дёргала бы АРМ заново за тем же самым. */
+let geoAsked = [];
+
+/* Автоматически, следом за сводкой: период уже выбран, спрашивать пользователя
+   не о чем. Молча — но не бесследно: неудача оседает в GEO_NOTE и объясняется
+   на листе «Карта», где она и важна. Главный поток не ждёт: сводка уже на
+   экране, координаты доезжают следом. */
+async function geoAuto(){
+  if(!LIVE || !DATA) return;
+  const from = req.from || isoDay(DATA.from), to = req.to || isoDay(DATA.to);
+  if(!from || !to) return;
+  const key = from + '..' + to;
+  if(geoAsked.includes(key)) return;
+  geoAsked.push(key);
+  try{
+    const st = geoIngest(await geoFetchLive(from, to));
+    const bound = geoBind();
+    GEO_NOTE = '';
+    liveArmed = false; renderFilters(); liveArmed = LIVE;
+    applyFilters();
+    showNote(esc(geoSummary(st, bound)), true, 10000);
+  }catch(ex){
+    // сводку показывать это не мешает, поэтому не кричим на весь экран
+    GEO_NOTE = 'Автоматически координаты получить не вышло: ' + (ex.message || String(ex));
+    if(PAGE === 'map') renderMapStatus();
+  }
+}
+
+/* Запрос координат у АРМ. Отдельной функцией, потому что вызывают её две
+   кнопки — в шапке и на листе «Карта», — и обе должны вести себя одинаково. */
+async function geoAskArm(btn){
+  const err = document.getElementById('err');
+  const was = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Запрашиваю…'; }
+  try{
+    const w = { from: period.from || DATA.from, to: period.to || DATA.to };
+    const st = geoIngest(await geoFetchLive(isoDay(w.from), isoDay(w.to)));
+    const bound = geoBind();
+    liveArmed = false; renderFilters(); liveArmed = LIVE;
+    applyFilters();
+    GEO_NOTE = '';
+    showNote(esc(geoSummary(st, bound)), true, 12000);
+  }catch(ex){
+    // запасной путь оставляем под рукой прямо в сообщении, а не отсылаем искать кнопку
+    GEO_NOTE = ex.message || String(ex);
+    showNote('Координаты из АРМ: ' + esc(ex.message || String(ex)) +
+      ' <a href="#" id="geo-byfile">Загрузить отчёт файлом</a>', false, 0);
+    const a = document.getElementById('geo-byfile');
+    if(a) a.addEventListener('click', e => { e.preventDefault(); geoFileEl.click(); });
+  }finally{ if(btn){ btn.disabled = false; btn.textContent = was; } }
+}
+
+document.getElementById('geo-live').addEventListener('click', e =>
+  geoAskArm(e.currentTarget));
+
+// «показать на карте» из карточки заявки
+document.getElementById('m-body').addEventListener('click', e => {
+  const a = e.target.closest('[data-geo]');
+  if(!a) return;
+  e.preventDefault();
+  const [la, lo] = a.dataset.geo.split(',').map(Number);
+  closeCard();
+  setPage('map');
+  document.querySelectorAll('#tabs [data-page]').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.page === 'map')));
+  setTimeout(() => { if(MAP) MAP.setView([la, lo], 15); }, 400);
 });
 
 document.getElementById('tabs').addEventListener('click', e => {
@@ -4151,5 +5682,7 @@ document.getElementById('tabs').addEventListener('click', e => {
   if(b) setPage(b.dataset.page);
 });
 </script>
-<script src="/static/edds-module.js?v=20260915" defer></script>
-</body></html>
+
+<script src="/static/edds-module.js?v=20260916" defer></script>
+</body>
+</html>

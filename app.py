@@ -3184,6 +3184,7 @@ async def zip_curator_page(request: Request):
 # КУРАТОР ЗиП (локально, без облака)
 # ===============================
 from services.zip_curator import core as zc
+from services.zip_curator import contacts as zc_contacts
 
 
 @app.get("/zip_curator/api/state")
@@ -3266,6 +3267,35 @@ async def zc_source_file(file_path: str):
     if path is None:
         return Response(status_code=404)
     return FileResponse(path, filename=path.name)
+
+
+@app.get("/zip_curator/api/contacts")
+async def zc_contact_list():
+    return zc_contacts.load_contacts()
+
+
+@app.post("/zip_curator/api/contacts/import")
+async def zc_contact_import(request: Request):
+    from fastapi.responses import JSONResponse
+
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None:
+        return JSONResponse({"ok": False, "error": "Выберите файл контактов"}, status_code=400)
+    try:
+        result = zc_contacts.import_contacts(upload.filename, await upload.read())
+        return {"ok": True, **{key: result[key] for key in ("added", "updated", "total")}, "data": result["payload"]}
+    except (ValueError, json.JSONDecodeError) as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+
+
+@app.delete("/zip_curator/api/contacts/{contact_id}")
+async def zc_contact_delete(contact_id: str):
+    from fastapi.responses import JSONResponse
+
+    if not zc_contacts.delete_contact(contact_id):
+        return JSONResponse({"ok": False, "error": "Контакт не найден"}, status_code=404)
+    return {"ok": True, "data": zc_contacts.load_contacts()}
 
 @app.get("/zip_curator/api/export")
 async def zc_export():

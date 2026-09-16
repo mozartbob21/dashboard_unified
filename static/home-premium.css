@@ -673,3 +673,145 @@ html[data-module-view="list"] .home-page .card-info-overlay-text {
     body.home-page .appearance-menu { top: 122px !important; padding: 12px !important; }
     body.home-page .appearance-theme-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* Compact home modules and a quiet profile control. */
+.home-page .professional-profile {
+    width: 50px;
+    min-width: 50px;
+    padding: 7px;
+    justify-content: center;
+}
+.home-page .profile-trigger-copy,
+.home-page .profile-chevron { display: none; }
+.home-page .module-card .status-badge { display: none !important; }
+.home-page .modules-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+}
+.home-page .modules-grid .module-card {
+    grid-column: auto !important;
+    min-height: 0;
+    padding: 22px !important;
+}
+.home-page .module-title-row { margin-top: 20px; }
+.home-page .module-title { font-size: 22px !important; }
+.home-page .head-pills .pill { padding: 7px 12px; font-size: 13px; }
+.home-page .tag-row { margin-top: 16px; }
+.home-page .tag { padding: 7px 11px; font-size: 12.5px; }
+.home-page .action-panel { padding-top: 0; }
+.home-page .module-card[data-module="overdue"] .head-pills { flex-wrap: nowrap; }
+.home-page .module-card[data-module="overdue"] .head-pills .pill { white-space: nowrap; }
+html[data-module-view="cards"] .home-page .module-card .action-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    width: 100%;
+    margin-top: 18px;
+    gap: 9px;
+}
+html[data-module-view="cards"] .home-page .module-card .action-panel > :only-child { grid-column: 1 / -1; }
+html[data-module-view="cards"] .home-page .module-card .module-link,
+html[data-module-view="cards"] .home-page .module-card .secondary-button {
+    width: 100%;
+    min-width: 0;
+    padding: 11px 9px !important;
+    font-size: 13px !important;
+    white-space: nowrap;
+}
+.home-page .module-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: min(430px, 42vw);
+    min-height: 44px;
+    margin-left: auto;
+    padding: 0 10px 0 14px;
+    border: 1px solid color-mix(in srgb, var(--border-strong) 72%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card-strong) 84%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 8px 24px rgba(30,41,59,.07);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+.home-page .module-search:focus-within {
+    border-color: color-mix(in srgb, var(--primary) 58%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent), 0 12px 28px rgba(30,41,59,.09);
+}
+.home-page .module-search svg { width: 18px; height: 18px; flex: 0 0 18px; fill:none; stroke:var(--muted); stroke-width:1.9; stroke-linecap:round; }
+.home-page .module-search input { min-width:0; flex:1; border:0; outline:0; background:transparent; color:var(--text); font:600 15px/1.2 "Avenir Next","SF Pro Text",sans-serif; }
+.home-page .module-search input::placeholder { color:var(--muted-2); font-weight:500; }
+.home-page .module-search input::-webkit-search-cancel-button { display:none; }
+.home-page .module-search button { display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:50%; background:var(--border); color:var(--muted); font-size:18px; line-height:1; cursor:pointer; }
+.home-page .module-search button[hidden] { display:none; }
+.home-page .module-search-status { min-height:18px; margin:-14px 6px 10px; color:var(--muted); font-size:12px; text-align:right; }
+.home-page .module-search-status:empty { display:none; }
+.home-page .module-card[hidden], .home-page .wide-pair[hidden], .home-page .module-search-empty[hidden] { display:none !important; }
+.home-page .module-search-empty { margin:18px 0 28px; padding:30px; border:1px dashed var(--border-strong); border-radius:20px; color:var(--muted); background:var(--card); text-align:center; }
+.home-page .module-search-empty strong, .home-page .module-search-empty span { display:block; }
+.home-page .module-search-empty strong { margin-bottom:5px; color:var(--text); font-size:18px; }
+@media (max-width: 1180px) {
+    .home-page .modules-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 980px) {
+    .home-page .module-view-controls { flex-wrap:wrap; }
+    .home-page .module-view-controls > span { width:calc(100% - 104px); }
+    .home-page .module-search { order:3; width:100%; }
+}
+@media (max-width: 640px) {
+    .home-page .modules-grid { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 460px) {
+    html[data-module-view="cards"] .home-page .module-card .action-panel { grid-template-columns:1fr; }
+    html[data-module-view="cards"] .home-page .module-card .action-panel > * { grid-column:1; }
+    .home-page .module-card[data-module="overdue"] .head-pills { flex-wrap:wrap; }
+}
+
+/* Compact labelled profile control aligned with the command bar. */
+.home-page .profile-menu {
+    display: flex;
+    align-items: center;
+    align-self: center;
+    height: 50px;
+    line-height: 1;
+}
+.home-page .topbar .top-actions {
+    flex-wrap: nowrap !important;
+}
+.home-page .topbar .top-actions > * {
+    align-self: center;
+}
+.home-page .professional-profile {
+    width: auto;
+    min-width: 116px;
+    height: 50px;
+    min-height: 50px;
+    margin: 0;
+    padding: 7px 11px 7px 7px;
+    justify-content: flex-start;
+    box-sizing: border-box;
+}
+.home-page .profile-trigger-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+}
+.home-page .profile-trigger-copy small {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.home-page .profile-trigger-copy strong { display: none; }
+.home-page .profile-chevron { display: block; margin-left: auto; }
+
+@media (max-width: 900px) {
+    .home-page .topbar .top-actions { flex-wrap: nowrap !important; }
+    .home-page .profile-menu { width: 50px; flex: 0 0 50px; }
+    .home-page .professional-profile { width: 50px; min-width: 50px; padding: 7px; justify-content: center; }
+    .home-page .profile-trigger-copy,
+    .home-page .profile-chevron { display: none; }
+}

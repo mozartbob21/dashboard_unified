@@ -37,4 +37,35 @@
   let initial='cards';try{initial=localStorage.getItem('neurona-module-view');}catch(_){}
   setView(initial);
   buttons.forEach(b=>b.addEventListener('click',()=>setView(b.dataset.moduleView)));
+
+  const search=document.getElementById('moduleSearch');
+  const clear=document.getElementById('moduleSearchClear');
+  const status=document.getElementById('moduleSearchStatus');
+  const empty=document.getElementById('moduleSearchEmpty');
+  const cards=[...document.querySelectorAll('.module-card[data-module]')];
+  const normalize=value=>String(value||'').toLocaleLowerCase('ru-RU').replaceAll('ё','е').replace(/\s+/g,' ').trim();
+
+  function filterModules(){
+    const query=normalize(search?.value);
+    let visible=0;
+    cards.forEach(card=>{
+      const matches=!query||normalize(card.textContent).includes(query);
+      card.hidden=!matches;
+      if(matches) visible+=1;
+    });
+    document.querySelectorAll('.wide-pair').forEach(group=>{
+      group.hidden=[...group.querySelectorAll('.module-card[data-module]')].every(card=>card.hidden);
+    });
+    if(clear) clear.hidden=!query;
+    if(empty) empty.hidden=visible!==0;
+    if(status) status.textContent=query ? `Найдено: ${visible}` : '';
+  }
+
+  if(search){
+    search.addEventListener('input',filterModules);
+    search.addEventListener('keydown',event=>{
+      if(event.key==='Escape'&&search.value){search.value='';filterModules();search.focus();}
+    });
+  }
+  if(clear) clear.addEventListener('click',()=>{search.value='';filterModules();search.focus();});
 })();

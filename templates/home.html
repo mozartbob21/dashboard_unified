@@ -940,8 +940,8 @@
         @media(max-width:1080px){.wide-pair{grid-template-columns:1fr;}}
     </style>
 <link rel="stylesheet" href="/static/module-layout.css?v=20260915">
-<link rel="stylesheet" href="/static/home-premium.css?v=20260915-5">
-<script src="/static/module-layout.js?v=20260915-4" defer></script>
+<link rel="stylesheet" href="/static/home-premium.css?v=20260916-4">
+<script src="/static/module-layout.js?v=20260916-1" defer></script>
 </head>
 
 
@@ -1026,6 +1026,7 @@
         
     </div>
 </div>
+</div>
 
                 {% if true %}
                 <div class="profile-menu">
@@ -1105,7 +1106,17 @@
         </section>
         {% endif %}
 
-        <div class="module-view-controls" id="systemModules" role="group" aria-label="Вид блоков"><span><small>Рабочее пространство</small>Модули</span><button type="button" data-module-view="cards" title="Карточки" aria-label="Карточки" aria-pressed="true">▦</button><button type="button" data-module-view="list" title="Список" aria-label="Список" aria-pressed="false">☰</button></div>
+        <div class="module-view-controls" id="systemModules" role="group" aria-label="Поиск и вид блоков">
+            <span><small>Рабочее пространство</small>Модули</span>
+            <label class="module-search" for="moduleSearch">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+                <input id="moduleSearch" type="search" autocomplete="off" placeholder="Найти модуль или задачу" aria-label="Поиск по модулям">
+                <button id="moduleSearchClear" type="button" aria-label="Очистить поиск" hidden>×</button>
+            </label>
+            <button type="button" data-module-view="cards" title="Карточки" aria-label="Карточки" aria-pressed="true">▦</button>
+            <button type="button" data-module-view="list" title="Список" aria-label="Список" aria-pressed="false">☰</button>
+        </div>
+        <div class="module-search-status" id="moduleSearchStatus" aria-live="polite"></div>
         <section class="modules-grid" aria-label="Модули системы">
 
 
@@ -1116,7 +1127,6 @@
                         <span class="pill primary">ЭДО</span>
                         <span class="pill primary">Контроль данных</span>
                     </div>
-                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Заполненность данных</h2>
@@ -1156,7 +1166,6 @@
                         <span class="pill primary">Просрочки</span>
                         <span class="pill primary">Контроль исполнения</span>
                     </div>
-                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Просроченные задачи</h2>
@@ -1196,7 +1205,6 @@
                         <span class="pill primary">Контроль воды</span>
                         <span class="pill primary">Мониторинг карточек</span>
                     </div>
-                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Контроль воды</h2>
@@ -1236,7 +1244,6 @@
                         <span class="pill primary">УТНКР</span>
                         <span class="pill primary">Технадзор</span>
                     </div>
-                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Технадзор УТНКР</h2>
@@ -1276,7 +1283,6 @@
                         <span class="pill primary">Камеры</span>
                         <span class="pill primary">Видеонаблюдение</span>
                     </div>
-                    <span class="status-badge status-stable">Стабильно</span>
                 </div>
 
                 <h2 class="module-title">Проверка камер</h2>
@@ -1315,7 +1321,6 @@
                     <div class="head-pills">
                         <span class="pill primary">ИИ Ответы</span>
                     </div>
-                    <span class="status-badge status-beta">Бета 2</span>
                 </div>
 
                 <h2 class="module-title">Эмпатичные ответы</h2>
@@ -1346,7 +1351,6 @@
                         <span class="pill primary">ИИ</span>
                         <span class="pill primary">Сводки</span>
                     </div>
-                    <span class="status-badge status-stable">НОВОЕ</span>
                 </div>
 
                 <h2 class="module-title">Сумматор</h2>
@@ -1377,7 +1381,6 @@
                     <div class="head-pills">
                         <span class="pill primary">Диспетчерская</span>
                         <span class="pill primary">ЖКХ</span>
-                        <span class="status-badge status-stable">Стабильно</span>
                     </div>
                 </div>
 
@@ -1418,7 +1421,6 @@
                         <span class="pill primary">ЖКХ Redmine</span>
                         <span class="pill primary">Проверка дат</span>
                     </div>
-                    <span class="status-badge status-stable">Новое</span>
                 </div>
 
                 <h2 class="module-title">ЖКХ Redmine</h2>
@@ -1459,7 +1461,6 @@
             <span class="pill primary">Склад</span>
             <span class="pill primary">Аналитика</span>
         </div>
-        <span class="status-badge status-stable">Новое</span>
     </div>
     <h2 class="module-title">Остатки ЗиП РСО</h2>
     <div class="module-description is-collapsed">
@@ -1487,7 +1488,6 @@
                         <span class="pill primary">ЕЦУР</span>
                         <span class="pill primary">Жалобы и сроки</span>
                     </div>
-                    <span class="status-badge status-stable">Новое</span>
                 </div>
 
                 <h2 class="module-title">ЕЦУР — жалобы</h2>
@@ -1542,7 +1542,6 @@
             <span class="pill primary">Сводный дашборд</span>
             <span class="pill primary pill-white">Водоснабжение МО</span>
         </div>
-        <span class="status-badge status-stable">Новое</span>
     </div>
 
     <h2 class="module-title">Сводный дашборд по качеству водоснабжения</h2>
@@ -1575,7 +1574,6 @@
                         <span class="pill primary">Сводный отчёт</span>
                         <span class="pill primary pill-white">Муниципалитет</span>
                     </div>
-                    <span class="status-badge status-beta status-badge-white">Бета</span>
                 </div>
 
                 <h2 class="module-title">Отчёт по муниципалитету</h2>
@@ -1601,6 +1599,11 @@
             </article>
             {% endif %}
             </div>
+
+        <div class="module-search-empty" id="moduleSearchEmpty" hidden>
+            <strong>Ничего не найдено</strong>
+            <span>Попробуйте другое название модуля или задачи.</span>
+        </div>
 
         <section class="system-about" aria-labelledby="systemAboutTitle">
             <div class="system-about-heading">
