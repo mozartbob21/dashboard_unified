@@ -3252,6 +3252,17 @@ async def zc_reject(payload: dict = None):
     ok = zc.reject(int((payload or {}).get("idx", -1)))
     return {"ok": ok, "state": zc.load_state()}
 
+
+@app.post("/zip_curator/api/delete-rso")
+async def zc_delete_rso(payload: dict = None):
+    from fastapi.responses import JSONResponse
+
+    try:
+        result = zc.delete_rso((payload or {}).get("rso"))
+        return {"ok": True, **result, "state": zc.load_state()}
+    except ValueError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+
 @app.post("/zip_curator/api/edit")
 async def zc_edit(payload: dict = None):
     p = payload or {}

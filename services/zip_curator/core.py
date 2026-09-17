@@ -250,9 +250,10 @@ def load_state():
             if isinstance(state, dict):
                 state.setdefault("pending", [])
                 state.setdefault("clean", {})
+                state.setdefault("excluded_rso", {})
                 return state
         except Exception: pass
-    state = {"pending": [], "clean": _clean_from_published()}
+    state = {"pending": [], "clean": _clean_from_published(), "excluded_rso": {}}
     if state["clean"]:
         save_state(state)
     return state
@@ -280,6 +281,16 @@ def ingest(list_of_parsed):
 def scan_folder(scan_dir=None):
     scan_dir = Path(scan_dir or INPUT_DIR)
     scan_dir.mkdir(parents=True, exist_ok=True)
+    state = load_state()
+    approved = set(state.get("clean", {}))
+    excluded = set(state.get("excluded_rso", {}))
+    pending_before = len(state.get("pending", []))
+    state["pending"] = [
+        item for item in state.get("pending", [])
+        if norm(item.get("rso")) not in (approved | excluded)
+    ]
+    if len(state["pending"]) != pending_before:
+        save_state(state)
     files = sorted(
         (p for p in scan_dir.rglob("*") if p.is_file() and re.search(r"\.xlsx?$", p.name, re.I)),
         key=lambda p: p.stat().st_mtime,
@@ -292,6 +303,11 @@ def scan_folder(scan_dir=None):
         p = parse_reestr(rows, f.name)
         if not p["items"]: continue
         key = norm(p["rso"])
+        # Согласованные РСО не возвращаем в очередь при каждом обновлении папки А.
+        # Удалённые куратором РСО также не восстанавливаем из лежащего в папке файла.
+        if key in approved or key in excluded:
+            skipped += 1
+            continue
         if key in taken: skipped += 1; continue
         p["fname"] = f.name
         p["uploaded"] = int(f.stat().st_mtime * 1000)
@@ -429,7 +445,10 @@ def approve(idx):
         b = arr[0]
         if len(arr) > 1: b["qty"] = sum(x.get("qty") or 0 for x in arr)
         merged.append(b)
-    st["clean"][norm(p["rso"])] = {"rso": p["rso"], "okrug": p.get("okrug") or resolve_municipality(p["rso"]), "date": p.get("date"), "items": merged}
+    key = norm(p["rso"])
+    st["clean"][key] = {"rso": p["rso"], "okrug": p.get("okrug") or resolve_municipality(p["rso"]), "date": p.get("date"), "items": merged}
+    # Ручная повторная загрузка и согласование явно возвращают ранее удалённое РСО.
+    st.setdefault("excluded_rso", {}).pop(key, None)
     save_state(st)
     publish_clean(st)
     return True
@@ -438,6 +457,41 @@ def reject(idx):
     st = load_state()
     if idx < 0 or idx >= len(st["pending"]): return False
     st["pending"].pop(idx); save_state(st); return True
+
+
+def delete_rso(rso):
+    """Delete one RSO everywhere and keep its Folder A file from restoring it."""
+    rso = str(rso or "").strip()
+    key = norm(rso)
+    if not key:
+        raise ValueError("Не указано РСО")
+
+    st = load_state()
+    pending_before = len(st["pending"])
+    st["pending"] = [item for item in st["pending"] if norm(item.get("rso")) != key]
+    pending_removed = pending_before - len(st["pending"])
+    clean_item = st["clean"].pop(key, None)
+    display_name = str((clean_item or {}).get("rso") or rso).strip()
+    st.setdefault("excluded_rso", {})[key] = {
+        "rso": display_name,
+        "deleted_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+    # Состояние куратора является полным набором опубликованных РСО. Полная запись
+    # здесь нужна специально: обычная публикация обновляет РСО по одному и сохраняет
+    # остальные, поэтому не может выразить удаление.
+    rows = export_rows_from_state(st)
+    _atomic_write_json(PUBLISHED_FILE, {
+        "rows": rows,
+        "published_at": datetime.now().isoformat(timespec="seconds"),
+    })
+    save_state(st)
+    return {
+        "removed": bool(pending_removed or clean_item),
+        "pending_removed": pending_removed,
+        "published_removed": bool(clean_item),
+        "rso": display_name,
+    }
 
 def edit_item(pi, ii, cat, grp):
     st = load_state()

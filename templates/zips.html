@@ -753,6 +753,23 @@
         .contact-secondary { margin-top:3px; color:var(--ink3); font-size:12px; }
         .contact-link { color:var(--blue-d); text-decoration:none; }
         .contact-link:hover { text-decoration:underline; }
+        .contact-delete {
+            width:32px;
+            height:32px;
+            display:inline-grid;
+            place-items:center;
+            padding:0;
+            border:1px solid rgba(220, 38, 38, .28);
+            border-radius:9px;
+            background:rgba(220, 38, 38, .08);
+            color:var(--danger);
+            cursor:pointer;
+            transition:.16s ease;
+        }
+        .contact-delete:hover { background:rgba(220, 38, 38, .16); transform:translateY(-1px); }
+        .contact-delete svg { width:16px; height:16px; stroke:currentColor; }
+        .contacts-table th:last-child,
+        .contacts-table td:last-child { width:48px; text-align:center; }
         [data-theme="dark"] .zip-view-tabs { background:#111827; }
 
         @media (max-width: 768px) {
@@ -892,7 +909,7 @@
                 <div class="card contacts-head">
                     <div>
                         <h2>Контакты ответственных от РСО</h2>
-                        <div class="mini">Загрузите .xlsx, .csv, .txt, .doc, .docx или .json. Совпавшие контакты обновятся, новые добавятся, остальные останутся без изменений.</div>
+                        <div class="mini">Загрузите .xlsx, .csv, .txt, .doc, .docx или .json. Пары ФИО и телефона руководителя, главного инженера и других ролей распознаются автоматически.</div>
                     </div>
                     <div class="contacts-actions">
                         <input id="contactsFile" type="file" accept=".xlsx,.csv,.txt,.doc,.docx,.json" hidden>
@@ -908,7 +925,7 @@
                     </div>
                     <div class="tblbox">
                         <table class="contacts-table">
-                            <thead><tr><th>РСО</th><th>Ответственный</th><th>Контакты</th><th>Муниципалитет</th><th></th></tr></thead>
+                            <thead><tr><th>РСО</th><th>Ответственный · ФИО</th><th>Контакты · телефон</th><th>Муниципалитет</th><th></th></tr></thead>
                             <tbody id="contactsBody"><tr><td colspan="5" class="empty">Контакты ещё не загружены.</td></tr></tbody>
                         </table>
                     </div>
@@ -1705,7 +1722,7 @@
                 <td><div class="contact-main">${esc(item.person || '—')}</div><div class="contact-secondary">${esc(item.position || '')}</div></td>
                 <td>${phone}${email ? `<div class="contact-secondary">${email}</div>` : ''}</td>
                 <td>${esc(item.municipality || '—')}</td>
-                <td><button class="btn" type="button" data-contact-delete="${esc(item.id || '')}" style="padding:4px 8px;font-size:12px">Удалить</button></td>
+                <td><button class="contact-delete" type="button" data-contact-delete="${esc(item.id || '')}" aria-label="Удалить контакт" title="Удалить контакт"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></td>
             </tr>`;
         }).join('');
     }

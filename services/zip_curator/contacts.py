@@ -23,19 +23,28 @@ CONTACTS_FILE = DATA / "contacts.json"
 FIELD_ALIASES = {
     "rso": (
         "рсо",
+        "rso",
         "название рсо",
         "наименование рсо",
         "организация",
         "предприятие",
         "наименование организации",
     ),
-    "municipality": ("муниципалитет", "омсу", "округ", "городской округ"),
-    "person": ("фио", "ответственный", "контактное лицо", "представитель"),
-    "position": ("должность", "роль"),
-    "phone": ("телефон", "мобильный", "номер телефона", "тел."),
+    "municipality": ("municipality", "муниципалитет", "омсу", "округ", "городской округ"),
+    "person": ("person", "name", "фио", "ф и о", "ответственный", "контактное лицо", "представитель"),
+    "position": ("position", "должность", "роль"),
+    "phone": ("phone", "mobile", "телефон", "мобильный", "мобильный телефон", "номер телефона", "тел."),
     "email": ("электронная почта", "email", "e-mail", "почта"),
-    "note": ("примечание", "комментарий", "заметка"),
+    "note": ("note", "примечание", "комментарий", "заметка"),
 }
+
+BASE_FIELDS = {"rso", "municipality", "note"}
+CONTACT_FIELDS = {"person", "position", "phone", "email"}
+ROLE_PATTERNS = (
+    ("chief_engineer", "Главный инженер", re.compile(r"\b(?:главн\w*|гл)\s+инженер\w*\b")),
+    ("manager", "Руководитель", re.compile(r"\b(?:руководител\w*|директор\w*|начальник\w*)\b")),
+    ("responsible", "Ответственный", re.compile(r"\b(?:ответственн\w*|представител\w*)\b")),
+)
 
 
 def _atomic_write(payload):
@@ -52,6 +61,12 @@ def load_contacts():
             if isinstance(payload, dict) and isinstance(payload.get("items"), list):
                 payload.setdefault("updated_at", None)
                 payload.setdefault("source_file", None)
+                # Исправляем записи старого импортера, где ФИО могло попасть в
+                # телефон из-за совпадения "тел" внутри слова "руководителя".
+                for item in payload["items"]:
+                    phone = str(item.get("phone") or "").strip()
+                    if phone and len(re.sub(r"\D+", "", phone)) < 5 and not item.get("person"):
+                        item["person"], item["phone"] = phone, ""
                 return payload
         except (OSError, json.JSONDecodeError):
             pass
@@ -63,47 +78,114 @@ def _header(value):
     return re.sub(r"[^a-zа-яё0-9]+", " ", value).strip()
 
 
+def _alias_in_header(header, alias):
+    """Match whole words/phrases, never fragments inside unrelated words."""
+    alias = _header(alias)
+    if not alias:
+        return False
+    return re.search(rf"(?:^|\s){re.escape(alias)}(?:$|\s)", header) is not None
+
+
 def _field_for_header(value):
     header = _header(value)
-    # Prefer exact matches first. In particular, the word "РСО" may also occur
-    # in a person column such as "Ответственный от РСО".
+    # Prefer exact matches first. The word "РСО" may also occur in a person
+    # column such as "Ответственный от РСО".
     for field, aliases in FIELD_ALIASES.items():
         if any(header == _header(alias) for alias in aliases):
             return field
+
+    # Contact types are determined before base fields so that a header such as
+    # "ФИО ответственного от РСО" cannot be mistaken for the organization.
+    if re.search(r"(?:^|\s)ф\s*и\s*о(?:$|\s)", header):
+        return "person"
+    if any(_alias_in_header(header, alias) for alias in FIELD_ALIASES["email"]):
+        return "email"
+    if any(_alias_in_header(header, alias) for alias in FIELD_ALIASES["phone"]):
+        return "phone"
+    if any(_alias_in_header(header, alias) for alias in FIELD_ALIASES["person"]):
+        return "person"
+    if any(_alias_in_header(header, alias) for alias in FIELD_ALIASES["position"]):
+        return "position"
+
     matches = []
     for field, aliases in FIELD_ALIASES.items():
         for alias in aliases:
             normalized_alias = _header(alias)
-            if normalized_alias != "рсо" and normalized_alias in header:
+            if normalized_alias != "рсо" and _alias_in_header(header, normalized_alias):
                 matches.append((len(normalized_alias), field))
     if matches:
-        return max(matches)[1]
+        return max(matches, key=lambda match: match[0])[1]
     return None
+
+
+def _role_for_header(value):
+    header = _header(value)
+    for key, label, pattern in ROLE_PATTERNS:
+        if pattern.search(header):
+            return key, label
+    number = re.search(r"(?:^|\s)(\d{1,2})(?:$|\s)", header)
+    if number:
+        return f"contact_{number.group(1)}", f"Контакт {number.group(1)}"
+    return "contact", "Ответственный"
 
 
 def _rows_to_contacts(rows):
     header_index = -1
-    columns = {}
+    base_columns = {}
+    contact_columns = {}
+    role_labels = {}
     for index, row in enumerate(rows[:15]):
-        candidate = {}
+        candidate_base = {}
+        candidate_contacts = {}
+        candidate_labels = {}
         for column, value in enumerate(row or []):
             field = _field_for_header(value)
-            if field and field not in candidate:
-                candidate[field] = column
-        if "rso" in candidate and any(field in candidate for field in ("person", "phone", "email")):
-            header_index, columns = index, candidate
+            if field in BASE_FIELDS and field not in candidate_base:
+                candidate_base[field] = column
+            elif field in CONTACT_FIELDS:
+                role, label = _role_for_header(value)
+                candidate_contacts.setdefault(role, {})[field] = column
+                candidate_labels[role] = label
+        has_contact = any(
+            any(field in group for field in ("person", "phone", "email"))
+            for group in candidate_contacts.values()
+        )
+        if "rso" in candidate_base and has_contact:
+            header_index = index
+            base_columns = candidate_base
+            contact_columns = candidate_contacts
+            role_labels = candidate_labels
             break
     if header_index < 0:
         raise ValueError("Не найдены колонки РСО и контакта (ФИО, телефон или почта)")
 
+    # Если в таблице одна именованная роль, а второй столбец назван просто
+    # "Телефон" или "ФИО", дополняем этой общей колонкой найденную роль.
+    named_roles = [role for role in contact_columns if role != "contact"]
+    generic = contact_columns.get("contact")
+    if generic and len(named_roles) == 1 and not (set(generic) & set(contact_columns[named_roles[0]])):
+        target = contact_columns[named_roles[0]]
+        for field, column in generic.items():
+            target.setdefault(field, column)
+        del contact_columns["contact"]
+        role_labels.pop("contact", None)
+
     contacts = []
     for row in rows[header_index + 1:]:
         row = row or []
-        contact = {}
-        for field, column in columns.items():
-            contact[field] = str(row[column] if column < len(row) and row[column] is not None else "").strip()
-        if contact.get("rso") and any(contact.get(key) for key in ("person", "phone", "email")):
-            contacts.append(contact)
+        base = {
+            field: str(row[column] if column < len(row) and row[column] is not None else "").strip()
+            for field, column in base_columns.items()
+        }
+        if not base.get("rso"):
+            continue
+        for role, columns in contact_columns.items():
+            contact = dict(base)
+            for field, column in columns.items():
+                contact[field] = str(row[column] if column < len(row) and row[column] is not None else "").strip()
+            if any(contact.get(key) for key in ("person", "phone", "email")):
+                contact["position"] = contact.get("position") or role_labels.get(role) or "Ответственный"
+                contacts.append(contact)
     return contacts
 
 
@@ -220,6 +302,10 @@ def _phone_key(value):
 def _same_contact(left, right):
     if norm(left.get("rso")) != norm(right.get("rso")):
         return False
+    left_position = norm(left.get("position"))
+    right_position = norm(right.get("position"))
+    if left_position and right_position and left_position != right_position:
+        return False
     pairs = (
         (norm(left.get("person")), norm(right.get("person"))),
         (_phone_key(left.get("phone")), _phone_key(right.get("phone"))),
@@ -247,7 +333,18 @@ def import_contacts(filename, content):
             contact.update({"id": uuid.uuid4().hex, "created_at": now, "updated_at": now})
             items.append(contact)
             added += 1
-    items.sort(key=lambda item: (norm(item.get("rso")), norm(item.get("person"))))
+    # Убираем явно повреждённые записи старого импортера для тех РСО, которые
+    # присутствуют в новом файле. Корректные прежние контакты сохраняются.
+    incoming_rso = {norm(contact.get("rso")) for contact in incoming}
+    items[:] = [
+        item for item in items
+        if not (
+            norm(item.get("rso")) in incoming_rso
+            and item.get("phone")
+            and len(_phone_key(item.get("phone"))) < 5
+        )
+    ]
+    items.sort(key=lambda item: (norm(item.get("rso")), norm(item.get("position")), norm(item.get("person"))))
     payload.update({"items": items, "updated_at": now, "source_file": Path(filename or "").name})
     _atomic_write(payload)
     return {"added": added, "updated": updated, "total": len(items), "payload": payload}

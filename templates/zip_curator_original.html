@@ -23,6 +23,7 @@
   .btn:hover{border-color:var(--blue);color:var(--blue-d)}
   .btn.primary{background:var(--blue-d);border-color:var(--blue-d);color:#fff}.btn.primary:hover{background:var(--blue)}
   .btn.green{background:var(--green);border-color:var(--green);color:#fff}.btn.green:hover{background:var(--green-d)}
+  .btn.danger{background:#fff;border-color:#fecaca;color:var(--rose)}.btn.danger:hover{background:#fff1f2;border-color:var(--rose);color:#b91c1c}
   .btn.sm{padding:5px 10px;font-size:12px}.btn.ghost{background:transparent}
   .sep{width:1px;height:26px;background:var(--line);margin:0 4px}
   .status{color:var(--ink3);font-size:12.5px;margin-top:8px}
@@ -229,7 +230,7 @@ async function fetchFromDrive(){
     const d=await r.json();
     if(!r.ok||d.ok===false)throw new Error(d.error||('HTTP '+r.status));
     applyServerState(d.state||{});
-    toast(`Папка А обновлена: файлов ${d.files||0}, скачано ${d.downloaded||0}, реестров ${d.added||0}${d.skipped?`, старых версий ${d.skipped}`:''}`,5000);
+    toast(`Папка А обновлена: файлов ${d.files||0}, скачано ${d.downloaded||0}, новых реестров ${d.added||0}${d.skipped?`, пропущено ${d.skipped}`:''}`,5000);
   }catch(e){toast('Не удалось обновить папку А: '+e.message,6000);}
 }
 // сравнение дат вида дд.мм.гггг: >0 если a новее b
@@ -254,6 +255,17 @@ async function reject(idx){const p=PENDING[idx];if(!p)return;
   try{const r=await fetch('/zip_curator/api/reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx})}),d=await r.json();
     if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));applyServerState(d.state||{});toast('Убрано: '+p.rso);
   }catch(e){toast('Не удалось убрать: '+e.message,5000);}}
+async function deleteRso(rso){
+  if(!rso)return;
+  if(!confirm(`Удалить РСО «${rso}»?\n\nОно будет удалено из очереди и опубликованных данных и больше не появится при обновлении папки А.`))return;
+  try{
+    const r=await fetch('/zip_curator/api/delete-rso',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rso})}),d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
+    applyServerState(d.state||{});
+    try{const channel=new BroadcastChannel('zip-curator-updates');channel.postMessage({type:'published'});channel.close();}catch(e){}
+    toast('РСО удалено: '+rso,4000);
+  }catch(e){toast('Не удалось удалить РСО: '+e.message,5000);}
+}
 
 // ---- правка категории ----
 function editRow(btn,pi,ii){
@@ -290,6 +302,7 @@ function render(){
         <div style="margin-top:6px">${uncl?`<span class="badge b-amber">${uncl} не классиф.</span> `:''}${nou?`<span class="badge b-rose">${nou} без единицы</span> `:''}${bad?`<span class="badge b-rose">${bad} без кол-ва</span> `:''}${(!uncl&&!nou&&!bad)?'<span class="badge b-green">✓ всё распознано</span>':''}${p.periodWarn?' <span class="badge b-rose" title="Более ранняя загрузка содержит более свежий период — проверьте, тот ли файл взят">загружен позже, но период старее — проверьте</span>':''}</div></div>
       <div class="bar"><button class="btn sm" onclick="toggleView(${pi})">Посмотреть</button>
         <button class="btn sm ghost" onclick="reject(${pi})">Убрать</button>
+        <button class="btn sm danger" onclick="deleteRso(decodeURIComponent('${encodeURIComponent(p.rso)}'))">Удалить РСО</button>
         <button class="btn sm green" onclick="approve(${pi})">Согласовать</button></div>
     </div><div id="pv${pi}"></div></div>`;}).join('');
   // clean
@@ -297,9 +310,9 @@ function render(){
   $('#cleanCount').textContent=keys.length?`(${keys.length} РСО)`:'';
   if(!keys.length)cc.innerHTML='<div class="empty">Пока ничего не согласовано.</div>';
   else{let total=0;const rows=keys.map(k=>{const c=CLEAN[k];total+=c.items.length;
-    return `<tr><td>${esc(c.rso)}</td><td>${esc(c.okrug||'—')}</td><td>${esc(c.date||'—')}</td><td class="num">${c.items.length}</td></tr>`;}).join('');
-    cc.innerHTML=`<table><thead><tr><th>РСО</th><th>Округ</th><th>Дата</th><th>Позиций</th></tr></thead><tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="3" class="mini" style="padding-top:8px">Итого позиций</td><td class="num" style="padding-top:8px"><b>${total}</b></td></tr></tfoot></table>`;}
+    return `<tr><td>${esc(c.rso)}</td><td>${esc(c.okrug||'—')}</td><td>${esc(c.date||'—')}</td><td class="num">${c.items.length}</td><td class="num"><button class="btn sm danger" onclick="deleteRso(decodeURIComponent('${encodeURIComponent(c.rso)}'))">Удалить РСО</button></td></tr>`;}).join('');
+    cc.innerHTML=`<table><thead><tr><th>РСО</th><th>Округ</th><th>Дата</th><th>Позиций</th><th></th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="3" class="mini" style="padding-top:8px">Итого позиций</td><td class="num" style="padding-top:8px"><b>${total}</b></td><td></td></tr></tfoot></table>`;}
 }
 function openMunicipalityEditor(pi){
   $('#municipalityDictCard').style.display='block';
