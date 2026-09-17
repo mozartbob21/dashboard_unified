@@ -19,6 +19,7 @@ from services.zip_curator.core import DATA, norm, read_xlsx_rows
 
 
 CONTACTS_FILE = DATA / "contacts.json"
+IMPORT_VERSION = 2
 
 FIELD_ALIASES = {
     "rso": (
@@ -61,16 +62,74 @@ def load_contacts():
             if isinstance(payload, dict) and isinstance(payload.get("items"), list):
                 payload.setdefault("updated_at", None)
                 payload.setdefault("source_file", None)
-                # Исправляем записи старого импортера, где ФИО могло попасть в
-                # телефон из-за совпадения "тел" внутри слова "руководителя".
-                for item in payload["items"]:
-                    phone = str(item.get("phone") or "").strip()
-                    if phone and len(re.sub(r"\D+", "", phone)) < 5 and not item.get("person"):
-                        item["person"], item["phone"] = phone, ""
+                payload["items"] = _prepare_stored_contacts(payload["items"])
+                payload["needs_reimport"] = (
+                    payload.get("import_version", 0) < IMPORT_VERSION
+                    and any(not item.get("phone") for item in payload["items"])
+                )
                 return payload
         except (OSError, json.JSONDecodeError):
             pass
     return {"items": [], "updated_at": None, "source_file": None}
+
+
+def _name_in_phone(value):
+    """Recognize the old header collision, without treating short phone numbers as names."""
+    text = str(value or "").strip()
+    return not re.search(r"[\d@]", text) and len(re.findall(r"[а-яёa-z]+", text, re.I)) >= 2
+
+
+def _normalize_contact(contact):
+    contact = dict(contact)
+    person = re.sub(r"\s+", " ", str(contact.get("person") or "")).strip()
+    # Only collapse literal repetition; different people's names are never discarded.
+    words = person.split()
+    for size in range(1, len(words) // 2 + 1):
+        if len(words) % size == 0 and words == words[:size] * (len(words) // size):
+            person = " ".join(words[:size])
+            break
+    role_prefix = re.match(
+        r"^(директор\s+филиала|генеральный\s+директор|директор|руководитель|главный\s+инженер)\s*[:—–-]?\s+(.+)$",
+        person, re.I,
+    )
+    if role_prefix:
+        role, person = role_prefix.groups()
+        if not contact.get("position") or norm(contact["position"]) in {"ответственный", "руководитель"}:
+            contact["position"] = role[0].upper() + role[1:]
+    contact["person"] = person
+    return contact
+
+
+def _prepare_stored_contacts(items):
+    prepared = []
+    for original in items:
+        item = dict(original)
+        phone = str(item.get("phone") or "").strip()
+        if _name_in_phone(phone):
+            item["phone"] = ""
+            if not item.get("person"):
+                item["person"] = phone
+            elif norm(item["person"]) != norm(phone):
+                # The old parser could save the engineer as person and the manager
+                # as phone. Preserve both names without inventing missing numbers.
+                recovered = {**item, "id": uuid.uuid5(uuid.NAMESPACE_URL, str(item.get("id")) + phone).hex,
+                             "person": phone, "position": "", "email": ""}
+                prepared.append(_normalize_contact(recovered))
+        prepared.append(_normalize_contact(item))
+    return _deduplicate_contacts(prepared)
+
+
+def _deduplicate_contacts(items):
+    result = []
+    for item in items:
+        # Deduplicate identical records only; shared switchboard numbers are not identity.
+        existing = next((other for other in result if all(
+            norm(other.get(key)) == norm(item.get(key))
+            for key in FIELD_ALIASES
+        )), None)
+        if existing is None:
+            result.append(item)
+    return result
 
 
 def _header(value):
@@ -185,7 +244,7 @@ def _rows_to_contacts(rows):
                 contact[field] = str(row[column] if column < len(row) and row[column] is not None else "").strip()
             if any(contact.get(key) for key in ("person", "phone", "email")):
                 contact["position"] = contact.get("position") or role_labels.get(role) or "Ответственный"
-                contacts.append(contact)
+                contacts.append(_normalize_contact(contact))
     return contacts
 
 
@@ -302,10 +361,21 @@ def _phone_key(value):
 def _same_contact(left, right):
     if norm(left.get("rso")) != norm(right.get("rso")):
         return False
-    left_position = norm(left.get("position"))
-    right_position = norm(right.get("position"))
+    if (left.get("municipality") and right.get("municipality")
+            and norm(left["municipality"]) != norm(right["municipality"])):
+        return False
+    def position_key(value):
+        if not value or norm(value) == "ответственный":
+            return ""
+        key, _ = _role_for_header(value)
+        return norm(value) if key == "contact" else key
+
+    left_position = position_key(left.get("position"))
+    right_position = position_key(right.get("position"))
     if left_position and right_position and left_position != right_position:
         return False
+    if left.get("person") and right.get("person"):
+        return norm(left["person"]) == norm(right["person"])
     pairs = (
         (norm(left.get("person")), norm(right.get("person"))),
         (_phone_key(left.get("phone")), _phone_key(right.get("phone"))),
@@ -316,6 +386,8 @@ def _same_contact(left, right):
 
 def import_contacts(filename, content):
     incoming = parse_contacts(filename, content)
+    if not incoming:
+        raise ValueError("В файле не найдены контакты. Проверьте заголовки и строки таблицы.")
     payload = load_contacts()
     items = payload["items"]
     added = updated = 0
@@ -333,19 +405,15 @@ def import_contacts(filename, content):
             contact.update({"id": uuid.uuid4().hex, "created_at": now, "updated_at": now})
             items.append(contact)
             added += 1
-    # Убираем явно повреждённые записи старого импортера для тех РСО, которые
-    # присутствуют в новом файле. Корректные прежние контакты сохраняются.
-    incoming_rso = {norm(contact.get("rso")) for contact in incoming}
-    items[:] = [
-        item for item in items
-        if not (
-            norm(item.get("rso")) in incoming_rso
-            and item.get("phone")
-            and len(_phone_key(item.get("phone"))) < 5
-        )
-    ]
+    items = _deduplicate_contacts(items)
     items.sort(key=lambda item: (norm(item.get("rso")), norm(item.get("position")), norm(item.get("person"))))
-    payload.update({"items": items, "updated_at": now, "source_file": Path(filename or "").name})
+    payload.update({"items": items, "updated_at": now, "source_file": Path(filename or "").name,
+                    "import_version": IMPORT_VERSION, "needs_reimport": False})
+    if CONTACTS_FILE.exists():
+        # Keep the original JSON before applying migration/import to legacy data.
+        backup = CONTACTS_FILE.with_name(CONTACTS_FILE.name + ".before-import.bak")
+        if not backup.exists():
+            shutil.copy2(CONTACTS_FILE, backup)
     _atomic_write(payload)
     return {"added": added, "updated": updated, "total": len(items), "payload": payload}
 

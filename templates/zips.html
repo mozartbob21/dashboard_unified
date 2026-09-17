@@ -1736,7 +1736,9 @@
             if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
             contactState.loaded = true;
             renderContacts(data);
-            message.textContent = '';
+            message.textContent = data.needs_reimport
+                ? 'В старых контактах не сохранились номера телефонов. Повторно загрузите исходный файл через «Загрузить контакты» — изменять файл не нужно.'
+                : '';
         } catch (error) {
             message.textContent = 'Не удалось загрузить контакты: ' + error.message;
         }
@@ -1763,7 +1765,8 @@
             if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
             contactState.loaded = true;
             renderContacts(data.data);
-            message.textContent = `Добавлено: ${data.added}, обновлено: ${data.updated}, всего: ${data.total}.`;
+            const withPhone = (data.data.items || []).filter(item => item.phone).length;
+            message.textContent = `Добавлено: ${data.added}, обновлено: ${data.updated}, всего: ${data.total}. С телефоном: ${withPhone}.`;
         } catch (error) {
             message.textContent = 'Импорт не выполнен: ' + error.message;
         }

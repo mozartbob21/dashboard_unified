@@ -5,6 +5,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import requests
+from services.zip_curator import dictionary
 
 BASE = Path(__file__).resolve().parents[2]
 DATA = BASE / "data" / "zip_curator"
@@ -133,12 +134,7 @@ def norm_unit(u):
     return c, not c
 
 def classify(name):
-    nn = norm(name)
-    r = D["dict"].get(nn)
-    if r: return {"cat": r[0], "grp": r[1], "water": bool(r[2]), "via": "match"}
-    for kw in D["kws"]:
-        if kw[0] in nn: return {"cat": kw[1], "grp": kw[2], "water": False, "via": "keyword"}
-    return {"cat": None, "grp": None, "water": False, "via": None}
+    return dictionary.lookup(norm(name))
 
 def parse_reestr(rows, fname):
     hi = -1
@@ -499,10 +495,15 @@ def edit_item(pi, ii, cat, grp):
         return False
     try:
         it = st["pending"][pi]["items"][ii]
-        it["cat"] = cat or None; it["grp"] = grp or None; it["via"] = "override"
-        if cat: D["dict"][it["nn"]] = [cat, grp or "", 1 if it.get("water") else 0]
-        save_state(st); return True
-    except Exception: return False
+    except (IndexError, KeyError):
+        return False
+    if cat:
+        cat, grp = dictionary.remember(norm(it["name"]), cat, grp, it.get("water"))
+    elif grp:
+        raise ValueError("Выберите категорию для группы")
+    it["cat"] = cat or None; it["grp"] = grp or None; it["via"] = "override" if cat else None
+    save_state(st)
+    return True
 
 def export_rows():
     return export_rows_from_state(load_state())

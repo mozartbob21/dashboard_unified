@@ -3265,9 +3265,28 @@ async def zc_delete_rso(payload: dict = None):
 
 @app.post("/zip_curator/api/edit")
 async def zc_edit(payload: dict = None):
+    from fastapi.responses import JSONResponse
     p = payload or {}
-    ok = zc.edit_item(int(p.get("pi", -1)), int(p.get("ii", -1)), p.get("cat"), p.get("grp"))
+    try:
+        ok = zc.edit_item(int(p.get("pi", -1)), int(p.get("ii", -1)), p.get("cat"), p.get("grp"))
+    except ValueError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
     return {"ok": ok, "state": zc.load_state()}
+
+
+@app.get("/zip_curator/api/dictionary")
+async def zc_dictionary():
+    return zc.dictionary.load_dictionary()
+
+
+@app.post("/zip_curator/api/categories")
+async def zc_add_category(payload: dict = None):
+    from fastapi.responses import JSONResponse
+    p = payload or {}
+    try:
+        return {"ok": True, **zc.dictionary.add_category(p.get("category"), p.get("group"))}
+    except ValueError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
 
 
 @app.get("/zip_curator/api/files/{file_path:path}")
@@ -3323,7 +3342,7 @@ async def zc_dict():
     from fastapi.responses import FileResponse
     import tempfile, os
     rows = [["Наименование (норм.)","Категория","Группа","Вода"]]
-    for nn, v in zc.D["dict"].items():
+    for nn, v in zc.dictionary.load_dictionary()["dict"].items():
         rows.append([nn, v[0] or "", v[1] or "", "да" if v[2] else ""])
     fd, path = tempfile.mkstemp(suffix=".xlsx")
     os.close(fd)
