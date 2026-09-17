@@ -69,15 +69,10 @@
       <button class="btn" id="btnSaveDict">Скачать справочник</button>
       <button class="btn" id="btnCategories">Категории и группы</button>
       <button class="btn" id="btnMunicipalityDict">Муниципалитеты организаций</button>
-      <div class="sep"></div>
-      <button class="btn" id="btnLoadClean">Загрузить текущие данные (Диск B)</button>
-      <button class="btn green" id="btnSaveClean">⬇ Скачать итоговый эксель</button>
-      <button class="btn green" id="btnPublish">📤 Повторно опубликовать в ЗИП</button>
     </div>
     <div class="status" id="status"></div>
     <input type="file" id="fiManual" accept=".xlsx,.xls" multiple>
     <input type="file" id="fiDict" accept=".xlsx">
-    <input type="file" id="fiClean" accept=".xlsx,.csv">
   </div>
 
   <div class="card" id="municipalityDictCard" style="display:none">
@@ -147,6 +142,7 @@ const YANDEX_FOLDER_A_URL = "https://disk.yandex.ru/d/WeAv-MDA6uEzpw";
 let PENDING=[], CLEAN={}, dictDirty=false, MUNICIPALITY_OVERRIDES={}, MUNICIPALITY_ROWS=[];
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function uploadDate(value){if(!value)return 'Не сохранена';const date=new Date(value);return Number.isNaN(date.getTime())?'Не сохранена':date.toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});}
 const fmt=n=>n==null||isNaN(n)?'—':(Math.round(n*100)/100).toLocaleString('ru-RU');
 function toast(m,ms=2600){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),ms);}
 function norm(s){s=String(s).toLowerCase().trim();s=s.replace(/^\(\d+[.\d]*\)/,'');s=s.replace(/^\d+[а-яё]?\s/,'');s=s.replace(/[,\s]+$/,'');s=s.replace(/\s+/g,' ').trim();return s;}
@@ -320,7 +316,7 @@ function render(){
   else pc.innerHTML=PENDING.map((p,pi)=>{
     const uncl=p.items.filter(it=>!it.via).length, nou=p.items.filter(it=>it.unitUnknown).length;
     const bad=p.items.filter(it=>it.qty==null).length;
-    const up=p.uploaded?new Date(p.uploaded).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    const up=p.loaded_at?uploadDate(p.loaded_at):'';
     return `<div class="card"><div class="rhead">
       <div><b style="font-size:15px">${esc(p.rso)}</b> ${p.okrug?`· <span style="color:var(--green-d)">${esc(p.okrug)}</span>`:`<span class="badge b-amber">муниципалитет не определён</span> <button class="btn sm" onclick="openMunicipalityEditor(${pi})">Указать</button>`}
         <div class="mini">${p.local_file?`<a href="/zip_curator/api/files/${p.local_file.split('/').map(encodeURIComponent).join('/')}" target="_blank" rel="noopener">${esc(p.fname||'файл')}</a>`:esc(p.fname||'')} · дата остатков: <b>${esc(p.date||'—')}</b>${up?` · загружен: ${esc(up)}`:''} · ${p.items.length} позиций</div>
@@ -335,9 +331,9 @@ function render(){
   $('#cleanCount').textContent=keys.length?`(${keys.length} РСО)`:'';
   if(!keys.length)cc.innerHTML='<div class="empty">Пока ничего не согласовано.</div>';
   else{let total=0;const rows=keys.map(k=>{const c=CLEAN[k];total+=c.items.length;
-    return `<tr><td>${esc(c.rso)}</td><td>${esc(c.okrug||'—')}</td><td>${esc(c.date||'—')}</td><td class="num">${c.items.length}</td><td class="num"><button class="btn sm danger" onclick="deleteRso(decodeURIComponent('${encodeURIComponent(c.rso)}'))">Удалить РСО</button></td></tr>`;}).join('');
-    cc.innerHTML=`<table><thead><tr><th>РСО</th><th>Округ</th><th>Дата</th><th>Позиций</th><th></th></tr></thead><tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="3" class="mini" style="padding-top:8px">Итого позиций</td><td class="num" style="padding-top:8px"><b>${total}</b></td><td></td></tr></tfoot></table>`;}
+    return `<tr><td>${esc(c.rso)}</td><td>${esc(c.okrug||'—')}</td><td>${esc(c.date||'—')}</td><td style="white-space:nowrap">${esc(uploadDate(c.loaded_at))}</td><td class="num">${c.items.length}</td><td class="num"><button class="btn sm danger" onclick="deleteRso(decodeURIComponent('${encodeURIComponent(c.rso)}'))">Удалить РСО</button></td></tr>`;}).join('');
+    cc.innerHTML=`<div style="overflow-x:auto"><table><thead><tr><th>РСО</th><th>Округ</th><th>Дата остатков</th><th>Дата загрузки</th><th>Позиций</th><th></th></tr></thead><tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="4" class="mini" style="padding-top:8px">Итого позиций</td><td class="num" style="padding-top:8px"><b>${total}</b></td><td></td></tr></tfoot></table></div>`;}
 }
 function openMunicipalityEditor(pi){
   $('#municipalityDictCard').style.display='block';
@@ -415,30 +411,6 @@ async function loadDict(f){const wb=(await readFilesToWB([f]))[0]; if(!wb)return
   render(); toast('Справочник загружен: '+n+' записей');
 }
 
-// ---- итоговые данные для Диска B ----
-function saveClean(){
-  const head=['РСО','Округ','Наименование','Категория','Группа','Количество','Ед.','Водоподготовка','Дата'];
-  const rows=[head];
-  Object.values(CLEAN).forEach(c=>c.items.forEach(it=>rows.push([c.rso,c.okrug,it.name,it.cat||'не указано',it.grp||'',it.qty,it.unit||'',it.water?'да':'',c.date])));
-  if(rows.length<2){toast('Нет согласованных данных');return;}
-  const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Остатки');
-  XLSX.writeFile(wb,'итоговые_остатки_для_дашборда.xlsx'); toast('Итоговый файл сохранён — кладите на Диск B');
-}
-async function loadClean(f){
-  const isCsv=/\.csv$/i.test(f.name); let rows;
-  if(isCsv){const txt=await f.text();rows=txt.split(/\r?\n/).map(l=>l.split(/[;,]/));}
-  else{const wb=(await readFilesToWB([f]))[0]; rows=XLSX.utils.sheet_to_json(wb.wb.Sheets[wb.wb.SheetNames[0]],{header:1,defval:null});}
-  const H=rows[0].map(x=>String(x||'').toLowerCase()); const ix=n=>H.findIndex(h=>h.includes(n));
-  const iR=ix('рсо'),iO=ix('округ'),iN=ix('наимен'),iC=ix('категор'),iG=ix('групп'),iQ=ix('кол'),iU=ix('ед'),iW=ix('вод'),iD=ix('дата');
-  CLEAN={}; let n=0;
-  for(let i=1;i<rows.length;i++){const r=rows[i];if(!r||r.every(x=>!String(x==null?'':x).trim()))continue;
-    const rso=String(r[iR]||'').trim();if(!rso)continue;const k=norm(rso);
-    let q=r[iQ];if(typeof q==='string')q=parseFloat(String(q).replace(',','.'));q=(q==null||isNaN(q))?null:+q;
-    (CLEAN[k]=CLEAN[k]||{rso,okrug:String(r[iO]||'').trim(),date:iD>=0?String(r[iD]||'').trim():'',items:[]}).items.push(
-      {name:String(r[iN]||'').trim(),cat:String(r[iC]||'').trim()||null,grp:String(r[iG]||'').trim()||null,qty:q,unit:String(r[iU]||'').trim(),water:iW>=0&&String(r[iW]||'').trim()!==''});n++;}
-  render(); toast('Текущие данные загружены: '+n+' позиций');
-}
-
 // события
 $('#btnDrive').onclick=fetchFromDrive;
 $('#btnManual').onclick=()=>$('#fiManual').click();
@@ -451,36 +423,6 @@ $('#fiDict').onchange=e=>{if(e.target.files[0]){loadDict(e.target.files[0]);e.ta
 $('#btnSaveDict').onclick=saveDict;
 $('#btnMunicipalityDict').onclick=()=>{const c=$('#municipalityDictCard');c.style.display=c.style.display==='none'?'block':'none';};
 $('#btnSaveMunicipality').onclick=saveMunicipalityMapping;
-$('#btnLoadClean').onclick=()=>$('#fiClean').click();
-$('#fiClean').onchange=e=>{if(e.target.files[0]){loadClean(e.target.files[0]);e.target.value='';}};
-$('#btnSaveClean').onclick=saveClean;
-$('#btnPublish').onclick=()=>publishToSystem(false);
-async function publishToSystem(silent){
-  const head=['РСО','Округ','Наименование','Категория','Группа','Количество','Ед.','Водоподготовка','Дата'];
-  const rows=[head];
-  Object.values(CLEAN).forEach(c=>c.items.forEach(it=>rows.push([c.rso,c.okrug,it.name,it.cat||'не указано',it.grp||'',it.qty,it.unit||'',it.water?'да':'',c.date])));
-  if(rows.length<2){ if(!silent)toast('Нет согласованных данных'); return; }
-  try{
-    const r=await fetch('/zip_curator/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})});
-    const d=await r.json();
-    if(!r.ok||!d.ok)throw new Error(d.error||('HTTP '+r.status));
-    if(!silent)toast('Сохранено в систему: '+(rows.length-1)+' строк. Дашборд возьмёт их локально.',4000);
-  }catch(e){ toast('Ошибка сохранения в систему: '+e.message,5000); }
-}
-
-// - публикация согласованной таблицы в систему (дашборд читает локально) -
-function publishClean(silent){
-  const head=['РСО','Округ','Наименование','Категория','Группа','Количество','Ед.','Водоподготовка','Дата'];
-  const rows=[head];
-  Object.values(CLEAN).forEach(c=>c.items.forEach(it=>rows.push([c.rso,c.okrug,it.name,it.cat||'не указано',it.grp||'',it.qty,it.unit||'',it.water?'да':'',c.date])));
-  if(rows.length<2){ if(!silent) toast('Нет согласованных данных для публикации'); return; }
-  fetch('/zip_curator/api/publish',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({rows:rows})})
-    .then(r=>r.json())
-    .then(d=>{ if(!silent) toast(d.ok?('📤 Опубликовано в систему: '+(rows.length-1)+' строк — дашборд теперь читает локально'):'Ошибка публикации: '+(d.error||'')); })
-    .catch(e=>{ if(!silent) toast('Ошибка публикации: '+e.message); });
-}
-$('#btnPublish').onclick=()=>publishClean(false);
 if(!YANDEX_FOLDER_A_URL)$('#cfgWarn').innerHTML='<div class="warn"><b>Кнопка «Обновить данные» не настроена.</b> Впишите ссылку на папку A (Яндекс.Диск) в начале файла, или пользуйтесь «Загрузить файлы вручную».</div>';
 render();
 (async()=>{await loadServerState();await loadMunicipalityOverrides();})();

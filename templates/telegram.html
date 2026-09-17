@@ -1,0 +1,66 @@
+{% extends "base_module.html" %}
+{% block title %}Telegram · Нейрона{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/telegram.css?v=1">
+<script src="/static/telegram.js?v=1" defer></script>
+{% endblock %}
+{% block content %}
+<main class="tg-app">
+  <header class="tg-header">
+    <div class="tg-heading"><span class="tg-eyebrow">НЕЙРОНА / СВЯЗЬ</span><h1>Telegram</h1></div>
+    <div id="tgProfile" class="tg-muted"></div>
+    <button id="tgChoose" class="tg-button" hidden>Выбрать чаты</button>
+    <button id="tgDisconnect" class="tg-button" hidden>Отключить аккаунт</button>
+  </header>
+  <p id="tgNotice" role="status" aria-live="polite" class="tg-notice" hidden></p>
+  <section id="tgSetup" class="tg-card tg-connect" hidden>
+    <span class="tg-symbol" aria-hidden="true">↗</span>
+    <h2>Telegram ещё не настроен</h2>
+    <p>Администратору нужно указать параметры Telegram API на компьютере-сервере и перезапустить «Нейрону».</p>
+    <p class="tg-muted">После настройки здесь появится подключение вашего личного аккаунта.</p>
+  </section>
+  <section id="tgLogin" class="tg-card tg-connect" hidden>
+    <span class="tg-symbol" aria-hidden="true">↗</span>
+    <h2>Ваш Telegram в «Нейроне»</h2>
+    <p id="tgLoginHint">Подключите свой аккаунт и выберите чаты для работы. Подключение принадлежит только вашей учётной записи «Нейроны».</p>
+    <form id="tgLoginForm">
+      <label id="tgPhoneField">Номер телефона<input id="tgPhone" type="tel" autocomplete="tel" placeholder="+7 999 123-45-67" maxlength="25"></label>
+      <label id="tgCodeField" hidden>Код из Telegram<input id="tgCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12"></label>
+      <label id="tgPasswordField" hidden>Пароль двухэтапной защиты<input id="tgPassword" type="password" autocomplete="off" maxlength="256"></label>
+      <button class="tg-button tg-primary" id="tgLoginSubmit" type="submit">Получить код</button>
+      <button class="tg-button" id="tgRestart" type="button" hidden>Начать заново</button>
+    </form>
+    <p class="tg-muted tg-small">Код и пароль используются только для входа в Telegram и не сохраняются.</p>
+  </section>
+  <section id="tgWorkspace" class="tg-workspace tg-card" hidden>
+    <aside class="tg-sidebar">
+      <label class="tg-search-label" for="tgChatSearch">Ваши чаты</label>
+      <input id="tgChatSearch" type="search" placeholder="Поиск по выбранным чатам" autocomplete="off">
+      <nav id="tgChats" aria-label="Выбранные чаты"></nav>
+      <button id="tgChooseEmpty" class="tg-button">+ Выбрать чаты</button>
+    </aside>
+    <section class="tg-conversation" aria-label="Переписка">
+      <div class="tg-conversation-head"><h2 id="tgChatTitle">Выберите чат</h2><button id="tgRefresh" class="tg-button" hidden>Обновить</button></div>
+      <div id="tgMessages" class="tg-messages"><p class="tg-empty">Здесь появятся сообщения выбранного чата.</p></div>
+      <button id="tgOlder" class="tg-button tg-older" hidden>Загрузить предыдущие сообщения</button>
+      <form id="tgComposer" class="tg-composer" hidden>
+        <div id="tgReply" class="tg-reply" hidden><span id="tgReplyText"></span><button type="button" id="tgCancelReply" class="tg-button" aria-label="Отменить ответ">×</button></div>
+        <label class="tg-visually-hidden" for="tgText">Сообщение</label>
+        <textarea id="tgText" placeholder="Написать сообщение…" maxlength="4096" rows="3"></textarea>
+        <div class="tg-compose-actions"><span class="tg-muted tg-small">Ctrl / ⌘ + Enter — отправить</span><button id="tgSend" class="tg-button tg-primary" type="submit">Отправить →</button></div>
+      </form>
+    </section>
+  </section>
+  <dialog id="tgPicker" class="tg-picker" aria-labelledby="tgPickerTitle">
+    <form id="tgPickerForm">
+      <div class="tg-picker-head"><h2 id="tgPickerTitle">Чаты для работы</h2><button id="tgPickerClose" class="tg-button" type="button" aria-label="Закрыть">×</button></div>
+      <p class="tg-muted">Отметьте нужные чаты. В модуле будут доступны только они.</p>
+      <input id="tgDialogSearch" type="search" placeholder="Найти среди загруженных чатов" autocomplete="off" aria-label="Поиск чатов">
+      <p id="tgPickerNotice" role="status"></p>
+      <div id="tgDialogList" class="tg-dialog-list"></div>
+      <button id="tgMoreDialogs" type="button" class="tg-button" hidden>Ещё чаты</button>
+      <div class="tg-picker-actions"><span id="tgSelectedCount" class="tg-muted"></span><button id="tgSaveChats" class="tg-button tg-primary" type="submit">Сохранить выбор</button></div>
+    </form>
+  </dialog>
+</main>
+{% endblock %}

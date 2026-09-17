@@ -20,3 +20,8 @@ jinja2>=3.1
 # === Конвертер HTML -> PowerPoint ===
 beautifulsoup4>=4.12
 python-pptx>=1.0
+
+# Telegram: пользовательские аккаунты, шифрование сессий и необязательный прокси
+Telethon>=1.45,<2
+cryptography>=43
+python-socks[asyncio]>=2.4,<3

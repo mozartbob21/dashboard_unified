@@ -17,6 +17,7 @@ FOLDER_A_MANIFEST_FILE = DATA / "folder_a_manifest.json"
 MUNICIPALITY_OVERRIDES_FILE = DATA / "municipality_overrides.json"
 DICT_JSON = Path(__file__).with_name("zip_dict.json")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+SOURCE_FIELDS = ("loaded_at", "uploaded", "fname", "local_file")
 
 D = json.loads(DICT_JSON.read_text(encoding="utf-8"))
 
@@ -233,10 +234,15 @@ def _clean_from_published():
     if not PUBLISHED_FILE.exists():
         return {}
     try:
-        rows = json.loads(PUBLISHED_FILE.read_text(encoding="utf-8")).get("rows") or []
+        payload = json.loads(PUBLISHED_FILE.read_text(encoding="utf-8"))
+        rows = payload.get("rows") or []
     except (OSError, json.JSONDecodeError, AttributeError):
         return {}
-    return _clean_from_rows(rows)
+    clean = _clean_from_rows(rows)
+    for key, entry in clean.items():
+        source = (payload.get("rso_metadata") or {}).get(key) or {}
+        entry.update({field: source[field] for field in SOURCE_FIELDS if field in source})
+    return clean
 
 
 def load_state():
@@ -269,6 +275,12 @@ def ingest(list_of_parsed):
     for p in list_of_parsed:
         if not p["items"]: continue
         _enrich(p)
+        previous = next((x for x in st["pending"] if norm(x["rso"]) == norm(p["rso"])), {})
+        # Re-scanning an unchanged Folder A file is not a new upload.
+        unchanged = (p.get("local_file") and p.get("uploaded")
+                     and p.get("local_file") == previous.get("local_file")
+                     and p.get("uploaded") == previous.get("uploaded"))
+        p["loaded_at"] = (previous.get("loaded_at") if unchanged else None) or datetime.now().astimezone().isoformat(timespec="seconds")
         st["pending"] = [x for x in st["pending"] if norm(x["rso"]) != norm(p["rso"])]
         st["pending"].append(p); added += 1
     save_state(st)
@@ -443,6 +455,7 @@ def approve(idx):
         merged.append(b)
     key = norm(p["rso"])
     st["clean"][key] = {"rso": p["rso"], "okrug": p.get("okrug") or resolve_municipality(p["rso"]), "date": p.get("date"), "items": merged}
+    st["clean"][key].update({field: p[field] for field in SOURCE_FIELDS if field in p})
     # Ручная повторная загрузка и согласование явно возвращают ранее удалённое РСО.
     st.setdefault("excluded_rso", {}).pop(key, None)
     save_state(st)
@@ -480,6 +493,7 @@ def delete_rso(rso):
     _atomic_write_json(PUBLISHED_FILE, {
         "rows": rows,
         "published_at": datetime.now().isoformat(timespec="seconds"),
+        "rso_metadata": _source_metadata(st["clean"]),
     })
     save_state(st)
     return {
@@ -555,15 +569,25 @@ def merge_rows_by_rso(current_rows, incoming_rows):
     return [incoming_header, *retained, *incoming_data], incoming_rso
 
 
+def _source_metadata(clean):
+    return {key: {field: entry[field] for field in SOURCE_FIELDS if field in entry}
+            for key, entry in clean.items()}
+
+
 def publish_rows(rows, st=None):
     merged_rows, incoming_rso = merge_rows_by_rso(_published_rows(), rows)
+    state = st if st is not None else load_state()
+    metadata = _source_metadata(state["clean"])
+    clean = _clean_from_rows(merged_rows)
+    for key, entry in clean.items():
+        entry.update(metadata.get(key, {}))
     payload = {
         "rows": merged_rows,
         "published_at": datetime.now().isoformat(timespec="seconds"),
+        "rso_metadata": _source_metadata(clean),
     }
     _atomic_write_json(PUBLISHED_FILE, payload)
-    state = st or load_state()
-    state["clean"] = _clean_from_rows(merged_rows)
+    state["clean"] = clean
     save_state(state)
     payload["updated_rso"] = len(incoming_rso)
     payload["total_rso"] = len(state["clean"])

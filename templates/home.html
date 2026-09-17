@@ -1454,6 +1454,15 @@
 
 
 
+{% if "telegram" in user_modules %}
+<article data-module="telegram" class="card module-card">
+    <div class="module-head"><div class="head-pills"><span class="pill primary">Telegram</span><span class="pill primary">Рабочие чаты</span></div></div>
+    <h2 class="module-title">Telegram</h2>
+    <div class="module-description is-collapsed">Читайте выбранные чаты и отправляйте сообщения из своего Telegram-аккаунта прямо в «Нейроне».</div>
+    <div class="tag-row"><span class="tag">Личный аккаунт</span><span class="tag">Выбранные чаты</span><span class="tag">Сообщения</span></div>
+    <div class="action-panel"><a href="/telegram" class="module-link">Открыть модуль →</a></div>
+</article>
+{% endif %}
             {% if "zips" in user_modules %}
 <article data-module="zips" class="card module-card">
     <div class="module-head">
@@ -1756,6 +1765,7 @@
                 { id: "edds", name: "ЕДДС — мониторинг", path: "/edds", icon: "📡" },
                 { id: "summarizer", name: "Сумматор", path: "/summarizer", icon: "📑" },
                 { id: "zips", name: "Остатки ЗиП РСО", path: "/zips", icon: "🧰" },
+                { id: "telegram", name: "Telegram", path: "/telegram", icon: "✉" },
             ].filter(module => allowedModules.includes(module.id));
 
             const DEFAULT_SELECTION = ["edo", "cameras", "overdue", "utnkr"];

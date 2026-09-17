@@ -134,6 +134,8 @@ initialize_access_control()
 app.include_router(users_router)
 from routers.edds import router as edds_router
 app.include_router(edds_router)
+from routers.telegram import router as telegram_router
+app.include_router(telegram_router)
 # =========================
 # ROUTERS
 # =========================
@@ -998,6 +1000,7 @@ def has_local_git_changes():
 # =========================
 
 PATH_MODULE_MAP = {
+    "/telegram": "telegram",
     "/edds": "edds",
     "/edo": "edo",
     "/overdue": "overdue",

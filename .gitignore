@@ -151,6 +151,9 @@ static/*.bak*
 *.bak_ux_*
 
 # Локальная авторизация (секреты не коммитим)
+/.private/
+*.session
+*.session-journal
 data/auth/jwt_secret.key
 data/auth/users.json
 

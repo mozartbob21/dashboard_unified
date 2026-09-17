@@ -16,10 +16,11 @@ ALL_MODULE_IDS = [
     "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
     "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
     "water_rm", "tools",
-    "summarizer", "zips",
+    "summarizer", "zips", "telegram",
 ]
 
 MODULE_NAMES = {
+    "telegram": "Telegram — выбранные чаты",
     "edds": "ЕДДС — контроль заявок",
     "edo": "Заполненность данных", "overdue": "Просроченные задачи",
     "watercontrol": "Контроль воды", "utnkr": "Технадзор УТНКР",
@@ -39,6 +40,7 @@ def allowed_history_modules(user):
 
 # Маппинг ролей Keycloak -> модули платформы
 KC_ROLE_TO_MODULE = {
+    "telegram":          "telegram",
     "admin":             "__full_access__",
     "администратор":     "__full_access__",
     "руководитель":      "__full_access__",
