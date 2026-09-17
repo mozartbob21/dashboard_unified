@@ -1,6 +1,5 @@
 """Bounded, read-only collection of Dobrodel reports for the EDDS dashboard."""
 import json
-import shutil
 import subprocess
 import sys
 import time
@@ -22,8 +21,10 @@ def status():
 
 def water_daily():
     path=DATA/'water_daily.json'
-    if not path.exists(): path=Path(__file__).with_name('water_daily_seed.json')
-    data=json.loads(path.read_text(encoding='utf-8-sig'))
+    if path.exists():
+        data=json.loads(path.read_text(encoding='utf-8-sig'))
+    else:
+        data={'days': {}, 'source': 'Добродел', 'error': 'Свод жалоб ещё не загружен. Настройте доступ к Доброделу и нажмите «Обновить жалобы».', 'available': False}
     data['building']=status()['running']
     return data
 
@@ -40,8 +41,6 @@ def run(user='Авто-запуск'):
     message='Не удалось обновить жалобы. Проверьте доступ к Доброделу, логин и пароль, установку Chromium. Возможна капча или двухфакторная проверка.'
     try:
         DATA.mkdir(parents=True,exist_ok=True)
-        if not (DATA/'water_daily.json').exists():
-            shutil.copyfile(Path(__file__).with_name('water_daily_seed.json'),DATA/'water_daily.json')
         result=subprocess.run([sys.executable,'-m','services.edds.collector'],cwd=BASE,timeout=1800,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         ok=result.returncode==0
         if ok: message='Свод жалоб обновлён'

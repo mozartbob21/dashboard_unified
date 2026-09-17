@@ -1,9 +1,10 @@
 from pathlib import Path
+from datetime import date
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from core.roles import check_module_access
 from services.auth.integrations import credentials
-from services.edds import runner
+from services.edds import runner, arm
 
 
 def require_edds(request: Request):
@@ -26,7 +27,19 @@ async def water_daily():
 
 @router.get('/status')
 async def status():
-    return runner.status()
+    return {**runner.status(), 'arm_configured': bool(credentials('edds_arm')),
+            'complaints_configured': bool(credentials('edds'))}
+
+
+@router.get('/arm/report')
+def arm_report(from_date: date, to_date: date, coordinates: bool = False):
+    # A sync route runs blocking portal requests in FastAPI's worker thread pool.
+    from fastapi.responses import JSONResponse
+    try:
+        return JSONResponse({'grid': arm.fetch_report(from_date, to_date, coordinates)},
+                            headers={'Cache-Control': 'no-store'})
+    except arm.ArmError as error:
+        raise HTTPException(error.status, str(error), headers={'Cache-Control': 'no-store'}) from None
 
 
 @router.post('/refresh',status_code=202)

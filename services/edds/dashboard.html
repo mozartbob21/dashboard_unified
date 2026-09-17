@@ -544,7 +544,8 @@ td.c,th.c{text-align:center}
   </a>
   <span class="system-status" id="eddsStatus" role="status" aria-live="polite"></span>
   <div class="system-shell-actions">
-    <button class="btn shell-control" id="eddsRefresh" type="button">↻ Обновить жалобы</button>
+    <button class="btn shell-control" id="eddsArmRefresh" type="button">↻ Загрузить заявки ЕДДС</button>
+    <button class="btn shell-control" id="eddsRefresh" type="button">↻ Жалобы Добродела</button>
     <a class="btn shell-control system-back-button" href="/">← К модулям</a>
   </div>
 </header>
@@ -582,8 +583,8 @@ td.c,th.c{text-align:center}
     </div>
     <button class="btn btn-primary" id="lv-go">Загрузить</button>
     <div class="hint">
-      Запрос идёт от вашего имени в уже открытой сессии — только чтение сводного отчёта.<br>
-      Область запрашивается целиком, поэтому длинный период читается по многим страницам:<br>
+      В «Нейроне» отчёт загружается сервером через сохранённый доступ к АРМ ЕДДС.<br>
+      Область запрашивается целиком. Чтобы быстро получить данные,<br>
       начните с недели, дальше период можно менять прямо в фильтрах.
     </div>
   </div>
@@ -811,9 +812,9 @@ const WATER = [
 /* ---------- живой режим ----------
    Из файла на диске (file://) до сайта не достучаться: браузер не пустит межсайтовый
    запрос и не отдаст куки сессии. Поэтому живой режим включается только тогда, когда
-   дашборд открыт внутри самой вкладки АРМ ЕДДС — там запросы к отчёту идут как
-   обычные внутренние, под уже выполненным входом. В остальных случаях работает
-   привычный приём файла. */
+   дашборд открыт внутри самой вкладки АРМ ЕДДС — там запросы идут под уже
+   выполненным входом. В «Нейроне» запросы выполняет сервер через сохранённый
+   доступ к АРМ. При открытии отдельного HTML остаётся приём файла. */
 const SITE = {
   host: 'zkh-kontur.mosreg.ru',
   path: '/new9/',
@@ -824,7 +825,8 @@ const SITE = {
 };
 // Обычно определяется по адресу системы. Параметр ?live=1 включает режим принудительно —
 // пригодится, если АРМ откроют по другому имени хоста, и для проверки на стенде.
-const LIVE = location.protocol !== 'file:' &&
+const EMBEDDED = location.pathname === '/edds' || location.pathname === '/edds/';
+const LIVE = EMBEDDED || location.protocol !== 'file:' &&
   (location.hostname === SITE.host || /(^|[?&])live=1(&|$)/.test(location.search));
 
 // Колонки таблицы отчёта идут ровно в том же порядке, что и строка машинных имён полей
@@ -1039,7 +1041,17 @@ function rowsOfReport(doc){
    Зачем это вместо постраничного чтения: неделя по области — это 106 страниц
    и 106 запросов, каждый из которых разбирается регулярками по вёрстке. Здесь
    один запрос и стабильный формат с машинными именами полей. */
+async function armReport(ot, doo, coordinates=false){
+  const iso = value => {const m=/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/.exec(value);return m ? (m[3].length===2?'20':'')+m[3]+'-'+m[2]+'-'+m[1] : value;};
+  const query = new URLSearchParams({from_date:iso(ot),to_date:iso(doo),coordinates:String(coordinates)});
+  const response=await fetch('/edds/arm/report?'+query,{cache:'no-store'});
+  if(response.redirected || response.status===401)throw new Error('Войдите в «Нейрону» заново.');
+  const data=await response.json();
+  if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'Не удалось загрузить отчёт ЕДДС. Проверьте период.');
+  return data.grid;
+}
 async function fetchReportCsv(ot, doo){
+  if(EMBEDDED)return armReport(ot,doo);
   const body = new URLSearchParams();
   body.set('act', SITE.act);
   body.set('id', SITE.id);
@@ -1072,6 +1084,7 @@ async function fetchReportCsv(ot, doo){
 
 // Тянет отчёт за период, обходя пагинацию. say() — показ хода работы.
 async function fetchReport(ot, doo, say){
+  if(EMBEDDED)return {grid:await armReport(ot,doo),bad:0};
   const get = async p => {
     let r;
     try{ r = await fetch(reportUrl(ot, doo, p), { credentials: 'same-origin' }); }
@@ -1416,6 +1429,7 @@ const geoDay = iso => {
 };
 
 async function geoFetchLive(fromIso, toIso){
+  if(EMBEDDED)return armReport(fromIso,toIso,true);
   const ot = geoDay(fromIso), doo = geoDay(toIso);
   if(!ot || !doo) throw new Error('Не задан период.');
 
@@ -1486,7 +1500,7 @@ const geoHave = () => VIEW.filter(r => r.lat !== null).length;
    здесь нет, поэтому он спокойно лежит в памяти браузера.
    ============================================================ */
 const ZH_KEY = 'edds_water_complaints_v1';
-const ZH_URL = 'http://127.0.0.1:8765/api/water-daily';
+const ZH_URL = EMBEDDED ? '/edds/water-daily' : 'http://127.0.0.1:8765/api/water-daily';
 let ZH = null;        // разобранный свод
 let ZH_NOTE = '';     // чем объяснить пустую карточку
 let ZH_BUILDING = false;   // кликер прямо сейчас идёт в ДоброДел
@@ -1695,16 +1709,17 @@ async function zhFetch(){
   const t = setTimeout(() => ctl.abort(), 2500);
   try{
     const r = await fetch(ZH_URL, { signal: ctl.signal, cache: 'no-store' });
-    if(!r.ok) throw new Error('помощник ответил ' + r.status);
+    if(r.redirected || !r.ok) throw new Error('Свод недоступен: ' + r.status);
     const j = await r.json();
     ZH_BUILDING = !!(j && j.building);
+    if(j && j.available===false){ZH_NOTE=j.error||'Свод ещё не загружен.';return false;}
     if(j && j.days){ zhMerge(j.days, j.source || 'помощник кликера'); return true; }
     ZH_NOTE = (j && j.error) ? j.error : 'Помощник ответил, но свода в ответе нет.';
   }catch(e){
     ZH_BUILDING = false;
     ZH_NOTE = e.name === 'AbortError'
-      ? 'Помощник кликера не ответил за 2,5 секунды.'
-      : 'Помощник кликера на 127.0.0.1:8765 не отвечает.';
+      ? 'Сервер свода жалоб не ответил за 2,5 секунды.'
+      : (EMBEDDED?'Не удалось получить свод жалоб с сервера «Нейроны».':'Помощник кликера на 127.0.0.1:8765 не отвечает.');
   }finally{ clearTimeout(t); }
   return false;
 }
@@ -1718,6 +1733,7 @@ async function zhFetch(){
 const ZH_EVERY = 300000;   // обычная проверка помощника
 const ZH_SOON  = 15000;    // пока кликер идёт в ДоброДел
 let zhTries = 0, zhTimer = null, zhSig = null;
+window.addEventListener('edds-complaints-updated', () => zhPoll());
 async function zhPoll(){
   if(zhTimer){ clearTimeout(zhTimer); zhTimer = null; }
   zhChanged = false;
@@ -1728,7 +1744,7 @@ async function zhPoll(){
   const sig = (ZH ? ZH.from + '..' + ZH.to : '-') + '|' + ZH_BUILDING + '|' + ZH_NOTE;
   if(DATA && (zhChanged || sig !== zhSig)) applyFilters();
   zhSig = sig;
-  if(!ok && ZH_BUILDING && zhTries < 20){
+  if(ZH_BUILDING && zhTries < 20){
     zhTries++;
     zhTimer = setTimeout(zhPoll, ZH_SOON);
   }else{
@@ -5272,6 +5288,9 @@ async function loadLive(){
   if(!ot || !doo){ liveSay('Укажите обе даты периода', 'bad'); return; }
 
   liveBusy = true;
+  document.getElementById('lv-go').disabled=true;
+  const armButton=document.getElementById('eddsArmRefresh');
+  if(armButton)armButton.disabled=true;
   clearTimeout(liveTimer);
   liveSay('Запрашиваю отчёт…', 'busy');
   const err = document.getElementById('err');
@@ -5286,6 +5305,7 @@ async function loadLive(){
       liveSay('Запрашиваю выгрузку CSV…', 'busy');
       grid = await fetchReportCsv(ot, doo);
     }catch(eCsv){
+      if(EMBEDDED)throw eCsv;
       via = 'страницы';
       liveSay('CSV не получился (' + (eCsv.message || eCsv) + ') — читаю страницами…', 'busy');
       const res = await fetchReport(ot, doo, t => liveSay(t, 'busy'));
@@ -5318,6 +5338,8 @@ async function loadLive(){
     }
   }finally{
     liveBusy = false;
+    document.getElementById('lv-go').disabled=false;
+    if(armButton)armButton.disabled=false;
   }
 }
 
@@ -5373,8 +5395,9 @@ if(LIVE){
   document.getElementById('lv-go').addEventListener('click', go);
   [f, t].forEach(i => i.addEventListener('keydown', e => { if(e.key === 'Enter') go(); }));
   document.getElementById('pick').textContent = 'Загрузить файл';
-  // область читается целиком и это десятки страниц отчёта, поэтому запрос сам не стартует:
-  // сначала период, потом «Загрузить»
+  window.eddsLoadArm = () => DATA ? loadLive() : go();
+  // В «Нейроне» edds-module.js запускает первую загрузку после проверки настроек.
+  // В отдельном HTML запрос начинается кнопкой «Загрузить».
 }
 
 const fileEl = document.getElementById('file');
@@ -5683,6 +5706,6 @@ document.getElementById('tabs').addEventListener('click', e => {
 });
 </script>
 
-<script src="/static/edds-module.js?v=20260916" defer></script>
+<script src="/static/edds-module.js?v=20260917-arm" defer></script>
 </body>
 </html>
