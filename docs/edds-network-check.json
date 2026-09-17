@@ -1,0 +1,50 @@
+{
+  "checked_at": "2026-09-17T15:50:27+03:00",
+  "platform": "Darwin",
+  "portal": "zkh-kontur.mosreg.ru",
+  "note": "Run on the Neurona server. Internal IP/DNS supplied for comparison; no credentials used.",
+  "system_dns": [
+    "185.120.188.34"
+  ],
+  "specified_dns": {
+    "server": "10.10.51.2",
+    "return_code": 0,
+    "output": "Server:\t\t10.10.51.2\nAddress:\t10.10.51.2#53\n\nNon-authoritative answer:\nName:\tzkh-kontur.mosreg.ru\nAddress: 185.120.188.34"
+  },
+  "tcp": [
+    {
+      "host": "10.10.34.2",
+      "port": 443,
+      "connected": false,
+      "error_type": "TimeoutError",
+      "errno": null,
+      "error": "timed out"
+    },
+    {
+      "host": "10.10.51.2",
+      "port": 53,
+      "connected": false,
+      "error_type": "TimeoutError",
+      "errno": null,
+      "error": "timed out"
+    },
+    {
+      "host": "185.120.188.34",
+      "port": 443,
+      "connected": true
+    }
+  ],
+  "custom_ca_bundle_configured": false,
+  "tls_direct": [
+    {
+      "address": "185.120.188.34",
+      "server_name": "zkh-kontur.mosreg.ru",
+      "certificate_verification": true,
+      "connected": false,
+      "error_type": "SSLEOFError",
+      "error": "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1081)"
+    }
+  ],
+  "proxy_environment": {},
+  "no_proxy": ""
+}
