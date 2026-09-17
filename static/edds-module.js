@@ -13,7 +13,7 @@
   async function poll(){
     try{const data=await request('status'); button.disabled=data.running||!data.complaints_configured;
       button.title=data.complaints_configured?'Обновить свод жалоб':'Настройте отдельный доступ к Доброделу в разделе «Пользователи»';
-      const text=data.message||(data.arm_configured?'АРМ ЕДДС: доступ настроен.':'Настройте доступ к «АРМ ЕДДС» в разделе «Пользователи → Логины и пароли».');
+      const text=data.message||(data.arm_configured?`АРМ ЕДДС: учётные данные сохранены · ${data.arm_transport==='chrome'?'Chrome на сервере':'прямое подключение'}.`:'Настройте доступ к «АРМ ЕДДС» в разделе «Пользователи → Логины и пароли».');
       if(message.textContent!==text)message.textContent=text;
       if(complaintsRunning&&!data.running)window.dispatchEvent(new Event('edds-complaints-updated'));
       complaintsRunning=data.running;

@@ -14,7 +14,7 @@ load_dotenv()
 
 
 import bcrypt
-from services.auth import registration
+from services.auth import registration, home_preferences
 from services.auth import mailer
 from services.notifications import store as notif_store
 
@@ -1126,8 +1126,8 @@ async def security_headers(request: Request, call_next):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, error: str = ""):
-    token = request.cookies.get("access_token")
-    user = get_user_from_token(token) or {}
+    # Authentication middleware has already resolved and validated this account.
+    user = request.state.user
 
     return templates.TemplateResponse(
         request,
@@ -1136,6 +1136,7 @@ async def home(request: Request, error: str = ""):
             "request": request,
             "user": user,
             "user_modules": effective_modules(user),
+            "home_preferences": home_preferences.preferences(user),
             "is_admin_ui": user.get("username") == "admin" or is_full_access(user),
             "user_role": user.get("role", ""),
             "user_username": user.get("username", ""),

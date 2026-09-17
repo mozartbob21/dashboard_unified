@@ -13,6 +13,11 @@ from services.edds import arm, runner
 
 
 class ArmTests(unittest.TestCase):
+    def setUp(self):
+        environment = patch.dict(arm.os.environ, {"EDDS_ARM_TRANSPORT": "requests"})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_csv_handles_quoted_fields_and_bom(self):
         rows = arm.parse_csv('\ufeffid_cds_claim;text_message\n1;"текст; с разделителем"\n', 'id_cds_claim')
         self.assertEqual(rows[1], ['1', 'текст; с разделителем'])

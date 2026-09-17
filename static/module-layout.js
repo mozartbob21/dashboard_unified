@@ -29,6 +29,67 @@
     else card.appendChild(summary);
   });
 
+  const grid=document.querySelector('.modules-grid');
+  const regularCards=[...document.querySelectorAll('.modules-grid > .module-card[data-module]')];
+  const favoritesStatus=document.getElementById('favoritesStatus');
+  let preferences={can_favorite:false, eligible:[], favorites:[]};
+  try { preferences=JSON.parse(document.getElementById('homePreferences')?.textContent || '{}'); } catch (_) {}
+  let saving=false;
+  const star='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.55 4.45 1.08 6.28L12 17.36l-5.63 2.97 1.08-6.28L2.9 9.6l6.3-.9Z"/></svg>';
+
+  function applyFavorites(){
+    const favorites=preferences.favorites || [];
+    regularCards.forEach(card=>{
+      let button=card.querySelector('.favorite-toggle');
+      const eligible=preferences.can_favorite && preferences.eligible?.includes(card.dataset.module);
+      if(!eligible){button?.remove();return;}
+      if(!button){
+        button=document.createElement('button');
+        button.type='button'; button.className='favorite-toggle'; button.innerHTML=star;
+        button.addEventListener('click',()=>saveFavorite(card.dataset.module));
+        card.querySelector('.module-head')?.appendChild(button);
+      }
+      const selected=favorites.includes(card.dataset.module);
+      const label=(selected?'Убрать из избранного: ':'В избранное: ')+card.querySelector('.module-title').textContent.trim();
+      button.setAttribute('aria-pressed',String(selected));
+      button.setAttribute('aria-label',label); button.title=label;
+    });
+    if(grid){
+      const byId=new Map(regularCards.map(card=>[card.dataset.module,card]));
+      [...favorites.map(id=>byId.get(id)).filter(Boolean), ...regularCards.filter(card=>!favorites.includes(card.dataset.module))]
+        .forEach(card=>grid.appendChild(card));
+    }
+  }
+
+  async function saveFavorite(id){
+    if(saving)return;
+    const current=preferences.favorites || [];
+    const favorites=current.includes(id)?current.filter(value=>value!==id):[id,...current];
+    saving=true;
+    document.querySelectorAll('.favorite-toggle').forEach(button=>button.disabled=true);
+    try {
+      const response=await fetch('/api/me/home-favorites',{
+        method:'PUT', credentials:'same-origin', cache:'no-store',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({favorites})
+      });
+      if(response.redirected || response.status===401)throw new Error('Войдите в систему заново. Избранное не изменено.');
+      const data=await response.json();
+      if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'Не удалось сохранить избранное.');
+      preferences=data; applyFavorites();
+      if(favoritesStatus)favoritesStatus.textContent=current.includes(id)?'Модуль убран из избранного.':'Модуль добавлен в избранное и перемещён наверх.';
+    } catch(error){
+      if(favoritesStatus)favoritesStatus.textContent=error.message || 'Не удалось сохранить избранное. Повторите попытку.';
+    } finally {
+      saving=false;
+      document.querySelectorAll('.favorite-toggle').forEach(button=>button.disabled=false);
+      regularCards.find(card=>card.dataset.module===id)?.querySelector('.favorite-toggle')?.focus({preventScroll:true});
+    }
+  }
+  // The initial order is supplied by the server and belongs to the signed-in account.
+  applyFavorites();
+  document.querySelectorAll('.module-card .tag, .module-card .pill').forEach(tag=>tag.title=tag.textContent.trim());
+  document.querySelectorAll('.module-card .action-panel .secondary-button').forEach(link=>link.setAttribute('aria-label','Открыть источник'));
+
   function setView(view){
     view=view==='list'?'list':'cards';
     document.documentElement.dataset.moduleView=view;

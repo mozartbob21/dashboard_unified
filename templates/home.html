@@ -940,8 +940,8 @@
         @media(max-width:1080px){.wide-pair{grid-template-columns:1fr;}}
     </style>
 <link rel="stylesheet" href="/static/module-layout.css?v=20260915">
-<link rel="stylesheet" href="/static/home-premium.css?v=20260916-4">
-<script src="/static/module-layout.js?v=20260916-1" defer></script>
+<link rel="stylesheet" href="/static/home-premium.css?v=20260917-5">
+<script src="/static/module-layout.js?v=20260917-5" defer></script>
 </head>
 
 
@@ -1031,7 +1031,7 @@
                 {% if true %}
                 <div class="profile-menu">
                     <button id="profileMenuButton" class="profile-menu-trigger professional-profile" type="button"
-                            aria-haspopup="true" aria-expanded="false" title="{{ user_role or '' }}">
+                            aria-haspopup="true" aria-expanded="false" aria-label="Профиль" title="{{ user_role or '' }}">
                         <span class="profile-avatar" aria-hidden="true">●</span>
                         <span class="profile-trigger-copy"><small>Профиль</small><strong>{{ user_username }}</strong></span>
                         <span class="profile-chevron" aria-hidden="true">⌄</span>
@@ -1061,33 +1061,15 @@
     <div>
         <div class="eyebrow">Рабочее пространство</div>
         <h1 id="homeWelcomeTitle">С возвращением!</h1>
-        <p>Выберите задачу или продолжите с быстрого действия.</p>
+        <p>Ваши запуски, инструменты и рабочие модули.</p>
     </div>
     <a href="#systemModules" class="home-welcome-link">К модулям <span aria-hidden="true">↓</span></a>
 </section>
         {% if true %}
-        <section class="card quick-actions-bar">
-            <div class="quick-actions-left">
-                <div class="quick-actions-title">
-                    <span>⚡</span> Сегодня можно быстро посмотреть:
-                </div>
-                <div id="quickActionsContainer" class="quick-actions-links">
-                </div>
-            </div>
-            {% if "tools" in user_modules %}<a href="/tools" class="quick-glass">🧰 <span>Полезные инструменты</span></a>{% endif %}
-            <button id="configureQuickActionsBtn" class="quick-actions-configure-btn" type="button">
-                <span>⚙️</span> Настроить
-            </button>
-        
-            <a class="quick-glass" href="/aichat" style="text-decoration:none">🤖 Нейрона AI-чат</a>
-        </section>
-        {% endif %}
-
-        {% if true %}
         
             
             <section class="card history-widget" id="historyWidget">
-            <div class="history-widget">
+            <div class="history-content">
     <!-- Шапка: заголовок + кнопка "Дата" -->
     <div class="history-widget-head">
         <div class="history-title-group">
@@ -1106,8 +1088,25 @@
         </section>
         {% endif %}
 
+        <section class="home-utilities" aria-label="Постоянные инструменты">
+            {% if "tools" in user_modules %}
+            <a href="/tools" class="home-utility">
+                <span class="utility-icon" aria-hidden="true">⌘</span>
+                <span class="utility-copy"><strong>Полезные инструменты</strong><span>Всё для повседневных задач</span></span>
+                <span class="utility-arrow" aria-hidden="true">↗</span>
+            </a>
+            {% endif %}
+            <a href="/aichat" class="home-utility home-utility-ai">
+                <span class="utility-icon" aria-hidden="true">✦</span>
+                <span class="utility-copy"><strong>Нейрона AI-чат</strong><span>Обсудить вопрос и подготовить ответ</span></span>
+                <span class="utility-arrow" aria-hidden="true">↗</span>
+            </a>
+        </section>
+        <script id="homePreferences" type="application/json">{{ home_preferences | tojson }}</script>
+        <p id="favoritesStatus" class="favorites-status" role="status" aria-live="polite"></p>
+
         <div class="module-view-controls" id="systemModules" role="group" aria-label="Поиск и вид блоков">
-            <span><small>Рабочее пространство</small>Модули</span>
+            <span>Модули</span>
             <label class="module-search" for="moduleSearch">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
                 <input id="moduleSearch" type="search" autocomplete="off" placeholder="Найти модуль или задачу" aria-label="Поиск по модулям">
@@ -1145,7 +1144,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/edo" class="module-link">Открыть модуль →</a>
+                    <a href="/edo" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="https://datalens.yandex/f5wqqij889haz?tab=EL"
                        target="_blank"
@@ -1184,7 +1183,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/overdue" class="module-link">Открыть модуль →</a>
+                    <a href="/overdue" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="https://datalens.yandex/hdxgldxnx8ui1?state=f6c37bf4134"
                        target="_blank"
@@ -1223,7 +1222,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/watercontrol" class="module-link">Открыть модуль →</a>
+                    <a href="/watercontrol" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="https://datalens.yandex/j9dqqujx03qa3"
                        target="_blank"
@@ -1262,7 +1261,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/utnkr" class="module-link">Открыть модуль →</a>
+                    <a href="/utnkr" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="https://tehnadzor.utnkr.ru/"
                        target="_blank"
@@ -1301,7 +1300,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/cameras" class="module-link">Открыть модуль →</a>
+                    <a href="/cameras" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="https://fkr.eiasmo.ru"
                        target="_blank"
@@ -1339,7 +1338,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/appeals" class="module-link">Открыть модуль →</a>
+                    <a href="/appeals" class="module-link">Перейти <span aria-hidden="true">→</span></a>
                 </div>
             </article>
 {% endif %}
@@ -1368,7 +1367,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/summarizer" class="module-link">Открыть модуль →</a>
+                    <a href="/summarizer" class="module-link">Перейти <span aria-hidden="true">→</span></a>
                 </div>
             </article>
 {% endif %}
@@ -1400,7 +1399,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/cds" class="module-link">Открыть модуль →</a>
+                    <a href="/cds" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="http://176.100.216.181:63871/CDS/ru/"
                        target="_blank"
@@ -1440,7 +1439,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/mgkh-rm" class="module-link">Открыть модуль →</a>
+                    <a href="/mgkh-rm" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="https://mgkh.rm.mosreg.ru"
                        target="_blank"
@@ -1460,7 +1459,7 @@
     <h2 class="module-title">Telegram</h2>
     <div class="module-description is-collapsed">Читайте выбранные чаты и отправляйте сообщения из своего Telegram-аккаунта прямо в «Нейроне».</div>
     <div class="tag-row"><span class="tag">Личный аккаунт</span><span class="tag">Выбранные чаты</span><span class="tag">Сообщения</span></div>
-    <div class="action-panel"><a href="/telegram" class="module-link">Открыть модуль →</a></div>
+    <div class="action-panel"><a href="/telegram" class="module-link">Перейти <span aria-hidden="true">→</span></a></div>
 </article>
 {% endif %}
             {% if "zips" in user_modules %}
@@ -1483,7 +1482,7 @@
         <span class="tag">Экспорт CSV</span>
     </div>
     <div class="action-panel">
-        <a href="/zips" class="module-link">Открыть дашборд →</a>
+        <a href="/zips" class="module-link">Перейти <span aria-hidden="true">→</span></a>
     </div>
 </article>
 {% endif %}
@@ -1515,7 +1514,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/ecur" class="module-link">Открыть модуль →</a>
+                    <a href="/ecur" class="module-link">Перейти <span aria-hidden="true">→</span></a>
 
                     <a href="https://ecur.mosreg.ru"
                        target="_blank"
@@ -1538,7 +1537,7 @@
           <h2 class="module-title">ЕДДС — контроль заявок</h2>
           <div class="module-description is-collapsed">Задержка доклада по объектам водоснабжения и водоотведения, динамика и свод жалоб Добродела.</div>
           <div class="tag-row"><span class="tag">Задержка доклада</span><span class="tag">Динамика</span><span class="tag">Жалобы</span></div>
-          <div class="action-panel"><a href="/edds" class="module-link">Открыть модуль →</a></div>
+          <div class="action-panel"><a href="/edds" class="module-link">Перейти <span aria-hidden="true">→</span></a></div>
         </article>
         {% endif %}
         </section>
@@ -1570,9 +1569,7 @@
     </div>
 
     <div class="action-panel">
-        <a href="/water-dashboard" class="module-link btn-white">
-            Открыть дашборд →
-        </a>
+        <a href="/water-dashboard" class="module-link btn-white">Перейти <span aria-hidden="true">→</span></a>
     </div>
 </article>
 {% endif %}
@@ -1601,9 +1598,7 @@
                 </div>
 
                 <div class="action-panel">
-                    <a href="/municipality-report" class="module-link btn-white">
-                        Открыть отчёт →
-                    </a>
+                    <a href="/municipality-report" class="module-link btn-white">Перейти <span aria-hidden="true">→</span></a>
                 </div>
             </article>
             {% endif %}
@@ -1716,147 +1711,6 @@
     </section>
 </div>
 
-    {% if true %}
-    <div id="quickActionsModal" class="whats-new-modal" aria-hidden="true">
-        <div class="whats-new-backdrop" data-quick-modal-close></div>
-
-        <section class="whats-new-dialog" style="max-width: 480px;" role="dialog" aria-modal="true">
-            <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-quick-modal-close>
-                ×
-            </button>
-
-            <div class="whats-new-kicker">Настройки панели</div>
-
-            <h2 class="whats-new-title" style="margin-bottom: 8px;">Быстрый доступ</h2>
-
-            <p class="whats-new-lead" style="font-size: 13px; margin-bottom: 16px;">
-                Отметьте модули, которые вы хотите видеть в верхней строке быстрого перехода. Настройки сохраняются мгновенно.
-            </p>
-
-            <div class="customizer-list" id="customizerList">
-            </div>
-
-            <div class="whats-new-footer">
-                <button class="module-link" type="button" style="width: 100%;" data-quick-modal-close>
-                    Сохранить и закрыть
-                </button>
-            </div>
-        </section>
-    </div>
-    {% endif %}
-
-    {% if true %}
-    <script>
-        (function () {
-            const allowedModules = {{ user_modules | tojson }};
-            const ALL_MODULES = [
-                { id: "edo", name: "Заполненность данных", path: "/edo", icon: "📋" },
-                { id: "cameras", name: "Проверить камеры", path: "/cameras", icon: "📹" },
-                { id: "overdue", name: "Посмотреть просрочки", path: "/overdue", icon: "⏱️" },
-                { id: "utnkr", name: "Технадзор УТНКР", path: "/utnkr", icon: "🛡️" },
-                { id: "watercontrol", name: "Контроль воды", path: "/watercontrol", icon: "💧" },
-                { id: "appeals", name: "Эмпатичные ответы", path: "/appeals", icon: "✍️" },
-                { id: "municipality-report", name: "Отчёт по округу", path: "/municipality-report", icon: "📊" },
-                { id: "cds", name: "Обращения ЖКХ", path: "/cds", icon: "🏠" },
-                { id: "mgkh_rm", name: "ЖКХ Redmine", path: "/mgkh-rm", icon: "📅" },
-                { id: "ecur", name: "ЕЦУР — жалобы", path: "/ecur", icon: "📮" },
-                { id: "water-dashboard", name: "Качество водоснабжения", path: "/water-dashboard", icon: "🌊" },
-                { id: "tools", name: "Полезные инструменты", path: "/tools", icon: "🧰" },
-                { id: "edds", name: "ЕДДС — мониторинг", path: "/edds", icon: "📡" },
-                { id: "summarizer", name: "Сумматор", path: "/summarizer", icon: "📑" },
-                { id: "zips", name: "Остатки ЗиП РСО", path: "/zips", icon: "🧰" },
-                { id: "telegram", name: "Telegram", path: "/telegram", icon: "✉" },
-            ].filter(module => allowedModules.includes(module.id));
-
-            const DEFAULT_SELECTION = ["edo", "cameras", "overdue", "utnkr"];
-
-            const container = document.getElementById("quickActionsContainer");
-            const configBtn = document.getElementById("configureQuickActionsBtn");
-            const modal = document.getElementById("quickActionsModal");
-            const customizerList = document.getElementById("customizerList");
-
-            function getSelectedModuleIds() {
-                const saved = localStorage.getItem("neurona-quick-links");
-                return saved ? JSON.parse(saved) : DEFAULT_SELECTION;
-            }
-
-            function renderQuickButtons() {
-                if (!container) return;
-                const activeIds = getSelectedModuleIds();
-                const activeModules = ALL_MODULES.filter(m => activeIds.includes(m.id));
-
-                if (activeModules.length === 0) {
-                    container.innerHTML = `<span style="font-size: 13px; color: var(--muted-color, #94a3b8); font-style: italic;">Панель пуста. Нажмите «Настроить»</span>`;
-                    return;
-                }
-
-                container.innerHTML = activeModules.map(m => `
-                    <a href="${m.path}" class="quick-action-btn">
-                        <span class="btn-icon">${m.icon}</span> ${m.name}
-                    </a>
-                `).join("");
-            }
-
-            function renderCustomizerList() {
-                if (!customizerList) return;
-                const activeIds = getSelectedModuleIds();
-
-                customizerList.innerHTML = ALL_MODULES.map(m => {
-                    const checked = activeIds.includes(m.id) ? "checked" : "";
-                    return `
-                        <div class="customizer-item">
-                            <div class="customizer-item-info">
-                                <span class="customizer-item-icon">${m.icon}</span>
-                                <span class="customizer-item-name">${m.name}</span>
-                            </div>
-                            <label class="neurona-switch">
-                                <input type="checkbox" data-id="${m.id}" ${checked}>
-                                <span class="neurona-slider"></span>
-                            </label>
-                        </div>
-                    `;
-                }).join("");
-
-                customizerList.querySelectorAll("input[type='checkbox']").forEach(checkbox => {
-                    checkbox.addEventListener("change", function () {
-                        saveSelectionFromModal();
-                    });
-                });
-            }
-
-            function saveSelectionFromModal() {
-                const checkboxes = customizerList.querySelectorAll("input[type='checkbox']");
-                const newSelected = [];
-                checkboxes.forEach(cb => {
-                    if (cb.checked) {
-                        newSelected.push(cb.getAttribute("data-id"));
-                    }
-                });
-                localStorage.setItem("neurona-quick-links", JSON.stringify(newSelected));
-                renderQuickButtons();
-            }
-
-            if (configBtn && modal) {
-                configBtn.addEventListener("click", () => {
-                    renderCustomizerList();
-                    modal.classList.add("is-open");
-                    modal.setAttribute("aria-hidden", "false");
-                    document.body.classList.add("modal-open");
-                });
-
-                modal.querySelectorAll("[data-quick-modal-close]").forEach(el => {
-                    el.addEventListener("click", () => {
-                        modal.classList.remove("is-open");
-                        modal.setAttribute("aria-hidden", "true");
-                        document.body.classList.remove("modal-open");
-                    });
-                });
-            }
-
-            renderQuickButtons();
-        })();
-    </script>
-    {% endif %}
 
 <script>
 (function () {

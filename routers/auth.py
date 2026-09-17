@@ -7,7 +7,8 @@ import bcrypt
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from services.auth import mailer, registration
+from pydantic import BaseModel, Field
+from services.auth import mailer, registration, home_preferences
 from services.auth.security import (
     authenticate_user,
     create_access_token,
@@ -232,3 +233,22 @@ async def api_me_settings(request: Request):
 async def api_me_save_settings(request: Request, payload: dict):
     settings = registration.save_settings(request.state.user["id"], payload.get("settings") or {})
     return {"ok": True, "settings": settings}
+
+
+# Избранное главной страницы: только текущая учётная запись, без client-supplied user_id.
+
+
+class HomeFavoritesPayload(BaseModel):
+    favorites: list[str] = Field(max_length=20)
+
+
+@router.get('/api/me/home-favorites')
+def api_home_favorites(request: Request):
+    return JSONResponse(home_preferences.preferences(getattr(request.state, 'user', None)),
+                        headers={'Cache-Control': 'no-store'})
+
+
+@router.put('/api/me/home-favorites')
+def api_save_home_favorites(request: Request, payload: HomeFavoritesPayload):
+    return JSONResponse(home_preferences.preferences(getattr(request.state, 'user', None), payload.favorites),
+                        headers={'Cache-Control': 'no-store'})

@@ -187,6 +187,7 @@ def _row_to_user(row) -> dict[str, Any]:
         modules = []
 
     return {
+        "id": row["id"],
         "username": row["username"],
         "password_hash": row["password_hash"],
         "role": row["role"],
@@ -230,7 +231,7 @@ def load_users() -> list[dict[str, Any]]:
     try:
         with get_db_connection() as conn:
             rows = conn.execute(
-                "SELECT username, password_hash, role, modules, is_active FROM users"
+                "SELECT id, username, password_hash, role, modules, is_active FROM users"
             ).fetchall()
             return [_row_to_user(row) for row in rows]
     except Exception as e:
@@ -275,7 +276,7 @@ def find_user_by_username(username: str) -> dict[str, Any] | None:
         with get_db_connection() as conn:
             row = conn.execute(
                 """
-                SELECT username, password_hash, role, modules, is_active
+                SELECT id, username, password_hash, role, modules, is_active
                 FROM users
                 WHERE LOWER(username) = ?
                 """,

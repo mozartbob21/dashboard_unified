@@ -28,7 +28,7 @@ async def water_daily():
 @router.get('/status')
 async def status():
     return {**runner.status(), 'arm_configured': bool(credentials('edds_arm')),
-            'complaints_configured': bool(credentials('edds'))}
+            'complaints_configured': bool(credentials('edds')), 'arm_transport': arm.transport()}
 
 
 @router.get('/arm/report')

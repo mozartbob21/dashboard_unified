@@ -2,6 +2,7 @@
 import csv
 import io
 import os
+import sys
 import threading
 import time
 from datetime import date
@@ -157,6 +158,22 @@ class ArmClient:
         return parse_csv(text, 'id_cds_claim')
 
 
+def transport():
+    mode = os.getenv('EDDS_ARM_TRANSPORT', 'auto').strip().lower()
+    if mode == 'auto':
+        return 'chrome' if sys.platform == 'win32' else 'requests'
+    if mode not in {'chrome', 'requests'}:
+        raise ArmError('EDDS_ARM_TRANSPORT должен быть auto, chrome или requests.', 503)
+    return mode
+
+
+def create_client():
+    if transport() == 'chrome':
+        from services.edds.chrome import ChromeArmClient
+        return ChromeArmClient()
+    return ArmClient()
+
+
 def fetch_report(start, end, coordinates=False):
     validate_period(start, end)
     account = credentials('edds_arm')
@@ -166,7 +183,7 @@ def fetch_report(start, end, coordinates=False):
         raise ArmError('Запрос к АРМ ЕДДС уже выполняется. Дождитесь его завершения.', 409)
     client = None
     try:
-        client = ArmClient()
+        client = create_client()
         client.login(account)
         return client.report(start, end, coordinates)
     finally:

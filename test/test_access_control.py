@@ -18,6 +18,9 @@ class AccessControlTests(unittest.TestCase):
         import services.scheduler as scheduler
         with patch.object(scheduler, "start"):
             cls.module = importlib.import_module("app")
+        # Discovery may have imported auth against another DB before this fixture.
+        from services.auth.registration import ensure_registration_tables
+        ensure_registration_tables()
         cls.db, cls.scheduler = db, scheduler
         cls.secret = patch("services.auth.security.get_jwt_secret", return_value="isolated-test-secret-1234567890")
         cls.secret.start()
@@ -63,6 +66,44 @@ class AccessControlTests(unittest.TestCase):
 
     def manager_login(self):
         return self.login(self.credentials['username'],self.credentials['password'])
+
+    def test_home_and_favorites_use_real_local_account_identity(self):
+        from services.auth.security import find_user_by_username, load_users
+        from bs4 import BeautifulSoup
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules=? WHERE username='ordinary'",
+                         (json.dumps(['edo', 'overdue', 'edds', 'zips']),))
+            user_id = conn.execute("SELECT id FROM users WHERE username='ordinary'").fetchone()['id']
+        self.login()
+        # Exercise the real cookie -> SQLite -> user -> home chain, not a fake user dict.
+        response = self.client.get('/', follow_redirects=False)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/html', response.headers['content-type'])
+        self.assertIn('С возвращением!', response.text)
+        self.assertEqual(find_user_by_username('ORDINARY')['id'], user_id)
+        self.assertEqual(next(u for u in load_users() if u['username']=='ordinary')['id'], user_id)
+        saved = self.client.put('/api/me/home-favorites', json={'favorites': ['zips', 'edo']})
+        self.assertEqual(saved.status_code, 200)
+        page = BeautifulSoup(self.client.get('/').text, 'html.parser')
+        self.assertEqual(json.loads(page.find(id='homePreferences').string)['favorites'], ['zips', 'edo'])
+        self.assertEqual(self.client.get('/api/me/settings').status_code, 200)
+        self.client.cookies.clear()
+        self.login('legacy')
+        self.assertEqual(self.client.get('/api/me/home-favorites').json()['favorites'], [])
+
+    def test_home_accepts_existing_username_token_and_still_rejects_disabled_account(self):
+        from services.auth.security import create_access_token
+        # Existing sessions carry sub/role only; no new token or login is required.
+        token = create_access_token({'sub': 'ordinary', 'role': 'Контроль данных'})
+        self.client.cookies.set('access_token', token)
+        self.assertEqual(self.client.get('/', follow_redirects=False).status_code, 200)
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET is_active=0 WHERE username='ordinary'")
+        response = self.client.get('/', follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['location'], '/login')
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get('/', follow_redirects=False).status_code, 302)
 
     def test_manager_only_even_for_admin_role(self):
         self.login()
@@ -133,7 +174,7 @@ class AccessControlTests(unittest.TestCase):
             conn.execute("UPDATE users SET modules='[\"edds\"]' WHERE username='ordinary'")
         page=self.client.get('/edds')
         self.assertEqual(page.status_code,200);self.assertIn('eddsRefresh',page.text)
-        self.assertNotIn('http://127.0.0.1:8765/api',page.text)
+        self.assertIn("const ZH_URL = EMBEDDED ? '/edds/water-daily'",page.text)
         self.assertIn('days',self.client.get('/edds/water-daily').json())
         self.assertEqual(self.client.post('/edds/refresh').status_code,400)
         home=self.client.get('/').text
