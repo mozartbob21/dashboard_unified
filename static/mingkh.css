@@ -1,0 +1,313 @@
+
+.mingkh-dashboard * { box-sizing: border-box; }
+.mingkh-dashboard {
+  margin: 0; background: var(--surface); color: var(--text);
+  font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+  padding: 24px 16px 64px;
+}
+.mingkh-dashboard .wrap { max-width: 1080px; margin: 0 auto; }
+.mingkh-dashboard h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+.mingkh-dashboard h2 { font-size: 18px; margin: 0 0 4px; }
+.mingkh-dashboard .sub { color: var(--text2); margin: 0 0 16px; font-size: 13px; }
+.mingkh-dashboard .card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 20px; margin-bottom: 16px;
+}/* Плитки в одну линию: колонки создаются под фактическое число плиток
+   и делят ширину поровну. */
+.mingkh-dashboard .kpis {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: 8px; margin-bottom: 12px;
+}
+.mingkh-dashboard .kpi {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 14px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  min-width: 0;                      /* иначе длинная подпись растянет колонку */
+}
+.mingkh-dashboard .kpi-t { color: var(--text2); font-size: 12.5px; }
+.mingkh-dashboard .kpi-v {
+  font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.mingkh-dashboard .kpi-sub { font-size: 11.5px; color: var(--muted); }/* Для обращений рост — это плохо, а падение хорошо, поэтому цвет привязан
+   к смыслу, а не к направлению стрелки. Так же устроена шкала карты. */
+.mingkh-dashboard .d-good { color: var(--up); font-weight: 600; }
+.mingkh-dashboard .d-bad { color: var(--down); font-weight: 600; }
+.mingkh-dashboard .d-up { color: var(--up); font-weight: 600; }
+.mingkh-dashboard .d-down { color: var(--down); font-weight: 600; }
+.mingkh-dashboard .d-flat { color: var(--muted); }
+.mingkh-dashboard .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 2px; }
+.mingkh-dashboard .cell {
+  padding: 10px 10px 12px; border-radius: 4px; position: relative;
+  min-height: 82px; display: flex; flex-direction: column; gap: 1px;
+  overflow: hidden;              /* длинная подпись не должна рвать сетку */
+}
+.mingkh-dashboard .cell-t { font-size: 11.5px; line-height: 1.25; }
+.mingkh-dashboard .cell-v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.mingkh-dashboard .cell-d {
+  font-size: 11.5px; opacity: .9; font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mingkh-dashboard .cell-share {
+  font-size: 10.5px; opacity: .7; font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mingkh-dashboard .maptools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.mingkh-dashboard .maptools .legend { margin: 0 0 0 auto; }
+.mingkh-dashboard .mapsort { font-size: 12px; padding: 4px 10px; }
+.mingkh-dashboard .d-plain { font-weight: 600; }/* кликабельные строки-фильтры */
+.mingkh-dashboard .clickrow { cursor: pointer; }
+.mingkh-dashboard .clickrow:hover th, .mingkh-dashboard .clickrow:hover td { background: rgba(127,127,127,.09); }
+.mingkh-dashboard .clickrow:focus { outline: 2px solid var(--curr); outline-offset: -2px; }
+.mingkh-dashboard .clickrow.on th, .mingkh-dashboard .clickrow.on td { background: var(--accent2-soft); }
+.mingkh-dashboard .clickrow.on th[scope="row"] { font-weight: 600; box-shadow: inset 3px 0 0 var(--accent2); }/* кольцевая диаграмма источников */
+.mingkh-dashboard .donutwrap { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.mingkh-dashboard .donut { width: 190px; height: 190px; flex: none; }
+.mingkh-dashboard .arc { transition: stroke-width .12s, opacity .12s; }
+.mingkh-dashboard .arc.hit { cursor: pointer; }
+.mingkh-dashboard .arc.hit:hover, .mingkh-dashboard .arc.hit:focus { stroke-width: 36; outline: none; }
+.mingkh-dashboard .arc.on { stroke-width: 36; }
+.mingkh-dashboard .donut:has(.arc.on) .arc:not(.on) { opacity: .35; }
+.mingkh-dashboard .lgi.hit {
+  font: inherit; font-size: 13px; background: none; border: 0; padding: 2px 4px;
+  color: var(--text); cursor: pointer; border-radius: 6px; text-align: left;
+}
+.mingkh-dashboard .lgi.hit:hover { background: rgba(127,127,127,.12); }
+.mingkh-dashboard .lgi.on { font-weight: 600; box-shadow: inset 2px 0 0 var(--curr); }
+.mingkh-dashboard .donut-v {
+  text-anchor: middle; font-size: 26px; font-weight: 600;
+  fill: var(--text); font-variant-numeric: tabular-nums;
+}
+.mingkh-dashboard .donut-t { text-anchor: middle; font-size: 11px; fill: var(--muted); }
+.mingkh-dashboard .donut-legend { display: flex; flex-direction: column; gap: 7px; font-size: 13px; }
+.mingkh-dashboard .lgi { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+.mingkh-dashboard .lgv { color: var(--muted); margin-left: 6px; font-variant-numeric: tabular-nums; }/* верхний ряд: источники и направления рядом *//* Колонки тянутся до высоты самой высокой — карточки не «ступеньками». */
+.mingkh-dashboard .toprow { display: grid; grid-template-columns: minmax(330px, 400px) 1fr; gap: 16px; align-items: stretch; }
+.mingkh-dashboard .toprow > div { display: flex; }
+.mingkh-dashboard .toprow > div > .card, .mingkh-dashboard .toprow > .card { margin-bottom: 0; flex: 1; }
+@media (max-width: 900px) {
+.mingkh-dashboard .toprow { grid-template-columns: 1fr; } }
+.mingkh-dashboard .cell:hover::after, .mingkh-dashboard .cell:focus::after {
+  content: attr(data-tip); white-space: pre; position: absolute; z-index: 5;
+  left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
+  background: var(--text); color: var(--card); padding: 8px 10px; border-radius: 6px;
+  font-size: 12px; font-weight: 400; line-height: 1.45; pointer-events: none;
+}
+.mingkh-dashboard .cell:focus { outline: 2px solid var(--curr); outline-offset: 1px; }
+.mingkh-dashboard .legend { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.mingkh-dashboard .lg { width: 26px; height: 12px; border-radius: 2px; display: inline-block; }
+.mingkh-dashboard .lg-t { font-size: 12px; color: var(--text2); margin: 0 6px 0 0; }
+.mingkh-dashboard .sw {
+  width: 12px; height: 12px; border-radius: 3px; display: inline-block;
+  margin-right: 6px; vertical-align: -1px;
+}
+.mingkh-dashboard .bartable, .mingkh-dashboard .plain { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mingkh-dashboard .bartable th, .mingkh-dashboard .bartable td, .mingkh-dashboard .plain th, .mingkh-dashboard .plain td {
+  text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); font-weight: 400;
+}
+.mingkh-dashboard .bartable thead th, .mingkh-dashboard .plain thead th { color: var(--muted); font-size: 12px; }
+.mingkh-dashboard .sortable-h { cursor: pointer; user-select: none; white-space: nowrap; }
+.mingkh-dashboard .sortable-h:hover { color: var(--text); }
+.mingkh-dashboard .sortable-h:focus { outline: 2px solid var(--curr); outline-offset: -2px; }
+.mingkh-dashboard .sortable-h::after { content: " \2195"; opacity: .35; }
+.mingkh-dashboard .sortable-h[aria-sort="ascending"]::after { content: " \2191"; opacity: 1; }
+.mingkh-dashboard .sortable-h[aria-sort="descending"]::after { content: " \2193"; opacity: 1; }
+.mingkh-dashboard .sortable-h[aria-sort] { color: var(--text); font-weight: 600; }
+.mingkh-dashboard .caret {
+  display: inline-block; width: 0; height: 0; vertical-align: 1px;
+  border-left: 7px solid currentColor; border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent; transition: transform .12s;
+}/* Кнопка-раскрыватель: без рамки её не замечали, поэтому это видимая
+   квадратная кнопка со своим фоном. */
+.mingkh-dashboard .caretbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; margin-right: 8px; padding: 0; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--surface); color: var(--text2);
+  vertical-align: -4px; flex: none;
+}
+.mingkh-dashboard .caretbtn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.mingkh-dashboard .caretbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mingkh-dashboard .caretbtn.open { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mingkh-dashboard .caretbtn.open .caret { transform: rotate(90deg); }
+.mingkh-dashboard .inner th[scope="row"] { font-weight: 400; overflow-wrap: break-word; max-width: 620px; }
+.mingkh-dashboard .detailrow > td { padding: 8px 10px 12px 24px; background: rgba(127,127,127,.05); }
+.mingkh-dashboard table.inner { width: auto; min-width: 60%; font-size: 12.5px; }
+.mingkh-dashboard table.inner th, .mingkh-dashboard table.inner td { border-bottom: 1px solid var(--line); padding: 4px 16px 4px 0; }
+.mingkh-dashboard .numcell { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mingkh-dashboard .barcell { width: 26%; min-width: 90px; }/* Название не должно сжиматься до пары букв — от этого строка расползается
+   на четыре строки, а каретка уезжает на свою. */
+.mingkh-dashboard .bartable th[scope="row"] { min-width: 210px; }/* break-word, а не anywhere: иначе слово рвётся посреди («губернато/ра»),
+   хотя целиком поместилось бы на следующей строке. */
+.mingkh-dashboard .bartable th[scope="row"], .mingkh-dashboard .plain th[scope="row"] { overflow-wrap: break-word; }
+.mingkh-dashboard .plain th[scope="row"] { min-width: 150px; }
+.mingkh-dashboard .inner th[scope="row"] { min-width: 260px; }
+.mingkh-dashboard .bar { height: 9px; border-radius: 0 4px 4px 0; margin: 2px 0; min-width: 2px; }
+.mingkh-dashboard .b-curr { background: var(--curr); }
+.mingkh-dashboard .b-prev { background: var(--prev); }
+.mingkh-dashboard .stack { display: flex; gap: 2px; height: 34px; margin-bottom: 14px; }
+.mingkh-dashboard .seg { border-radius: 3px; min-width: 3px; }
+.mingkh-dashboard .chart { width: 100%; height: auto; }
+.mingkh-dashboard .line { fill: none; stroke: var(--curr); stroke-width: 2; }
+.mingkh-dashboard .dot { fill: var(--curr); stroke: var(--card); stroke-width: 2; }
+.mingkh-dashboard .axlab { fill: var(--muted); font-size: 11px; text-anchor: middle; }
+.mingkh-dashboard details { margin-top: 14px; }
+.mingkh-dashboard summary { cursor: pointer; color: var(--text2); font-size: 13px; }
+.mingkh-dashboard .foot { color: var(--muted); font-size: 12px; margin-top: 24px; }
+@media (max-width: 860px) {
+.mingkh-dashboard .kpis { grid-auto-flow: row; grid-auto-columns: auto; }
+}
+@media (max-width: 640px) {
+.mingkh-dashboard .barcell { width: 22%; }
+.mingkh-dashboard .bartable th[scope="row"] { min-width: 120px; }
+.mingkh-dashboard .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+}/* Тёмная тема идёт последней, иначе переопределения цвета подписей проиграют
+   базовым правилам .s0-.s6 при равной специфичности. */
+@media (prefers-color-scheme: dark) {
+html:not([data-theme="light"]) .mingkh-dashboard {
+
+  }
+html:not([data-theme="light"]) .mingkh-dashboard .cell:hover::after, html:not([data-theme="light"]) .mingkh-dashboard .cell:focus::after { background: #383835; color: #ffffff; }
+
+
+
+
+}
+html[data-theme="dark"] .mingkh-dashboard {
+
+}
+html[data-theme="dark"] .mingkh-dashboard .cell:hover::after, html[data-theme="dark"] .mingkh-dashboard .cell:focus::after { background: #383835; color: #ffffff; }
+.mingkh-dashboard .controls {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 16px;
+}
+.mingkh-dashboard .row { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.mingkh-dashboard .row:last-child { margin-bottom: 0; }
+.mingkh-dashboard .grp { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mingkh-dashboard .glab { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mingkh-dashboard .fld { display: flex; align-items: center; gap: 6px; }
+.mingkh-dashboard .fld > label { font-size: 12px; color: var(--muted); }
+.mingkh-dashboard .foot-row { gap: 8px; padding-top: 8px; border-top: 1px solid var(--line); margin-top: 4px; }
+.mingkh-dashboard select, .mingkh-dashboard input[type=date], .mingkh-dashboard input[type=text] {
+  font: inherit; font-size: 12.5px; padding: 5px 7px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+}
+.mingkh-dashboard .pre, .mingkh-dashboard .msbtn {
+  font: inherit; font-size: 12.5px; padding: 5px 10px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--text2);
+  border-radius: 7px;
+}
+.mingkh-dashboard .pre { margin: 0; }
+.mingkh-dashboard .pre.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.mingkh-dashboard .ms { position: relative; }
+.mingkh-dashboard .msbtn { min-width: 150px; max-width: 230px; text-align: left; color: var(--text);
+         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mingkh-dashboard .msbtn::after { content: " \25be"; color: var(--muted); float: right; }
+.mingkh-dashboard .msbtn.active { border-color: var(--accent); box-shadow: inset 2px 0 0 var(--accent); }
+.mingkh-dashboard .mspanel {
+  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.14);
+  max-height: 340px; overflow: auto; min-width: 300px; padding: 4px;
+}
+.mingkh-dashboard .opt { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer;
+       font-size: 13px; border-radius: 6px; }
+.mingkh-dashboard .opt:hover { background: rgba(127,127,127,.1); }
+.mingkh-dashboard .opt input { margin: 0; flex: none; }
+.mingkh-dashboard .hidden { display: none; }
+.mingkh-dashboard .note { font-size: 12px; color: var(--muted); }
+.mingkh-dashboard .badge {
+  display: inline-block; font-size: 12px; color: var(--text2);
+  border: 1px solid var(--line); border-radius: 20px; padding: 2px 10px; margin-right: 6px;
+}
+.mingkh-dashboard .head { display: flex; justify-content: space-between; align-items: flex-start;
+        gap: 16px; flex-wrap: wrap; }
+.mingkh-dashboard .lastbox {
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+  background: var(--card); text-align: right; flex: none;
+}
+.mingkh-dashboard .lastbox-t { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.mingkh-dashboard .lastbox-v { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.mingkh-dashboard #status { font-size: 13px; color: var(--muted); margin-bottom: 12px; min-height: 20px; }
+.mingkh-dashboard #status.err { color: var(--down); }
+.mingkh-dashboard #calc { color: var(--muted); font-size: 12px; margin-left: 8px; }
+.mingkh-dashboard .skel { opacity: .45; transition: opacity .15s; }
+.mingkh-dashboard .chip {
+  font: inherit; font-size: 12px; padding: 3px 10px; margin: 0 4px 4px 0; cursor: pointer;
+  border: 1px solid var(--accent2); background: var(--accent2-soft); color: var(--text);
+  border-radius: 20px;
+}
+.mingkh-dashboard .chip.clear { border-color: var(--line); background: var(--card); color: var(--muted); }
+.mingkh-dashboard #omsupick { margin-bottom: 12px; }
+.mingkh-dashboard #quick { align-items: center; gap: 6px; }
+.mingkh-dashboard #quick .lg-t { margin-right: 4px; }
+.mingkh-dashboard #filters { gap: 6px; }/* Кнопки быстрого выбора: у каждой свой цвет, заливка — когда набор включён */
+.mingkh-dashboard .pre.quick { border-color: var(--qc); color: var(--qc); font-weight: 600; }
+.mingkh-dashboard .pre.quick:hover { background: var(--qc-soft); }
+.mingkh-dashboard .pre.quick.on { background: var(--qc); border-color: var(--qc); color: #fff; }
+.mingkh-dashboard .q-blue { --qc: #2a78d6; --qc-soft: #dbeafd; }
+.mingkh-dashboard .q-green { --qc: #0f8f5f; --qc-soft: #d6f2e6; }
+.mingkh-dashboard .q-orange { --qc: #c4551f; --qc-soft: #fbe6da; }
+@media (prefers-color-scheme: dark) {
+html:not([data-theme="light"]) .mingkh-dashboard .q-blue { --qc: #3987e5; --qc-soft: #143a66; }
+html:not([data-theme="light"]) .mingkh-dashboard .q-green { --qc: #35c08a; --qc-soft: #0f3d2c; }
+html:not([data-theme="light"]) .mingkh-dashboard .q-orange { --qc: #eb6834; --qc-soft: #4a2412; }
+}
+html[data-theme="dark"] .mingkh-dashboard .q-blue { --qc: #3987e5; --qc-soft: #143a66; }
+html[data-theme="dark"] .mingkh-dashboard .q-green { --qc: #35c08a; --qc-soft: #0f3d2c; }
+html[data-theme="dark"] .mingkh-dashboard .q-orange { --qc: #eb6834; --qc-soft: #4a2412; }
+.mingkh-dashboard .cell.picked { outline: 3px solid var(--accent2); outline-offset: -3px; }
+
+.mingkh-dashboard{background:transparent;padding:28px 0 0;font:inherit;--surface:var(--bg);--line:var(--border);--text2:var(--muted);--accent:var(--primary);--accent-soft:var(--violet-soft);--accent2:var(--primary-2);--accent2-soft:var(--violet-soft);--curr:var(--primary);--prev:#b7c7e8;--up:var(--ok);--down:var(--danger)}
+.mingkh-dashboard .wrap{max-width:100%}.mingkh-dashboard [hidden]{display:none!important}.mingkh-dashboard .head{margin-bottom:22px}.mingkh-dashboard .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));grid-auto-flow:row}.mingkh-dashboard .mspanel{max-width:calc(100vw - 60px);min-width:240px}.mingkh-dashboard .controls{padding:20px;border-radius:18px}.mingkh-dashboard .card{overflow-x:auto}.mingkh-dashboard .custom-dates{display:flex}.mingkh-dashboard .custom-dates.hidden{display:none}.mingkh-dashboard .cmp-dates.hidden{display:none}
+.mingkh-dashboard .s0{background:#fbd9d6;color:#20283d}
+.mingkh-dashboard .s1{background:#f7b0aa;color:#20283d}
+.mingkh-dashboard .s2{background:#f2867f;color:#20283d}
+.mingkh-dashboard .s3{background:#e34948;color:#fff}
+.mingkh-dashboard .s4{background:#c22f2e;color:#fff}
+.mingkh-dashboard .s5{background:#99201f;color:#fff}
+.mingkh-dashboard .s6{background:#6b1211;color:#fff}
+.mingkh-dashboard .c0{background:#2a78d6;color:#fff}
+.mingkh-dashboard .c1{background:#eb6834;color:#fff}
+.mingkh-dashboard .c2{background:#1baf7a;color:#fff}
+.mingkh-dashboard .c3{background:#eda100;color:#fff}
+.mingkh-dashboard .c4{background:#e87ba4;color:#fff}
+.mingkh-dashboard .c5{background:#008300;color:#fff}
+.mingkh-dashboard .c6{background:#4a3aa7;color:#fff}
+.mingkh-dashboard .t0{background:#2a78d6;color:#fff}
+.mingkh-dashboard .t1{background:#eb6834;color:#fff}
+.mingkh-dashboard .t2{background:#008300;color:#fff}
+.mingkh-dashboard .t3{background:#0b0b0b;color:#fff}
+.mingkh-dashboard .d0{background:#0b6b3a;color:#ffffff}
+.mingkh-dashboard .d1{background:#3f9e63;color:#ffffff}
+.mingkh-dashboard .d2{background:#a8d6bc;color:#0b0b0b}
+.mingkh-dashboard .d3{background:#eceae7;color:#0b0b0b}
+.mingkh-dashboard .d4{background:#f2a49e;color:#0b0b0b}
+.mingkh-dashboard .d5{background:#d34643;color:#ffffff}
+.mingkh-dashboard .d6{background:#8c1a19;color:#ffffff}
+html[data-theme="dark"] .mingkh-dashboard .s0{background:#6b1211;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .s1{background:#99201f;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .s2{background:#c22f2e;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .s3{background:#e34948;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .s4{background:#e66767;color:#20283d}
+html[data-theme="dark"] .mingkh-dashboard .s5{background:#f2867f;color:#20283d}
+html[data-theme="dark"] .mingkh-dashboard .s6{background:#f7b0aa;color:#20283d}
+html[data-theme="dark"] .mingkh-dashboard .c0{background:#3987e5;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .c1{background:#d95926;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .c2{background:#199e70;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .c3{background:#c98500;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .c4{background:#d55181;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .c5{background:#008300;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .c6{background:#9085e9;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .t0{background:#3987e5;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .t1{background:#d95926;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .t2{background:#1baf7a;color:#fff}
+html[data-theme="dark"] .mingkh-dashboard .t3{background:#e6e5dd;color:#20283d}
+html[data-theme="dark"] .mingkh-dashboard .d0{background:#57c98d;color:#0b0b0b}
+html[data-theme="dark"] .mingkh-dashboard .d1{background:#35a86c;color:#0b0b0b}
+html[data-theme="dark"] .mingkh-dashboard .d2{background:#1f6b45;color:#ffffff}
+html[data-theme="dark"] .mingkh-dashboard .d3{background:#3a3634;color:#ffffff}
+html[data-theme="dark"] .mingkh-dashboard .d4{background:#8c1a19;color:#ffffff}
+html[data-theme="dark"] .mingkh-dashboard .d5{background:#c8403e;color:#ffffff}
+html[data-theme="dark"] .mingkh-dashboard .d6{background:#ea8080;color:#0b0b0b}
+
+.mingkh-dashboard .kpi{display:flex;flex-direction:column;align-items:flex-start;gap:8px;border-radius:16px;padding:20px}.mingkh-dashboard .kpi-v{font-size:30px;line-height:1.15}.mingkh-dashboard .kpi-sub{line-height:1.5}

@@ -138,6 +138,7 @@ padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-
     <div class="ac-chat" id="chat"></div>
     <div class="ac-quick" id="quickBar"></div>
     <div class="ac-pend" id="pendRow"></div>
+    <label class="ac-hint" style="display:flex;align-items:center;gap:8px;text-align:left;padding:8px 16px"><input type="checkbox" id="includeContext">Добавить данные моих модулей · ответ останется в общей истории</label>
     <div class="ac-input">
       <button class="ac-plus" id="plusBtn" type="button" title="Прикрепить файл или фото">＋</button>
       <input type="file" id="fileIn" multiple hidden accept="image/*,.txt,.md,.csv,.doc,.docx,.xls,.xlsx,.pptx,.pdf">
@@ -164,9 +165,9 @@ padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-
   <div class="modal wide">
     <h3>Что может этот чат?</h3>
     <div class="caps-grid">
-      <div class="cap"><div class="cap-ic">🏘</div><b>Статистика по муниципалитетам</b><span>Сводка по любому округу сразу из всех модулей: технадзор, ЭДО, просрочка, вода, камеры, обращения.</span></div>
+      <div class="cap"><div class="cap-ic">🏘</div><b>Статистика по муниципалитетам</b><span>При включённой опции — сводка по доступным модулям: технадзор, ЭДО, просрочка, вода, камеры, обращения.</span></div>
       <div class="cap"><div class="cap-ic">🚨</div><b>Критичные объекты</b><span>Какие объекты и организации в критичной зоне, кто ответственный и сколько дней просрочки.</span></div>
-      <div class="cap"><div class="cap-ic">💧</div><b>Качество воды</b><span>Худшие и лучшие округа, KPI сводного дашборда по водоснабжению.</span></div>
+      <div class="cap"><div class="cap-ic">💧</div><b>Качество воды</b><span>Анализ результатов контроля воды или приложенной выгрузки.</span></div>
       <div class="cap"><div class="cap-ic">📷</div><b>Камеры</b><span>Сколько камер не работает и в каких округах.</span></div>
       <div class="cap"><div class="cap-ic">📑</div><b>Отчёты и доклады</b><span>Подготовит текст отчёта по муниципалитету или теме для доклада и презентации.</span></div>
       <div class="cap"><div class="cap-ic">📎</div><b>Файлы и фото</b><span>Разберёт docx, xlsx, pdf, pptx, txt и фото с текстом.</span></div>
@@ -184,7 +185,7 @@ var customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");
 var STD=[{i:"📊",t:"Дай сводку по платформе"},{i:"🏗",t:"Что в критичных по технадзору?"},{i:"💧",t:"Кто худшие по воде?"}];
 var EXAMPLES=["Дай сводку по платформе","Что в критичных по технадзору?","Кто худшие по воде?","Сколько камер не работает и где?","Сформируй отчёт по Солнечногорску","Какая просрочка по округам?"];
 
-function esc(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 function fmt(s){
   var h=esc(s).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
   return h.split("\n").map(function(l){
@@ -197,8 +198,8 @@ function scroll(){chatEl.scrollTop=chatEl.scrollHeight}
 
 function welcomeHTML(){
   return '<div class="welcome" id="welcome"><h2>👋 Я — Нейрона, аналитик платформы</h2>'+
-  '<p>Отвечаю по живым данным всех модулей: технадзор, ЭДО, просрочка, вода, камеры, обращения. '+
-  'Могу собрать статистику по любому муниципалитету и подготовить отчёт.</p>'+
+  '<p>Разбираю приложенные файлы и помогаю подготовить отчёт. '+
+  'Для сводки по платформе включите «Добавить данные моих модулей».</p>'+
   '<div class="cap-chips" id="wChips"></div></div>';
 }
 function bindChips(root){
@@ -318,6 +319,7 @@ async function send(textOverride){
   var fd=new FormData();
   fd.append("dialog_id",currentDid||"");
   fd.append("text",text);
+  if($("#includeContext").checked)fd.append("include_context","true");
   for(var pi=0;pi<pending.length;pi++){
     var pp=pending[pi],pf=pp.file;
     if(!pf&&pp.remote){

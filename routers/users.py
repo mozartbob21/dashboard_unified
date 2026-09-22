@@ -32,13 +32,13 @@ class IntegrationPayload(BaseModel):
 
 
 @router.get('/api/users/integrations/{service}')
-async def integration_status(service: Literal['edds','edds_arm']):
+async def integration_status(service: Literal['edds','edds_arm','mingkh']):
     from services.auth.integrations import credential_status
     return credential_status(service)
 
 
 @router.put('/api/users/integrations/{service}')
-async def integration_save(payload: IntegrationPayload, service: Literal['edds','edds_arm']):
+async def integration_save(payload: IntegrationPayload, service: Literal['edds','edds_arm','mingkh']):
     from services.auth.integrations import save_credentials
     save_credentials(payload.username,payload.password,service)
     return {'ok':True}

@@ -67,6 +67,49 @@ class AccessControlTests(unittest.TestCase):
     def manager_login(self):
         return self.login(self.credentials['username'],self.credentials['password'])
 
+    def test_login_form_preserves_origin_for_browser_submission(self):
+        from fastapi.testclient import TestClient
+        # Browser form POSTs send Origin: null under no-referrer, even to this app.
+        # Exercise the policy and headers that browser navigation actually uses.
+        for origin in ['http://127.0.0.1:8000', 'http://192.168.1.20:8000', 'https://office.test:8443']:
+            with self.subTest(origin=origin), TestClient(self.module.app, base_url=origin) as client:
+                page = client.get('/login')
+                self.assertEqual(page.headers['Referrer-Policy'], 'same-origin')
+                response = client.post('/login', data={
+                    'username': 'ordinary', 'password': 'Test-password-123',
+                }, headers={'Origin': origin, 'Sec-Fetch-Site': 'same-origin'}, follow_redirects=False)
+                self.assertEqual(response.status_code, 303)
+                self.assertEqual(response.headers['location'], '/')
+                self.assertIn('access_token', client.cookies)
+                self.assertEqual(client.get('/').status_code, 200)
+
+    def test_rejected_login_shows_readable_form_without_authenticating(self):
+        for headers in [
+            {'Origin': 'https://example.invalid'},
+            {'Origin': 'null', 'Sec-Fetch-Site': 'same-origin'},
+            {'Origin': 'http://testserver:8001'},
+            {'Origin': 'http://testserver', 'Sec-Fetch-Site': 'cross-site'},
+        ]:
+            with self.subTest(headers=headers), patch('routers.auth.authenticate_user') as authenticate:
+                response = self.client.post('/login', data={
+                    'username': 'ordinary', 'password': 'Test-password-123',
+                }, headers=headers, follow_redirects=False)
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.headers['content-type'], 'text/html; charset=utf-8')
+                self.assertIn('Введите логин и пароль ещё раз', response.text)
+                self.assertIn('class="login-form"', response.text)
+                self.assertNotIn('Test-password-123', response.text)
+                self.assertNotIn('access_token', response.cookies)
+                authenticate.assert_not_called()
+
+    def test_invalid_password_still_returns_readable_login_error(self):
+        response = self.client.post('/login', data={
+            'username': 'ordinary', 'password': 'wrong-password',
+        }, headers={'Origin': 'http://testserver', 'Sec-Fetch-Site': 'same-origin'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Неверный логин или пароль', response.text)
+        self.assertNotIn('access_token', self.client.cookies)
+
     def test_home_and_favorites_use_real_local_account_identity(self):
         from services.auth.security import find_user_by_username, load_users
         from bs4 import BeautifulSoup
@@ -154,7 +197,7 @@ class AccessControlTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/users/integrations/edds').status_code,403)
         self.assertEqual(self.client.put('/api/users/integrations/edds',json={'username':'u','password':'secret'}).status_code,403)
         self.manager_login()
-        for service in ['edds','edds_arm']:
+        for service in ['edds','edds_arm','mingkh']:
             url='/api/users/integrations/'+service
             self.assertEqual(self.client.put(url,json={'username':'testlogin','password':'secret-test-only'}).status_code,200)
             data=self.client.get(url).json()
@@ -165,6 +208,45 @@ class AccessControlTests(unittest.TestCase):
         with self.db.get_db_connection() as conn:
             for row in conn.execute('SELECT encrypted_value FROM integration_credentials'):
                 self.assertNotIn('secret-test-only',row[0]);self.assertNotIn('testlogin',row[0])
+
+    def test_ai_chat_history_remains_shared_without_implicit_restricted_context(self):
+        store=self.module.aichat_store
+        chat_dir=Path(self.temp.name)/'shared-chat-test'
+        with patch.object(store,'DATA_DIR',chat_dir), patch.object(store,'DIALOGS_FILE',chat_dir/'dialogs.json'):
+            self.login()
+            dialog=self.client.post('/aichat/api/dialogs',json={'title':'Shared test chat'}).json()
+            self.manager_login()
+            self.assertEqual(self.client.get('/aichat/api/dialogs/'+dialog['id']).json()['title'],'Shared test chat')
+            with patch.object(self.module,'aichat_ask',return_value='Synthetic answer') as ai, patch.object(self.module,'build_platform_context') as context:
+                reply=self.client.post('/aichat/api/send',data={'dialog_id':dialog['id'],'text':'Проверь воду в тестовом примере'})
+                self.assertEqual(reply.status_code,200)
+                context.assert_not_called()
+                self.assertIn('Проверь воду',str(ai.call_args))
+            self.login()
+            ids=[d['id'] for d in self.client.get('/aichat/api/dialogs').json()['items']]
+            self.assertIn(dialog['id'],ids)
+
+    def test_mingkh_grant_and_missing_credentials(self):
+        self.login()
+        self.assertEqual(self.client.get('/mingkh').status_code,403)
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[\"mingkh\"]' WHERE username='ordinary'")
+        self.assertEqual(self.client.get('/mingkh').status_code,200)
+        result=self.client.get('/mingkh/api/dataset')
+        self.assertEqual(result.status_code,503)
+        self.assertIn('Администратору',result.json()['error'])
+        self.assertIn('data-module="mingkh"',self.client.get('/').text)
+        self.assertEqual(self.client.get('/api/users/integrations/mingkh').status_code,403)
+
+    def test_cross_site_writes_and_secret_downloads_are_blocked(self):
+        self.login()
+        response=self.client.post('/api/home/preferences',json={},headers={'Origin':'https://example.invalid'})
+        self.assertEqual(response.status_code,403)
+        for path in ['/data/tools/accounts/any/jobs/any/document.pdf','/data/cds/browser-profile/Cookies','/data/cds/password.json']:
+            self.assertEqual(self.client.get(path).status_code,403)
+        csp=self.client.get('/aichat').headers['Content-Security-Policy']
+        self.assertIn("connect-src 'self'",csp)
+        self.assertEqual(self.client.get('/aichat').headers['Cache-Control'],'no-store')
 
     def test_edds_grant_page_and_refresh_without_credentials(self):
         self.login()

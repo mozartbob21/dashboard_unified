@@ -12,7 +12,7 @@ FULL_ACCESS_ROLES = {"admin", "администратор", "руководит�
 
 # Полный список модулей платформы
 ALL_MODULE_IDS = [
-    "edds",
+    "edds", "mingkh",
     "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
     "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
     "water_rm", "tools",
@@ -20,6 +20,7 @@ ALL_MODULE_IDS = [
 ]
 
 MODULE_NAMES = {
+    "mingkh": "МИНЖКХ — дашборд обращений",
     "telegram": "Telegram — выбранные чаты",
     "edds": "ЕДДС — контроль заявок",
     "edo": "Заполненность данных", "overdue": "Просроченные задачи",
@@ -40,6 +41,7 @@ def allowed_history_modules(user):
 
 # Маппинг ролей Keycloak -> модули платформы
 KC_ROLE_TO_MODULE = {
+    "mingkh": "mingkh",
     "telegram":          "telegram",
     "admin":             "__full_access__",
     "администратор":     "__full_access__",

@@ -117,6 +117,9 @@ app = FastAPI(title="Unified Dashboard")
 from routers.auth import router as auth_router
 app.include_router(auth_router)
 
+from core.http_security import ToolsBodyLimit, private_data_path
+app.add_middleware(ToolsBodyLimit)
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
 
@@ -134,6 +137,8 @@ initialize_access_control()
 app.include_router(users_router)
 from routers.edds import router as edds_router
 app.include_router(edds_router)
+from routers.mingkh import router as mingkh_router
+app.include_router(mingkh_router)
 from routers.telegram import router as telegram_router
 app.include_router(telegram_router)
 # =========================
@@ -1002,6 +1007,7 @@ def has_local_git_changes():
 PATH_MODULE_MAP = {
     "/telegram": "telegram",
     "/edds": "edds",
+    "/mingkh": "mingkh",
     "/edo": "edo",
     "/overdue": "overdue",
     "/mgkh-rm": "mgkh_rm",
@@ -1048,7 +1054,24 @@ PUBLIC_PATH_PREFIXES = (
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
 
-    if any(path.startswith(p) for p in PUBLIC_PATH_PREFIXES):
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        origin = request.headers.get("origin")
+        expected = f"{request.url.scheme}://{request.url.netloc}"
+        if request.headers.get("sec-fetch-site") == "cross-site" or (origin and origin != expected):
+            if path == "/login" and request.method == "POST":
+                return templates.TemplateResponse(
+                    request,
+                    "login.html",
+                    {"request": request, "message": "", "error":
+                     "Не удалось проверить страницу входа. Введите логин и пароль ещё раз."},
+                    status_code=403,
+                )
+            return JSONResponse(
+                status_code=403, content={"detail": "Запрос с другого сайта запрещён"},
+                media_type="application/json; charset=utf-8",
+            )
+
+    if any(path == p or path.startswith(p + "/") for p in PUBLIC_PATH_PREFIXES):
         return await call_next(request)
 
     token = request.cookies.get("access_token")
@@ -1079,6 +1102,8 @@ async def auth_middleware(request: Request, call_next):
     request.state.user = user
     # Downloads must obey the same module grants as the page that produces them.
     if path.startswith("/data/"):
+        if private_data_path(path):
+            return JSONResponse(status_code=403, content={"detail": "Служебные файлы недоступны через браузер"})
         directory = path.split("/")[2]
         data_modules = {
             "edo": "edo", "overdue": "overdue", "watercontrol": "watercontrol",
@@ -1116,8 +1141,19 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "no-referrer"
+    # no-referrer makes browser form POSTs send Origin: null and fail our CSRF
+    # check. same-origin preserves local form origins without sending referrers
+    # to other sites. Keep rejecting opaque and foreign origins above.
+    response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+        "font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; "
+        "frame-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+        "form-action 'self'; frame-ancestors 'none'")
+    if not request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 # =========================
@@ -2458,127 +2494,8 @@ async def zips_page(request: Request):
 # =========================
 # TOOLS / ПОЛЕЗНЫЕ ИНСТРУМЕНТЫ
 # =========================
-from services.tools import pptx_converter as pptx_conv
-
-
-@app.get("/tools", response_class=HTMLResponse)
-async def tools_page(request: Request):
-    user = get_user_from_token(request.cookies.get("access_token")) or {}
-    return templates.TemplateResponse(request, "tools.html", {
-        "request": request,
-        "templates": pptx_conv.list_templates(),
-        "user_username": user.get("username", ""),
-        "user_role": user.get("role", ""),
-    })
-
-
-@app.post("/tools/html2pptx/preview")
-async def tools_preview(request: Request):
-    form = await request.form()
-    html = str(form.get("html") or "")
-    file = form.get("html_file")
-    if file is not None and getattr(file, "filename", ""):
-        html = (await file.read()).decode("utf-8", errors="replace")
-    if not html.strip():
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет HTML"})
-    return {"ok": True, "slides": pptx_conv.parse_html_to_slides_pro(html)}
-
-
-@app.post("/tools/html2pptx")
-async def tools_convert(request: Request):
-    form = await request.form()
-    html = str(form.get("html") or "")
-    file = form.get("html_file")
-    if file is not None and getattr(file, "filename", ""):
-        html = (await file.read()).decode("utf-8", errors="replace")
-    template_name = str(form.get("template") or "") or None
-    out_name = str(form.get("out_name") or "").strip() or "presentation.pptx"
-    if not out_name.endswith(".pptx"):
-        out_name += ".pptx"
-    if not html.strip():
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет HTML"})
-    mode = str(form.get("mode") or "smart")
-    if mode == "shots":
-        try:
-            imgs = await asyncio.to_thread(pptx_conv.render_slides_images, html, Path(out_name).stem)
-            if not imgs:
-                return JSONResponse(status_code=500, content={"ok": False, "message": "Не удалось отрендерить слайды"})
-            out = pptx_conv.build_pptx_from_images(imgs, out_name)
-            rel = out.relative_to(BASE_DIR)
-            return {"ok": True, "url": "/" + rel.as_posix(), "slides": len(imgs)}
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return JSONResponse(status_code=500, content={"ok": False, "message": str(e)})
-    if mode == "ai":
-        engine = str(form.get("engine") or "").strip() or None
-        try:
-            slides = pptx_conv.parse_html_to_slides_ai(html, engine)
-        except Exception as e:
-            print(f"[tools] AI-разбор ошибка: {e} → pro", flush=True)
-            slides = []
-        if not slides:
-            slides = pptx_conv.parse_html_to_slides_pro(html)
-        out = pptx_conv.build_pptx(slides, template_name, out_name)
-        rel = out.relative_to(BASE_DIR)
-        return {"ok": True, "url": "/" + rel.as_posix(), "slides": len(slides)}
-    try:
-        slides = pptx_conv.parse_html_to_slides_pro(html)
-        out = pptx_conv.build_pptx(slides, template_name, out_name)
-        rel = out.relative_to(BASE_DIR)
-        return {"ok": True, "url": "/" + rel.as_posix(), "slides": len(slides)}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(status_code=500, content={"ok": False, "message": str(e)})
-
-
-@app.post("/tools/template")
-async def tools_upload_template(request: Request):
-    form = await request.form()
-    file = form.get("template_file")
-    if file is None or not getattr(file, "filename", ""):
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет файла"})
-    if not file.filename.lower().endswith(".pptx"):
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Нужен .pptx"})
-    pptx_conv.TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-    (pptx_conv.TEMPLATES_DIR / file.filename).write_bytes(await file.read())
-    return {"ok": True, "templates": pptx_conv.list_templates()}
-
-
-@app.post("/tools/template/delete")
-async def tools_delete_template(request: Request):
-    form = await request.form()
-    name = str(form.get("name") or "").strip()
-    if not name or "/" in name or '\\' in name or ".." in name:
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Некорректное имя"})
-    if not name.lower().endswith(".pptx"):
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Это не шаблон .pptx"})
-    p = pptx_conv.TEMPLATES_DIR / name
-    if not p.exists():
-        return JSONResponse(status_code=404, content={"ok": False, "message": "Шаблон не найден"})
-    p.unlink()
-    print(f"[tools] шаблон удалён: {name}")
-    return {"ok": True, "templates": pptx_conv.list_templates()}
-
-@app.post("/tools/emblem")
-async def tools_upload_emblem(request: Request):
-    form = await request.form()
-    file = form.get("emblem_file")
-    if file is None or not getattr(file, "filename", ""):
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Нет файла"})
-    low = file.filename.lower()
-    if not (low.endswith(".png") or low.endswith(".jpg") or low.endswith(".jpeg")):
-        return JSONResponse(status_code=400, content={"ok": False, "message": "Нужен .png или .jpg"})
-    pptx_conv.TOOLS_DIR.mkdir(parents=True, exist_ok=True)
-    dest = pptx_conv.TOOLS_DIR / ("emblem.png" if low.endswith(".png") else "emblem.jpg")
-    dest.write_bytes(await file.read())
-    print(f"[tools] герб загружен: {dest.name}")
-    return {"ok": True}
-
-
-
-
+from routers.tools import router as tools_router
+app.include_router(tools_router)
 
 
 # =========================
@@ -3061,7 +2978,7 @@ async def aichat_del(did: str):
     return {"ok": aichat_store.delete_dialog(did)}
 
 
-def build_platform_context(question: str) -> str:
+def build_platform_context(question: str, allowed_modules=None) -> str:
     """Детализированный контекст: муниципалитет / организация / объект / нарушение."""
     _TRIG = ["эдо", "камер", "просроч", "критич", "вод", "утнкр", "технадзор", "сводк",
              "жалоб", "доброд", "авари", "срок", "округ", "мкд", "мгх", "redmine",
@@ -3070,7 +2987,7 @@ def build_platform_context(question: str) -> str:
     if not any(t in q for t in _TRIG):
         return ""
     from services.platform_details import build_detailed_context
-    return build_detailed_context(question)
+    return build_detailed_context(question, allowed_modules=allowed_modules)
 
 
 
@@ -3110,26 +3027,13 @@ async def aichat_send(request: Request):
         file_name=", ".join(names) or None)
 
     full_user = "\n".join(([text] if text else []) + file_parts)
-    ctx = build_platform_context(text)
-    if ctx:
-        full_user = full_user + "\n\n" + ctx
-    _ctx_parts = []
-    try:
-        _pc = build_platform_context(text)
-        if _pc:
-            _ctx_parts.append(_pc)
-    except Exception:
-        _pc = ""
-    if any(t in (text or "").lower() for t in ("вод", "качеств", "вк", "зугис", "дашборд", "муниципал", "округ", "рсо", "авари")):
-        try:
-            from services.water_ai_context import build_water_context
-            _w = build_water_context()
-            if _w:
-                _ctx_parts.append(_w)
-        except Exception:
-            pass
-    if _ctx_parts:
-        full_user = full_user + "\n\n" + "\n".join(_ctx_parts)
+    # Shared history is intentional; platform data require an explicit selection.
+    ctx = ""
+    if form.get("include_context") == "true":
+        from core.roles import effective_modules
+        ctx = build_platform_context(text, effective_modules(request.state.user))
+        if ctx:
+            full_user += "\n\n" + ctx
     history = (d.get("messages") or []) + [{"role": "user", "content": full_user}]
     try:
         answer = aichat_ask(history)

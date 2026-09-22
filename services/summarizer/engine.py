@@ -1,4 +1,4 @@
-"""Сумматор: GigaChat + Qwen (с выбором движка) + алгоритмический фолбэк."""
+"""Сумматор: разрешённый ГосЧат/локальная модель и алгоритмический режим."""
 import os
 import re
 import datetime
@@ -11,12 +11,8 @@ GIGA_FALLBACKS = ["GigaChat-2-Pro", "GigaChat-2-Max", "GigaChat-2", "GigaChat-3-
 
 
 def _giga_client(credentials):
-    if not credentials:
-        raise RuntimeError("GigaChat credentials не заданы в .env")
-    if credentials not in _giga_cache:
-        from gigachat import GigaChat
-        _giga_cache[credentials] = GigaChat(credentials=credentials, verify_ssl_certs=False)
-    return _giga_cache[credentials]
+    from core.privacy import PrivacyError
+    raise PrivacyError("GigaChat отключён. Используйте ГосЧат.")
 
 
 def _get_giga():
@@ -24,21 +20,8 @@ def _get_giga():
 
 
 def _gigachat_chat(messages, creds=None, model=None, max_tokens=2000):
-    giga = _giga_client((creds or os.getenv("GIGACHAT_CREDENTIALS", "")).strip())
-    preferred = (model or os.getenv("GIGACHAT_MODEL", "GigaChat-2-Pro")).strip()
-    models = [preferred] + [m for m in GIGA_FALLBACKS if m != preferred]
-    last = None
-    for m in models:
-        try:
-            resp = giga.chat({"model": m, "messages": messages,
-                              "temperature": 0.4, "max_tokens": max_tokens})
-            return resp.choices[0].message.content
-        except Exception as e:
-            last = e
-            if "No such model" in str(e) or "404" in str(e):
-                continue
-            raise
-    raise last or RuntimeError("GigaChat: модель недоступна")
+    from core.privacy import PrivacyError
+    raise PrivacyError("GigaChat отключён. Используйте разрешённый ГосЧат.")
 
 
 def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
@@ -47,25 +30,29 @@ def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
     import httpx
     base = (base or os.getenv("QWEN_API_BASE",
                               "https://aiplatform.mosreg.ru/api/user-models/v1")).strip().rstrip("/")
+    from core.privacy import ai_endpoint, ai_tls_context
+    base = ai_endpoint(base)
     key = (key or os.getenv("QWEN_API_KEY", "")).strip()
     model = (model or os.getenv("QWEN_MODEL", "qwen3.8-27b-fp8")).strip()
-    if not key:
+    if not key and "aiplatform.mosreg.ru" in base:
         raise RuntimeError("QWEN_API_KEY (umk_...) не задан в .env")
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {key}",
     }
+
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
 
     def _post(payload):
         resp = httpx.post(f"{base}/chat/completions", json=payload,
-                          headers=headers, timeout=180, verify=True)
+                          headers=headers, timeout=180, verify=ai_tls_context(), trust_env=False, follow_redirects=False)
         # прокси может не знать chat_template_kwargs — повторяем без него
         if resp.status_code == 400 and "chat_template_kwargs" in payload:
             payload = {k: v for k, v in payload.items()
                        if k != "chat_template_kwargs"}
             resp = httpx.post(f"{base}/chat/completions", json=payload,
-                              headers=headers, timeout=180, verify=True)
+                              headers=headers, timeout=180, verify=ai_tls_context(), trust_env=False, follow_redirects=False)
         return resp
 
     payload = {
@@ -99,7 +86,6 @@ def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
         content = msg.get("content") or msg.get("text") or ""
 
     if not content:
-        print(f"[qwen] пустой content, raw: {str(data)[:600]}", flush=True)
         raise RuntimeError("Qwen вернул пустой content")
     return content
 

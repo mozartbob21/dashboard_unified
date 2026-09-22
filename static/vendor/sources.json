@@ -1,0 +1,27 @@
+[
+  {
+    "file": "xlsx.full.min.js",
+    "source": "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+    "sha256": "cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41"
+  },
+  {
+    "file": "chart.umd.min.js",
+    "source": "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+    "sha256": "d2af8974e95271638772e9e9524db5b9a6f58d6ec2d5d781400447b4a31c681e"
+  },
+  {
+    "file": "leaflet.min.js",
+    "source": "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
+    "sha256": "5c9aecfc30e4564519dbdcddcc53a418227dcc7568e619e9762ddcec7609ed47"
+  },
+  {
+    "file": "leaflet-heat.js",
+    "source": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js",
+    "sha256": "eb952aae5806a1102729f291bab887dde783ace859819a354827a776e73e486a"
+  },
+  {
+    "file": "leaflet.markercluster.min.js",
+    "source": "https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js",
+    "sha256": "020a517be9a15b99cf2033cd420b561e0f27b1b6ddd49cbb60a057f335327fb4"
+  }
+]

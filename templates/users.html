@@ -56,13 +56,13 @@
       <h2 id="integrationsTitle">Логины и пароли</h2>
       <p>Доступ к внешним системам. Сохранённые пароли не отображаются. Пустое поле оставляет прежний пароль.</p>
       <form id="integrationForm">
-        <label>Система<select name="service"><option value="edds">ЕДДС · сбор жалоб Добродела</option><option value="edds_arm">АРМ ЕДДС</option></select></label>
+        <label>Система<select name="service"><option value="edds">ЕДДС · сбор жалоб Добродела</option><option value="edds_arm">АРМ ЕДДС</option><option value="mingkh">МИНЖКХ · cur.bi.mosreg.ru</option></select></label>
         <label>Логин<input name="username" required maxlength="254" autocomplete="off"></label>
         <label>Пароль<input name="password" type="password" maxlength="1024" autocomplete="new-password"></label>
         <p id="integrationStatus" role="status"></p>
         <button type="submit">Сохранить доступ</button>
       </form>
-      <p class="muted">Для загрузки заявок сохраните доступ к «АРМ ЕДДС», затем откройте блок ЕДДС и выберите период. Доступ к Доброделу настраивается отдельно и используется только для сбора жалоб.</p>
+      <p class="muted">Для загрузки заявок сохраните доступ к «АРМ ЕДДС», затем откройте блок ЕДДС и выберите период. Доступ к Доброделу настраивается отдельно и используется только для сбора жалоб. Для дашборда МИНЖКХ выберите его в списке и сохраните учётные данные портала cur.bi.mosreg.ru.</p>
     </section>
   </main>
 {% endblock %}

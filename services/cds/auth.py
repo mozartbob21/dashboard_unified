@@ -40,7 +40,7 @@ async def login_to_cds(headless: bool = True):
             "username": CDS_HTTP_USER,
             "password": CDS_HTTP_PASSWORD,
         },
-        ignore_https_errors=True,
+        ignore_https_errors=False,
     )
 
     page = await context.new_page()

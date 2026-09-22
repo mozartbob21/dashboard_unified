@@ -200,3 +200,8 @@ rewrite_*.py
 cleanup_secrets.py
 test_pres.html
 tests_html/
+
+# TLS private material belongs only to each server, never to Git.
+*.pem
+*.pfx
+*.p12

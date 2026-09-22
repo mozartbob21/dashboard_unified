@@ -139,7 +139,8 @@ def _platform_creds():
             or "https://aiplatform.mosreg.ru/api/user-models/v1")
     key = (getattr(_se, "API_KEY", None) or getattr(_se, "QWEN_API_KEY", None)
            or os.getenv("QWEN_API_KEY") or os.getenv("AI_API_KEY") or os.getenv("API_KEY") or "")
-    return base.rstrip("/"), key
+    from core.privacy import ai_endpoint
+    return ai_endpoint(base), key
 
 
 def _wav_normalized_bytes(data: bytes) -> bytes:
@@ -177,7 +178,7 @@ def _asr_qwen(data: bytes) -> str:
     import os
     import httpx
     base, key = _platform_creds()
-    endpoint = os.getenv("STT_ASR_ENDPOINT", "/audio/transcriptions")
+    endpoint = "/audio/transcriptions"
     model = os.getenv("STT_ASR_MODEL", "qwen-asr")
     language = os.getenv("STT_ASR_LANGUAGE", "ru")
     url = base + endpoint
@@ -189,16 +190,17 @@ def _asr_qwen(data: bytes) -> str:
         "response_format": "json",
     }
     try:
-        with httpx.Client(timeout=90) as c:
+        from core.privacy import ai_tls_context
+        with httpx.Client(verify=ai_tls_context(), timeout=90, trust_env=False, follow_redirects=False) as c:
             r = c.post(url, headers=headers, files=files, data=form_data)
             if r.status_code != 200:
-                print(f"[aichat] qwen-asr http {r.status_code}: {r.text[:200]}")
+                print(f"[aichat] qwen-asr http {r.status_code}")
                 return ""
             j = r.json()
             text = (j.get("text") or "").strip()
             return text
     except Exception as e:
-        print("[aichat] qwen-asr error:", e)
+        print("[aichat] qwen-asr error:", type(e).__name__)
         return ""
 
 def transcribe(data: bytes, mime: str = "audio/webm") -> str:
@@ -208,10 +210,9 @@ def transcribe(data: bytes, mime: str = "audio/webm") -> str:
     try:
         t = _asr_qwen(norm)
         if t:
-            print("[aichat] qwen-asr transcribed:", t[:120])
             return t
     except Exception as e:
-        print("[aichat] qwen-asr error:", e)
+        print("[aichat] qwen-asr error:", type(e).__name__)
     m = _whisper_model()
     if m is not None:
         try:
@@ -220,7 +221,6 @@ def transcribe(data: bytes, mime: str = "audio/webm") -> str:
             except Exception:
                 segments, _i = m.transcribe(io.BytesIO(norm), language="ru")
             text = " ".join(s.text for s in segments).strip()
-            print("[aichat] whisper transcribed:", text[:120])
             if text:
                 return text
         except Exception as e:

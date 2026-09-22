@@ -1,5 +1,7 @@
 from services.shot_stabilizer import stabilize_page
 """HTML -> PPTX конвертер с поддержкой корпоративных шаблонов."""
+from contextlib import contextmanager
+from contextvars import ContextVar
 import base64
 import copy
 import io
@@ -18,6 +20,25 @@ TOOLS_DIR = Path(__file__).resolve().parents[2] / "data" / "tools"
 TEMPLATES_DIR = TOOLS_DIR / "templates"
 OUTPUT_DIR = TOOLS_DIR / "output"
 EMBLEM_FILE = TOOLS_DIR / "emblem.png"
+
+_WORKSPACE = ContextVar("pptx_workspace", default=None)
+
+@contextmanager
+def workspace(root):
+    token = _WORKSPACE.set(Path(root))
+    try:
+        yield
+    finally:
+        _WORKSPACE.reset(token)
+
+def tools_dir():
+    return _WORKSPACE.get() or TOOLS_DIR
+
+def templates_dir():
+    return tools_dir() / "templates"
+
+def output_dir():
+    return tools_dir() / "output"
 
 GREEN = RGBColor(0x2E, 0x7D, 0x32)
 ZEBRA = RGBColor(0xEE, 0xF2, 0xF7)
@@ -151,8 +172,8 @@ def parse_html_to_slides(html: str) -> list:
     return slides
 
 def list_templates() -> list:
-    TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-    return sorted(p.name for p in TEMPLATES_DIR.glob("*.pptx"))
+    templates_dir().mkdir(parents=True, exist_ok=True)
+    return sorted(p.name for p in templates_dir().glob("*.pptx"))
 
 def _add_textbox(slide, lines):
     box = slide.shapes.add_textbox(Inches(0.6), Inches(1.8), Inches(8.8), Inches(4.5))
@@ -163,21 +184,21 @@ def _add_textbox(slide, lines):
         tf.add_paragraph().text = ln
 
 def _add_image(slide, src):
+    # Uploaded HTML cannot read server files or trigger external HTTP requests.
+    if not isinstance(src, str) or not re.match(r"^data:image/(png|jpeg|jpg);base64,", src, re.I):
+        return
     try:
-        if src.startswith("data:"):
-            data = base64.b64decode(src.split(",", 1)[1])
-            slide.shapes.add_picture(io.BytesIO(data), Inches(1.2), Inches(2.2), width=Inches(7.5))
-        elif src.startswith("http"):
-            import httpx
-            r = httpx.get(src, timeout=10)
-            if r.status_code == 200:
-                slide.shapes.add_picture(io.BytesIO(r.content), Inches(1.2), Inches(2.2), width=Inches(7.5))
-        else:
-            p = Path(src)
-            if p.exists():
-                slide.shapes.add_picture(str(p), Inches(1.2), Inches(2.2), width=Inches(7.5))
-    except Exception as e:
-        print(f"[tools] image error: {e}")
+        if len(src) > 14 * 1024 * 1024:
+            return
+        data = base64.b64decode(src.split(",", 1)[1], validate=True)
+        pic = slide.shapes.add_picture(io.BytesIO(data), 0, 0)
+        scale = min(Inches(7.5) / pic.width, Inches(4.6) / pic.height)
+        pic.width = int(pic.width * scale)
+        pic.height = int(pic.height * scale)
+        pic.left = int(Inches(1.2) + (Inches(7.5) - pic.width) / 2)
+        pic.top = Inches(2.2)
+    except Exception:
+        return
 
 def _add_table(slide, rows, left=Inches(0.6), top=Inches(2.3),
                width=Inches(10.5), row_h=Inches(0.5),
@@ -217,7 +238,7 @@ def _add_table(slide, rows, left=Inches(0.6), top=Inches(2.3),
 
 def _load_emblem():
     """Герб из файла data/tools/emblem.png / emblem.jpg (если загружен)."""
-    for p in (TOOLS_DIR / "emblem.png", TOOLS_DIR / "emblem.jpg", EMBLEM_FILE):
+    for p in (tools_dir() / "emblem.png", tools_dir() / "emblem.jpg", (tools_dir() / "emblem.png")):
         try:
             if p.exists():
                 return p.read_bytes()
@@ -446,10 +467,9 @@ def _build_standard(prs, slides):
                 pass
 
 def build_pptx(slides: list, template_name, output_name: str) -> Path:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    tpl = TEMPLATES_DIR / template_name if template_name else None
+    output_dir().mkdir(parents=True, exist_ok=True)
+    tpl = templates_dir() / template_name if template_name else None
     use_tpl = bool(tpl and tpl.exists())
-    print(f"[tools] build_pptx: template={template_name!r}, found={use_tpl}", flush=True)
 
     if not use_tpl:
         prs = Presentation()
@@ -482,7 +502,7 @@ def build_pptx(slides: list, template_name, output_name: str) -> Path:
             sldIdLst.remove(last)
             sldIdLst.append(last)
 
-    out = OUTPUT_DIR / output_name
+    out = output_dir() / output_name
     prs.save(str(out))
     return out
 
@@ -540,7 +560,7 @@ def parse_html_to_slides_pro(html: str) -> list:
             return slides
 
     slides = parse_html_to_slides(str(soup))
-    if len(slides) >= 2:
+    if len(slides) >= 2 or any(s["images"] for s in slides):
         return slides
 
     try:
@@ -581,14 +601,18 @@ def parse_html_to_slides_pro(html: str) -> list:
 def render_slides_images(html: str, stem: str) -> list:
     """Рендер сложного HTML в Chromium: страницы .pf или вертикальные полосы."""
     from playwright.sync_api import sync_playwright
-    img_dir = OUTPUT_DIR / f"{stem}_shots"
+    img_dir = output_dir() / f"{stem}_shots"
     img_dir.mkdir(parents=True, exist_ok=True)
     for old in img_dir.glob("*.png"):
         old.unlink()
     paths = []
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
-        page = browser.new_page(viewport={"width": 1280, "height": 720})
+        context = browser.new_context(viewport={"width": 1280, "height": 720},
+                                      java_script_enabled=False, offline=True, service_workers="block",
+                                      accept_downloads=False)
+        context.route("**/*", lambda route: route.abort())
+        page = context.new_page()
         page.set_content(html, wait_until="load")
         page.wait_for_timeout(700)
         stabilize_page(page)
@@ -614,7 +638,7 @@ def render_slides_images(html: str, stem: str) -> list:
 
 def build_pptx_from_images(images: list, output_name: str) -> Path:
     """Слайды-скриншоты 16:9 во всю площадь."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir().mkdir(parents=True, exist_ok=True)
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
@@ -628,7 +652,7 @@ def build_pptx_from_images(images: list, output_name: str) -> Path:
         pic.height = int(pic.height * scale)
         pic.left = int((sw - pic.width) / 2)
         pic.top = int((sh - pic.height) / 2)
-    out = OUTPUT_DIR / output_name
+    out = output_dir() / output_name
     prs.save(str(out))
     return out
 
@@ -645,9 +669,21 @@ def parse_html_to_slides_ai(html: str, engine=None) -> list:
     """Qwen строит структуру слайдов из HTML любой сложности."""
     import json as _json
     from services.summarizer.engine import _qwen_chat
+    soup = BeautifulSoup(html, 'html.parser')
+    assets = {}
+    for tag in soup(['script', 'style']):
+        tag.decompose()
+    for image in soup.find_all('img'):
+        src = str(image.get('src') or '')
+        if src.startswith('data:image/'):
+            key = 'picture_' + str(len(assets) + 1)
+            assets[key] = src
+            image['src'] = key
+        else:
+            image.decompose()
     raw = _qwen_chat([
-        {"role": "system", "content": AI_PARSE_PROMPT},
-        {"role": "user", "content": html[:20000]},
+        {"role": "system", "content": AI_PARSE_PROMPT + ' Добавь поле images: список идентификаторов picture_N из HTML. Сохрани все изображения, по одному на слайд.'},
+        {"role": "user", "content": str(soup)[:20000]},
     ], max_tokens=4000)
     m = re.search(r"\[.*\]", raw, re.S)
     if not m:
@@ -666,8 +702,13 @@ def parse_html_to_slides_ai(html: str, engine=None) -> list:
             "subtitle": "",
             "bullets": [str(x)[:200] for x in (it.get("bullets") or [])][:10],
             "texts": [str(x)[:300] for x in (it.get("texts") or [])][:6],
-            "images": [],
+            "images": [assets[key] for key in (it.get("images") or []) if key in assets][:1],
             "tables": tables,
             "notes": "",
         })
+    assigned = {src for slide in slides for src in slide['images']}
+    for key, src in assets.items():
+        if src not in assigned:
+            slides.append({'title':'Иллюстрация', 'subtitle':'', 'bullets':[], 'texts':[],
+                           'images':[src], 'tables':[], 'notes':''})
     return slides

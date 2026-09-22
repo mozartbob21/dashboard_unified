@@ -123,44 +123,45 @@ def _mgkh_rows(data):
     return out
 
 
-def build_detailed_context(question: str = "") -> str:
-    lines = ["АКТУАЛЬНЫЕ ДАННЫЕ ПЛАТФОРМЫ НА " + datetime.now().strftime("%d.%m.%Y %H:%M") +
-             ". Отвечай СТРОГО по ним; ниже — детализация по проблемным объектам."]
-
-    edo = _rows(_load(F_EDO))
-    lines += _module_block("ЭДО", edo, "ЭДО")
-
-    ov = _rows(_load(F_OVERDUE))
-    for r in ov:
-        c = _num(r, "overdue_count")
-        r["status"] = "critical" if c >= 20 else ("risk" if c > 0 else "ok")
-    lines += _module_block("Просроченные задачи", ov, "просрочка")
-
-    lines += _module_block("WaterControl", _rows(_load(F_WATER)), "вода")
-
-    ut = _rows(_load(F_UTNKR))
-    for r in ut:
-        if not _status(r):
-            d = _num(r, "overdue_days", "days_overdue", "days", "delay_days")
-            r["status"] = "critical" if d >= 20 else ("risk" if d > 0 else "ok")
-    lines += _module_block("Технадзор УТНКР", ut, "технадзор")
-
-    lines += _module_block("Камеры", _rows(_load(F_CAM)), "камеры")
-
-    mgkh = _load(F_MGKH)
-    mrows = _mgkh_rows(mgkh)
-    if mrows:
-        lines.append(f"МКХ Redmine: задач {len(mrows)}.")
-        for r in mrows[:8]:
-            muni = _s(r, "municipality", "city")
-            subj = _s(r, "subject", "name", "object")
-            line = " | ".join(x for x in [muni, subj, "действие: " + r.get("_action", "")] if x)
-            if line:
-                lines.append("  • [мгх] " + line)
-    else:
-        m = mgkh.get("metrics") if isinstance(mgkh, dict) else None
-        if isinstance(m, dict):
-            lines.append(f"МКХ Redmine: всего {m.get('total', 0)}, закрыть {m.get('close', 0)}, "
-                         f"продлить {m.get('extend', 0)}, переделать {m.get('rework', 0)}.")
-
-    return "\n".join(lines)
+def build_detailed_context(question: str = "", allowed_modules=None) -> str:
+    allowed = set(allowed_modules) if allowed_modules is not None else {'edo','overdue','watercontrol','utnkr','cameras','mgkh_rm'}
+    lines = ["СОХРАНЁННЫЕ РЕЗУЛЬТАТЫ ДОСТУПНЫХ МОДУЛЕЙ. Сводка подготовлена " +
+             datetime.now().strftime("%d.%m.%Y %H:%M") +
+             ". Время исходных проверок может отличаться; отсутствующие данные не считай нулевыми."]
+    sources = [('edo','ЭДО',F_EDO), ('overdue','Просроченные задачи',F_OVERDUE),
+               ('watercontrol','Контроль воды',F_WATER), ('utnkr','Технадзор УТНКР',F_UTNKR),
+               ('cameras','Камеры',F_CAM)]
+    for module,title,path in sources:
+        if module not in allowed:
+            continue
+        data = _load(path)
+        if data is None:
+            lines.append(title + ': нет сохранённого результата.')
+            continue
+        rows = _rows(data)
+        if module == 'overdue':
+            for row in rows:
+                count = _num(row,'overdue_count')
+                row['status'] = 'critical' if count >= 20 else ('risk' if count > 0 else 'ok')
+        elif module == 'utnkr':
+            for row in rows:
+                if not _status(row):
+                    days = _num(row,'overdue_days','days_overdue','days','delay_days')
+                    row['status'] = 'critical' if days >= 20 else ('risk' if days > 0 else 'ok')
+        lines += _module_block(title, rows, title)
+    if 'mgkh_rm' in allowed:
+        mgkh = _load(F_MGKH)
+        mrows = _mgkh_rows(mgkh)
+        if mrows:
+            lines.append(f"МКХ Redmine: задач {len(mrows)}.")
+            for row in mrows[:8]:
+                line = ' | '.join(x for x in [_s(row,'municipality','city'),_s(row,'subject','name','object'),
+                                               'действие: ' + row.get('_action','')] if x)
+                lines.append('  • [мгх] ' + line)
+        elif isinstance(mgkh,dict) and isinstance(mgkh.get('metrics'),dict):
+            metrics = mgkh['metrics']
+            lines.append(f"МКХ Redmine: всего {metrics.get('total',0)}, закрыть {metrics.get('close',0)}, "
+                         f"продлить {metrics.get('extend',0)}, переделать {metrics.get('rework',0)}.")
+        else:
+            lines.append('МКХ Redmine: нет сохранённого результата.')
+    return '\n'.join(lines) if len(lines)>1 else 'Нет доступных результатов модулей. Попроси приложить нужные данные.'

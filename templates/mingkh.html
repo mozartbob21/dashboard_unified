@@ -1,0 +1,85 @@
+{% extends "base_module.html" %}
+{% block title %}МИНЖКХ — Нейрона ИИ{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/mingkh.css?v=20260922">{% endblock %}
+{% block content %}
+<div class="container">
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Дашборд МИНЖКХ</div></div></div><div class="top-actions"><a href="/" class="secondary-button">← Назад</a></div></header>
+<div class="mingkh-dashboard"><div class="wrap">
+<header class="head">
+  <div>
+    <h1>Обращения МИНЖКХ</h1>
+    <p class="sub">
+      <span class="badge">куратор: МИНЖКХ</span>
+      <span class="badge">все типы обращений</span>
+      <span class="badge">спам исключён</span>
+    </p>
+  </div>
+  <div class="lastbox" title="Когда портал последний раз обновлял данные.">
+    <div class="lastbox-t">Последнее обновление источника</div>
+    <div class="lastbox-v" id="lastload">…</div>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="row">
+    <div class="grp">
+      <span class="glab">Период</span>
+      <select id="period">{% for value,title in presets %}<option value="{{ value }}">{{ title }}</option>{% endfor %}<option value="custom">Свои даты</option></select>
+    </div>
+    <div class="grp">
+      <span class="glab">Сравнивать с</span>
+      <select id="cmp">
+        <option value="auto">предыдущим равным</option>
+        <option value="custom">своими датами</option>
+      </select>
+    </div>
+    <div class="grp" id="quick"></div>
+  </div>
+  <div class="row custom-dates hidden">
+    <div class="grp current-dates"><span class="glab">Период</span>
+      <input type="date" id="curr_from" aria-label="начало периода">
+      <span class="glab">—</span>
+      <input type="date" id="curr_to" aria-label="конец периода"></div>
+    <div class="grp cmp-dates hidden"><span class="glab">Сравнение</span>
+      <input type="date" id="prev_from" aria-label="начало сравнения">
+      <span class="glab">—</span>
+      <input type="date" id="prev_to" aria-label="конец сравнения"></div>
+  </div>
+  <div class="row" id="filters"></div>
+  <div class="row foot-row">
+    <span class="glab">Обновлять</span>
+    <select id="auto">
+      <option value="off">не обновлять</option>
+      <option value="1">каждый час</option>
+      <option value="2">каждые 2 часа</option>
+      <option value="3">каждые 3 часа</option>
+      <option value="4">каждые 4 часа</option>
+      <option value="6">каждые 6 часов</option>
+      <option value="12">каждые 12 часов</option>
+      <option value="24">раз в сутки</option>
+      <option value="at">в заданные часы</option>
+    </select>
+    <input type="text" id="hours" class="at-hours hidden" placeholder="9, 14, 18"
+           aria-label="часы обновления" style="width:110px">
+    <button type="button" class="pre" id="refresh">Обновить сейчас</button>
+    <span class="note" id="timer"></span>
+  </div>
+</div>
+
+<div id="status">Загружаю…</div>
+<div id="omsupick"></div>
+<div id="out" class="skel">
+  <div id="kpi"></div>
+  <div class="toprow"><div id="sources"></div><div id="direction"></div></div>
+  <div id="themes"></div>
+  <div id="heatmap"></div>
+</div>
+<p class="foot">Источник — дашборд ЕЦУР_v3, cur.bi.mosreg.ru.
+   Фильтры применяются к загруженным данным.</p>
+</div>
+</div></div>
+<script id="mingkhDates" type="application/json">{{ initial_dates | tojson }}</script>
+<script src="/static/mingkh-sort.js"></script>
+<script src="/static/mingkh-app.js"></script>
+<script src="/static/mingkh-page.js"></script>
+{% endblock %}

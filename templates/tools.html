@@ -1,392 +1,83 @@
 {% extends "base_module.html" %}
 {% block title %}Полезные инструменты — Нейрона ИИ{% endblock %}
 {% block body_class %}compact-module-page{% endblock %}
-{% block head %}
-<script>
-        (function() {
-            var m = localStorage.getItem("neurona-theme-mode") || "auto-moscow", t = m;
-            if (m === "auto-moscow") {
-                var now = new Date(), d = Math.floor((now - new Date(now.getFullYear(),0,0)) / 864e5);
-                var dec = .409 * Math.sin(2*Math.PI*(d-80)/365), r = 55.7558*Math.PI/180;
-                var c = (Math.sin(-.83*Math.PI/180) - Math.sin(r)*Math.sin(dec)) / (Math.cos(r)*Math.cos(dec));
-                var H = c>=1?0:c<=-1?Math.PI:Math.acos(c);
-                var sr = (12 - H*12/Math.PI - 37.6173/15 + 3 + 24) % 24;
-                var ss = (12 + H*12/Math.PI - 37.6173/15 + 3 + 24) % 24;
-                var h = now.getHours() + now.getMinutes()/60;
-                t = (h >= sr && h < ss) ? "light" : "dark";
-            }
-            document.documentElement.setAttribute("data-theme", t);
-            document.documentElement.setAttribute("data-glass", localStorage.getItem("neurona-glass") || "off");
-        })();
-    </script>
-
-
-
-
-    <style>
-        .tl-hero{padding:20px 24px!important;margin-bottom:16px!important}
-        .tl-eyebrow{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8b5cf6;margin:0 0 4px}
-        .tl-title{font-size:20px;font-weight:800;margin:0 0 6px;color:var(--text-color,#1e293b)}
-        .tl-sub{font-size:13px;line-height:1.55;color:var(--muted-color,#64748b);margin:0;max-width:80ch}
-        .tl-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
-        @media(max-width:1080px){.tl-grid{grid-template-columns:1fr}}
-        .tl-main{padding:18px 20px!important;display:flex;flex-direction:column;gap:14px}
-        .tl-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-        .tl-head h2{font-size:16px;font-weight:800;margin:0;color:var(--text-color,#1e293b)}
-        .tl-badge{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(139,92,246,.12);color:#8b5cf6}
-        .tl-tabs{display:flex;gap:6px}
-        .tl-tab{background:var(--bg-neutral-100,rgba(0,0,0,.04));border:1px solid var(--border-color,#e2e8f0);color:var(--muted-color,#64748b);border-radius:10px 10px 0 0;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-        .tl-tab.active{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border-color:transparent}
-        .tl-pane{display:none}
-        .tl-pane.active{display:block}
-        .tl-drop{display:flex;flex-direction:column;align-items:center;gap:8px;padding:34px 20px;border:2px dashed var(--border-color,#cbd5e1);border-radius:14px;cursor:pointer;transition:all .2s;text-align:center}
-        .tl-drop:hover,.tl-drop.over{border-color:#8b5cf6;background:rgba(139,92,246,.05)}
-        .tl-drop-icon{font-size:34px}
-        .tl-drop-text{font-size:13px;color:var(--muted-color,#64748b)}
-        .tl-drop-text span{color:#6366f1;font-weight:700}
-        .tl-drop-name{font-size:12.5px;font-weight:700;color:var(--text-color,#1e293b)}
-        .tl-pane textarea{width:100%;min-height:220px;padding:12px 14px;border-radius:12px;border:1px solid var(--border-color,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-color,#1e293b);font-family:Consolas,monospace;font-size:12.5px;line-height:1.5;resize:vertical;box-sizing:border-box}
-        .tl-options{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;}
-        .tl-field{display:flex;flex-direction:column;gap:5px}
-        .tl-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-color,#64748b)}
-        .tl-field select,.tl-field input{padding:9px 12px;border-radius:10px;border:1px solid var(--border-color,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-color,#1e293b);font-size:13px;font-family:inherit}
-        .tl-actions{display:flex;gap:10px}
-        .tl-btn{border:none;border-radius:10px;padding:11px 20px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s}
-        .tl-btn.primary{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;box-shadow:0 4px 14px rgba(102,126,234,.35)}
-        .tl-btn.primary:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(102,126,234,.45)}
-        .tl-btn.primary:disabled{opacity:.6;cursor:wait;transform:none}
-        .tl-btn.ghost{background:var(--bg-neutral-100,rgba(0,0,0,.04));border:1px solid var(--border-color,#cbd5e1);color:var(--text-color,#475569)}
-        .tl-btn.ghost:hover{border-color:#8b5cf6;color:#8b5cf6}
-        .tl-btn.small{padding:7px 14px;font-size:12px}
-        .tl-status{font-size:12.5px;font-weight:600;min-height:18px}
-        .tl-status.info{color:#8b5cf6}.tl-status.done{color:#059669}.tl-status.error{color:#ef4444}
-        .tl-preview{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--border-color,#e2e8f0);padding-top:12px}
-        .tl-slide{display:flex;gap:12px;background:var(--bg-neutral-100,rgba(0,0,0,.03));border:1px solid var(--border-color,#e2e8f0);border-radius:12px;padding:10px 14px}
-        .tl-slide-num{flex:none;width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
-        .tl-slide-title{font-weight:700;font-size:13.5px;color:var(--text-color,#1e293b)}
-        .tl-slide-sub{font-size:12px;color:var(--muted-color,#64748b)}
-        .tl-slide ul{margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--muted-color,#64748b)}
-        .tl-slide p{margin:6px 0 0;font-size:12.5px;color:var(--muted-color,#64748b)}
-        .tl-slide-meta{margin-top:6px;font-size:11px;color:#8b5cf6;display:flex;gap:10px}
-        .tl-result{border-top:1px dashed var(--border-color,#e2e8f0);padding-top:12px}
-        .tl-download{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#fff;text-decoration:none;border-radius:10px;padding:11px 22px;font-size:13.5px;font-weight:700;box-shadow:0 4px 14px rgba(16,185,129,.35);transition:all .2s}
-        .tl-download:hover{transform:translateY(-1px)}
-        .tl-side{display:flex;flex-direction:column;gap:14px}
-        .tl-card{padding:16px 18px!important;display:flex;flex-direction:column;gap:10px}
-        .tl-card h3{margin:0;font-size:14px;font-weight:800;color:var(--text-color,#1e293b)}
-        .tl-card p{margin:0;font-size:12.5px;line-height:1.5;color:var(--muted-color,#64748b)}
-        .tl-upload{align-self:flex-start;background:var(--bg-neutral-100,rgba(0,0,0,.04));border:1px dashed var(--border-color,#cbd5e1);border-radius:10px;padding:8px 16px;font-size:12.5px;font-weight:600;color:var(--text-color,#475569);cursor:pointer;transition:all .2s}
-        .tl-upload:hover{border-color:#8b5cf6;color:#8b5cf6}
-        .tl-tpl-item{font-size:12px;color:var(--text-color,#1e293b);padding:4px 0}
-        .tl-tpl-item.muted{color:var(--muted-color,#94a3b8);font-style:italic}
-        .tl-rules{margin:0;padding-left:18px;font-size:12.5px;line-height:1.8;color:var(--muted-color,#64748b)}
-        .tl-rules code{background:rgba(139,92,246,.1);color:#8b5cf6;border-radius:5px;padding:1px 6px;font-size:11.5px}
-        .tl-tpl-item{display:flex;align-items:center;justify-content:space-between;gap:8px}
-        .tl-del{flex:none;background:rgba(239,68,68,.1);color:#ef4444;border:none;border-radius:6px;width:20px;height:20px;font-size:14px;line-height:1;cursor:pointer;transition:all .15s}
-        .tl-del:hover{background:#ef4444;color:#fff;transform:scale(1.1)}
-    </style>
-{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tools.css?v=20260922">{% endblock %}
 {% block content %}
-<div class="container">
-    <header class="topbar">
-        <div class="brand">
-            <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
-            <div>
-                <div class="brand-title">Нейрона ИИ</div>
-                <div class="brand-subtitle">Полезные инструменты</div>
-            </div>
-        </div>
-        <div class="top-actions">
-            <a href="/" class="secondary-button" style="text-decoration:none;">← Главная</a>
-            {% if user_username %}
-            <div class="badge" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;">👤 {{ user_username }}</div>
-            {% endif %}
-        </div>
-    </header>
-
-    <section class="card tl-hero">
-        <div class="tl-eyebrow">Нейрона · Утилиты</div>
-        <h1 class="tl-title">🧰 Полезные инструменты</h1>
-        <p class="tl-sub">Набор повседневных утилит внутри платформы. Первый инструмент — конвертер HTML-презентаций в PowerPoint с поддержкой корпоративных шаблонов, превью слайдов и заметок докладчика.</p>
-    </section>
-
-    <div class="tl-grid">
-        <section class="card tl-main">
-            <div class="tl-head">
-                <h2>Конвертер HTML → PPTX</h2>
-                <span class="tl-badge">PowerPoint</span>
-            </div>
-
-            <div class="tl-tabs">
-                <button class="tl-tab active" data-tab="file" type="button">📄 Файл HTML</button>
-                <button class="tl-tab" data-tab="code" type="button">✍️ Вставить код</button>
-            </div>
-
-            <div class="tl-pane active" id="pane-file">
-                <div class="tl-drop" id="dropZone">
-                    <input type="file" id="htmlFile" accept=".html,.htm" hidden>
-                    <div class="tl-drop-icon">📥</div>
-                    <div class="tl-drop-text">Перетащи файл .html сюда или <span>нажми для выбора</span></div>
-                    <div class="tl-drop-name" id="fileName"></div>
-                </div>
-            </div>
-
-            <div class="tl-pane" id="pane-code">
-                <textarea id="htmlCode" placeholder="<h1>Заголовок отчёта</h1>&#10;<h2>Раздел</h2>&#10;<ul><li>Пункт 1</li><li>Пункт 2</li></ul>"></textarea>
-            </div>
-
-            <div class="tl-options">
-                <div class="tl-field">
-                    <label>Режим разбора</label>
-                    <select id="modeSelect">
-                        <option value="ai" selected>ИИ-дизайнер (перерисовка в слайды)</option>
-                        <option value="smart">Алгоритм (структура)</option>
-                        <option value="shots">Скриншоты (сложный HTML / PDF)</option>
-                    </select>
-                </div>
-                <div class="tl-field">
-                    <label>ИИ-модель</label>
-                    <select id="aiEngineSelect">
-                        <option value="qwen">ГосЧат (по умолчанию)</option>
-                        <option value="gigachat">GigaChat</option>
-                        <option value="goschat">ГосЧат</option>
-                    </select>
-                </div>
-                <div class="tl-field">
-                    <label>Шаблон оформления</label>
-                    <select id="tplSelect"></select>
-                </div>
-                <div class="tl-field">
-                    <label>Имя файла</label>
-                    <input id="outName" type="text" value="presentation.pptx">
-                </div>
-            </div>
-
-            <div class="tl-actions">
-                <button class="tl-btn ghost" id="previewBtn" type="button">👁 Предпросмотр</button>
-                <button class="tl-btn primary" id="convertBtn" type="button">⚡ Конвертировать</button>
-            </div>
-
-            <div class="tl-status" id="statusLine"></div>
-            <div class="tl-preview" id="previewArea" hidden></div>
-            <div class="tl-result" id="resultArea" hidden></div>
-        </section>
-
-        <aside class="tl-side">
-            <section class="card tl-card">
-                <h3>🎨 Корпоративный шаблон</h3>
-                <p>Загрузи .pptx со своим фирменным стилем — все презентации будут собираться по его макетам (логотип, цвета, шрифты).</p>
-                <label class="tl-upload">
-                    <input type="file" id="tplFile" accept=".pptx" hidden>
-                    <span>📤 Загрузить шаблон</span>
-                </label>
-                <label class="tl-upload">
-                    <input type="file" id="emblemFile" accept=".png,.jpg,.jpeg" hidden>
-                    <span>🛡️ Загрузить герб</span>
-                </label>
-                <div id="tplList"></div>
-            </section>
-
-            <section class="card tl-card">
-                <h3>📐 Правила разметки HTML</h3>
-                <ul class="tl-rules">
-                    <li><code>&lt;section&gt;</code> или <code>&lt;h2&gt;</code> — новый слайд</li>
-                    <li><code>&lt;h1&gt;/&lt;h2&gt;</code> — заголовок слайда</li>
-                    <li><code>&lt;ul&gt;&lt;li&gt;</code> — список пунктов</li>
-                    <li><code>&lt;img&gt;</code> — картинка на слайде</li>
-                    <li><code>&lt;table&gt;</code> — таблица</li>
-                    <li><code>&lt;div class="notes"&gt;</code> — заметки докладчика</li>
-                </ul>
-                <button class="tl-btn ghost small" id="sampleBtn" type="button">✨ Вставить пример</button>
-            </section>
-        </aside>
+<div class="container tools-page" data-owner="{{ user_username }}">
+  <header class="topbar">
+    <div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Полезные инструменты</div></div></div>
+    <div class="top-actions"><a href="/" class="secondary-button">← Назад</a></div>
+  </header>
+  <div class="tools-heading"><div><h1>Полезные инструменты</h1><p>Документы, таблицы и автоматизация повседневных задач.</p></div></div>
+  <nav class="tools-tabs" aria-label="Инструменты">
+    <button type="button" data-panel="conversion" aria-pressed="true">Конвертация</button>
+    <button type="button" data-panel="macros" aria-pressed="false">Помощь с макросами</button>
+    <button type="button" data-panel="exe" aria-pressed="false">Python → EXE</button>
+    <button type="button" data-panel="merge" aria-pressed="false">Объединение Excel</button>
+  </nav>
+  <section data-tool-panel="conversion" class="tool-panel">
+    <div class="conversion-options" aria-label="Направление конвертации">
+      <button type="button" data-conversion="html_pptx" aria-pressed="true">HTML → PowerPoint</button>
+      <button type="button" data-conversion="docx_pdf" aria-pressed="false">Word → PDF</button>
+      <button type="button" data-conversion="pdf_docx" aria-pressed="false">PDF → Word</button>
     </div>
+    <div data-converter="html_pptx" class="tools-columns">
+      <form class="card tool-card" data-kind="html_pptx">
+        <div><h2>Презентация из HTML</h2><p>Загрузите файл или вставьте разметку. Получите презентацию в PowerPoint.</p></div>
+        <label class="tool-upload">Файл HTML<input type="file" name="file" accept=".html,.htm"></label>
+        <label class="tool-upload">Изображения с компьютера<input type="file" name="images" accept=".png,.jpg,.jpeg,.webp" multiple></label>
+        <p class="tool-hint">До 20 изображений. Совпадающие имена подставятся в HTML; остальные добавятся отдельными слайдами.</p>
+        <label>Или HTML-код<textarea name="html" rows="7" placeholder="<h1>Заголовок</h1>&#10;<h2>Раздел</h2>&#10;<p>Содержание слайда</p>"></textarea></label>
+        <div class="tool-fields"><label>Режим<select name="mode"><option value="smart">Структура HTML</option><option value="ai">ГосЧат — ИИ-дизайнер</option><option value="shots">Сохранить внешний вид</option></select></label><label>Шаблон<select name="template" id="toolTemplate"><option value="">Стандартный</option></select></label></div>
+        <p class="tool-ai-note" id="htmlAiNote" hidden>При запуске содержимое HTML будет передано в ГосЧат.</p>
+        <label class="tool-checkbox"><input type="checkbox" name="remote_images" value="true" checked>Загружать картинки по интернет-ссылкам</label>
+        <p class="tool-hint">Можно использовать ссылки, встроенные картинки или изображения с компьютера.</p>
+        <div class="tool-actions"><button type="button" class="secondary-button" id="previewHtml">Предпросмотр</button><button type="submit" class="module-link">Создать презентацию →</button></div>
+        <div id="htmlPreview" hidden></div>
+      </form>
+      <aside class="card tool-card tool-templates"><h2>Оформление</h2><p>Ваши шаблоны и логотип доступны только вашему аккаунту.</p>
+        <label class="tool-upload">Шаблон PowerPoint<input id="templateUpload" type="file" accept=".pptx"></label>
+        <div id="templateList"></div><label class="tool-upload">Логотип или герб<input id="emblemUpload" type="file" accept=".png,.jpg,.jpeg"></label>
+      </aside>
+    </div>
+    <form data-converter="docx_pdf" class="card tool-card tool-single" data-kind="docx_pdf" hidden>
+      <h2>Word → PDF</h2><p>Сохраните оформление документа в PDF. Обработка выполняется на сервере.</p>
+      <label class="tool-upload">Документ Word<input type="file" name="file" accept=".docx" required></label>
+      <p class="tool-hint" id="officeAvailability"></p><div class="tool-actions"><button type="submit" class="module-link">Создать PDF →</button></div>
+    </form>
+    <form data-converter="pdf_docx" class="card tool-card tool-single" data-kind="pdf_docx" hidden>
+      <h2>PDF → Word</h2><p>Преобразуйте текстовый PDF в редактируемый документ Word.</p>
+      <label class="tool-upload">Документ PDF<input type="file" name="file" accept=".pdf" required></label>
+      <p class="tool-hint">До 100 страниц. Сканам нужно предварительное распознавание текста. Разметку сложных таблиц стоит проверить после конвертации.</p>
+      <p class="tool-hint" id="pdfAvailability"></p><div class="tool-actions"><button type="submit" class="module-link">Создать Word →</button></div>
+    </form>
+  </section>
+  <section data-tool-panel="macros" hidden>
+    <form class="card tool-card tool-single" data-kind="macros"><h2>Помощь в создании макросов</h2><p>Опишите задачу: какие данные есть, что нужно сделать и каким должен быть результат.</p>
+      <label>Приложение<select name="target"><option>Excel VBA</option><option>Word VBA</option></select></label>
+      <label>Задача<textarea name="prompt" rows="8" minlength="10" maxlength="12000" required placeholder="Например: на листе «Заявки» есть столбцы «РСО», «Дата» и «Статус». Создай новый лист со сводкой по РСО, не меняя исходный лист."></textarea></label>
+      <p class="tool-ai-note">Описание задачи будет передано в ГосЧат. В ответе — код макроса и инструкция по запуску.</p>
+      <div class="tool-actions"><button type="submit" class="module-link">Подготовить макрос →</button></div>
+    </form>
+  </section>
+  <section data-tool-panel="exe" hidden>
+    <form class="card tool-card tool-single" data-kind="exe"><h2>Python → EXE</h2><p>Соберите Windows-приложение из Python-скрипта.</p>
+      {% if can_build %}<label class="tool-upload">Скрипт Python<input type="file" name="file" accept=".py" required></label>
+      <label class="tool-checkbox"><input type="checkbox" name="windowed" value="true">Приложение с окном, без консоли</label>
+      <p class="tool-hint" id="exeAvailability">Сборка выполняется в Windows Sandbox без сети. Зависимости скрипта должны быть установлены в среде сборки.</p>
+      <div class="tool-actions"><button type="submit" class="module-link">Собрать EXE →</button></div>
+      {% else %}<p class="tool-hint">Сборку EXE запускает администратор системы.</p>{% endif %}
+    </form>
+  </section>
+  <section data-tool-panel="merge" hidden>
+    <form class="card tool-card tool-single" data-kind="merge"><h2>Объединение Excel</h2><p>Объедините первые листы файлов в одну таблицу. Столбцы сопоставляются по заголовкам.</p>
+      <div class="tool-fields"><label class="tool-upload">Выбрать файлы<input type="file" id="mergeFiles" name="file" accept=".xlsx,.xls,.xlsb" multiple></label><label class="tool-upload">Выбрать папку<input type="file" id="mergeFolder" webkitdirectory multiple></label></div>
+      <p id="mergeSelection" class="tool-hint">Поддерживаются XLSX, XLS и XLSB.</p>
+      <p class="tool-hint">Берутся файлы прямо в выбранной папке. Вложенные папки, временные файлы и предыдущий результат пропускаются.</p>
+      <div class="tool-actions"><button type="submit" class="module-link">Объединить →</button></div>
+    </form>
+  </section>
+  <section id="toolResult" class="card tool-card tool-result" hidden aria-live="polite"><p id="toolStatus"></p><a id="toolDownload" class="module-link" hidden>Скачать результат ↓</a><div id="macroResult" hidden><h3>Макрос</h3><pre id="macroCode"></pre><h3>Как использовать</h3><p id="macroInstructions"></p><p id="macroAssumptions" class="tool-hint"></p></div></section>
 </div>
-
-<script>
-const $ = (id) => document.getElementById(id);
-let currentFile = null;
-
-document.querySelectorAll(".tl-tab").forEach(btn => {
-    btn.addEventListener("click", () => {
-        document.querySelectorAll(".tl-tab").forEach(b => b.classList.toggle("active", b === btn));
-        document.querySelectorAll(".tl-pane").forEach(p => p.classList.remove("active"));
-        $("pane-" + btn.dataset.tab).classList.add("active");
-    });
-});
-
-const drop = $("dropZone");
-drop.addEventListener("click", () => $("htmlFile").click());
-drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
-drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-drop.addEventListener("drop", e => {
-    e.preventDefault(); drop.classList.remove("over");
-    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
-});
-$("htmlFile").addEventListener("change", e => { if (e.target.files.length) setFile(e.target.files[0]); });
-function setFile(f) { currentFile = f; $("fileName").textContent = "📄 " + f.name; }
-
-function activeTab() { return document.querySelector(".tl-tab.active").dataset.tab; }
-async function getHtml() {
-    if (activeTab() === "file" && currentFile) return await currentFile.text();
-    return $("htmlCode").value;
-}
-function setStatus(type, text) {
-    const el = $("statusLine");
-    el.className = "tl-status " + type;
-    el.textContent = text;
-}
-function esc(s) { return String(s || "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-
-$("previewBtn").addEventListener("click", async () => {
-    const html = await getHtml();
-    if (!html.trim()) return setStatus("error", "Укажи HTML: файлом или кодом.");
-    setStatus("info", "⏳ Распознаю слайды…");
-    const fd = new FormData(); fd.append("html", html);
-    try {
-        const r = await fetch("/tools/html2pptx/preview", { method: "POST", body: fd });
-        const d = await r.json();
-        if (!d.ok) return setStatus("error", d.message || "Ошибка");
-        renderPreview(d.slides);
-        setStatus("done", "✅ Распознано слайдов: " + d.slides.length);
-    } catch (e) { setStatus("error", "Сетевая ошибка: " + e.message); }
-});
-
-function renderPreview(slides) {
-    const area = $("previewArea");
-    area.hidden = false;
-    area.innerHTML = slides.map((s, i) => `
-        <div class="tl-slide">
-            <div class="tl-slide-num">${i + 1}</div>
-            <div>
-                <div class="tl-slide-title">${esc(s.title || "(без заголовка)")}</div>
-                ${s.subtitle ? `<div class="tl-slide-sub">${esc(s.subtitle)}</div>` : ""}
-                ${s.bullets.length ? `<ul>${s.bullets.map(b => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}
-                ${s.texts.length ? `<p>${s.texts.map(esc).join(" · ")}</p>` : ""}
-                <div class="tl-slide-meta">
-                    ${s.images.length ? `🖼 ${s.images.length}` : ""}
-                    ${s.tables.length ? `📊 ${s.tables.length}` : ""}
-                    ${s.notes ? "📝 заметки" : ""}
-                </div>
-            </div>
-        </div>`).join("");
-}
-
-$("convertBtn").addEventListener("click", async () => {
-    const html = await getHtml();
-    if (!html.trim()) return setStatus("error", "Укажи HTML: файлом или кодом.");
-    setStatus("info", "⏳ Собираю PPTX…");
-    $("convertBtn").disabled = true;
-
-    try {
-        const fd = new FormData();
-        fd.append("html", html);
-        fd.append("mode", $("modeSelect").value);
-
-        // Безопасное получение модели ИИ
-        const engineEl = $("aiEngineSelect");
-        if (engineEl) {
-            fd.append("engine", engineEl.value);
-        }
-
-        fd.append("template", $("tplSelect").value);
-        fd.append("out_name", $("outName").value || "presentation.pptx");
-
-        const r = await fetch("/tools/html2pptx", { method: "POST", body: fd });
-        const d = await r.json();
-        if (!d.ok) throw new Error(d.message || "Ошибка сервера");
-
-        setStatus("done", "✅ Готово! Слайдов: " + d.slides);
-        const res = $("resultArea");
-        res.hidden = false;
-        res.innerHTML = `<a href="${d.url}" class="tl-download">⬇️ Скачать PPTX</a>`;
-    } catch (e) {
-        setStatus("error", "Ошибка: " + e.message);
-    } finally {
-        // Гарантированно разблокируем кнопку даже при ошибке
-        $("convertBtn").disabled = false;
-    }
-});
-
-$("tplFile").addEventListener("change", async e => {
-    const f = e.target.files[0]; if (!f) return;
-    const fd = new FormData(); fd.append("template_file", f);
-    const r = await fetch("/tools/template", { method: "POST", body: fd });
-    const d = await r.json();
-    if (d.ok) { setStatus("done", "✅ Шаблон загружен: " + f.name); refreshTemplates(d.templates); }
-    else setStatus("error", d.message || "Ошибка");
-});
-
-function refreshTemplates(list) {
-    const sel = $("tplSelect"); const cur = sel.value;
-    sel.innerHTML = '<option value="">Стандартный</option>' +
-        list.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
-    if (cur && list.includes(cur)) sel.value = cur;
-    $("tplList").innerHTML = list.length
-        ? list.map(t => `<div class="tl-tpl-item"><span>🎨 ${esc(t)}</span><button class="tl-del" data-tpl="${esc(t)}" title="Удалить шаблон" type="button">×</button></div>`).join("")
-        : '<div class="tl-tpl-item muted">Пока нет шаблонов</div>';
-    $("tplList").querySelectorAll(".tl-del").forEach(b => {
-        b.addEventListener("click", async () => {
-            const name = b.getAttribute("data-tpl");
-            if (!confirm("Удалить шаблон " + name + "?")) return;
-            const fd = new FormData(); fd.append("name", name);
-            const r = await fetch("/tools/template/delete", { method: "POST", body: fd });
-            const d = await r.json();
-            if (d.ok) { setStatus("done", "🗑️ Шаблон удалён: " + name); refreshTemplates(d.templates); }
-            else setStatus("error", d.message || "Ошибка");
-        });
-    });
-}
-
-const SAMPLE = '<h1>Качество водоснабжения МО</h1>\n<p>Сводный отчёт · август 2026</p>\n\n<h2>Ключевые показатели</h2>\n<ul>\n  <li>Выполнение промывок — 69%</li>\n  <li>Просроченные задачи — 864</li>\n  <li>Собираемость НВОС — 80%</li>\n</ul>\n\n<h2>Проблемные округа</h2>\n<ul>\n  <li>Красногорск — явка 38%</li>\n  <li>Клин — явка 40%</li>\n</ul>\n<table>\n  <tr><th>Округ</th><th>Явка</th></tr>\n  <tr><td>Красногорск</td><td>38%</td></tr>\n  <tr><td>Клин</td><td>40%</td></tr>\n</table>\n<div class="notes">Перед совещанием уточнить данные по промывкам.</div>';
-
-$("sampleBtn").addEventListener("click", () => {
-    document.querySelector('.tl-tab[data-tab="code"]').click();
-    $("htmlCode").value = SAMPLE;
-    setStatus("info", "✨ Пример вставлен — жми «Предпросмотр» или «Конвертировать»");
-});
-
-$("emblemFile").addEventListener("change", async e => {
-    const f = e.target.files[0]; if (!f) return;
-    const fd = new FormData(); fd.append("emblem_file", f);
-    const r = await fetch("/tools/emblem", { method: "POST", body: fd });
-    const d = await r.json();
-    if (d.ok) setStatus("done", "✅ Герб загружен — будет на всех контентных слайдах");
-    else setStatus("error", d.message || "Ошибка");
-});
-
-refreshTemplates({{ templates | tojson }});
-</script>
-
-<script>
-(function(){
-    function make(){
-        var host = document.querySelector(".top-actions") || document.querySelector(".topbar");
-        if (!host) { setTimeout(make, 300); return; }
-        if (document.getElementById("glassToggle")) return;
-        var b = document.createElement("button");
-        b.id = "glassToggle";
-        b.type = "button";
-        var anchor = host.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
-        if (anchor) { anchor.parentNode.insertBefore(b, anchor); } else { host.appendChild(b); }
-        function paint(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            var SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>';
-            var SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
-            b.innerHTML = on ? SVG_ON : SVG_OFF;
-            b.classList.toggle("on", on);
-            b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
-        }
-        b.addEventListener("click", function(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            document.documentElement.setAttribute("data-glass", on ? "off" : "on");
-            localStorage.setItem("neurona-glass", on ? "off" : "on");
-            paint();
-        });
-        paint();
-    }
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", make);
-    else make();
-})();
-</script>
+<script src="/static/tools.js?v=20260922"></script>
 {% endblock %}

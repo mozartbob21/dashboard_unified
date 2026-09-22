@@ -1460,7 +1460,7 @@ async def run_camera_check(progress_callback):
 
         context = await browser.new_context(
             viewport={"width": 1600, "height": 1200},
-            ignore_https_errors=True,
+            ignore_https_errors=False,
             user_agent=default_user_agent(),
         )
 
@@ -2040,7 +2040,7 @@ async def check_single_stream(browser, stream_url, address, attempt=1, deep_mode
     # Открываем страницу в браузере
     context = await browser.new_context(
         viewport={"width": 1280, "height": 900},
-        ignore_https_errors=True,
+        ignore_https_errors=False,
         user_agent=default_user_agent(),
     )
 

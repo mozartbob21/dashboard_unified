@@ -37,7 +37,8 @@ def credential_status(service='edds'):
 
 def save_credentials(username, password, service='edds'):
     username=username.strip()
-    if not username: raise HTTPException(400,'Укажите логин Добродела')
+    if service not in {'edds','edds_arm','mingkh'}: raise HTTPException(400,'Неизвестная интеграция')
+    if not username: raise HTTPException(400,'Укажите логин системы')
     if not password:
         old=credentials(service)
         if not old or old['username']!=username:
@@ -46,5 +47,5 @@ def save_credentials(username, password, service='edds'):
     encrypted=cipher(create=True).encrypt(json.dumps({'username':username,'password':password}).encode()).decode()
     with get_db_connection() as conn:
         conn.execute("INSERT INTO integration_credentials(service,encrypted_value) VALUES(?,?) ON CONFLICT(service) DO UPDATE SET encrypted_value=excluded.encrypted_value,updated_at=CURRENT_TIMESTAMP",(service,encrypted))
-        label='Добродел' if service=='edds' else 'АРМ ЕДДС'
+        label={'edds':'Добродел','edds_arm':'АРМ ЕДДС','mingkh':'МИНЖКХ'}[service]
         conn.execute("INSERT INTO account_notifications(message) VALUES (?)",(f'Обновлены настройки доступа: {label}.',))
