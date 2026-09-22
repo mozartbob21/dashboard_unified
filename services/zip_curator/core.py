@@ -1,5 +1,5 @@
 """Куратор ЗиП: загрузка исходников, согласование и локальная публикация."""
-import hashlib, io, json, os, re, zipfile
+import hashlib, io, json, os, re, unicodedata, zipfile
 from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -129,10 +129,54 @@ def _apply_municipality_to_state(organization_key, municipality):
     if changed:
         save_state(st)
 
+def _unit_key(value):
+    # Excel exports use dots, non-breaking spaces and both м3 / м³.
+    value = unicodedata.normalize("NFKC", str(value)).casefold()
+    return re.sub(r"[\s.]+", "", value)
+
+
+UNIT_ALIASES = {
+    "шт": ("штука", "штуки", "штук"),
+    "м": ("метр", "метры", "метров"),
+    "пог. м": ("пог м", "м п", "погонный метр", "погонных метров"),
+    "кг": ("килограмм", "килограммы", "килограммов"),
+    "т": ("тн", "тонна", "тонны", "тонн"),
+    "л": ("литр", "литры", "литров"),
+    "м³": ("м3", "м куб", "куб м", "кубометр", "кубический метр"),
+    "пар": ("пара", "пары"),
+    "компл": ("комплект", "комплекты", "комплектов"),
+    "упак": ("упаковка", "упаковки", "упаковок"),
+    "рул": ("рулон", "рулоны", "рулонов"),
+    "пачк": ("пачка", "пачки", "пачек"),
+    "бал": ("баллон", "баллоны", "баллонов"),
+}
+UNIT_LOOKUP = {
+    _unit_key(alias): canonical
+    for canonical, aliases in UNIT_ALIASES.items()
+    for alias in (canonical, *aliases)
+}
+UNIT_LOOKUP.update({_unit_key(alias): canonical for alias, canonical in D["umap"].items()})
+
+
 def norm_unit(u):
-    if u is None or not str(u).strip(): return None, True
-    c = D["umap"].get(str(u).lower().strip())
-    return c, not c
+    if u is None or not str(u).strip():
+        return None, True
+    canonical = UNIT_LOOKUP.get(_unit_key(u))
+    return canonical, canonical is None
+
+
+def _restore_pending_units(state):
+    """Repair old imports from retained raw values without reclassifying items."""
+    changed = False
+    for registry in state.get("pending", []):
+        for item in registry.get("items", []):
+            if item.get("unit") and not item.get("unitUnknown"):
+                continue
+            unit, unknown = norm_unit(item.get("unitRaw"))
+            if not unknown:
+                item.update(unit=unit, unitUnknown=False)
+                changed = True
+    return changed
 
 def classify(name):
     return dictionary.lookup(norm(name))
@@ -253,6 +297,8 @@ def load_state():
                 state.setdefault("pending", [])
                 state.setdefault("clean", {})
                 state.setdefault("excluded_rso", {})
+                if _restore_pending_units(state):
+                    save_state(state)
                 return state
         except Exception: pass
     state = {"pending": [], "clean": _clean_from_published(), "excluded_rso": {}}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <title>{% block title %}Нейрона ИИ — Вход{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='login.css') }}?v=20260921-2">
+</head>
+<body class="login-page">
+    <main class="login-container" aria-labelledby="login-title">
+        <div class="login-brand">
+            <img src="{{ url_for('static', path='logo.svg') }}" alt="" width="48" height="48">
+            <div>
+                <div class="login-brand-title">Нейрона ИИ</div>
+                <div class="login-brand-subtitle">Подмосковная Нейрона Роботовна</div>
+            </div>
+        </div>
+
+        <div class="login-intro">
+            <h1 id="login-title">{% block heading %}С возвращением{% endblock %}</h1>
+            <p>{% block subtitle %}Войдите, чтобы продолжить работу.{% endblock %}</p>
+        </div>
+
+        {% block notices %}
+        {% if message %}
+        <div class="login-notice login-info" role="status">{{ message }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="login-notice login-error" role="alert">{{ error }}</div>
+        {% endif %}
+
+        {% endblock %}
+
+        {% block content %}{% endblock %}
+
+        <div class="login-register">
+            {% block footer %}<span>Нет аккаунта?</span> <a href="/register">Зарегистрироваться</a>{% endblock %}
+        </div>
+    </main>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
