@@ -112,6 +112,35 @@ class RouteTests(unittest.TestCase):
         response = self.client.get('/edds/arm/report?from_date=2026-09-17&to_date=2026-09-17')
         self.assertEqual(response.status_code, 403)
 
+    def test_status_requires_module_access_before_reading_configuration(self):
+        with patch.object(arm, 'transport') as transport:
+            response = self.client.get('/edds/status')
+        self.assertEqual(response.status_code, 403)
+        transport.assert_not_called()
+
+    def test_status_reports_bad_transport_as_handled_configuration_error(self):
+        self.app.dependency_overrides[edds.require_edds] = lambda: None
+        with patch.dict(arm.os.environ, {'EDDS_ARM_TRANSPORT': 'invalid-private-value'}):
+            response = self.client.get('/edds/status')
+        self.assertEqual(response.status_code, 503)
+        self.assertIn('EDDS_ARM_TRANSPORT', response.json()['detail'])
+        self.assertNotIn('invalid-private-value', response.text)
+        self.assertEqual(response.headers['cache-control'], 'no-store')
+
+    def test_status_accepts_server_gost_configuration(self):
+        self.app.dependency_overrides[edds.require_edds] = lambda: None
+        with patch.dict(arm.os.environ, {
+            'EDDS_ARM_TRANSPORT': 'chrome',
+            'EDDS_CHROME_EXECUTABLE': 'C:/Program Files/Chromium-Gost/chrome.exe',
+            'EDDS_CHROME_HEADLESS': '0',
+        }), patch.object(runner, 'status', return_value={'running': False}), \
+                patch.object(edds, 'credentials', return_value={'username': 'test', 'password': 'secret'}):
+            response = self.client.get('/edds/status')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['arm_transport'], 'chrome')
+        self.assertTrue(response.json()['arm_configured'])
+        self.assertNotIn('secret', response.text)
+
     def test_authenticated_report_and_errors_are_not_cached(self):
         self.app.dependency_overrides[edds.require_edds] = lambda: None
         route = '/edds/arm/report?from_date=2026-09-17&to_date=2026-09-17'

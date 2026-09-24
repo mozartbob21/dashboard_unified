@@ -4,14 +4,17 @@ import time
 import unittest
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from playwright.sync_api import Error as BrowserError
-from services.edds import arm, chrome
+from services.edds import arm, chrome, collector
 
 
 class ChromeTests(unittest.TestCase):
     def setUp(self):
+        environment = patch.dict(os.environ, {'EDDS_CHROME_EXECUTABLE': '', 'EDDS_CHROME_HEADLESS': '1'})
+        environment.start(); self.addCleanup(environment.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         patcher = patch.object(chrome, 'PROFILE', Path(self.temp.name) / 'profile')
@@ -35,6 +38,20 @@ class ChromeTests(unittest.TestCase):
         self.assertTrue(options['chromium_sandbox'])
         self.assertEqual(options['ignore_default_args'], ['--disable-extensions'])
         self.assertNotIn('args', options)
+
+    def test_gost_executable_uses_chromium_api_with_visible_window(self):
+        self.client.close()
+        executable = 'C:/Program Files/Chromium-Gost/chrome.exe'
+        with patch.dict(os.environ, {'EDDS_CHROME_EXECUTABLE': executable, 'EDDS_CHROME_HEADLESS': '0 '}):
+            self.client = chrome.ChromeArmClient()
+            self.addCleanup(self.client.close)
+        args, options = self.engine.chromium.launch_persistent_context.call_args
+        self.assertEqual(args, (str(chrome.PROFILE),))
+        self.assertEqual(options['executable_path'], executable)
+        self.assertNotIn('channel', options)
+        self.assertTrue(options['chromium_sandbox'])
+        self.assertFalse(options['ignore_https_errors'])
+        self.assertFalse(options['headless'])
 
     def test_report_uses_browser_tab_not_python_or_api_request_context(self):
         self.page.evaluate.return_value = {'status':200,'url':arm.BASE_URL,'text':'id_cds_claim;text_message\n7;Прорыв\n'}
@@ -113,6 +130,34 @@ class ChromeTests(unittest.TestCase):
                 self.assertEqual(arm.transport(),'requests')
         with patch.dict(os.environ,{'EDDS_ARM_TRANSPORT':'invalid'}):
             with self.assertRaises(arm.ArmError):arm.transport()
+
+    def test_configured_browser_modes_all_create_browser_client(self):
+        for mode in ('auto', 'chrome', ' Chrome ', 'Chromium-Gost', 'chromium-gost'):
+            with self.subTest(mode=mode), patch.dict(os.environ, {
+                'EDDS_ARM_TRANSPORT': mode,
+                'EDDS_CHROME_EXECUTABLE': 'C:/Program Files/Chromium-Gost/chrome.exe',
+            }), patch.object(arm.sys, 'platform', 'win32'), \
+                    patch.object(chrome, 'ChromeArmClient') as browser, patch.object(arm, 'ArmClient') as direct:
+                self.assertEqual(arm.transport(), 'chrome')
+                self.assertIs(arm.create_client(), browser.return_value)
+                direct.assert_not_called()
+
+    def test_gost_alias_requires_explicit_executable(self):
+        with patch.dict(os.environ, {'EDDS_ARM_TRANSPORT': 'Chromium-Gost', 'EDDS_CHROME_EXECUTABLE': ''}):
+            with self.assertRaisesRegex(arm.ArmError, 'EDDS_CHROME_EXECUTABLE'):
+                arm.create_client()
+
+    def test_complaints_collector_uses_chromium_api(self):
+        chromium = MagicMock()
+        with patch.object(collector, 'load_water', return_value=None), \
+                patch.object(collector, 'pull_windows', return_value=[]), \
+                patch.object(collector, 'log'), patch.object(collector, 'sync_playwright') as manager, \
+                patch.object(collector, 'ensure_session', side_effect=RuntimeError('stop before network')):
+            manager.return_value.__enter__.return_value = SimpleNamespace(chromium=chromium)
+            with self.assertRaisesRegex(RuntimeError, 'stop before network'):
+                collector.main()
+        chromium.launch.assert_called_once_with(headless=True)
+        chromium.launch.return_value.close.assert_called_once()
 
     def test_chrome_error_does_not_silently_fallback_to_requests(self):
         with patch.dict(os.environ,{'EDDS_ARM_TRANSPORT':'chrome'}), \

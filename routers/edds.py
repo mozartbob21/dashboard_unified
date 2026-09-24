@@ -30,8 +30,12 @@ async def water_daily():
 
 @router.get('/status')
 async def status():
+    try:
+        transport = arm.transport()
+    except arm.ArmError as error:
+        raise HTTPException(error.status, str(error), headers={'Cache-Control': 'no-store'}) from None
     return {**runner.status(), 'arm_configured': bool(credentials('edds_arm')),
-            'complaints_configured': bool(credentials('edds')), 'arm_transport': arm.transport()}
+            'complaints_configured': bool(credentials('edds')), 'arm_transport': transport}
 
 
 @router.get('/arm/report')

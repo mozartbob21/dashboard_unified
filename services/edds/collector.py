@@ -358,7 +358,7 @@ def main():
 
     pulled = []
     with sync_playwright() as p:
-        browser = p.Chromium-Gost.launch(headless=True)
+        browser = p.chromium.launch(headless=True)
         try:
             ctx, page = ensure_session(browser)
             log("✅ Сессия активна.")

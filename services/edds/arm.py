@@ -161,9 +161,14 @@ class ArmClient:
 def transport():
     mode = os.getenv('EDDS_ARM_TRANSPORT', 'auto').strip().lower()
     if mode == 'auto':
-        return 'Chromium-Gost' if sys.platform == 'win32' else 'requests'
-    if mode not in {'Chromium-Gost', 'requests'}:
-        raise ArmError('EDDS_ARM_TRANSPORT должен быть auto, Chromium-Gost или requests.', 503)
+        return 'chrome' if sys.platform == 'win32' else 'requests'
+    # Browser brands are not Python modules or Playwright channel names.
+    if mode == 'chromium-gost':
+        if not os.getenv('EDDS_CHROME_EXECUTABLE', '').strip():
+            raise ArmError('Для Chromium-GOST укажите путь к браузеру в EDDS_CHROME_EXECUTABLE.', 503)
+        return 'chrome'
+    if mode not in {'chrome', 'requests'}:
+        raise ArmError('EDDS_ARM_TRANSPORT должен быть auto, chrome, chromium-gost или requests.', 503)
     return mode
 
 
@@ -190,4 +195,3 @@ def fetch_report(start, end, coordinates=False):
         if client:
             client.close()
         LOCK.release()
-

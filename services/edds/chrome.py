@@ -52,14 +52,14 @@ def browser_error(error):
     """Classify without ever returning Playwright call logs, form data or cookies."""
     message = str(error).lower()
     if any(code in message for code in ('err_cert_', 'err_bad_ssl_client_auth_cert', 'err_ssl_client_auth')):
-        return ArmError('Chrome на сервере не смог проверить сертификат или предъявить клиентский сертификат. '
+        return ArmError('Браузер ЕДДС на сервере не смог проверить сертификат или предъявить клиентский сертификат. '
                         'Откройте настройку ЕДДС на сервере под пользователем Windows, у которого работает портал; '
                         'проверьте доверие к УЦ и выбор клиентского сертификата.')
     if 'executable' in message and ('exist' in message or 'found' in message):
-        return ArmError('На сервере не найден Google Chrome. Установите Chrome или укажите EDDS_CHROME_EXECUTABLE.', 503)
+        return ArmError('На сервере не найден браузер ЕДДС. Проверьте путь к Chromium-GOST или Chrome в EDDS_CHROME_EXECUTABLE.', 503)
     if any(word in message for word in ('singleton', 'profile in use', 'processsingleton')):
-        return ArmError('Профиль Chrome ЕДДС уже открыт. Закройте окно настройки и повторите загрузку.', 409)
-    return ArmError('Chrome на сервере не смог открыть АРМ ЕДДС. Выполните настройку профиля ЕДДС '
+        return ArmError('Профиль браузера ЕДДС уже открыт. Закройте окно настройки и повторите загрузку.', 409)
+    return ArmError('Браузер на сервере не смог открыть АРМ ЕДДС. Выполните настройку профиля ЕДДС '
                     'на офисном компьютере и запускайте «Нейрону» под той же учётной записью Windows.', 502)
 
 
@@ -73,19 +73,19 @@ class ChromeArmClient(ArmClient):
         except OSError:
             raise ArmError('Нет доступа к рабочему профилю ЕДДС. Проверьте права на папку .private/edds на сервере.', 503) from None
         if headless is None:
-            headless = os.getenv('EDDS_CHROME_HEADLESS', '1').lower() not in {'0', 'false', 'no'}
+            headless = os.getenv('EDDS_CHROME_HEADLESS', '1').strip().lower() not in {'0', 'false', 'no'}
         try:
             self.playwright = sync_playwright().start()
             options = {'headless': headless, 'ignore_https_errors': False,
-                       'Chromium-Gost_sandbox': True, 'service_workers': 'block',
+                       'chromium_sandbox': True, 'service_workers': 'block',
                        'ignore_default_args': ['--disable-extensions'],
                        'timeout': 30000, 'accept_downloads': False}
             executable = os.getenv('EDDS_CHROME_EXECUTABLE', '').strip()
             if executable:
                 options['executable_path'] = executable
             else:
-                options['channel'] = 'Chromium-Gost'
-            self.context = self.playwright.Chromium-Gost.launch_persistent_context(str(PROFILE), **options)
+                options['channel'] = 'chrome'
+            self.context = self.playwright.chromium.launch_persistent_context(str(PROFILE), **options)
             self.context.set_default_timeout(45000)
             self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
         except BrowserError as error:
@@ -136,9 +136,9 @@ class ChromeArmClient(ArmClient):
         if result.get('error') == 'size':
             raise ArmError('Отчёт слишком большой. Сократите период.', 413)
         if result.get('error') == 'timeout':
-            raise ArmError('АРМ ЕДДС не ответил через Chrome. Сократите период и повторите запрос.', 504)
+            raise ArmError('АРМ ЕДДС не ответил через браузер. Сократите период и повторите запрос.', 504)
         if result.get('error'):
-            raise ArmError('Chrome открыл портал, но не смог получить отчёт. Проверьте доступ в рабочем '
+            raise ArmError('Браузер открыл портал, но не смог получить отчёт. Проверьте доступ в рабочем '
                            'профиле ЕДДС на сервере, сертификаты и права на отчёт.')
         status = result.get('status', 502)
         if status in (401, 403):
@@ -149,7 +149,7 @@ class ChromeArmClient(ArmClient):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Настройка рабочего профиля Google Chrome для ЕДДС на сервере')
+    parser = argparse.ArgumentParser(description='Настройка рабочего профиля Chromium-GOST / Chrome для ЕДДС на сервере')
     parser.add_argument('--setup', action='store_true', required=True)
     parser.parse_args()
     from dotenv import load_dotenv
@@ -161,7 +161,7 @@ def main():
             client.open_portal()
         except ArmError as error:
             print(str(error))
-        print('В открытом Chrome проверьте вход в АРМ ЕДДС и доступ к отчёту по области.')
+        print('В открытом браузере проверьте вход в АРМ ЕДДС и доступ к отчёту по области.')
         print('Если нужен клиентский сертификат, выберите установленный сертификат вашей организации.')
         print('После проверки вернитесь сюда. Закрытый сертификат и пароль никуда копировать не нужно.')
         input('Нажмите Enter, чтобы закрыть профиль и завершить настройку: ')
