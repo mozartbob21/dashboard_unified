@@ -161,9 +161,9 @@ class ArmClient:
 def transport():
     mode = os.getenv('EDDS_ARM_TRANSPORT', 'auto').strip().lower()
     if mode == 'auto':
-        return 'chrome' if sys.platform == 'win32' else 'requests'
-    if mode not in {'chrome', 'requests'}:
-        raise ArmError('EDDS_ARM_TRANSPORT должен быть auto, chrome или requests.', 503)
+        return 'Chromium-Gost' if sys.platform == 'win32' else 'requests'
+    if mode not in {'Chromium-Gost', 'requests'}:
+        raise ArmError('EDDS_ARM_TRANSPORT должен быть auto, Chromium-Gost или requests.', 503)
     return mode
 
 
