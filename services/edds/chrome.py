@@ -12,7 +12,7 @@ from playwright.sync_api import Error as BrowserError, sync_playwright
 
 from services.edds.arm import ArmClient, ArmError, BASE_URL, MAX_BYTES
 
-PROFILE = Path(__file__).resolve().parents[2] / '.private' / 'edds' / 'chrome-profile'
+PROFILE = Path(__file__).resolve().parents[2] / '.private' / 'edds' / 'Chromium-Gost-profile'
 
 # same-origin mode rejects a cross-origin redirect BEFORE forwarding credentials.
 # Bound the stream in Chrome so a huge report never crosses the automation pipe.
@@ -77,15 +77,15 @@ class ChromeArmClient(ArmClient):
         try:
             self.playwright = sync_playwright().start()
             options = {'headless': headless, 'ignore_https_errors': False,
-                       'chromium_sandbox': True, 'service_workers': 'block',
+                       'Chromium-Gost_sandbox': True, 'service_workers': 'block',
                        'ignore_default_args': ['--disable-extensions'],
                        'timeout': 30000, 'accept_downloads': False}
             executable = os.getenv('EDDS_CHROME_EXECUTABLE', '').strip()
             if executable:
                 options['executable_path'] = executable
             else:
-                options['channel'] = 'chrome'
-            self.context = self.playwright.chromium.launch_persistent_context(str(PROFILE), **options)
+                options['channel'] = 'Chromium-Gost'
+            self.context = self.playwright.Chromium-Gost.launch_persistent_context(str(PROFILE), **options)
             self.context.set_default_timeout(45000)
             self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
         except BrowserError as error:
