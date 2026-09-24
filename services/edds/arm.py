@@ -190,3 +190,4 @@ def fetch_report(start, end, coordinates=False):
         if client:
             client.close()
         LOCK.release()
+

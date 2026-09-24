@@ -5,7 +5,7 @@ import threading
 import zipfile
 from contextlib import ExitStack, contextmanager
 
-import fitz
+import pymupdf
 from .workspace import ToolError
 
 MAX_PAGES = 500
@@ -26,7 +26,7 @@ def _open_pdf(data):
     if not data.startswith(b'%PDF-'):
         raise ToolError('Файл не является PDF.')
     try:
-        doc = fitz.open(stream=data, filetype='pdf')
+        doc = pymupdf.open(stream=data, filetype='pdf')
     except (RuntimeError, ValueError):
         raise ToolError('Не удалось прочитать PDF. Возможно, файл повреждён.') from None
     try:
@@ -123,12 +123,12 @@ def process(files, action, pages, angle, job):
             path = job / 'pages.zip'
             with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
                 for index in selected:
-                    with fitz.open() as output:
+                    with pymupdf.open() as output:
                         _copy_pages(source, [index], output)
                         _clean_output(output)
                         archive.writestr(f'page-{index + 1:03d}.pdf', output.tobytes(garbage=4, deflate=True))
             return {'file': path.name, 'message': f'Готово: {len(selected)} отдельных PDF в ZIP-архиве.'}
-        with fitz.open() as output:
+        with pymupdf.open() as output:
             if action == 'merge':
                 for doc in docs:
                     _copy_pages(doc, list(range(doc.page_count)), output)

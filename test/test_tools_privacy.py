@@ -112,8 +112,8 @@ def test_exe_maps_only_job_and_separate_runtime(tmp_path):
 
 
 def test_pdf_to_docx_preserves_text(tmp_path):
-    fitz=pytest.importorskip('fitz');pytest.importorskip('pdf2docx')
-    pdf=fitz.open();page=pdf.new_page();page.insert_text((72,72),'Neurona conversion test')
+    pymupdf=pytest.importorskip('pymupdf');pytest.importorskip('pdf2docx')
+    pdf=pymupdf.open();page=pdf.new_page();page.insert_text((72,72),'Neurona conversion test')
     data=pdf.tobytes();pdf.close()
     result=documents.convert('pdf_docx','report.pdf',data,tmp_path)
     from docx import Document

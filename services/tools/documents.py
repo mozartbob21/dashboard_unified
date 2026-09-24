@@ -46,8 +46,8 @@ def _convert(kind, name, data, job):
         raise ToolError('Файл не является PDF.')
     if not importlib.util.find_spec('pdf2docx'):
         raise ToolError('На сервере не установлен pdf2docx. Обновите зависимости проекта.')
-    import fitz
-    with fitz.open(source) as pdf:
+    import pymupdf
+    with pymupdf.open(source) as pdf:
         if pdf.is_encrypted:
             raise ToolError('Сначала снимите пароль с PDF.')
         if len(pdf) > 100:
