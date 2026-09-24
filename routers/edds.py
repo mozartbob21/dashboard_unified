@@ -1,10 +1,11 @@
 from pathlib import Path
 from datetime import date
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from core.roles import check_module_access
 from services.auth.integrations import credentials
 from services.edds import runner, arm
+from services.tools.workspace import owner_key
 
 
 def require_edds(request: Request):
@@ -16,8 +17,10 @@ router=APIRouter(prefix='/edds',dependencies=[Depends(require_edds)])
 
 
 @router.get('')
-async def page():
-    return FileResponse(Path(__file__).resolve().parents[1]/'services/edds/dashboard.html',media_type='text/html',headers={'Cache-Control':'no-store'})
+async def page(request: Request):
+    html = (Path(__file__).resolve().parents[1]/'services/edds/dashboard.html').read_text(encoding='utf-8')
+    html = html.replace('__NEURONA_EDDS_OWNER__', owner_key(request.state.user))
+    return HTMLResponse(html, headers={'Cache-Control':'no-store'})
 
 
 @router.get('/water-daily')

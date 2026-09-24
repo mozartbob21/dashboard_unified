@@ -1,7 +1,7 @@
 {% extends "base_module.html" %}
 {% block title %}Полезные инструменты — Нейрона ИИ{% endblock %}
 {% block body_class %}compact-module-page{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/tools.css?v=20260922">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/tools.css?v=20260924-pdf3">{% endblock %}
 {% block content %}
 <div class="container tools-page" data-owner="{{ user_username }}">
   <header class="topbar">
@@ -11,14 +11,15 @@
   <div class="tools-heading"><div><h1>Полезные инструменты</h1><p>Документы, таблицы и автоматизация повседневных задач.</p></div></div>
   <nav class="tools-tabs" aria-label="Инструменты">
     <button type="button" data-panel="conversion" aria-pressed="true">Конвертация</button>
+    <button type="button" data-panel="pdf" aria-pressed="false">Страницы PDF</button>
     <button type="button" data-panel="macros" aria-pressed="false">Помощь с макросами</button>
     <button type="button" data-panel="exe" aria-pressed="false">Python → EXE</button>
     <button type="button" data-panel="merge" aria-pressed="false">Объединение Excel</button>
+    <button type="button" data-panel="coordinates" aria-pressed="false">Группировка по координатам</button>
   </nav>
   <section data-tool-panel="conversion" class="tool-panel">
     <div class="conversion-options" aria-label="Направление конвертации">
       <button type="button" data-conversion="html_pptx" aria-pressed="true">HTML → PowerPoint</button>
-      <button type="button" data-conversion="docx_pdf" aria-pressed="false">Word → PDF</button>
       <button type="button" data-conversion="pdf_docx" aria-pressed="false">PDF → Word</button>
     </div>
     <div data-converter="html_pptx" class="tools-columns">
@@ -35,21 +36,38 @@
         <div class="tool-actions"><button type="button" class="secondary-button" id="previewHtml">Предпросмотр</button><button type="submit" class="module-link">Создать презентацию →</button></div>
         <div id="htmlPreview" hidden></div>
       </form>
-      <aside class="card tool-card tool-templates"><h2>Оформление</h2><p>Ваши шаблоны и логотип доступны только вашему аккаунту.</p>
+      <aside class="card tool-card tool-templates"><h2>Оформление организации</h2><p>Шаблоны и герб общие для всех аккаунтов. Изменения будут видны коллегам.</p>
         <label class="tool-upload">Шаблон PowerPoint<input id="templateUpload" type="file" accept=".pptx"></label>
-        <div id="templateList"></div><label class="tool-upload">Логотип или герб<input id="emblemUpload" type="file" accept=".png,.jpg,.jpeg"></label>
+        <div id="templateList"></div><div class="tool-emblem" id="emblemPreview" hidden><img id="emblemImage" alt="Общий герб организации"><span>Общий герб</span></div>
+        <label class="tool-upload">Логотип или герб<input id="emblemUpload" type="file" accept=".png,.jpg,.jpeg"></label>
+        <p class="tool-hint" id="brandingWarnings" hidden></p>
+        <p class="tool-hint">Шаблон и герб применяются в режимах «Структура HTML» и «ГосЧат». В режиме «Сохранить внешний вид» оформление берётся из HTML.</p>
       </aside>
     </div>
-    <form data-converter="docx_pdf" class="card tool-card tool-single" data-kind="docx_pdf" hidden>
-      <h2>Word → PDF</h2><p>Сохраните оформление документа в PDF. Обработка выполняется на сервере.</p>
-      <label class="tool-upload">Документ Word<input type="file" name="file" accept=".docx" required></label>
-      <p class="tool-hint" id="officeAvailability"></p><div class="tool-actions"><button type="submit" class="module-link">Создать PDF →</button></div>
-    </form>
     <form data-converter="pdf_docx" class="card tool-card tool-single" data-kind="pdf_docx" hidden>
-      <h2>PDF → Word</h2><p>Преобразуйте текстовый PDF в редактируемый документ Word.</p>
+      <h2>PDF → Word</h2><p>Преобразуйте текстовый PDF в редактируемый документ Word. LibreOffice и Microsoft Word на сервере не нужны.</p>
       <label class="tool-upload">Документ PDF<input type="file" name="file" accept=".pdf" required></label>
       <p class="tool-hint">До 100 страниц. Сканам нужно предварительное распознавание текста. Разметку сложных таблиц стоит проверить после конвертации.</p>
       <p class="tool-hint" id="pdfAvailability"></p><div class="tool-actions"><button type="submit" class="module-link">Создать Word →</button></div>
+    </form>
+  </section>
+  <section data-tool-panel="pdf" hidden>
+    <form class="card tool-card tool-single" data-kind="pdf_pages" id="pdfPagesForm">
+      <div><h2>Работа со страницами PDF</h2><p>Соберите документы, выберите нужные страницы или измените их порядок. Подходит и для сканов.</p></div>
+      <label>Что сделать<select name="action" id="pdfAction">
+        <option value="merge">Объединить PDF</option><option value="extract">Извлечь страницы</option>
+        <option value="delete">Удалить страницы</option><option value="reorder">Изменить порядок</option>
+        <option value="rotate">Повернуть страницы</option><option value="split">Разделить на отдельные страницы</option>
+      </select></label>
+      <label class="tool-upload"><span id="pdfFileLabel">PDF-файлы</span><input type="file" id="pdfFiles" name="file" accept=".pdf" multiple required></label>
+      <p class="tool-hint" id="pdfInspection" aria-live="polite">До 20 файлов, 20 МБ каждый и 60 МБ суммарно. Всего до 500 страниц.</p>
+      <ol id="pdfFileList" class="tool-file-list" aria-label="Порядок PDF-файлов"></ol>
+      <div class="tool-fields">
+        <label id="pdfPagesField" hidden><span id="pdfPagesLabel">Страницы</span><input type="text" name="pages" id="pdfPageNumbers" maxlength="5000" placeholder="Например: 1, 3-5"></label>
+        <label id="pdfAngleField" hidden>Поворот по часовой стрелке<select name="angle"><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label>
+      </div>
+      <p class="tool-hint" id="pdfActionHint">Файлы объединятся в порядке списка. Меняйте его кнопками со стрелками.</p>
+      <div class="tool-actions"><button type="submit" class="module-link" id="pdfRun">Объединить PDF →</button></div>
     </form>
   </section>
   <section data-tool-panel="macros" hidden>
@@ -77,7 +95,21 @@
       <div class="tool-actions"><button type="submit" class="module-link">Объединить →</button></div>
     </form>
   </section>
+  <section data-tool-panel="coordinates" hidden>
+    <form class="card tool-card tool-single" data-kind="coordinates">
+      <div><h2>Группировка по координатам</h2><p>Объедините близкие заявки в объекты с постоянными кодами.</p></div>
+      <label class="tool-upload">Таблица с координатами<input type="file" name="file" accept=".xlsx" required></label>
+      <div class="tool-fields">
+        <label>Радиус, м<input type="number" name="radius" value="500" min="1" max="5000" step="1" required></label>
+        <label>Префикс кодов<input type="text" name="prefix" maxlength="12" placeholder="Автоматически из имени файла, иначе OBJ"></label>
+      </div>
+      <p class="tool-hint">Первый лист XLSX, до 30 000 строк. Нужны «Широта» и «Долгота» либо «Координаты». Поддерживаются десятичные градусы и градусы с минутами/секундами; область — Московская.</p>
+      <label class="tool-upload">Ранее сохранённый реестр — необязательно<input type="file" name="registry" accept=".xlsx"></label>
+      <p class="tool-hint">Личный реестр сохраняется между запусками. Скачанный результат содержит листы «Объекты», «Записи», «Без координат» и «Реестр». Условные точки округов выделены цветом.</p>
+      <div class="tool-actions"><button type="submit" class="module-link">Сгруппировать →</button></div>
+    </form>
+  </section>
   <section id="toolResult" class="card tool-card tool-result" hidden aria-live="polite"><p id="toolStatus"></p><a id="toolDownload" class="module-link" hidden>Скачать результат ↓</a><div id="macroResult" hidden><h3>Макрос</h3><pre id="macroCode"></pre><h3>Как использовать</h3><p id="macroInstructions"></p><p id="macroAssumptions" class="tool-hint"></p></div></section>
 </div>
-<script src="/static/tools.js?v=20260922"></script>
+<script src="/static/tools.js?v=20260924-pdf3"></script>
 {% endblock %}

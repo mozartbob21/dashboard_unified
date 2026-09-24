@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-owner="__NEURONA_EDDS_OWNER__">
 <head>
 <meta charset="utf-8">
 <script>
@@ -26,6 +26,7 @@
      словам: «час» в t_ustr, «Аварийная заявка» в type_otkl, причины. -->
 <title>Мониторинг ЕДДС — задержка доклада по объектам ВС/ВО</title>
 <style>
+[hidden]{display:none!important}
 :root{
   color-scheme: light;
   --ground:#eef1f3;
@@ -261,7 +262,16 @@ main{padding:20px; display:flex; flex-direction:column; gap:16px}
 .zh-meta{font-size:12px; color:var(--ink-3)}
 /* та же плашка, но про удачу: приём координат сообщает результат, а не ошибку */
 .err.ok{background:var(--good-bg); color:var(--good)}
-.filters .btn{margin-left:auto}
+.filters .btn{margin-left:0}
+.filters .fl-more-btn{margin-left:auto; display:inline-flex; align-items:center; gap:6px}
+.fl-cnt{min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--accent);
+  color:#fff; font-size:11px; font-weight:700; line-height:18px; text-align:center}
+.fl-cnt[hidden]{display:none}
+/* свёрнутые фильтры — отдельной строкой под главными */
+.fl-more{flex:0 0 100%; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+  padding-top:10px; border-top:1px dashed var(--line)}
+.fl-more[hidden]{display:none}
+.dyn-res[hidden]{display:none}
 
 /* ---------- живой режим: дашборд внутри вкладки АРМ ЕДДС ---------- */
 .live-badge{
@@ -340,6 +350,37 @@ main{padding:20px; display:flex; flex-direction:column; gap:16px}
 .leaflet-image-layer,.leaflet-layer,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-pane,.leaflet-pane>canvas,.leaflet-pane>svg,.leaflet-tile,.leaflet-tile-container,.leaflet-zoom-box{position:absolute;left:0;top:0}.leaflet-container{overflow:hidden}.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-user-drag:none}.leaflet-tile::selection{background:0 0}.leaflet-safari .leaflet-tile{image-rendering:-webkit-optimize-contrast}.leaflet-safari .leaflet-tile-container{width:1600px;height:1600px;-webkit-transform-origin:0 0}.leaflet-marker-icon,.leaflet-marker-shadow{display:block}.leaflet-container .leaflet-overlay-pane svg{max-width:none!important;max-height:none!important}.leaflet-container .leaflet-marker-pane img,.leaflet-container .leaflet-shadow-pane img,.leaflet-container .leaflet-tile,.leaflet-container .leaflet-tile-pane img,.leaflet-container img.leaflet-image-layer{max-width:none!important;max-height:none!important;width:auto;padding:0}.leaflet-container img.leaflet-tile{mix-blend-mode:plus-lighter}.leaflet-container.leaflet-touch-zoom{-ms-touch-action:pan-x pan-y;touch-action:pan-x pan-y}.leaflet-container.leaflet-touch-drag{-ms-touch-action:pinch-zoom;touch-action:none;touch-action:pinch-zoom}.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom{-ms-touch-action:none;touch-action:none}.leaflet-container{-webkit-tap-highlight-color:transparent}.leaflet-container a{-webkit-tap-highlight-color:rgba(51,181,229,.4)}.leaflet-tile{filter:inherit;visibility:hidden}.leaflet-tile-loaded{visibility:inherit}.leaflet-zoom-box{width:0;height:0;-moz-box-sizing:border-box;box-sizing:border-box;z-index:800}.leaflet-overlay-pane svg{-moz-user-select:none}.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-shadow-pane{z-index:500}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}.leaflet-map-pane canvas{z-index:100}.leaflet-map-pane svg{z-index:200}.leaflet-vml-shape{width:1px;height:1px}.lvml{behavior:url(#default#VML);display:inline-block;position:absolute}.leaflet-control{position:relative;z-index:800;pointer-events:visiblePainted;pointer-events:auto}.leaflet-bottom,.leaflet-top{position:absolute;z-index:1000;pointer-events:none}.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-control{float:left;clear:both}.leaflet-right .leaflet-control{float:right}.leaflet-top .leaflet-control{margin-top:10px}.leaflet-bottom .leaflet-control{margin-bottom:10px}.leaflet-left .leaflet-control{margin-left:10px}.leaflet-right .leaflet-control{margin-right:10px}.leaflet-fade-anim .leaflet-popup{opacity:0;-webkit-transition:opacity .2s linear;-moz-transition:opacity .2s linear;transition:opacity .2s linear}.leaflet-fade-anim .leaflet-map-pane .leaflet-popup{opacity:1}.leaflet-zoom-animated{-webkit-transform-origin:0 0;-ms-transform-origin:0 0;transform-origin:0 0}svg.leaflet-zoom-animated{will-change:transform}.leaflet-zoom-anim .leaflet-zoom-animated{-webkit-transition:-webkit-transform .25s cubic-bezier(0,0,.25,1);-moz-transition:-moz-transform .25s cubic-bezier(0,0,.25,1);transition:transform .25s cubic-bezier(0,0,.25,1)}.leaflet-pan-anim .leaflet-tile,.leaflet-zoom-anim .leaflet-tile{-webkit-transition:none;-moz-transition:none;transition:none}.leaflet-zoom-anim .leaflet-zoom-hide{visibility:hidden}.leaflet-interactive{cursor:pointer}.leaflet-grab{cursor:-webkit-grab;cursor:-moz-grab;cursor:grab}.leaflet-crosshair,.leaflet-crosshair .leaflet-interactive{cursor:crosshair}.leaflet-control,.leaflet-popup-pane{cursor:auto}.leaflet-dragging .leaflet-grab,.leaflet-dragging .leaflet-grab .leaflet-interactive,.leaflet-dragging .leaflet-marker-draggable{cursor:move;cursor:-webkit-grabbing;cursor:-moz-grabbing;cursor:grabbing}.leaflet-image-layer,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-pane>svg path,.leaflet-tile-container{pointer-events:none}.leaflet-image-layer.leaflet-interactive,.leaflet-marker-icon.leaflet-interactive,.leaflet-pane>svg path.leaflet-interactive,svg.leaflet-image-layer.leaflet-interactive path{pointer-events:visiblePainted;pointer-events:auto}.leaflet-container{background:#ddd;outline-offset:1px}.leaflet-container a{color:#0078a8}.leaflet-zoom-box{border:2px dotted #38f;background:rgba(255,255,255,.5)}.leaflet-container{font-family:"Helvetica Neue",Arial,Helvetica,sans-serif;font-size:12px;font-size:.75rem;line-height:1.5}.leaflet-bar{box-shadow:0 1px 5px rgba(0,0,0,.65);border-radius:4px}.leaflet-bar a{background-color:#fff;border-bottom:1px solid #ccc;width:26px;height:26px;line-height:26px;display:block;text-align:center;text-decoration:none;color:#000}.leaflet-bar a,.leaflet-control-layers-toggle{background-position:50% 50%;background-repeat:no-repeat;display:block}.leaflet-bar a:focus,.leaflet-bar a:hover{background-color:#f4f4f4}.leaflet-bar a:first-child{border-top-left-radius:4px;border-top-right-radius:4px}.leaflet-bar a:last-child{border-bottom-left-radius:4px;border-bottom-right-radius:4px;border-bottom:none}.leaflet-bar a.leaflet-disabled{cursor:default;background-color:#f4f4f4;color:#bbb}.leaflet-touch .leaflet-bar a{width:30px;height:30px;line-height:30px}.leaflet-touch .leaflet-bar a:first-child{border-top-left-radius:2px;border-top-right-radius:2px}.leaflet-touch .leaflet-bar a:last-child{border-bottom-left-radius:2px;border-bottom-right-radius:2px}.leaflet-control-zoom-in,.leaflet-control-zoom-out{font:bold 18px 'Lucida Console',Monaco,monospace;text-indent:1px}.leaflet-touch .leaflet-control-zoom-in,.leaflet-touch .leaflet-control-zoom-out{font-size:22px}.leaflet-control-layers{box-shadow:0 1px 5px rgba(0,0,0,.4);background:#fff;border-radius:5px}.leaflet-control-layers-toggle{background-image:url(images/layers.png);width:36px;height:36px}.leaflet-retina .leaflet-control-layers-toggle{background-image:url(images/layers-2x.png);background-size:26px 26px}.leaflet-touch .leaflet-control-layers-toggle{width:44px;height:44px}.leaflet-control-layers .leaflet-control-layers-list,.leaflet-control-layers-expanded .leaflet-control-layers-toggle{display:none}.leaflet-control-layers-expanded .leaflet-control-layers-list{display:block;position:relative}.leaflet-control-layers-expanded{padding:6px 10px 6px 6px;color:#333;background:#fff}.leaflet-control-layers-scrollbar{overflow-y:scroll;overflow-x:hidden;padding-right:5px}.leaflet-control-layers-selector{margin-top:2px;position:relative;top:1px}.leaflet-control-layers label{display:block;font-size:13px;font-size:1.08333em}.leaflet-control-layers-separator{height:0;border-top:1px solid #ddd;margin:5px -10px 5px -6px}.leaflet-default-icon-path{background-image:url(images/marker-icon.png)}.leaflet-container .leaflet-control-attribution{background:#fff;background:rgba(255,255,255,.8);margin:0}.leaflet-control-attribution,.leaflet-control-scale-line{padding:0 5px;color:#333;line-height:1.4}.leaflet-control-attribution a{text-decoration:none}.leaflet-control-attribution a:focus,.leaflet-control-attribution a:hover{text-decoration:underline}.leaflet-attribution-flag{display:inline!important;vertical-align:baseline!important;width:1em;height:.6669em}.leaflet-left .leaflet-control-scale{margin-left:5px}.leaflet-bottom .leaflet-control-scale{margin-bottom:5px}.leaflet-control-scale-line{border:2px solid #777;border-top:none;line-height:1.1;padding:2px 5px 1px;white-space:nowrap;-moz-box-sizing:border-box;box-sizing:border-box;background:rgba(255,255,255,.8);text-shadow:1px 1px #fff}.leaflet-control-scale-line:not(:first-child){border-top:2px solid #777;border-bottom:none;margin-top:-2px}.leaflet-control-scale-line:not(:first-child):not(:last-child){border-bottom:2px solid #777}.leaflet-touch .leaflet-bar,.leaflet-touch .leaflet-control-attribution,.leaflet-touch .leaflet-control-layers{box-shadow:none}.leaflet-touch .leaflet-bar,.leaflet-touch .leaflet-control-layers{border:2px solid rgba(0,0,0,.2);background-clip:padding-box}.leaflet-popup{position:absolute;text-align:center;margin-bottom:20px}.leaflet-popup-content-wrapper{padding:1px;text-align:left;border-radius:12px}.leaflet-popup-content{margin:13px 24px 13px 20px;line-height:1.3;font-size:13px;font-size:1.08333em;min-height:1px}.leaflet-popup-content p{margin:17px 0;margin:1.3em 0}.leaflet-popup-tip-container{width:40px;height:20px;position:absolute;left:50%;margin-top:-1px;margin-left:-20px;overflow:hidden;pointer-events:none}.leaflet-popup-tip{width:17px;height:17px;padding:1px;margin:-10px auto 0;pointer-events:auto;-webkit-transform:rotate(45deg);-moz-transform:rotate(45deg);-ms-transform:rotate(45deg);transform:rotate(45deg)}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff;color:#333;box-shadow:0 3px 14px rgba(0,0,0,.4)}.leaflet-container a.leaflet-popup-close-button{position:absolute;top:0;right:0;border:none;text-align:center;width:24px;height:24px;font:16px/24px Tahoma,Verdana,sans-serif;color:#757575;text-decoration:none;background:0 0}.leaflet-container a.leaflet-popup-close-button:focus,.leaflet-container a.leaflet-popup-close-button:hover{color:#585858}.leaflet-popup-scrolled{overflow:auto}.leaflet-oldie .leaflet-popup-content-wrapper{-ms-zoom:1}.leaflet-oldie .leaflet-popup-tip{width:24px;margin:0 auto}.leaflet-oldie .leaflet-control-layers,.leaflet-oldie .leaflet-control-zoom,.leaflet-oldie .leaflet-popup-content-wrapper,.leaflet-oldie .leaflet-popup-tip{border:1px solid #999}.leaflet-div-icon{background:#fff;border:1px solid #666}.leaflet-tooltip{position:absolute;padding:6px;background-color:#fff;border:1px solid #fff;border-radius:3px;color:#222;white-space:nowrap;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}.leaflet-tooltip.leaflet-interactive{cursor:pointer;pointer-events:auto}.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before,.leaflet-tooltip-top:before{position:absolute;pointer-events:none;border:6px solid transparent;background:0 0;content:""}.leaflet-tooltip-bottom{margin-top:6px}.leaflet-tooltip-top{margin-top:-6px}.leaflet-tooltip-bottom:before,.leaflet-tooltip-top:before{left:50%;margin-left:-6px}.leaflet-tooltip-top:before{bottom:0;margin-bottom:-12px;border-top-color:#fff}.leaflet-tooltip-bottom:before{top:0;margin-top:-12px;margin-left:-6px;border-bottom-color:#fff}.leaflet-tooltip-left{margin-left:-6px}.leaflet-tooltip-right{margin-left:6px}.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{top:50%;margin-top:-6px}.leaflet-tooltip-left:before{right:0;margin-right:-12px;border-left-color:#fff}.leaflet-tooltip-right:before{left:0;margin-left:-12px;border-right-color:#fff}@media print{.leaflet-control{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 .leaflet-cluster-anim .leaflet-marker-icon,.leaflet-cluster-anim .leaflet-marker-shadow{-webkit-transition:-webkit-transform .3s ease-out,opacity .3s ease-in;-moz-transition:-moz-transform .3s ease-out,opacity .3s ease-in;-o-transition:-o-transform .3s ease-out,opacity .3s ease-in;transition:transform .3s ease-out,opacity .3s ease-in}.leaflet-cluster-spider-leg{-webkit-transition:-webkit-stroke-dashoffset .3s ease-out,-webkit-stroke-opacity .3s ease-in;-moz-transition:-moz-stroke-dashoffset .3s ease-out,-moz-stroke-opacity .3s ease-in;-o-transition:-o-stroke-dashoffset .3s ease-out,-o-stroke-opacity .3s ease-in;transition:stroke-dashoffset .3s ease-out,stroke-opacity .3s ease-in}
 
+/* ---------- объекты по координатам ---------- */
+#obj-card[hidden], .seg[hidden], .xls-pop[hidden]{display:none}
+.obj-set{display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--ink-3)}
+.obj-set input{width:62px; padding:3px 6px; font:inherit; font-size:12.5px; text-align:right;
+  border:1px solid var(--line); border-radius:6px; background:var(--surface)}
+#obj-prefix{width:54px; text-align:left; text-transform:uppercase}
+.obj-body{display:flex; flex-direction:column; gap:4px; padding-bottom:6px}
+.obj-reg{font-size:12px; color:var(--ink-3)}
+.obj-hint{color:var(--ink-3)}
+.linkbtn{border:0; background:none; padding:0; font:inherit; color:var(--accent); cursor:pointer;
+  text-decoration:underline; text-underline-offset:2px}
+#obj-tbl tr.obj-row{cursor:pointer}
+#obj-tbl tr.obj-row:hover td{background:var(--accent-soft)}
+#obj-tbl tr.obj-hub td{background:var(--warn-bg);color:var(--ink)}
+.obj-dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle}
+
+/* окно выбора листов для Excel */
+/* выше слоёв Leaflet (у них z-index до 1000), иначе карта перекрывает окно */
+.xls-back{position:fixed; inset:0; z-index:1990; background:transparent}
+.xls-pop{position:fixed; z-index:2000; width:360px; max-width:calc(100vw - 32px);
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 10px 32px rgba(20,30,50,.18); padding:12px 14px}
+.xls-h{font-weight:650; margin-bottom:8px}
+.xls-it{display:flex; gap:9px; align-items:flex-start; padding:6px 4px; border-radius:6px; cursor:pointer}
+.xls-it:hover{background:var(--surface-2)}
+.xls-it input{margin-top:3px; accent-color:var(--accent)}
+.xls-it small{display:block; color:var(--ink-3); font-size:11.5px}
+.xls-it.off{opacity:.5; cursor:default}
+.xls-f{display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:10px}
+.xls-f .mute{margin-right:auto; font-size:12px}
+
 /* ---------- лист «Карта» ---------- */
 /* Высота в пикселях, а не в vh: при vh контейнер меняет размер на каждое
    появление полосы прокрутки, и Leaflet приходится пересчитывать заново. */
@@ -348,10 +389,18 @@ main{padding:20px; display:flex; flex-direction:column; gap:16px}
 /* у кнопок панели Leaflet ширина жёстко 26px — текстовая подпись в них не влезает */
 .leaflet-bar a.map-selbtn{width:auto; height:30px; line-height:30px; padding:0 12px;
   font-size:13px; font-weight:650; white-space:nowrap}
+.leaflet-bar a.map-selbtn.on{background:var(--accent); color:#fff}
+.map-rad{display:inline-flex; align-items:center; gap:5px; margin-left:8px; color:var(--ink-3)}
+.map-rad input{width:74px; text-align:right; padding:2px 6px; font:inherit;
+  border:1px solid var(--line); border-radius:6px; background:var(--surface)}
+.geo-pin{width:16px; height:16px; border-radius:50%; background:#2a78d6;
+  border:3px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.4); box-sizing:border-box; cursor:move}
 .map-bar{display:flex; flex-wrap:wrap; gap:12px; align-items:center}
 /* у .btn свой display, и он перебивает атрибут hidden — как это было с бейджем */
 #geo-live[hidden]{display:none}
 .map-status{font-size:12.5px; color:var(--ink-2); line-height:1.5}
+.note-i{color:var(--accent); cursor:help; font-style:normal}
+.note[title]{cursor:help}
 .map-status b{color:var(--ink); font-variant-numeric:tabular-nums}
 .map-bad{color:var(--crit)}
 .map-warn{color:var(--serious)}
@@ -570,6 +619,13 @@ td.c,th.c{text-align:center}
   <button class="btn" id="geo-pick"
           title="«Отчёт по заявкам» из АРМ ЕДДС с полями «Номер заявки», «Широта», «Долгота» — для карты">Координаты</button>
   <button class="btn btn-primary" id="xls" disabled>Скачать Excel</button>
+  <div class="xls-pop" id="xls-pop" hidden role="dialog" aria-label="Что положить в выгрузку">
+    <div class="xls-h">Что положить в выгрузку</div>
+    <div id="xls-list"></div>
+    <div class="xls-f"><span class="mute" id="xls-cnt"></span>
+      <button class="btn btn-sm" id="xls-cancel">Отмена</button>
+      <button class="btn btn-sm btn-primary" id="xls-go">Скачать</button></div>
+  </div>
 </div>
 
 <div id="landing">
@@ -583,8 +639,8 @@ td.c,th.c{text-align:center}
     </div>
     <button class="btn btn-primary" id="lv-go">Загрузить</button>
     <div class="hint">
-      В «Нейроне» отчёт загружается сервером через сохранённый доступ к АРМ ЕДДС.<br>
-      Область запрашивается целиком. Чтобы быстро получить данные,<br>
+      Отчёт загружается сервером «Нейроны» через сохранённый доступ к АРМ ЕДДС.<br>
+      Область запрашивается целиком. Для первой загрузки выберите небольшой период:<br>
       начните с недели, дальше период можно менять прямо в фильтрах.
     </div>
   </div>
@@ -660,7 +716,7 @@ td.c,th.c{text-align:center}
     <section class="card">
       <header>
         <h3>Что с чем сравниваем</h3>
-        <span class="note">оба окна задаются здесь и фильтр периода в шапке не трогают</span>
+        <span class="note" title="Оба окна задаются здесь и фильтр периода в шапке не трогают">оба окна — здесь <span class="note-i">ⓘ</span></span>
       </header>
       <div class="body">
         <div class="dyn-bar">
@@ -695,7 +751,7 @@ td.c,th.c{text-align:center}
     <div class="kpis" id="dyn-kpis"></div>
     <div class="charts" id="dyn-charts"></div>
 
-    <section class="card">
+    <section class="card dyn-res">
       <header>
         <h3>Метрики: отчётный период против периода сравнения</h3>
         <span class="note" id="dyn-note"></span>
@@ -703,7 +759,7 @@ td.c,th.c{text-align:center}
       <div class="scroll scroll-full"><table id="dyn-tbl"></table></div>
     </section>
 
-    <section class="card">
+    <section class="card dyn-res">
       <header>
         <h3>Изменение в разрезе ОМСУ</h3>
         <span class="note" id="dyn-omsu-note"></span>
@@ -711,7 +767,7 @@ td.c,th.c{text-align:center}
       <div class="scroll"><table id="dyn-omsu"></table></div>
     </section>
 
-    <section class="card">
+    <section class="card dyn-res">
       <header>
         <h3>Изменение в разрезе РСО</h3>
         <span class="note">жалоб здесь нет: в своде ЕЦУР только округа, без исполнителя</span>
@@ -725,7 +781,7 @@ td.c,th.c{text-align:center}
     <section class="card">
       <header>
         <h3>Инциденты на карте</h3>
-        <span class="note">координаты — из «Отчёта по заявкам», кнопка «Координаты» в шапке</span>
+        <span class="note" title="Координаты — из «Отчёта по заявкам» АРМ ЕДДС; кнопка «Координаты» в шапке">координаты из «Отчёта по заявкам» <span class="note-i">ⓘ</span></span>
       </header>
       <div class="body">
         <div class="map-bar">
@@ -733,8 +789,10 @@ td.c,th.c{text-align:center}
             <button type="button" data-mk="heat"   aria-pressed="true"
               title="Тепловое пятно: где инциденты сгущаются">Тепловая</button>
             <button type="button" data-mk="points" aria-pressed="false">Точки с количеством</button>
+            <button type="button" data-mk="objects" aria-pressed="false"
+              title="Заявки, стоящие рядом, склеены в объекты — одна точка на объект, с кодом и частотой аварий">Объекты</button>
           </div>
-          <div class="seg" role="group" aria-label="Что показывать интенсивностью">
+          <div class="seg" id="mw-seg" role="group" aria-label="Что показывать интенсивностью">
             <button type="button" data-mw="n"      aria-pressed="true">Число инцидентов</button>
             <button type="button" data-mw="people" aria-pressed="false"
               title="Сумма охвата: сколько жителей задето всеми заявками вместе">Охват жителей</button>
@@ -753,6 +811,28 @@ td.c,th.c{text-align:center}
       <div class="body" style="padding:0">
         <div id="map-canvas"></div>
       </div>
+    </section>
+
+    <section class="card" id="obj-card" hidden>
+      <header>
+        <h3>Объекты по координатам</h3>
+        <span class="note" title="Заявки ближе радиуса друг к другу — один объект. Щелчок по строке — к объекту на карте.">щелчок по строке — к объекту <span class="note-i">ⓘ</span></span>
+        <div class="pivot-tools">
+          <label class="obj-set" title="Точки ближе этого расстояния друг к другу — один объект">радиус
+            <input id="obj-r" type="text" inputmode="numeric" value="500"> м</label>
+          <label class="obj-set" title="Начало кода: VZ-0001. Пусто — по фильтру «Объект»">префикс
+            <input id="obj-prefix" type="text" maxlength="8"></label>
+          <button class="btn btn-sm btn-primary" id="obj-xls">Excel объектов</button>
+        </div>
+      </header>
+      <div class="body obj-body">
+        <div class="map-status" id="obj-sum"></div>
+        <div class="obj-reg"><span id="obj-reg-n"></span>
+          <input type="file" id="obj-reg-file" accept=".xlsx" hidden>
+          <button class="linkbtn" id="obj-reg-load" title="«реестр объектов.xlsx» от скрипта или лист «Реестр» из выгрузки объектов">загрузить реестр</button>
+          <span class="obj-hint">— коды закрепляются в реестре при выгрузке, дальше объект в том же месте получает тот же код</span></div>
+      </div>
+      <div class="scroll scroll-full"><table id="obj-tbl"></table></div>
     </section>
 
     <div class="charts" id="map-charts"></div>
@@ -812,9 +892,9 @@ const WATER = [
 /* ---------- живой режим ----------
    Из файла на диске (file://) до сайта не достучаться: браузер не пустит межсайтовый
    запрос и не отдаст куки сессии. Поэтому живой режим включается только тогда, когда
-   дашборд открыт внутри самой вкладки АРМ ЕДДС — там запросы идут под уже
-   выполненным входом. В «Нейроне» запросы выполняет сервер через сохранённый
-   доступ к АРМ. При открытии отдельного HTML остаётся приём файла. */
+   дашборд открыт внутри самой вкладки АРМ ЕДДС — там запросы к отчёту идут как
+   обычные внутренние, под уже выполненным входом. В остальных случаях работает
+   привычный приём файла. */
 const SITE = {
   host: 'zkh-kontur.mosreg.ru',
   path: '/new9/',
@@ -928,7 +1008,7 @@ function colIndex(ref){            // "AB12" -> 27
   return n;
 }
 
-async function readWorkbook(buf){
+async function readWorkbook(buf, preferredSheet){
   const files = readZip(buf);
   const wbXml = await entryText(buf, files.get('xl/workbook.xml'));
   if(!wbXml) throw new Error('В архиве нет xl/workbook.xml — это не книга Excel.');
@@ -961,7 +1041,7 @@ async function readWorkbook(buf){
   }
 
   // нужный лист
-  let target = sheets.find(s => s.name === 'svod_doc') || sheets[0];
+  let target = sheets.find(s => s.name === preferredSheet) || sheets.find(s => s.name === 'svod_doc') || sheets[0];
   if(!target || !target.path || !files.get(target.path))
     throw new Error('В книге не найден лист с данными.');
   const shXml = await entryText(buf, files.get(target.path));
@@ -1129,9 +1209,10 @@ async function fetchReport(ot, doo, say){
 const S = v => (v === null || v === undefined) ? '' : String(v).trim();
 
 function parseDT(s){
-  const m = /^(\d{2})\.(\d{2})\.(\d{2})\s+(\d{1,2}):(\d{2})/.exec(S(s));
+  const m = /^(\d{2})\.(\d{2})\.(\d{4}|\d{2})\s+(\d{1,2}):(\d{2})/.exec(S(s));
   if(!m) return null;
-  const y = 2000 + (+m[3]), mo = (+m[2]) - 1, d = +m[1];
+  const y = m[3].length === 2 ? 2000 + (+m[3]) : +m[3], mo = (+m[2]) - 1, d = +m[1];
+  if(+m[4] > 23 || +m[5] > 59) return null;
   const dt = new Date(y, mo, d, +m[4], +m[5]);
   if(dt.getMonth() !== mo || dt.getDate() !== d) return null;   // 31.02 и подобное
   return dt;
@@ -1146,7 +1227,8 @@ function durMin(s){
   if(!d && !h && !m) return null;
   return (d ? +d[1] * 1440 : 0) + (h ? +h[1] * 60 : 0) + (m ? +m[1] : 0);
 }
-const numOf = v => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
+const numOf = v => { const text = String(v ?? '').trim(); if(!text) return null;
+  const n = Number(text.replace(',', '.')); return Number.isFinite(n) ? n : null; };
 const r2 = v => Math.round(v * 100) / 100;
 
 function build(grid){
@@ -1711,14 +1793,14 @@ async function zhFetch(){
     const r = await fetch(ZH_URL, { signal: ctl.signal, cache: 'no-store' });
     if(r.redirected || !r.ok) throw new Error('Свод недоступен: ' + r.status);
     const j = await r.json();
-    ZH_BUILDING = !!(j && j.building);
     if(j && j.available===false){ZH_NOTE=j.error||'Свод ещё не загружен.';return false;}
+    ZH_BUILDING = !!(j && j.building);
     if(j && j.days){ zhMerge(j.days, j.source || 'помощник кликера'); return true; }
     ZH_NOTE = (j && j.error) ? j.error : 'Помощник ответил, но свода в ответе нет.';
   }catch(e){
     ZH_BUILDING = false;
     ZH_NOTE = e.name === 'AbortError'
-      ? 'Сервер свода жалоб не ответил за 2,5 секунды.'
+      ? 'Помощник кликера не ответил за 2,5 секунды.'
       : (EMBEDDED?'Не удалось получить свод жалоб с сервера «Нейроны».':'Помощник кликера на 127.0.0.1:8765 не отвечает.');
   }finally{ clearTimeout(t); }
   return false;
@@ -1790,13 +1872,61 @@ function passesNoBox(r){
   return passesBase(r);
 }
 
-/* Рамка, выделенная на карте, работает как обычный фильтр — её видят все листы
-   и выгрузка. Заявка без координат в рамку попасть не может: это не «она вне
-   области», а «мы не знаем, где она», и молча оставлять её в выборке нельзя. */
+/* Область, выделенная на карте, работает как обычный фильтр — её видят все листы
+   и выгрузка. Заявка без координат в область попасть не может: это не «она вне
+   области», а «мы не знаем, где она», и молча оставлять её в выборке нельзя.
+
+   Области бывают трёх видов:
+     poly   — обведённая от руки фигура, { pts: [[широта, долгота], …] };
+     circle — точка и радиус в метрах, { lat, lon, r };
+     rect   — прямоугольник { s, w, n, e }: так область задавалась раньше.
+   У каждой есть bb — описанный прямоугольник: через него большинство заявок
+   отсеивается одним сравнением, до честной геометрии доходят единицы. */
 function inGeoBox(r){
   if(!geoBox) return true;
   if(r.lat === null || r.lon === null) return false;
-  return r.lat >= geoBox.s && r.lat <= geoBox.n && r.lon >= geoBox.w && r.lon <= geoBox.e;
+  const b = geoBox.bb || geoBox;
+  if(r.lat < b.s || r.lat > b.n || r.lon < b.w || r.lon > b.e) return false;
+  if(geoBox.kind === 'circle') return geoMetres(r.lat, r.lon, geoBox.lat, geoBox.lon) <= geoBox.r;
+  if(geoBox.kind === 'poly') return inPoly(r.lat, r.lon, geoBox.pts);
+  return true;
+}
+
+// Расстояние по сфере в метрах: на радиусах до десятков километров точнее плоского.
+function geoMetres(la1, lo1, la2, lo2){
+  const R = 6371000, rad = Math.PI / 180;
+  const dp = (la2 - la1) * rad, dl = (lo2 - lo1) * rad;
+  const h = Math.sin(dp / 2) ** 2 +
+            Math.cos(la1 * rad) * Math.cos(la2 * rad) * Math.sin(dl / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// Луч вправо от точки: нечётное число пересечений со сторонами — точка внутри.
+function inPoly(la, lo, pts){
+  let inside = false;
+  for(let i = 0, j = pts.length - 1; i < pts.length; j = i++){
+    const [ya, xa] = pts[i], [yb, xb] = pts[j];
+    if((ya > la) !== (yb > la) && lo < (xb - xa) * (la - ya) / (yb - ya) + xa) inside = !inside;
+  }
+  return inside;
+}
+
+function shapeBB(shape){
+  if(shape.kind === 'circle'){
+    const dLa = shape.r / 111320, dLo = shape.r / (111320 * Math.cos(shape.lat * Math.PI / 180));
+    return { s: shape.lat - dLa, n: shape.lat + dLa, w: shape.lon - dLo, e: shape.lon + dLo };
+  }
+  const la = shape.pts.map(p => p[0]), lo = shape.pts.map(p => p[1]);
+  return { s: Math.min(...la), n: Math.max(...la), w: Math.min(...lo), e: Math.max(...lo) };
+}
+
+// «1 500 м» до двух километров, дальше «2,5 км»: так радиус читается с одного взгляда
+const fmtDist = m => m < 2000 ? fmtN(Math.round(m)) + ' м' : fmtN(m / 1000, m % 1000 ? 1 : 0) + ' км';
+
+// Как назвать текущую область в подписях: плашка, строка под картой, подпись графиков.
+function geoShapeLabel(){
+  if(!geoBox) return '';
+  return geoBox.kind === 'circle' ? 'Радиус ' + fmtDist(geoBox.r) + ' от точки' : 'Область на карте';
 }
 
 /* Все фильтры, кроме периода. Отдельно от passes() ради листа «Динамика»: там
@@ -1838,6 +1968,8 @@ function passesBase(r, skipKey){
 
 function applyFilters(){
   VIEW = DATA.recs.filter(passes);
+  VIEW_VER++;
+  renderMoreBadge();
   LIMIT = 100;
   // все листы считаются от одной и той же выборки — фильтры общие
   renderLeadKpis(); renderLeadTable(); renderLeadCharts();
@@ -1935,7 +2067,14 @@ function renderFilters(){
   const ustTop = fmtN(DATA.recs.reduce((m, r) => r.ustrH !== null && r.ustrH > m ? r.ustrH : m, 0), 1);
   const ustOn = ust.min !== null || ust.max !== null;
 
-  el.innerHTML = FILTERS.map(f => {
+  /* Сверху — то, чем пользуются каждый день; остальное свёрнуто под «Ещё фильтры».
+     Раньше все девять списков и два диапазона стояли развёрнутыми на каждом листе
+     и занимали пол-экрана над данными. Сколько свёрнутых фильтров включено —
+     видно на самой кнопке, так что спрятанный фильтр не забудется. */
+  const PRIMARY = ['omsu', 'rso', 'obj', 'prich'];
+  let moreOpen = false;
+  try{ moreOpen = localStorage.getItem('edds_fl_more_v1') === '1'; }catch(_){}
+  const msHtml = f => {
     const opts = optionsFor(f.k);
     return `
     <div class="f ms" data-k="${f.k}">
@@ -1956,7 +2095,8 @@ function renderFilters(){
           <div class="ms-empty" hidden>Ничего не найдено</div>
         </div>
       </div>
-    </div>`; }).join('') + `
+    </div>`; };
+  el.innerHTML = FILTERS.filter(f => PRIMARY.includes(f.k)).map(msHtml).join('') + `
     <div class="f${LIVE ? ' live-req' : ''}">
       <label for="fl-from">${LIVE ? 'Период с — запрос к ЕДДС' : 'Период с (начало события)'}</label>
       <input id="fl-from" type="date" value="${dFrom}"${bound}>
@@ -1970,37 +2110,51 @@ function renderFilters(){
       <label for="fl-q">Поиск по адресу, ID, причине</label>
       <input id="fl-q" type="search" placeholder="например: Ногинск или 425044">
     </div>
+    <button class="btn fl-more-btn" id="fl-more-btn" type="button" aria-expanded="${moreOpen}"
+      title="Тип отключения, статус, уведомление за 3 суток, аномалия, координаты, охват, время устранения">Ещё фильтры<span class="fl-cnt" id="fl-cnt" hidden></span> <span class="ms-car">▾</span></button>
+    <button class="btn" id="fl-reset">Сбросить всё</button>
 
-    <div class="fl-break"></div>
+    <div class="fl-more" id="fl-more"${moreOpen ? '' : ' hidden'}>
+    ${FILTERS.filter(f => !PRIMARY.includes(f.k)).map(msHtml).join('')}
     <div class="f f-range${pplOn ? ' on' : ''}" id="f-ppl">
-      <label for="pp-min">Жителей затронуто</label>
+      <label for="pp-min" title="Пустое поле — без ограничения. В текущей выборке от 0 до ${pplTop} чел.">Жителей затронуто</label>
       <div class="rg-row">
         <input id="pp-min" type="number" min="0" step="1" inputmode="numeric"
-               placeholder="любое" value="${ppl.min ?? ''}" aria-label="Жителей затронуто, от">
+               placeholder="от" value="${ppl.min ?? ''}" aria-label="Жителей затронуто, от"
+               title="В текущей выборке от 0 до ${pplTop} чел.">
         <span class="rg-dash">—</span>
         <input id="pp-max" type="number" min="0" step="1" inputmode="numeric"
-               placeholder="любое" value="${ppl.max ?? ''}" aria-label="Жителей затронуто, до">
+               placeholder="до" value="${ppl.max ?? ''}" aria-label="Жителей затронуто, до"
+               title="В текущей выборке от 0 до ${pplTop} чел.">
         <label class="rg-na" title="Заявки, где охват населения в выгрузке не указан (прочерк). Без галочки диапазон их отсекает.">
           <input type="checkbox" id="pp-na"${ppl.na ? ' checked' : ''}> без данных
         </label>
-        <span class="rg-hint">пустое поле — без ограничения · в текущей выборке от 0 до ${pplTop} чел.</span>
       </div>
     </div>
     <div class="f f-range${ustOn ? ' on' : ''}" id="f-ust">
-      <label for="us-min">Устраняли, часов</label>
+      <label for="us-min" title="В часах, можно дробью: 1,5. В текущей выборке от 0 до ${ustTop} ч.">Устраняли, часов</label>
       <div class="rg-row">
         <input id="us-min" type="text" class="rg-num" inputmode="decimal"
-               placeholder="любое" value="${ust.min ?? ''}" aria-label="Время устранения, от, часов">
+               placeholder="от" value="${ust.min ?? ''}" aria-label="Время устранения, от, часов"
+               title="В часах, можно дробью: 1,5. В выборке от 0 до ${ustTop} ч.">
         <span class="rg-dash">—</span>
         <input id="us-max" type="text" class="rg-num" inputmode="decimal"
-               placeholder="любое" value="${ust.max ?? ''}" aria-label="Время устранения, до, часов">
+               placeholder="до" value="${ust.max ?? ''}" aria-label="Время устранения, до, часов"
+               title="В часах, можно дробью: 1,5. В выборке от 0 до ${ustTop} ч.">
         <label class="rg-na" title="Заявки без времени устранения — как правило, ещё не закрытые. Без галочки диапазон часов их отсекает.">
           <input type="checkbox" id="us-na"${ust.na ? ' checked' : ''}> без данных
         </label>
-        <span class="rg-hint">в часах, можно дробью: 1,5 · в выборке от 0 до ${ustTop} ч</span>
       </div>
     </div>
-    <button class="btn" id="fl-reset">Сбросить всё</button>`;
+    </div>`;
+
+  document.getElementById('fl-more-btn').addEventListener('click', e => {
+    const box = document.getElementById('fl-more');
+    box.hidden = !box.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!box.hidden));
+    try{ localStorage.setItem('edds_fl_more_v1', box.hidden ? '0' : '1'); }catch(_){}
+  });
+  renderMoreBadge();
 
   el.querySelectorAll('.ms').forEach(wrap => {
     const k = wrap.dataset.k;
@@ -2153,6 +2307,16 @@ function renderFilters(){
     closeAllPanels();
     readPeriod(false);
   });
+}
+
+// Сколько свёрнутых фильтров включено — цифра на кнопке «Ещё фильтры».
+function renderMoreBadge(){
+  const c = document.getElementById('fl-cnt');
+  if(!c) return;
+  const n = ['type', 'status', 'plan3', 'anom', 'geoFill'].filter(k => sel[k] && sel[k].size).length +
+            (ppl.min !== null || ppl.max !== null ? 1 : 0) + (ust.min !== null || ust.max !== null ? 1 : 0);
+  c.textContent = n;
+  c.hidden = !n;
 }
 
 function closeAllPanels(){
@@ -2354,11 +2518,25 @@ function donut(data, unit, W){
     ${legend}</svg>`;
 }
 
+/* Подпись в шапке карточки. Короткую показываем как есть; длинную — первым
+   куском, а целиком в подсказке под значком ⓘ: раньше под заголовками стояли
+   абзацы мелким шрифтом, и глаз спотыкался о них раньше, чем доходил до цифр.
+   Предупреждения и пометку про выделенную область не прячем никогда. */
+function noteHtml(note){
+  note = String(note || '');
+  if(note.length <= 50) return '<span class="note">' + esc(note) + '</span>';
+  const parts = note.split(' · ');
+  const keep = [parts[0]].concat(parts.slice(1).filter(p =>
+    /ВНИМАНИЕ|выделенная область|свёрнут|не покрывает/i.test(p)));
+  return '<span class="note" title="' + esc(note) + '">' + esc(keep.join(' · ')) +
+    ' <span class="note-i" aria-hidden="true">ⓘ</span></span>';
+}
+
 function chartCard(scope, title, note, draw, controls){
   const id = scope + '-' + SLOTS[scope].size;
   SLOTS[scope].set(id, draw);
   return `<section class="card">
-      <header><h3>${esc(title)}</h3><span class="note">${esc(note)}</span>${controls || ''}</header>
+      <header><h3>${esc(title)}</h3>${noteHtml(note)}${controls || ''}</header>
       <div class="body chart-wrap" data-chart="${id}"></div>
     </section>`;
 }
@@ -2958,15 +3136,13 @@ function zhCardHtml(){
       ? '<div>Кликер сейчас идёт в ДоброДел за жалобами. Обычно это одна-три минуты — ' +
         'график появится сам, страницу обновлять не нужно.</div>'
       : '<div class="zh-bad">' + esc(ZH_NOTE || 'Свод жалоб пока не загружен.') + '</div>' +
-        '<div>Помощник поднимается сам при входе в Windows. Если этого не случилось — ' +
-        'один раз запустите <code>Автозапуск — включить.bat</code> в папке «для кликера», ' +
-        'дальше он будет включаться без вас.</div>' +
+        '<div>Нажмите <b>«Жалобы Добродела»</b> в шапке. Доступ настраивается администратором в разделе «Пользователи → Логины и пароли».</div>' +
         '<div>Либо загрузите выгрузку ЕЦУР кнопкой <b>«Жалобы»</b> в шапке.</div>';
     return '<section class="card"><header><h3>Жалобы по воде и инциденты</h3>' +
       '<span class="note">' + (ZH_BUILDING ? 'свод собирается…' : 'свод ДоброДела не загружен') +
       '</span></header>' +
       '<div class="body"><div class="zh-empty">' + head +
-      '<button class="btn" type="button" id="zh-retry">↻ Проверить помощника</button>' +
+      '<button class="btn" type="button" id="zh-retry">↻ Проверить свод</button>' +
       '</div></div></section>';
   }
   const ts = zhCombo();
@@ -3570,12 +3746,13 @@ function renderDyn(){
     '<div><span class="tag">Период сравнения</span><b>' + esc(dynLabel(B)) + '</b>' +
       (spanB ? ' · ' + fmtN(spanB) + ' дн.' : '') + '</div>';
 
+  // пока сравнивать не с чем, три пустые карточки «сравнивать пока не с чем» не показываем
+  document.querySelectorAll('.dyn-res').forEach(c => c.hidden = !(B.from && B.to));
   if(!B.from || !B.to){
     dyc.innerHTML = '';
     dynFill(when +
-      '<div class="dyn-msg dyn-hint">Выберите период сравнения — тот, с которым сверяем отчётный. ' +
-      'Кнопка <b>«Предыдущий период»</b> возьмёт столько же дней подряд перед текущим, ' +
-      '<b>«Год назад»</b> — тот же интервал прошлого года.</div>',
+      '<div class="dyn-msg dyn-hint">Задайте период сравнения — или нажмите <b>«Предыдущий период»</b> ' +
+      'либо <b>«Год назад»</b>.</div>',
       '', 'период сравнения не выбран',
       '<tbody><tr><td class="mute">Сравнивать пока не с чем.</td></tr></tbody>',
       '<tbody><tr><td class="mute">Сравнивать пока не с чем.</td></tr></tbody>',
@@ -3767,12 +3944,14 @@ const LEAF = {
         '/static/vendor/leaflet-heat.js',
         '/static/vendor/leaflet.markercluster.min.js'],
 };
-let MAP = null, HEAT = null, CLUSTER = null, BOXRECT = null, DRAGRECT = null;
+let MAP = null, HEAT = null, CLUSTER = null, BOXRECT = null, DRAGRECT = null, BOXPIN = null;
 let LEAF_READY = false, LEAF_FAIL = false;
 let MAPKIND = 'heat';        // heat | points
 let MAPW = 'n';              // n | people (сумма охвата) | avg (средний охват на заявку)
-let geoBox = null;           // { s, w, n, e } — выделенная рамка
-let mapSel = false, mapStart = null;
+let geoBox = null;           // выделенная область: см. inGeoBox()
+let mapSel = null;           // null | 'poly' — обводим | 'circle' — ставим точку
+let mapStart = null;         // точки обводки, пока кнопка мыши зажата
+let mapRadius = 1000;        // радиус для «точки», метров: помним между выделениями
 
 /* Ограничение по времени обязательно. Заблокированный прокси не отвечает
    ошибкой — он просто молчит, и onerror не срабатывает никогда. Без таймаута
@@ -3841,30 +4020,34 @@ const CL_COLOR = { s: '#3987e5', m: '#e0892a', l: '#cc4444' };
    плотность, величину группы и тип заявки — и догадаться невозможно. */
 function mapLegend(){
   const dot = (c, t) => '<span><i style="background:' + c + '"></i>' + t + '</span>';
+  if(MAPKIND === 'objects'){
+    return '<div class="lg"><span>Точка — объект, размер — сколько заявок, цвет — как часто аварии:</span>' +
+      dot('#c92a2a', 'раз в месяц и чаще') + dot('#e8590c', 'до 3 мес.') + dot('#f59f00', 'до полугода') +
+      dot('#1c7ed6', 'до года') + dot('#868e96', 'реже') +
+      '<span class="mute">пунктир — условная точка округа</span></div>';
+  }
   if(MAPKIND === 'heat'){
     const what = wPeople() ? 'больше жителей задето рядом' : 'больше инцидентов рядом';
-    return '<div class="lg"><span>Цвет — плотность:</span>' +
+    return '<div class="lg" title="Заливка показывает сгущение, а не величину одной заявки: ' +
+      'сколько именно — в режиме «Точки с количеством».">' +
+      '<span>Цвет — плотность:</span>' +
       '<span><i class="lg-grad" style="border-radius:3px;width:86px;height:10px"></i>' +
-      'реже → чаще</span><span>чем краснее, тем ' + what + '</span></div>' +
-      '<div class="lg"><span class="mute">Заливка показывает сгущение, а не величину ' +
-      'одной заявки: сколько именно — в режиме «Точки с количеством».</span></div>';
+      'реже → чаще</span><span>чем краснее, тем ' + what + '</span></div>';
   }
   const [a, b] = clusterLim();
   const unit = MAPW === 'avg'    ? 'жителей в среднем на заявку'
              : MAPW === 'people' ? 'жителей'
              :                     'заявок';
-  return '<div class="lg">' +
+  const tip = MAPW === 'avg'
+    ? ' title="Среднее — только по заявкам, где охват заполнен. Ноль жителей на аварии считаем ' +
+      'незаполненной карточкой, а не пустым двором: на значке такой заявки «н/д», и среднее она не занижает."'
+    : '';
+  return '<div class="lg"' + tip + '>' +
     '<span>Число в кружке — сколько ' + unit + ', цвет по величине:</span>' +
     dot(CL_COLOR.s, 'до ' + fmtN(a)) +
     dot(CL_COLOR.m, fmtN(a) + ' — ' + fmtN(b - 1)) +
     dot(CL_COLOR.l, 'от ' + fmtN(b)) +
-    '<span class="mute">пунктиром — одна заявка</span></div>' +
-    (MAPW === 'avg'
-      ? '<div class="lg"><span class="mute">Среднее — только по заявкам, где охват ' +
-        'заполнен. Ноль жителей на аварии считаем незаполненной карточкой, а не ' +
-        'пустым двором: на значке такой заявки «н/д», и среднее она не занижает.' +
-        '</span></div>'
-      : '');
+    '<span class="mute">пунктиром — одна заявка</span></div>';
 }
 
 /* Что писать про охват рядом с числом инцидентов.
@@ -3949,65 +4132,132 @@ function mapClusterIcon(cl){
 }
 
 function mapClearLayers(){
-  for(const k of ['HEAT', 'CLUSTER']){
-    const l = k === 'HEAT' ? HEAT : CLUSTER;
-    if(l && MAP) MAP.removeLayer(l);
-  }
-  HEAT = null; CLUSTER = null;
+  for(const l of [HEAT, CLUSTER, OBJLAYER]) if(l && MAP) MAP.removeLayer(l);
+  HEAT = null; CLUSTER = null; OBJLAYER = null;
 }
 
-/* Рамка выделения: тянем мышью при включённом режиме. Карту на это время
-   перестаём таскать, иначе жест уезжает вместе с подложкой. */
+/* Выделение на карте. Два способа:
+     «Область» — обвести от руки: прямоугольник цеплял соседние посёлки и
+                 объекты за рекой, которых в выборке быть не должно;
+     «Радиус»  — поставить точку, всё в пределах N метров от неё.
+   На время обводки карту не таскаем, иначе жест уезжает вместе с подложкой. */
+function mapSetMode(mode){
+  mapSel = mapSel === mode ? null : mode;
+  const box = document.querySelector('.map-seltools');
+  if(box) box.querySelectorAll('[data-sel]').forEach(a =>
+    a.classList.toggle('on', a.dataset.sel === mapSel));
+  MAP.getContainer().style.cursor = mapSel ? 'crosshair' : '';
+  if(mapSel === 'poly') MAP.doubleClickZoom.disable(); else MAP.doubleClickZoom.enable();
+  if(mapSel !== 'poly') polyStop();
+  renderMapStatus();
+}
+
 function mapAddSelect(){
   const ctl = L.control({ position: 'topright' });
   ctl.onAdd = function(){
-    const d = L.DomUtil.create('div', 'leaflet-bar');
+    const d = L.DomUtil.create('div', 'leaflet-bar map-seltools');
     // ширину задаём в самом элементе: у Leaflet в .leaflet-bar a она жёстко 26px,
     // и текстовая подпись иначе вылезает за пределы кнопки и обрезается картой
-    d.innerHTML = '<a href="#" id="map-sel" class="map-selbtn" ' +
-      'style="width:auto;min-width:0;padding:0 12px" ' +
-      'title="Выделить область — протяните по карте прямоугольник">◻ Область</a>';
+    d.innerHTML =
+      '<a href="#" data-sel="poly" class="map-selbtn" style="width:auto;min-width:0;padding:0 12px" ' +
+      'title="Нарисовать многоугольник: щелчками по вершинам — в выборку попадёт только то, что внутри">⬠ Область</a>' +
+      '<a href="#" data-sel="circle" class="map-selbtn" style="width:auto;min-width:0;padding:0 12px" ' +
+      'title="Поставить точку — в выборку попадёт всё в пределах радиуса от неё">◎ Радиус</a>';
     L.DomEvent.disableClickPropagation(d);
-    d.querySelector('#map-sel').onclick = e => {
+    d.querySelectorAll('[data-sel]').forEach(a => a.onclick = e => {
       L.DomEvent.preventDefault(e);
-      mapSel = !mapSel;
-      d.querySelector('#map-sel').style.background = mapSel ? 'var(--accent-soft)' : '';
-      MAP.getContainer().style.cursor = mapSel ? 'crosshair' : '';
-      if(mapSel) MAP.dragging.disable(); else MAP.dragging.enable();
-      renderMapStatus();
-    };
+      mapSetMode(a.dataset.sel);
+    });
     return d;
   };
   ctl.addTo(MAP);
 
-  MAP.on('mousedown', e => {
-    if(!mapSel) return;
-    mapStart = e.latlng;
-    if(DRAGRECT) MAP.removeLayer(DRAGRECT);
-    DRAGRECT = L.rectangle([mapStart, mapStart],
-      { color: '#2a78d6', weight: 2, fillOpacity: 0.08 }).addTo(MAP);
+  /* ---- многоугольник по вершинам
+     Щелчок — вершина, от последней к курсору тянется пунктир. Замкнуть:
+     щелчок по первой вершине, двойной щелчок или Enter. Backspace снимает
+     последнюю вершину, Esc отменяет. Карту при этом можно двигать как обычно —
+     вершины ставятся щелчком, а не протяжкой. */
+  MAP.on('click', e => {
+    if(mapSel !== 'poly') return;
+    if(!mapStart) mapStart = [];
+    // щелчок рядом с первой вершиной замыкает фигуру
+    if(mapStart.length >= 3 &&
+       MAP.latLngToContainerPoint(mapStart[0]).distanceTo(e.containerPoint) < 12){
+      polyFinish(); return;
+    }
+    // двойной щелчок присылает ещё и два обычных: второй ляжет в ту же точку —
+    // вершину-дубль не ставим
+    const last = mapStart[mapStart.length - 1];
+    if(last && MAP.latLngToContainerPoint(last).distanceTo(e.containerPoint) < 6) return;
+    mapStart.push(e.latlng);
+    polyDraw(e.latlng);
+    renderMapStatus();          // счётчик вершин в подсказке — только на щелчок, не на каждое движение
   });
   MAP.on('mousemove', e => {
-    if(!mapSel || !mapStart) return;
-    DRAGRECT.setBounds(L.latLngBounds(mapStart, e.latlng));
+    if(mapSel !== 'poly' || !mapStart || !mapStart.length) return;
+    polyDraw(e.latlng);
   });
-  MAP.on('mouseup', e => {
-    if(!mapSel || !mapStart) return;
-    const b = L.latLngBounds(mapStart, e.latlng);
-    mapStart = null; mapSel = false;
-    MAP.dragging.enable();
-    MAP.getContainer().style.cursor = '';
-    const btn = document.getElementById('map-sel');
-    if(btn) btn.style.background = '';
-    if(DRAGRECT){ MAP.removeLayer(DRAGRECT); DRAGRECT = null; }
-    // клик без протяжки — это не выделение, а промах: рамку в один пиксель
-    // применять нельзя, иначе выборка молча обнулится
-    if(b.getNorth() - b.getSouth() < 1e-4 && b.getEast() - b.getWest() < 1e-4){
-      renderMapStatus(); return;
-    }
-    geoBox = { s: b.getSouth(), w: b.getWest(), n: b.getNorth(), e: b.getEast() };
-    applyFilters();
+  MAP.on('dblclick', e => {
+    if(mapSel !== 'poly') return;
+    L.DomEvent.stop(e);
+    polyFinish();
   });
+
+  // ---- точка и радиус
+  MAP.on('click', e => {
+    if(mapSel !== 'circle') return;
+    mapSetMode(null);
+    setGeoCircle(e.latlng.lat, e.latlng.lng, mapRadius);
+  });
+}
+
+// Рисуем то, что уже поставлено, и пунктир от последней вершины к курсору.
+function polyDraw(cursor){
+  if(!DRAGRECT){
+    DRAGRECT = L.layerGroup().addTo(MAP);
+  }
+  DRAGRECT.clearLayers();
+  const st = { color: '#2a78d6', weight: 2 };
+  if(mapStart.length >= 2)
+    L.polygon(mapStart, Object.assign({ fillOpacity: 0.08, weight: 0 }, st)).addTo(DRAGRECT);
+  L.polyline(mapStart, st).addTo(DRAGRECT);
+  if(cursor) L.polyline([mapStart[mapStart.length - 1], cursor],
+    Object.assign({ dashArray: '4,5', opacity: 0.7 }, st)).addTo(DRAGRECT);
+  mapStart.forEach((p, i) => L.circleMarker(p, { radius: i ? 4 : 6, color: '#2a78d6', weight: 2,
+    fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(DRAGRECT));
+}
+
+function polyStop(){
+  mapStart = null;
+  if(DRAGRECT){ MAP.removeLayer(DRAGRECT); DRAGRECT = null; }
+}
+
+function polyFinish(){
+  const pts = (mapStart || []).map(p => [p.lat, p.lng]);
+  polyStop();
+  mapSetMode(null);
+  // меньше трёх вершин — это не область: применить её значит молча обнулить выборку
+  if(pts.length < 3){ renderMapStatus(); return; }
+  const shape = { kind: 'poly', pts };
+  shape.bb = shapeBB(shape);
+  geoBox = shape;
+  applyFilters();
+}
+
+function setGeoCircle(lat, lon, r){
+  mapRadius = r;
+  const shape = { kind: 'circle', lat, lon, r };
+  shape.bb = shapeBB(shape);
+  geoBox = shape;
+  applyFilters();
+}
+
+// Радиус правят в поле под картой; меняется сразу, без повторной постановки точки.
+function readMapRadius(v){
+  const n = Math.round(parseFloat(String(v).replace(',', '.').replace(/\s/g, '')));
+  if(!Number.isFinite(n) || n < 10) return;
+  mapRadius = Math.min(n, 200000);
+  if(geoBox && geoBox.kind === 'circle') setGeoCircle(geoBox.lat, geoBox.lon, mapRadius);
 }
 
 function clearGeoBox(){
@@ -4031,9 +4281,11 @@ function clearGeoBox(){
    чужие тайлы — карта складывается кашей, где Волоколамск оказывается восточнее
    Клина. Чтобы взять его подложкой, нужен разбор его TileMatrixSet, а не
    подстановка адреса. */
-/* Подложка обслуживается только сервером Нейроны. Администратор может
-   разместить разрешённые тайлы в static/map-tiles/{z}/{x}/{y}.png.
-   Координаты заявок и область просмотра не отправляются провайдерам карт. */
+/* Подложка одна: OSM с русскими подписями — её и выбрали. Ни перебора, ни
+   выбора из списка: лишний источник здесь не запасной аэродром, а способ
+   однажды молча подсунуть карту, которую смотреть не хотели. Если сервер не
+   ответит, честнее сказать об этом и предложить повторить. */
+/* Тайлы обслуживаются локально, координаты не передаются внешним картам. */
 const TILE = { name: 'локальная карта',
   url: '/static/map-tiles/{z}/{x}/{y}.png',
   opts: { maxZoom: 18, attribution: 'Локальная подложка' } };
@@ -4133,7 +4385,7 @@ function renderMapStatus(){
     // тут же перерисовывает — значит, говорить о беде должен именно этот код
     h = '<div class="map-bad">Не удалось загрузить библиотеку карты' +
         (LEAF_WHY ? ' — ' + esc(LEAF_WHY) : '') + '.</div>' +
-        '<div>Не удалось загрузить библиотеку карты с сервера Нейроны. Карта работать ' +
+        '<div>Не удалось прочитать файлы карты на сервере «Нейроны». Пока карта работать ' +
         'не будет, но остальные листы и выгрузка от этого не страдают — точки просто негде ' +
         'нарисовать. <a href="#" id="leaf-retry">Попробовать ещё раз</a></div>';
   }else{
@@ -4144,17 +4396,33 @@ function renderMapStatus(){
     h += mapLegend();
     if(tileNote) h += '<div class="map-warn">' + esc(tileNote) +
       ' <a href="#" id="tile-retry">Повторить</a></div>';
+    // радиус правится прямо здесь — и до постановки точки, и после
+    const radBox = (mapSel === 'circle' || (geoBox && geoBox.kind === 'circle'))
+      ? ' <label class="map-rad">радиус <input id="map-rad" type="text" inputmode="numeric" ' +
+        'value="' + mapRadius + '"> м</label>' : '';
     h += geoBox
-      ? '<div>Выделена область: в ней <b>' + fmtN(VIEW.length) + '</b> инцидентов. ' +
-        'Она работает как обычный фильтр — её видят все листы и кнопка «Скачать Excel». ' +
-        '<button class="btn btn-sm" id="map-unbox">Снять выделение</button></div>'
-      : '<div>Кнопка <b>«Область»</b> справа на карте — протяните прямоугольник, и выборка ' +
-        'сузится до него на всех листах и в выгрузке.' +
-        (mapSel ? ' <b>Режим выделения включён — тяните рамку.</b>' : '') + '</div>';
+      ? '<div>' + esc(geoShapeLabel()) + ': <b>' + fmtN(VIEW.length) + '</b> инцидентов — ' +
+        'фильтр для всех листов и выгрузки.' + radBox +
+        (geoBox.kind === 'circle' ? ' <span class="mute">точку можно перетащить</span>' : '') +
+        ' <button class="btn btn-sm" id="map-unbox">Снять</button></div>'
+      : mapSel === 'poly'
+        ? '<div><b>Ставьте вершины щелчками</b>' +
+          (mapStart && mapStart.length ? ' (поставлено ' + mapStart.length + ')' : '') +
+          '. Замкнуть — щелчок по первой точке, двойной щелчок или Enter; ' +
+          'Backspace — убрать последнюю, Esc — отмена.</div>'
+        : mapSel === 'circle'
+          ? '<div><b>Щёлкните по карте</b>, где поставить точку.' + radBox + '</div>'
+          : '';   // как пользоваться «Областью» и «Радиусом» — в подсказках на самих кнопках
   }
   el.innerHTML = h;
   const ub = document.getElementById('map-unbox');
   if(ub) ub.addEventListener('click', clearGeoBox);
+  const rad = document.getElementById('map-rad');
+  if(rad){
+    let t;
+    rad.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => readMapRadius(rad.value), 400); });
+    rad.addEventListener('keydown', e => { if(e.key === 'Enter'){ clearTimeout(t); readMapRadius(rad.value); } });
+  }
   const tr = document.getElementById('tile-retry');
   if(tr) tr.addEventListener('click', e => {
     e.preventDefault();
@@ -4178,6 +4446,10 @@ async function renderMap(){
     b.setAttribute('aria-pressed', String(b.dataset.mk === MAPKIND)));
   document.querySelectorAll('[data-mw]').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.mw === MAPW)));
+  // охват/число — это про тепловую и точки; у объектов свой размер и цвет
+  document.getElementById('mw-seg').hidden = MAPKIND === 'objects';
+  document.getElementById('obj-card').hidden = MAPKIND !== 'objects';
+  renderObjects();
 
   const pts = mapRecs();
   renderGeoRating();
@@ -4220,6 +4492,25 @@ async function renderMap(){
         gradient: { 0.08: '#3a4fa0', 0.2: '#1fa3c4', 0.32: '#2ecc71',
                     0.45: '#f1c40f', 0.58: '#f76707', 0.7: '#e03131', 1: '#7f0000' },
       }).addTo(MAP);
+    }else if(MAPKIND === 'objects'){
+      const res = objResult();
+      if(res && !res.err && res.objects.length){
+        OBJLAYER = L.layerGroup();
+        const maxN = Math.max(1, ...res.objects.map(o => o.n));
+        // крупные — снизу: иначе большой круг накрывает соседние мелкие
+        for(const o of [...res.objects].sort((a, b) => b.n - a.n)){
+          const m = L.circleMarker([o.lat, o.lon], {
+            radius: 5 + 16 * Math.sqrt(o.n / maxN),
+            color: o.hub ? '#e67700' : '#ffffff', weight: o.hub ? 2.5 : 1.5,
+            dashArray: o.hub ? '4,3' : null,
+            fillColor: objColor(o), fillOpacity: o.hub ? 0.3 : 0.85,
+          });
+          m.objCode = o.code;
+          m.bindPopup(objPopup(o), { minWidth: 230, maxWidth: 330 });
+          OBJLAYER.addLayer(m);
+        }
+        OBJLAYER.addTo(MAP);
+      }
     }else{
       CLUSTER = L.markerClusterGroup({
         chunkedLoading: true, showCoverageOnHover: false,
@@ -4240,9 +4531,24 @@ async function renderMap(){
     }
 
     if(BOXRECT){ MAP.removeLayer(BOXRECT); BOXRECT = null; }
+    if(BOXPIN){ MAP.removeLayer(BOXPIN); BOXPIN = null; }
     if(geoBox){
-      BOXRECT = L.rectangle([[geoBox.s, geoBox.w], [geoBox.n, geoBox.e]],
-        { color: '#2a78d6', weight: 2, dashArray: '5,4', fillOpacity: 0.05 }).addTo(MAP);
+      const st = { color: '#2a78d6', weight: 2, dashArray: '5,4', fillOpacity: 0.05 };
+      if(geoBox.kind === 'circle'){
+        BOXRECT = L.circle([geoBox.lat, geoBox.lon], Object.assign({ radius: geoBox.r }, st)).addTo(MAP);
+        // точку можно перетащить — радиус едет вместе с ней
+        BOXPIN = L.marker([geoBox.lat, geoBox.lon], { draggable: true, title: 'Перетащите точку',
+          icon: L.divIcon({ className: '', iconSize: [16, 16], html: '<div class="geo-pin"></div>' }) }).addTo(MAP);
+        BOXPIN.on('drag', ev => BOXRECT.setLatLng(ev.target.getLatLng()));
+        BOXPIN.on('dragend', ev => {
+          const p = ev.target.getLatLng();
+          setGeoCircle(p.lat, p.lng, geoBox.r);
+        });
+      }else if(geoBox.kind === 'poly'){
+        BOXRECT = L.polygon(geoBox.pts, st).addTo(MAP);
+      }else{
+        BOXRECT = L.rectangle([[geoBox.s, geoBox.w], [geoBox.n, geoBox.e]], st).addTo(MAP);
+      }
     }
     // охват считаем только когда контейнер уже настоящего размера
     if(!MAP._fitted){ MAP.invalidateSize(); mapFit(); MAP._fitted = true; }
@@ -4252,6 +4558,621 @@ async function renderMap(){
     renderGeoRating();
   }
 }
+
+/* ============================================================
+   Объекты по координатам
+   Перенос «кодера объектов» (папка «обьекты и аварии») в дашборд. Заявки,
+   стоящие ближе R метров друг к другу, склеиваются в один объект с общим
+   кодом вида VZ-0001. Алгоритм повторён шаг в шаг, чтобы границы объектов
+   и коды совпадали с тем, что считает скрипт:
+     1. одинаковые координаты — одна точка с весом «сколько на ней заявок»;
+     2. точка в радиусе объекта из реестра получает его код;
+     3. остальные — связные компоненты по радиусу, а внутри компоненты полная
+        связь: в объекте все пары точек не дальше R, цепочкой вдоль улицы
+        объект не растягивается;
+     4. центр нового объекта — реальная точка группы с наименьшей суммой
+        расстояний до остальных с учётом веса, а не среднее арифметическое;
+     5. «условная точка округа» — главная точка ОМСУ, где не меньше 5 заявок
+        и не меньше 15 % всех заявок округа: это центр округа, куда сваливают
+        заявки без места, а не объект.
+   ============================================================ */
+const OBJ_KEY = 'edds_obj_registry_v1:' + document.documentElement.dataset.owner;
+const OBJ_PREFIX = { 'ВЗУ': 'VZ', 'КНС': 'KNS', 'КОС': 'KOS',
+                     'Сети водоснабжения': 'VS', 'Сети водоотведения': 'VO' };
+// Полная связь хранит матрицу расстояний: на 2 500 точках это 50 МБ.
+// Дальше — не считаем и просим сузить выборку.
+const OBJ_MAX_PTS = 8000, OBJ_MAX_COMP = 2500;
+const OBJ_RAD = Math.PI / 180;
+let OBJ = { r: 500, prefix: '', res: null, key: '', sort: { key: 'avar', dir: -1 }, all: false };
+let OBJREG = null;          // реестр кодов: [{ code, prefix, num, lat, lon, type, file, added }]
+let OBJREG_VER = 0;
+let OBJLAYER = null;
+let VIEW_VER = 0;           // растёт при каждой смене выборки: по нему кэшируем расчёт
+
+function objRegLoad(){
+  if(OBJREG) return OBJREG;
+  try{ OBJREG = JSON.parse(localStorage.getItem(OBJ_KEY) || '[]'); }catch(_){ OBJREG = []; }
+  if(!Array.isArray(OBJREG)) OBJREG = [];
+  return OBJREG;
+}
+function objRegSave(){
+  OBJREG_VER++;
+  try{ localStorage.setItem(OBJ_KEY, JSON.stringify(OBJREG)); }catch(_){}
+}
+
+// Префикс кода: из фильтра «Объект», если там выбран ровно один тип.
+function objPrefix(){
+  if(OBJ.prefix) return OBJ.prefix;
+  const s = sel.obj;
+  if(s && s.size === 1){ const v = [...s][0]; if(OBJ_PREFIX[v]) return OBJ_PREFIX[v]; }
+  return 'OBJ';
+}
+
+// Расстояние по сфере — в том же порядке действий, что numpy в скрипте:
+// иначе на самой границе радиуса расходились бы последние знаки.
+function objHav(la1, lo1, la2, lo2){
+  const p1 = la1 * OBJ_RAD, p2 = la2 * OBJ_RAD;
+  const dp = p2 - p1, dl = (lo2 - lo1) * OBJ_RAD;
+  const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, h))));
+}
+
+// Сетка для поиска соседей в радиусе — порядок обхода клеток как в скрипте.
+function objGrid(lats, lons, r, lat0){
+  const cell = r * 1.2, kx = 111320 * Math.cos(lat0 * OBJ_RAD);
+  const kxy = (la, lo) => [Math.floor(lo * kx / cell), Math.floor(la * 110574 / cell)];
+  const cells = new Map();
+  for(let i = 0; i < lats.length; i++){
+    const [x, y] = kxy(lats[i], lons[i]), k = x + ':' + y;
+    let a = cells.get(k); if(!a) cells.set(k, a = []);
+    a.push(i);
+  }
+  return (la, lo) => {
+    const [cx, cy] = kxy(la, lo), out = [];
+    for(let dx = -1; dx <= 1; dx++) for(let dy = -1; dy <= 1; dy++){
+      const a = cells.get((cx + dx) + ':' + (cy + dy));
+      if(a) out.push(...a);
+    }
+    return out;
+  };
+}
+
+/* Иерархическая склейка с полной связью. На каждом шаге сливаем пару с
+   наименьшим расстоянием — первую в порядке «строка за строкой», как argmin
+   в numpy; расстояние до слитой группы — наибольшее из расстояний до её
+   частей. Минимумы строк держим в кэше: пересчитываем только строки, чей
+   минимум указывал на слитые столбцы. */
+function objCompleteLinkage(D, k, r){
+  if(k === 1) return [[0]];
+  const M = Float64Array.from(D);
+  for(let i = 0; i < k; i++) M[i * k + i] = Infinity;
+  const members = Array.from({ length: k }, (_, i) => [i]);
+  const alive = new Uint8Array(k).fill(1);
+  const rmin = new Float64Array(k), rarg = new Int32Array(k);
+  const scan = i => {
+    let m = Infinity, a = 0;
+    for(let j = 0, o = i * k; j < k; j++){ const v = M[o + j]; if(v < m){ m = v; a = j; } }
+    rmin[i] = m; rarg[i] = a;
+  };
+  for(let i = 0; i < k; i++) scan(i);
+  for(;;){
+    let a = 0;
+    for(let i = 1; i < k; i++) if(rmin[i] < rmin[a]) a = i;
+    let b = rarg[a];
+    const v = M[a * k + b];
+    if(!Number.isFinite(v) || v > r) break;
+    if(a > b){ const t = a; a = b; b = t; }
+    members[a] = members[a].concat(members[b]); members[b] = null; alive[b] = 0;
+    const row = new Float64Array(k);
+    for(let j = 0; j < k; j++) row[j] = alive[j] ? Math.max(M[a * k + j], M[b * k + j]) : Infinity;
+    row[a] = Infinity;
+    for(let j = 0; j < k; j++){
+      M[a * k + j] = row[j]; M[j * k + a] = row[j];
+      M[b * k + j] = Infinity; M[j * k + b] = Infinity;
+    }
+    scan(a); rmin[b] = Infinity; rarg[b] = 0;
+    for(let i = 0; i < k; i++){
+      if(i === a || i === b || !alive[i]) continue;
+      if(rarg[i] === a || rarg[i] === b) scan(i);
+      else if(M[i * k + a] < rmin[i] || (M[i * k + a] === rmin[i] && a < rarg[i])) scan(i);
+    }
+  }
+  return members.filter(Boolean);
+}
+
+// Самое частое значение; при равенстве — меньшее по алфавиту, как mode() в pandas.
+function objMode(arr){
+  const c = new Map();
+  for(const v of arr){ if(v === null || v === undefined || v === '') continue; c.set(v, (c.get(v) || 0) + 1); }
+  let best = null, bn = -1;
+  for(const [v, n] of c) if(n > bn || (n === bn && v < best)){ best = v; bn = n; }
+  return best;
+}
+const objUniq = arr => [...new Set(arr.filter(v => v !== null && v !== undefined && v !== ''))];
+const objCmp = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+
+// «Как часто» — по тому, раз в сколько дней в среднем случается авария.
+function objFreq(n){
+  return n <= 7 ? 'раз в неделю и чаще' : n <= 31 ? 'раз в месяц' : n <= 60 ? 'раз в 2 месяца'
+       : n <= 92 ? 'раз в 3 месяца' : n <= 183 ? 'раз в полгода' : n <= 366 ? 'раз в год'
+       : 'реже раза в год';
+}
+
+/* Аварии объекта: без плановых, и заявки, пришедшие одна за другой в пределах
+   суток, — одна авария. Иначе один порыв, на который завели три заявки, считался
+   бы тремя, и частота выходила бы втрое выше настоящей. */
+function objEvents(rs){
+  const ts = rs.filter(r => r.type !== 'Плановая заявка' && r.start)
+    .map(r => r.start.getTime()).sort((a, b) => a - b);
+  const ev = []; let last = null;
+  for(const t of ts){ if(last === null || (t - last) / 3600000 > 24) ev.push(t); last = t; }
+  return ev;
+}
+
+/* Главный расчёт. recs — заявки (id, omsu, rso, lat, lon, type, start, people),
+   R — радиус склейки, prefix — префикс кодов, reg — реестр, P — длина периода
+   в днях для «раз в N дней». */
+function objBuild(recs, R, prefix, reg, P){
+  const d = recs.filter(r => r.lat !== null && r.lon !== null);
+  const nocoord = recs.filter(r => r.lat === null || r.lon === null);
+  const out = { objects: [], d, nocoord, P, R, prefix, err: null };
+  if(!d.length) return out;
+
+  // 1. уникальные точки — по возрастанию широты, затем долготы
+  const r7 = v => Math.round(v * 1e7) / 1e7;
+  const uniq = new Map();
+  for(const r of d){
+    const la = r7(r.lat), lo = r7(r.lon), k = la + '|' + lo;
+    const u = uniq.get(k);
+    if(u) u[2]++; else uniq.set(k, [la, lo, 1]);
+  }
+  const pts = [...uniq.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const n = pts.length;
+  if(n > OBJ_MAX_PTS) return Object.assign(out, { err: 'many', errN: n });
+  const PL = pts.map(p => p[0]), PO = pts.map(p => p[1]), W = pts.map(p => p[2]);
+  const pidx = new Map(pts.map((p, i) => [p[0] + '|' + p[1], i]));
+  const dp = d.map(r => pidx.get(r7(r.lat) + '|' + r7(r.lon)));
+  const lat0 = PL.reduce((a, b) => a + b, 0) / n;
+
+  // 2. привязка к реестру: ближайший объект реестра в пределах радиуса
+  const regp = reg.filter(x => String(x.prefix) === prefix);
+  const assigned = new Map();
+  if(regp.length){
+    const near = objGrid(regp.map(x => +x.lat), regp.map(x => +x.lon), R, lat0);
+    for(let i = 0; i < n; i++){
+      let best = -1, bd = Infinity;
+      for(const c of near(PL[i], PO[i])){
+        const dd = objHav(PL[i], PO[i], +regp[c].lat, +regp[c].lon);
+        if(dd < bd){ bd = dd; best = c; }
+      }
+      if(best >= 0 && bd <= R) assigned.set(i, best);
+    }
+  }
+
+  // 3. новые точки: связные компоненты, внутри — полная связь
+  const free = [];
+  for(let i = 0; i < n; i++) if(!assigned.has(i)) free.push(i);
+  const parent = new Map(free.map(i => [i, i]));
+  const root = x => {
+    while(parent.get(x) !== x){ parent.set(x, parent.get(parent.get(x))); x = parent.get(x); }
+    return x;
+  };
+  if(free.length){
+    const near = objGrid(free.map(i => PL[i]), free.map(i => PO[i]), R, lat0);
+    for(const i of free)
+      for(const c of near(PL[i], PO[i])){
+        const j = free[c];
+        if(j > i && objHav(PL[i], PO[i], PL[j], PO[j]) <= R) parent.set(root(i), root(j));
+      }
+  }
+  const comps = new Map();
+  for(const i of free){
+    const r0 = root(i);
+    let a = comps.get(r0); if(!a) comps.set(r0, a = []);
+    a.push(i);
+  }
+  const newGroups = [];
+  for(const members of comps.values()){
+    members.sort((a, b) => a - b);
+    if(members.length === 1){ newGroups.push(members); continue; }
+    if(members.length > OBJ_MAX_COMP) return Object.assign(out, { err: 'comp', errN: members.length });
+    const k = members.length, D = new Float64Array(k * k);
+    for(let x = 0; x < k; x++)
+      for(let y = 0; y < k; y++)
+        D[x * k + y] = objHav(PL[members[x]], PO[members[x]], PL[members[y]], PO[members[y]]);
+    for(const cl of objCompleteLinkage(D, k, R))
+      newGroups.push(cl.map(c => members[c]).sort((a, b) => a - b));
+  }
+
+  // 4. группы → объекты
+  const objects = [];
+  const byReg = new Map();
+  for(const [i, j] of assigned){ let a = byReg.get(j); if(!a) byReg.set(j, a = []); a.push(i); }
+  for(const [j, members] of byReg)
+    objects.push({ members: members.sort((a, b) => a - b), lat: +regp[j].lat, lon: +regp[j].lon, reg: j });
+  for(const members of newGroups){
+    let med = members[0], best = Infinity;
+    for(const x of members){
+      let sum = 0;
+      for(const y of members) sum += objHav(PL[x], PO[x], PL[y], PO[y]) * W[y];
+      if(sum < best){ best = sum; med = x; }
+    }
+    objects.push({ members, lat: PL[med], lon: PO[med], reg: null });
+  }
+  const pointObj = new Int32Array(n).fill(-1);
+  objects.forEach((o, k) => o.members.forEach(i => pointObj[i] = k));
+  const dObj = dp.map(p => pointObj[p]);
+  const objRecs = objects.map(() => []);
+  d.forEach((r, i) => objRecs[dObj[i]].push(r));
+
+  // 5. условные точки округов
+  const omsuCnt = new Map();
+  for(const r of d) if(r.omsu) omsuCnt.set(r.omsu, (omsuCnt.get(r.omsu) || 0) + 1);
+  const byP = new Map();
+  d.forEach((r, i) => { let a = byP.get(dp[i]); if(!a) byP.set(dp[i], a = []); a.push(r); });
+  const top = new Map();
+  for(const p of [...byP.keys()].sort((a, b) => a - b)){
+    const rs = byP.get(p), om = objMode(rs.map(r => r.omsu));
+    if(om === null) continue;
+    const t = top.get(om);
+    if(!t || rs.length > t.nn) top.set(om, { p, nn: rs.length });
+  }
+  const hubPts = new Set();
+  for(const [om, t] of top)
+    if(t.nn >= 5 && t.nn / (omsuCnt.get(om) || 1) >= 0.15) hubPts.add(t.p);
+
+  // 6. коды: из реестра — прежние, новым — следующие номера, по ОМСУ и с севера на юг
+  const nums = regp.map(x => +x.num).filter(Number.isFinite);
+  let next = nums.length ? Math.max(...nums) + 1 : 1;
+  objects.forEach(o => { if(o.reg !== null){ o.code = String(regp[o.reg].code); o.num = +regp[o.reg].num; } });
+  objects.map((o, k) => ({ k, om: String(objMode(objRecs[k].map(r => r.omsu)) ?? ''), lat: o.lat, reg: o.reg }))
+    .filter(x => x.reg === null)
+    .sort((a, b) => objCmp(a.om, b.om) || (b.lat - a.lat))
+    .forEach(x => {
+      objects[x.k].num = next;
+      objects[x.k].code = prefix + '-' + String(next).padStart(4, '0');
+      next++;
+    });
+
+  // 7. показатели объекта
+  objects.forEach((o, k) => {
+    const rs = objRecs[k];
+    o.recs = rs;
+    o.isNew = o.reg === null;
+    o.hub = o.members.some(i => hubPts.has(i)) ||
+            (o.reg !== null && String(regp[o.reg].type) === 'условная точка округа');
+    o.type = o.hub ? 'условная точка округа' : 'объект';
+    let spread = 0;
+    for(let x = 0; x < o.members.length; x++)
+      for(let y = x + 1; y < o.members.length; y++){
+        const a = o.members[x], b = o.members[y];
+        spread = Math.max(spread, objHav(PL[a], PO[a], PL[b], PO[b]));
+      }
+    o.spread = Math.round(spread);
+    o.n = rs.length;
+    o.pts = o.members.length;
+    o.omsuList = objUniq(rs.map(r => r.omsu));
+    o.rsoList = objUniq(rs.map(r => r.rso));
+    o.ids = rs.map(r => String(r.id)).sort((a, b) => a.length - b.length || objCmp(a, b));
+    // средний охват — только по заявкам, где он заполнен: ноль в карточке означает
+    // «не указали», и в среднее его брать нельзя (то же правило, что на карте)
+    const ppl = rs.map(r => r.people).filter(v => v !== null && v !== undefined && v > 0);
+    o.ppl = ppl.length ? Math.round(ppl.reduce((a, b) => a + b, 0) / ppl.length) : null;
+    o.weight = o.ppl === null ? null : o.ppl * o.n;
+    const ev = objEvents(rs);
+    o.avar = ev.length;
+    o.gap = ev.length > 1
+      ? Math.round((ev[ev.length - 1] - ev[0]) / 86400000 / (ev.length - 1) * 10) / 10 : null;
+    o.every = ev.length ? Math.round(P / ev.length) : null;
+    o.freq = ev.length ? objFreq(o.every) : 'аварий не было';
+    const note = [];
+    if(o.hub){
+      const om = objMode(rs.map(r => r.omsu));
+      const share = rs.length / (omsuCnt.get(om) || 1);
+      note.push('условная точка округа: ' + rs.length + ' записей (' + Math.round(share * 100) +
+                '% записей округа) в одной точке — реального местоположения нет');
+    }
+    if(o.omsuList.length > 1) note.push('записи разных ОМСУ');
+    if(o.rsoList.length > 1) note.push('записи разных РСО');
+    o.note = note.join('; ');
+  });
+  objects.sort((a, b) => a.num - b.num);
+  out.objects = objects;
+  const codeOf = new Map();
+  for(const o of objects) for(const r of o.recs) codeOf.set(r, o);
+  out.objOf = codeOf;
+  out.hubs = objects.filter(o => o.hub).length;
+  return out;
+}
+
+// Длина периода в днях включительно: по выбранному периоду, а без него — по данным.
+function objPeriodDays(){
+  const f = period.from || DATA.from, t = period.to || DATA.to;
+  if(!f || !t) return 365;
+  const a = Date.UTC(f.getFullYear(), f.getMonth(), f.getDate());
+  const b = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+// Результат для текущей выборки. Пересчёт — только когда что-то поменялось.
+function objResult(){
+  if(!DATA) return null;
+  const key = VIEW_VER + '|' + OBJ.r + '|' + objPrefix() + '|' + OBJREG_VER;
+  if(OBJ.res && OBJ.key === key) return OBJ.res;
+  const recs = [...VIEW].sort((a, b) => (+a.id) - (+b.id));
+  OBJ.res = objBuild(recs, OBJ.r, objPrefix(), objRegLoad(), objPeriodDays());
+  OBJ.key = key;
+  return OBJ.res;
+}
+
+// Цвет объекта на карте — по частоте аварий.
+function objColor(o){
+  if(!o.avar) return '#adb5bd';
+  return o.every <= 31 ? '#c92a2a' : o.every <= 92 ? '#e8590c' : o.every <= 183 ? '#f59f00'
+       : o.every <= 366 ? '#1c7ed6' : '#868e96';
+}
+
+function objPopup(o){
+  const row = (k, v) => '<tr><th>' + k + '</th><td>' + v + '</td></tr>';
+  const na = t => '<span class="pop-na">' + t + '</span>';
+  return '<div class="pop-h">' + esc(o.code) + (o.isNew ? ' <span class="pop-na">· новый</span>' : '') + '</div>' +
+    '<div class="pop-sub">' + esc(o.omsuList.join('; ')) + (o.hub ? ' · <b style="color:#e67700">условная точка округа</b>' : '') + '</div>' +
+    '<table class="pop">' +
+    row('РСО', o.rsoList.length ? esc(o.rsoList.join('; ')) : na('не указана')) +
+    row('Заявок', fmtN(o.n) + (o.pts > 1 ? ' <span class="pop-na">в ' + o.pts + ' точках, разброс ' + fmtN(o.spread) + ' м</span>' : '')) +
+    row('Аварий', o.avar ? fmtN(o.avar) + ' <span class="pop-na">— ' + esc(o.freq) + '</span>' : na('не было, только плановые')) +
+    row('Раз в', o.every ? fmtN(o.every) + ' дн.' : na('—')) +
+    row('Ср. охват', o.ppl !== null ? fmtN(o.ppl) + ' чел.' : na('не указан')) +
+    '</table>';
+}
+
+/* ---------- карточка «Объекты по координатам» ---------- */
+const OBJ_COLS = [
+  ['code',   'Код',          ''],
+  ['omsu',   'ОМСУ',         ''],
+  ['rso',    'РСО',          ''],
+  ['n',      'Заявок',       'r'],
+  ['avar',   'Аварий',       'r'],
+  ['every',  'Раз в, дн.',   'r'],
+  ['freq',   'Как часто',    ''],
+  ['ppl',    'Ср. охват',    'r'],
+  ['weight', 'Вес',          'r'],
+  ['spread', 'Разброс, м',   'r'],
+];
+
+function objSortVal(o, k){
+  if(k === 'code') return o.num;
+  if(k === 'omsu') return o.omsuList.join('; ');
+  if(k === 'rso') return o.rsoList.join('; ');
+  if(k === 'freq') return o.every ?? 1e9;
+  return o[k] ?? -1;
+}
+
+function renderObjects(){
+  const card = document.getElementById('obj-card');
+  if(!card || card.hidden || !DATA) return;
+  const res = objResult();
+  const sum = document.getElementById('obj-sum'), tbl = document.getElementById('obj-tbl');
+  document.getElementById('obj-prefix').placeholder = objPrefix();
+  const reg = objRegLoad(), pre = objPrefix();
+  const inReg = reg.filter(x => String(x.prefix) === pre).length;
+  document.getElementById('obj-reg-n').textContent = inReg
+    ? 'в реестре ' + fmtN(inReg) + ' кодов ' + pre : 'реестр ' + pre + ' пуст — коды выдаются с 0001';
+
+  if(!res || res.err){
+    tbl.innerHTML = '';
+    sum.innerHTML = !res ? '' : '<span class="map-warn">' + (res.err === 'many'
+      ? 'Слишком много разных точек (' + fmtN(res.errN) + ') — склейка с полной связью на таком объёме не посчитается. ' +
+        'Выберите в фильтре «Объект» один тип — ВЗУ, КНС или КОС: у сетей точки идут вдоль трасс, объектами они не станут.'
+      : 'Одна группа соседних точек слишком велика (' + fmtN(res.errN) + ') — уменьшите радиус склейки или сузьте выборку.') + '</span>';
+    return;
+  }
+  const objs = res.objects;
+  if(!objs.length){ tbl.innerHTML = ''; sum.innerHTML = 'В выборке нет заявок с координатами.'; return; }
+  const inHub = objs.filter(o => o.hub).reduce((a, o) => a + o.n, 0);
+  const rep = objs.filter(o => !o.hub && o.avar > 1).length;
+  sum.innerHTML = 'Объектов <b>' + fmtN(objs.length) + '</b> из ' + fmtN(res.d.length) + ' заявок · ' +
+    'с повторными авариями <b>' + fmtN(rep) + '</b>' +
+    (res.hubs ? ' · <span class="map-warn">условных точек округов ' + res.hubs + ', в них ' + fmtN(inHub) +
+      ' заявок (' + fmtN(inHub / res.d.length * 100, 0) + '%) — вместо места стоит центр округа</span>' : '') +
+    (res.nocoord.length ? ' · без координат ' + fmtN(res.nocoord.length) : '') +
+    ' · период ' + fmtN(res.P) + ' дн.';
+
+  const st = OBJ.sort;
+  const rows = [...objs].sort((a, b) => {
+    const x = objSortVal(a, st.key), y = objSortVal(b, st.key);
+    return (typeof x === 'string' ? objCmp(x, y) : x - y) * st.dir || a.num - b.num;
+  });
+  const show = OBJ.all ? rows : rows.slice(0, 100);
+  const arrow = k => st.key === k ? (st.dir > 0 ? ' ▲' : ' ▼') : '';
+  let h = '<thead><tr>' + OBJ_COLS.map(([k, t, al]) =>
+    '<th class="sortable' + (al ? ' r' : '') + '" data-ok="' + k + '">' + t + arrow(k) + '</th>').join('') +
+    '</tr></thead><tbody>';
+  for(const o of show){
+    h += '<tr class="obj-row' + (o.hub ? ' obj-hub' : '') + '" data-obj="' + esc(o.code) + '">' +
+      '<td><span class="obj-dot" style="background:' + objColor(o) + '"></span><b>' + esc(o.code) + '</b>' +
+        (o.isNew ? ' <span class="mute">новый</span>' : '') + '</td>' +
+      '<td>' + esc(o.omsuList.join('; ')) + '</td>' +
+      '<td><span class="clip" title="' + esc(o.rsoList.join('; ')) + '">' + esc(o.rsoList.join('; ')) + '</span></td>' +
+      '<td class="r">' + fmtN(o.n) + '</td>' +
+      '<td class="r"><b>' + fmtN(o.avar) + '</b></td>' +
+      '<td class="r">' + (o.every ? fmtN(o.every) : '<span class="mute">—</span>') + '</td>' +
+      '<td>' + (o.hub ? '<span class="map-warn">условная точка</span>' : esc(o.freq)) + '</td>' +
+      '<td class="r">' + (o.ppl !== null ? fmtN(o.ppl) : '<span class="mute">—</span>') + '</td>' +
+      '<td class="r">' + (o.weight !== null ? fmtN(o.weight) : '<span class="mute">—</span>') + '</td>' +
+      '<td class="r">' + fmtN(o.spread) + '</td></tr>';
+  }
+  if(rows.length > show.length)
+    h += '<tr><td colspan="' + OBJ_COLS.length + '"><button class="btn btn-sm" id="obj-all">Показать все ' +
+         fmtN(rows.length) + '</button></td></tr>';
+  tbl.innerHTML = h + '</tbody>';
+
+  tbl.querySelectorAll('[data-ok]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.ok;
+    if(st.key === k) st.dir = -st.dir; else { st.key = k; st.dir = (k === 'code' || k === 'omsu' || k === 'rso' || k === 'every' || k === 'freq') ? 1 : -1; }
+    renderObjects();
+  }));
+  const all = document.getElementById('obj-all');
+  if(all) all.addEventListener('click', () => { OBJ.all = true; renderObjects(); });
+  tbl.querySelectorAll('[data-obj]').forEach(tr => tr.addEventListener('click', () => objFocus(tr.dataset.obj)));
+}
+
+// Щелчок по строке — карта едет к объекту и открывает его карточку.
+function objFocus(code){
+  if(!MAP || !OBJLAYER) return;
+  OBJLAYER.eachLayer(m => {
+    if(m.objCode !== code) return;
+    MAP.setView(m.getLatLng(), Math.max(MAP.getZoom(), 14));
+    m.openPopup();
+    document.getElementById('map-canvas').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+
+/* Реестр из файла — «реестр объектов.xlsx» от скрипта или лист «Реестр» из
+   нашей выгрузки. Совпадающие коды заменяются, новые добавляются. */
+async function objRegImport(file){
+  const grid = (await readWorkbook(await file.arrayBuffer(), 'Реестр')).grid;
+  const need = ['Код объекта', 'Префикс', 'Номер', 'Широта', 'Долгота'];
+  const h = grid.findIndex(row => row && need.every(n => row.some(c => S(c) === n)));
+  if(h < 0) throw new Error('В файле не нашлось столбцов реестра: ' + need.join(', ') + '.');
+  const F = new Map(grid[h].map((c, i) => [S(c), i]));
+  const g = (row, k) => F.has(k) ? S(row[F.get(k)]) : '';
+  const reg = objRegLoad();
+  const at = new Map(reg.map((x, i) => [x.code, i]));
+  let add = 0, upd = 0;
+  for(const row of grid.slice(h + 1)){
+    const code = g(row, 'Код объекта'), lat = numOf(g(row, 'Широта')), lon = numOf(g(row, 'Долгота'));
+    if(!code || lat === null || lon === null) continue;
+    const x = { code, prefix: g(row, 'Префикс'), num: numOf(g(row, 'Номер')), lat, lon,
+                type: g(row, 'Тип точки') || 'объект', file: g(row, 'Файл') || file.name,
+                added: g(row, 'Добавлен') || '' };
+    if(at.has(code)){ reg[at.get(code)] = x; upd++; } else { at.set(code, reg.length); reg.push(x); add++; }
+  }
+  objRegSave();
+  return { add, upd };
+}
+
+// Выданные коды закрепляем в реестре — вызывается, когда объекты уходят в Excel.
+function objRegCommit(res){
+  const reg = objRegLoad(), have = new Set(reg.map(x => x.code));
+  const now = new Date(), stamp = isoDay(now) + ' ' + String(now.getHours()).padStart(2, '0') + ':' +
+    String(now.getMinutes()).padStart(2, '0');
+  let add = 0;
+  for(const o of res.objects){
+    if(!o.isNew || have.has(o.code)) continue;
+    reg.push({ code: o.code, prefix: res.prefix, num: o.num, lat: o.lat, lon: o.lon,
+               type: o.type, file: 'дашборд ЕДДС', added: stamp });
+    add++;
+  }
+  // объект из реестра впервые оказался условной точкой — отметить, как это делает скрипт
+  for(const o of res.objects)
+    if(!o.isNew && o.hub){ const x = reg.find(y => y.code === o.code); if(x) x.type = 'условная точка округа'; }
+  objRegSave();
+  return add;
+}
+
+/* ---------- листы Excel ---------- */
+function objSheetXml(head, widths, rows, freeze){
+  const last = colLetter(head.length);
+  let x = '<row r="1">' + head.map((t, i) => cellS(colLetter(i + 1) + '1', t, XF.head)).join('') + '</row>';
+  rows.forEach((cells, i) => {
+    const rn = i + 2;
+    x += '<row r="' + rn + '">' + cells.map((c, j) => {
+      const ref = colLetter(j + 1) + rn;
+      return c.t === 'n' ? cellN(ref, c.v, c.s) : cellS(ref, c.v ?? '', c.s);
+    }).join('') + '</row>';
+  });
+  const pane = freeze
+    ? '<pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/>' +
+      '<selection pane="topRight"/><selection pane="bottomLeft"/><selection pane="bottomRight" activeCell="B2" sqref="B2"/>'
+    : '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' +
+      '<selection pane="bottomLeft" activeCell="A2" sqref="A2"/>';
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<dimension ref="A1:${last}${rows.length + 1}"/>
+<sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews>
+<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>
+<sheetData>${x}</sheetData>
+<autoFilter ref="A1:${last}${Math.max(rows.length + 1, 1)}"/>
+</worksheet>`;
+}
+
+// Лист «Объекты» — колонки как в отчёте «первый доход тип VZ_объекты».
+function sheetObjects(res){
+  const T = (v, s) => ({ t: 's', v: v, s }), N = (v, s) => ({ t: 'n', v: v, s });
+  const rows = res.objects.map(o => {
+    const f = o.hub ? 'hub' : o.note ? 'warn' : '';
+    const ts = f === 'hub' ? XF.hubT : f === 'warn' ? XF.warnT : XF.addr;
+    const ns = f === 'hub' ? XF.hubN : f === 'warn' ? XF.warnN : XF.int;
+    const gs = f === 'hub' ? XF.hubG : f === 'warn' ? XF.warnG : XF.geo;
+    const ds = f === 'hub' ? XF.hubD : f === 'warn' ? XF.warnD : XF.num1;
+    return [T(o.code, ts), T(o.type, ts), N(o.lat, gs), N(o.lon, gs), N(o.n, ns), N(o.pts, ns),
+      N(o.spread, ns), T(o.omsuList.join('; '), ts), T(o.rsoList.join('; '), ts),
+      T(o.ids.join(', '), ts), T(o.isNew ? 'новый' : 'да', ts),
+      N(o.ppl, ns), N(o.weight, ns), N(o.avar, ns), N(o.gap, ds),
+      T(o.freq, ts), N(o.every, ns), T(o.note, ts)];
+  });
+  return objSheetXml(['Код объекта', 'Тип точки', 'Широта', 'Долгота', 'Записей', 'Разных точек',
+    'Разброс точек, м', 'Название ОМСУ', 'Название РСО (исполнитель)', 'ID заявки (список)',
+    'Код из реестра', 'Средний охват населения, чел.', 'вес', 'Аварий за период (без плановых)',
+    'Среднее дней между авариями', 'Как часто аварии', 'Авария в среднем раз в, дн.', 'Примечание'],
+    [13, 22, 11, 11, 9, 9, 11, 24, 36, 40, 11, 14, 12, 13, 13, 17, 13, 60], rows, true);
+}
+
+function sheetObjRecs(res){
+  const T = (v, s) => ({ t: 's', v: v, s }), N = (v, s) => ({ t: 'n', v: v, s });
+  const list = [];
+  for(const o of res.objects) for(const r of [...o.recs].sort((a, b) => (+a.id) - (+b.id))) list.push([o, r]);
+  const rows = list.map(([o, r]) => {
+    const ts = o.hub ? XF.hubT : XF.addr, ns = o.hub ? XF.hubN : XF.int, gs = o.hub ? XF.hubG : XF.geo;
+    return [T(o.code, ts), T(r.id, ts), T(r.omsu, ts), T(r.rso, ts), T(r.type, ts),
+      r.start ? N(serial(r.start), XF.dt) : T('', ts), N(r.people, ns),
+      N(r.lat, gs), N(r.lon, gs), N(o.lat, gs), N(o.lon, gs),
+      N(Math.round(objHav(r.lat, r.lon, o.lat, o.lon)), ns), N(o.n, ns), T(o.type, ts)];
+  });
+  return objSheetXml(['Код объекта', 'ID заявки', 'Название ОМСУ', 'Название РСО (исполнитель)',
+    'Тип отключения', 'Начало события', 'Жителей (охват по заявке)', 'Широта', 'Долгота',
+    'Широта объекта', 'Долгота объекта', 'Расстояние до точки объекта, м', 'Записей на объекте', 'Тип точки'],
+    [13, 11, 24, 36, 17, 17, 12, 11, 11, 11, 11, 13, 11, 22], rows, true);
+}
+
+function sheetObjNoGeo(res){
+  const T = v => ({ t: 's', v, s: XF.addr });
+  return objSheetXml(['ID заявки', 'Название ОМСУ', 'Название РСО (исполнитель)', 'Тип отключения', 'Причина'],
+    [11, 24, 36, 17, 60],
+    res.nocoord.map(r => [T(r.id), T(r.omsu), T(r.rso), T(r.type), T(geoNote(r))]), false);
+}
+
+function sheetObjReg(){
+  const T = v => ({ t: 's', v, s: XF.addr }), N = (v, s) => ({ t: 'n', v, s });
+  const reg = [...objRegLoad()].sort((a, b) => objCmp(String(a.prefix), String(b.prefix)) || a.num - b.num);
+  return objSheetXml(['Код объекта', 'Префикс', 'Номер', 'Широта', 'Долгота', 'Тип точки', 'Файл', 'Добавлен'],
+    [13, 9, 8, 11, 11, 22, 28, 17],
+    reg.map(x => [T(x.code), T(x.prefix), N(x.num, XF.int), N(x.lat, XF.geo), N(x.lon, XF.geo),
+                  T(x.type), T(x.file), T(x.added)]), false);
+}
+
+// Отдельная книга объектов: объекты, заявки в них, без координат и реестр кодов.
+async function objExportXlsx(){
+  const res = objResult();
+  if(!res || res.err || !res.objects.length){ alert('Объектов для выгрузки нет — посмотрите сообщение над таблицей.'); return; }
+  const btn = document.getElementById('obj-xls');
+  btn.disabled = true; btn.textContent = 'Собираю…';
+  try{
+    const added = objRegCommit(res);
+    const SH = [['Объекты', () => sheetObjects(res)], ['Записи', () => sheetObjRecs(res)]];
+    if(res.nocoord.length) SH.push(['Без координат', () => sheetObjNoGeo(res)]);
+    SH.push(['Реестр', () => sheetObjReg()]);
+    const blob = await buildBook(SH);
+    saveBlob(blob, res.prefix + '_объекты_' + isoDay(new Date()) + '.xlsx');
+    if(added) renderObjects();
+  }catch(e){
+    alert('Не удалось собрать файл: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Excel объектов';
+  }
+}
+
 
 /* ---------- кто не заполняет координаты ----------
    Считаем по той же выборке, что и всё остальное, но без рамки на карте:
@@ -4417,7 +5338,7 @@ function renderBoxChip(){
     chip.className = 'box-chip';
     bar.appendChild(chip);
   }
-  chip.innerHTML = 'Область на карте: ' + fmtN(VIEW.length) + ' заявок ' +
+  chip.innerHTML = esc(geoShapeLabel()) + ': ' + fmtN(VIEW.length) + ' заявок ' +
     '<button type="button" title="Снять выделение">✕</button>';
   chip.querySelector('button').addEventListener('click', clearGeoBox);
 }
@@ -4736,11 +5657,13 @@ const XF = { def:0, head:1, title:2, sub:3, text:4, num:5, dt:6, int:7, ctr:8,
              numRed:17, numOrg:18, numYel:19, numGry:20, short:21, dtWork:22, bold:23,
              // текст сообщения без переноса: с переносом строка в 400 символов
              // растянула бы её на пол-экрана, а отдельные сообщения доходят до 16 тысяч
-             addr:24, geo:25 };
+             addr:24, geo:25,
+             // лист «Объекты»: оранжевым — условная точка округа, жёлтым — есть примечание
+             num1:26, hubT:27, hubN:28, hubG:29, hubD:30, warnT:31, warnN:32, warnG:33, warnD:34 };
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<numFmts count="2"><numFmt numFmtId="164" formatCode="DD.MM.YYYY HH:MM"/><numFmt numFmtId="165" formatCode="0.000000"/></numFmts>
+<numFmts count="3"><numFmt numFmtId="164" formatCode="DD.MM.YYYY HH:MM"/><numFmt numFmtId="165" formatCode="0.000000"/><numFmt numFmtId="166" formatCode="0.0"/></numFmts>
 <fonts count="9">
 <font><sz val="10"/><name val="Calibri"/></font>
 <font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
@@ -4752,7 +5675,7 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <font><b/><sz val="10"/><color rgb="FF9A5B00"/><name val="Calibri"/></font>
 <font><b/><sz val="10"/><name val="Calibri"/></font>
 </fonts>
-<fills count="9">
+<fills count="11">
 <fill><patternFill patternType="none"/></fill>
 <fill><patternFill patternType="gray125"/></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FF1C5CAB"/><bgColor indexed="64"/></patternFill></fill>
@@ -4762,13 +5685,15 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <fill><patternFill patternType="solid"><fgColor rgb="FFE8EEF7"/><bgColor indexed="64"/></patternFill></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FFFDECC4"/><bgColor indexed="64"/></patternFill></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FFF8CFCF"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF8CBAD"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFFF2CC"/><bgColor indexed="64"/></patternFill></fill>
 </fills>
 <borders count="2">
 <border><left/><right/><top/><bottom/><diagonal/></border>
 <border><left style="thin"><color rgb="FFD0D0CC"/></left><right style="thin"><color rgb="FFD0D0CC"/></right><top style="thin"><color rgb="FFD0D0CC"/></top><bottom style="thin"><color rgb="FFD0D0CC"/></bottom><diagonal/></border>
 </borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="26">
+<cellXfs count="35">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
 <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
@@ -4795,6 +5720,15 @@ const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="0" fontId="8" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>
 <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
 <xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="0" fontId="0" fillId="9" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="9" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="165" fontId="0" fillId="9" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="166" fontId="0" fillId="9" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="0" fontId="0" fillId="10" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
+<xf numFmtId="0" fontId="0" fillId="10" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="165" fontId="0" fillId="10" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
+<xf numFmtId="166" fontId="0" fillId="10" borderId="1" xfId="0" applyNumberFormat="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right"/></xf>
 </cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 <dxfs count="0"/>
@@ -4991,7 +5925,8 @@ const NOTES = [
   ['Листы «Динамика»', 'Сравнение двух окон времени: отчётного периода и периода сравнения, заданных на листе «Динамика» в дашборде. Δ = отчётный − сравнения. Все фильтры, кроме периода, применяются к обоим окнам одинаково — иначе сравнивались бы разные выборки.'],
   ['Время на листах «Динамика»', 'В десятичных часах (3,74 = 3 ч 44 мин), чтобы работали сортировка, сводные и формулы. Пустая ячейка — величины нет: например, в окне не было ни одной заявки с проставленным временем АВР. Это не ноль.'],
   ['Жалобы на листе «Динамика ОМСУ»', 'Свод ДоброДел/ЕЦУР по ХВС и водоотведению, собранный кликером. Пусто означает, что свод не покрывает это окно: за те дни жалобы не собирали, и ноль поставить нельзя. В разрезе РСО жалоб нет — в своде только округа.'],
-  ['«Неприменимо для нескольких фрагментов»', 'Это Excel об одном выделении из нескольких кусков, а не о файле: в книге нет ни объединённых ячеек, ни скрытых строк, ни заранее наложенных фильтров. Такое выделение получается, когда куски набраны через Ctrl, когда выделены целые строки отфильтрованного списка (видимые строки идут вразрыв) и когда в такой разорванный диапазон пытаются вставить. Копируйте цельный прямоугольник, а перед вставкой снимите фильтр: «Данные» → «Очистить». Вырезание (Ctrl+X) разорванного выделения Excel не разрешает в любом случае — копируйте и удаляйте.'],
+  ['Копирование и вставка', 'В выгрузках до 23.09.2026 вставка скопированного в другую книгу падала с «Данная команда неприменима для нескольких фрагментов» — в книге не хватало описания окна, и Excel открывал её неполноценно. Исправлено. Если сообщение всё же появилось, выделение действительно из нескольких кусков: набрано через Ctrl или вставка идёт в отфильтрованный диапазон — снимите фильтр («Данные» → «Очистить»).'],
+  ['Листы «Объекты» и «Записи объектов»', 'Заявки, стоящие ближе заданного радиуса (по умолчанию 500 м) друг к другу, склеены в один объект с кодом вида VZ-0001 — тот же расчёт, что у скрипта «кодер объектов»: в объекте все пары точек не дальше радиуса, центр — реальная точка с наименьшей суммой расстояний до остальных. «Условная точка округа» (оранжевым) — место, куда свалено не меньше 5 заявок и 15 % заявок округа: это центр округа, а не объект. Аварии — без плановых, заявки в пределах суток друг от друга считаются одной аварией. «Раз в N дней» — длина периода, делённая на число аварий. Средний охват — только по заявкам, где он заполнен. Коды закрепляются в реестре при выгрузке, и в следующий раз объект в том же месте получит тот же код.'],
 ];
 
 /* ---------- листы «Динамика» ----------
@@ -5170,26 +6105,73 @@ function sheetNotes(){
 <sheetData>${rows}</sheetData></worksheet>`;
 }
 
-async function exportXlsx(){
-  const recs = DATA.recs.filter(passes);
-  if(!recs.length){ alert('При текущих фильтрах не осталось ни одной заявки.'); return; }
-  const btn = document.getElementById('xls');
-  btn.disabled = true; btn.textContent = 'Собираю…';
-  try{
-    // листы перечислены один раз: связи, типы и содержимое собираются отсюда,
-    // иначе при добавлении листа легко разъехаться нумерации rId
-    const SH = [
-      ['Задержка доклада ВС-ВО', () => sheetMain(recs)],
-      ['Сводная',                () => sheetPivot(recs)],
-      ['Динамика',               () => sheetDyn()],
-      ['Динамика ОМСУ',          () => sheetDynBreak('omsu')],
-      ['Динамика РСО',           () => sheetDynBreak('rso')],
-      ['Координаты ОМСУ',        () => sheetGeoRate('omsu')],
-      ['Координаты РСО',         () => sheetGeoRate('rso')],
-      ['Пояснения',              () => sheetNotes()],
-    ];
+/* Какие листы класть в выгрузку. Листов набралось восемь, и каждый раз
+   выгружать все — лишнее: выбранное запоминается между сеансами. */
+const XLS_KEY = 'edds_xls_sheets_v1';
+const XLS_GROUPS = [
+  ['main',  'Реестр заявок',               'лист «Задержка доклада» — все отобранные заявки', true],
+  ['pivot', 'Сводная',                     'средние по ОМСУ и РСО', true],
+  ['dyn',   'Динамика',                    'три листа: отчётный период против периода сравнения', false],
+  ['geo',   'Кто не заполняет координаты', 'два листа: по ОМСУ и по РСО', false],
+  ['obj',   'Объекты по координатам',      'объекты и заявки в них — как на карте в режиме «Объекты»', false],
+  ['notes', 'Пояснения',                   'как посчитана каждая колонка', true],
+];
+function xlsChosen(){
+  let v = null;
+  try{ v = JSON.parse(localStorage.getItem(XLS_KEY) || 'null'); }catch(_){}
+  return new Set(Array.isArray(v) ? v : XLS_GROUPS.filter(g => g[3]).map(g => g[0]));
+}
+
+function xlsOpen(){
+  const pop = document.getElementById('xls-pop');
+  if(!pop.hidden){ xlsClose(); return; }
+  // окно живёт на уровне страницы: внутри шапки у него свой слой, и подложка
+  // «щелчок мимо» ложилась бы поверх самого окна
+  if(pop.parentElement !== document.body) document.body.appendChild(pop);
+  const on = xlsChosen();
+  document.getElementById('xls-list').innerHTML = XLS_GROUPS.map(([k, t, sub]) =>
+    '<label class="xls-it"><input type="checkbox" value="' + k + '"' + (on.has(k) ? ' checked' : '') + '>' +
+    '<span><b>' + esc(t) + '</b><small>' + esc(sub) + '</small></span></label>').join('');
+  const cnt = () => {
+    const n = pop.querySelectorAll('#xls-list input:checked').length;
+    document.getElementById('xls-cnt').textContent = n ? 'выбрано ' + n + ' из ' + XLS_GROUPS.length : 'ничего не выбрано';
+    document.getElementById('xls-go').disabled = !n;
+  };
+  pop.querySelectorAll('#xls-list input').forEach(i => i.addEventListener('change', cnt));
+  cnt();
+  const b = document.getElementById('xls').getBoundingClientRect();
+  pop.style.top = Math.round(b.bottom + 6) + 'px';
+  pop.style.left = Math.round(Math.max(16, Math.min(b.right - 360, innerWidth - 376))) + 'px';
+  pop.hidden = false;
+  const back = document.createElement('div');
+  // свой класс, не .ms-back: ту закрывашку снимает общий обработчик щелчков,
+  // и окно оставалось бы открытым без возможности закрыть его щелчком мимо
+  back.className = 'xls-back';
+  back.addEventListener('mousedown', e => { e.preventDefault(); xlsClose(); });
+  document.body.appendChild(back);
+}
+function xlsClose(){
+  document.getElementById('xls-pop').hidden = true;
+  document.querySelectorAll('.xls-back').forEach(b => b.remove());
+}
+function xlsGo(){
+  const keys = [...document.querySelectorAll('#xls-list input:checked')].map(i => i.value);
+  try{ localStorage.setItem(XLS_KEY, JSON.stringify(keys)); }catch(_){}
+  xlsClose();
+  exportXlsx(new Set(keys));
+}
+
+// Книга из списка листов [[имя, () => xml], …] — общая сборка для всех выгрузок.
+async function buildBook(SH){
+
+    /* <bookViews> обязателен, хотя стандарт считает его необязательным. Без него
+       Excel открывает книгу в неполноценном окне: копировать из неё можно, а вот
+       вставить скопированное в другую книгу — нет, Excel отвечает «Данная команда
+       неприменима для нескольких фрагментов». Воспроизведено в Excel 16 через
+       автоматизацию: без этой строки вставка падает всегда, с ней — проходит. */
     const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<bookViews><workbookView activeTab="0"/></bookViews>
 <sheets>${SH.map(([n], i) =>
   `<sheet name="${XE(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`;
     const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -5212,7 +6194,7 @@ ${SH.map((_, i) =>
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
 </Relationships>`;
 
-    const blob = await makeZip([
+    return await makeZip([
       { name: '[Content_Types].xml', text: ct },
       { name: '_rels/.rels', text: rootRels },
       { name: 'xl/workbook.xml', text: wb },
@@ -5220,14 +6202,49 @@ ${SH.map((_, i) =>
       { name: 'xl/styles.xml', text: STYLES },
       ...SH.map(([, make], i) => ({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', text: make() })),
     ]);
+}
+
+function saveBlob(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+async function exportXlsx(pick){
+  const recs = DATA.recs.filter(passes);
+  if(!recs.length){ alert('При текущих фильтрах не осталось ни одной заявки.'); return; }
+  const on = pick || xlsChosen();
+  const btn = document.getElementById('xls');
+  btn.disabled = true; btn.textContent = 'Собираю…';
+  try{
+    // листы перечислены один раз: связи, типы и содержимое собираются отсюда,
+    // иначе при добавлении листа легко разъехаться нумерации rId
+    const SH = [];
+    if(on.has('main'))  SH.push(['Задержка доклада ВС-ВО', () => sheetMain(recs)]);
+    if(on.has('pivot')) SH.push(['Сводная', () => sheetPivot(recs)]);
+    if(on.has('dyn'))   SH.push(['Динамика', () => sheetDyn()],
+                                ['Динамика ОМСУ', () => sheetDynBreak('omsu')],
+                                ['Динамика РСО', () => sheetDynBreak('rso')]);
+    if(on.has('geo'))   SH.push(['Координаты ОМСУ', () => sheetGeoRate('omsu')],
+                                ['Координаты РСО', () => sheetGeoRate('rso')]);
+    if(on.has('obj')){
+      const res = objResult();
+      if(res && !res.err && res.objects.length){
+        objRegCommit(res);
+        SH.push(['Объекты', () => sheetObjects(res)], ['Записи объектов', () => sheetObjRecs(res)]);
+      }else alert('Объекты в выгрузку не попали: ' + (res && res.err
+        ? 'выборка слишком велика для склейки — выберите в фильтре «Объект» один тип.'
+        : 'в выборке нет заявок с координатами.'));
+    }
+    if(on.has('notes')) SH.push(['Пояснения', () => sheetNotes()]);
+    if(!SH.length) return;
+    const blob = await buildBook(SH);
     // имя файла — по фактическому периоду отобранных записей, а не всей выгрузки
     const ds = recs.map(r => r.start).filter(Boolean).sort((a, b) => a - b);
     const per = ds.length ? isoDay(ds[0]) + '_' + isoDay(ds[ds.length - 1]) : 'выгрузка';
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'Анализ_задержки_доклада_ВС-ВО_' + per + '.xlsx';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    saveBlob(blob, 'Анализ_задержки_доклада_ВС-ВО_' + per + '.xlsx');
   }catch(e){
     alert('Не удалось собрать файл: ' + e.message);
   }finally{
@@ -5509,13 +6526,56 @@ geoFileEl.addEventListener('change', async e => {
   zhPoll();
 })();
 
-document.getElementById('xls').addEventListener('click', exportXlsx);
+document.getElementById('xls').addEventListener('click', xlsOpen);
+document.getElementById('xls-cancel').addEventListener('click', xlsClose);
+document.getElementById('xls-go').addEventListener('click', xlsGo);
+
+// объекты: радиус, префикс, реестр, выгрузка
+{
+  const rIn = document.getElementById('obj-r'), pIn = document.getElementById('obj-prefix');
+  let t;
+  const apply = () => {
+    const r = Math.round(parseFloat(String(rIn.value).replace(',', '.')));
+    if(Number.isFinite(r) && r >= 1 && r <= 50000) OBJ.r = r;
+    OBJ.prefix = pIn.value.trim().toUpperCase().replace(/[^A-ZА-ЯЁ0-9]/g, '');
+    OBJ.all = false;
+    renderMap();
+  };
+  [rIn, pIn].forEach(i => i.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apply, 500); }));
+  document.getElementById('obj-xls').addEventListener('click', objExportXlsx);
+  const f = document.getElementById('obj-reg-file');
+  document.getElementById('obj-reg-load').addEventListener('click', () => f.click());
+  f.addEventListener('change', async () => {
+    const file = f.files[0]; f.value = '';
+    if(!file) return;
+    try{
+      const { add, upd } = await objRegImport(file);
+      renderMap();
+      alert('Реестр загружен: добавлено ' + add + ', обновлено ' + upd + ' кодов.');
+    }catch(e){ alert('Не удалось прочитать реестр: ' + e.message); }
+  });
+}
 document.getElementById('more-btn').addEventListener('click', () => { LIMIT += 200; renderTable(); });
 document.getElementById('m-close').addEventListener('click', closeCard);
 document.getElementById('modal').addEventListener('click', e => {
   if(e.target.id === 'modal') closeCard();
 });
-addEventListener('keydown', e => { if(e.key === 'Escape'){ closeCard(); closeAllPanels(); } });
+addEventListener('keydown', e => {
+  // пока рисуется многоугольник, клавиши относятся к нему
+  if(mapSel === 'poly' && MAP){
+    if(e.key === 'Escape'){ mapSetMode(null); return; }
+    if(e.key === 'Enter'){ e.preventDefault(); polyFinish(); return; }
+    if(e.key === 'Backspace' && mapStart && mapStart.length &&
+       !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)){
+      e.preventDefault();
+      mapStart.pop();
+      if(mapStart.length) polyDraw(); else polyStop();
+      renderMapStatus();
+      return;
+    }
+  }
+  if(e.key === 'Escape'){ closeCard(); closeAllPanels(); }
+});
 addEventListener('click', e => { if(!e.target.closest('.ms')) closeAllPanels(); });
 
 const drop = document.getElementById('drop');
@@ -5694,6 +6754,6 @@ document.getElementById('tabs').addEventListener('click', e => {
 });
 </script>
 
-<script src="/static/edds-module.js?v=20260917-chrome" defer></script>
+<script src="/static/edds-module.js?v=20260924" defer></script>
 </body>
 </html>

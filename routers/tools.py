@@ -1,4 +1,5 @@
-"""Authenticated tools with private inputs, templates and downloadable results."""
+"""Private tool jobs and shared organization presentation assets."""
+import asyncio
 import importlib.util
 import json
 from pathlib import Path
@@ -7,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from core.roles import check_module_access, is_full_access
 from core.web import templates
-from services.tools import documents, excel_merge, exe_builder, macros, images, external_images, pptx_converter as pptx
+from services.tools import branding, coordinates, documents, excel_merge, exe_builder, macros, images, external_images, pdf_pages, pptx_converter as pptx
 from services.tools.workspace import (ToolError, account_root, job_path, read_upload,
                                       safe_name, start_job, MAX_FILE, MAX_TOTAL)
 
@@ -33,12 +34,20 @@ async def page(request: Request):
 
 @router.get('/api/options')
 async def options(request: Request):
-    root=account_root(request.state.user)
-    with pptx.workspace(root):
-        names=pptx.list_templates()
-    return {'templates':names, 'docx_pdf':bool(documents.office_binary()),
-            'pdf_docx':bool(importlib.util.find_spec('pdf2docx')),
+    return {**await asyncio.to_thread(branding.options), 'pdf_docx':bool(importlib.util.find_spec('pdf2docx')),
             'exe':exe_builder.available(), 'can_build':is_full_access(request.state.user)}
+
+
+@router.post('/api/pdf-info')
+async def pdf_info(request: Request):
+    try:
+        form = await request.form(max_files=20, max_fields=1, max_part_size=MAX_FILE)
+        files = [await read_upload(upload, {'.pdf'}) for upload in form.getlist('file')]
+        if sum(len(data) for _, data in files) > MAX_TOTAL:
+            raise ToolError('Общий размер файлов превышает 60 МБ.')
+        return {'files': await asyncio.to_thread(pdf_pages.info, files)}
+    except ToolError as exc:
+        return fail(exc)
 
 
 @router.post('/api/run')
@@ -46,8 +55,8 @@ async def run(request: Request):
     try:
         form=await request.form(max_files=40, max_fields=15, max_part_size=MAX_FILE)
         kind=str(form.get('tool') or '')
-        allowed={'html_pptx':{'.html','.htm'}, 'docx_pdf':{'.docx'}, 'pdf_docx':{'.pdf'},
-                 'merge':{'.xlsx','.xls','.xlsb'}, 'exe':{'.py'}, 'macros':set()}
+        allowed={'html_pptx':{'.html','.htm'}, 'pdf_docx':{'.pdf'}, 'pdf_pages':{'.pdf'},
+                 'merge':{'.xlsx','.xls','.xlsb'}, 'coordinates':{'.xlsx'}, 'exe':{'.py'}, 'macros':set()}
         if kind not in allowed:
             raise ToolError('Выберите инструмент.')
         if kind=='exe' and not is_full_access(request.state.user):
@@ -57,7 +66,7 @@ async def run(request: Request):
             files.append(await read_upload(upload,allowed[kind]))
             if sum(len(data) for _,data in files)>MAX_TOTAL:
                 raise ToolError('Общий размер файлов превышает 60 МБ.')
-        if kind not in ('html_pptx','macros','merge') and len(files)!=1:
+        if kind not in ('html_pptx','macros','merge','pdf_pages') and len(files)!=1:
             raise ToolError('Выберите один файл.')
         if kind=='merge' and not files:
             raise ToolError('Выберите Excel-файлы или папку.')
@@ -74,10 +83,23 @@ async def run(request: Request):
             operation=lambda job:macros.generate(prompt,target,job)
         elif kind=='merge':
             operation=lambda job:excel_merge.merge(files,job)
+        elif kind=='coordinates':
+            imported = None
+            upload = form.get('registry')
+            if getattr(upload, 'filename', ''):
+                _, imported = await read_upload(upload, {'.xlsx'})
+            radius = str(form.get('radius') or '500')
+            prefix = str(form.get('prefix') or '')
+            operation=lambda job:coordinates.group(*files[0],radius,prefix,root,job,imported)
         elif kind=='exe':
             operation=lambda job:exe_builder.build(*files[0],form.get('windowed')=='true',job)
-        elif kind in ('docx_pdf','pdf_docx'):
+        elif kind=='pdf_docx':
             operation=lambda job:documents.convert(kind,*files[0],job)
+        elif kind=='pdf_pages':
+            action = str(form.get('action') or '')
+            pages = str(form.get('pages') or '')
+            angle = str(form.get('angle') or '90')
+            operation=lambda job:pdf_pages.process(files,action,pages,angle,job)
         else:
             if len(files)>1:
                 raise ToolError('Выберите один HTML-файл.')
@@ -88,13 +110,10 @@ async def run(request: Request):
             if mode not in ('smart','ai','shots'):
                 raise ToolError('Неизвестный режим конвертации.')
             name=str(form.get('template') or '')
-            if name:
-                safe_name(name,{'.pptx'})
-                if not (root/'templates'/name).is_file():
-                    raise ToolError('Шаблон не найден.')
+            assets = await asyncio.to_thread(branding.capture, name if mode != 'shots' else '')
             load_remote=form.get('remote_images')=='true'
             def operation(job):
-                with pptx.workspace(root):
+                with pptx.workspace(branding.prepare_job(job, assets)):
                     source_html=images.embed_uploads(html,pictures)
                     missing=0
                     if load_remote:source_html,missing=external_images.embed_remote(source_html)
@@ -164,12 +183,7 @@ async def upload_template(request: Request):
     try:
         form=await request.form(max_files=1,max_fields=2)
         name,data=await read_upload(form.get('template_file'),{'.pptx'})
-        documents.validate_office(data)
-        root=account_root(request.state.user)
-        with pptx.workspace(root):
-            directory=root/'templates';directory.mkdir(exist_ok=True)
-            (directory/name).write_bytes(data)
-            return {'ok':True,'templates':pptx.list_templates()}
+        return {'ok':True, **await asyncio.to_thread(branding.save_template, name, data)}
     except ToolError as exc:
         return fail(exc)
 
@@ -179,10 +193,7 @@ async def delete_template(request: Request):
     try:
         form=await request.form(max_files=0,max_fields=2)
         name=safe_name(form.get('name'),{'.pptx'})
-        root=account_root(request.state.user)
-        (root/'templates'/name).unlink(missing_ok=True)
-        with pptx.workspace(root):
-            return {'ok':True,'templates':pptx.list_templates()}
+        return {'ok':True, **await asyncio.to_thread(branding.delete_template, name)}
     except ToolError as exc:
         return fail(exc)
 
@@ -192,12 +203,14 @@ async def upload_emblem(request: Request):
     try:
         form=await request.form(max_files=1,max_fields=2)
         name,data=await read_upload(form.get('emblem_file'),{'.png','.jpg','.jpeg'})
-        from PIL import Image
-        import io
-        image=Image.open(io.BytesIO(data))
-        if image.width*image.height>16000000:
-            raise ToolError('Изображение слишком большое.')
-        image.convert('RGBA').save(account_root(request.state.user)/'emblem.png',format='PNG')
-        return {'ok':True}
+        return {'ok':True, **await asyncio.to_thread(branding.save_emblem, data)}
     except (ToolError,ValueError,OSError):
         return fail('Не удалось прочитать изображение (PNG/JPEG до 16 мегапикселей).')
+
+
+@router.get('/emblem')
+async def emblem():
+    path = (await asyncio.to_thread(branding.root)) / 'emblem.png'
+    if not path.is_file() or path.is_symlink():
+        raise HTTPException(404, 'Общий герб ещё не загружен')
+    return FileResponse(path, media_type='image/png', headers={'Cache-Control': 'no-store'})

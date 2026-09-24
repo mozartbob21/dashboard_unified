@@ -293,6 +293,19 @@ def _style(tf, size, bold, color, align, v_anchor=None):
             r.font.bold = bold
             r.font.color.rgb = color
 
+def _add_corner_emblem(slide, prs, emblem):
+    if any(sh.shape_type == MSO_SHAPE_TYPE.PICTURE and sh.image.blob == emblem for sh in slide.shapes):
+        return
+    pic = slide.shapes.add_picture(io.BytesIO(emblem), 0, Inches(.18), height=Inches(.65))
+    if pic.width > Inches(.85):
+        pic.height = int(pic.height * Inches(.85) / pic.width)
+        pic.width = Inches(.85)
+    pic.left = prs.slide_width - pic.width - Inches(.3)
+    title = slide.shapes.title
+    if title and title.top < pic.top + pic.height and title.top + title.height > pic.top:
+        title.width = min(title.width, pic.left - Inches(.15) - title.left)
+
+
 def _fill_slide(slide, s, is_first, prs=None, emblem=None):
     spTree = slide.shapes._spTree
     for shp in list(slide.shapes):
@@ -312,6 +325,8 @@ def _fill_slide(slide, s, is_first, prs=None, emblem=None):
             continue
 
     if is_first:
+        if emblem and prs is not None:
+            _add_corner_emblem(slide, prs, emblem)
         tb = slide.shapes.add_textbox(Inches(0.8), Inches(2.6), Inches(8.4), Inches(1.6))
         tf = tb.text_frame
         tf.word_wrap = True
@@ -424,6 +439,7 @@ def _fill_slide(slide, s, is_first, prs=None, emblem=None):
             pass
 
 def _build_standard(prs, slides):
+    emblem = _load_emblem()
     for i, s in enumerate(slides):
         layout_idx = 0 if i == 0 else (1 if s["bullets"] else 5)
         try:
@@ -459,6 +475,9 @@ def _build_standard(prs, slides):
             _add_image(slide, src)
         for rows in s["tables"][:1]:
             _add_table(slide, rows)
+
+        if emblem:
+            _add_corner_emblem(slide, prs, emblem)
 
         if s["notes"]:
             try:

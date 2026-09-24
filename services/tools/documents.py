@@ -1,21 +1,9 @@
 """Offline document conversion. No cloud services or source execution."""
 import importlib.util
 import io
-import os
-import shutil
-import subprocess
 import zipfile
-from pathlib import Path
 from xml.etree import ElementTree as ET
 from .workspace import ToolError
-
-
-def office_binary():
-    candidates = [os.getenv('LIBREOFFICE_PATH', ''), shutil.which('soffice'),
-                  '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-                  r'C:\Program Files\LibreOffice\program\soffice.com',
-                  r'C:\Program Files (x86)\LibreOffice\program\soffice.com']
-    return next((p for p in candidates if p and Path(p).is_file()), None)
 
 
 def validate_office(data):
@@ -42,32 +30,18 @@ def validate_office(data):
 
 
 def convert(kind, name, data, job):
+    from .pdf_pages import PDF_LOCK
+    with PDF_LOCK:
+        return _convert(kind, name, data, job)
+
+
+def _convert(kind, name, data, job):
+    if kind != 'pdf_docx':
+        raise ToolError('Доступна только конвертация PDF → Word.')
     source_dir = job / 'input'
     source_dir.mkdir()
-    source = source_dir / ('source.docx' if kind == 'docx_pdf' else 'source.pdf')
+    source = source_dir / 'source.pdf'
     source.write_bytes(data)
-    if kind == 'docx_pdf':
-        validate_office(data)
-        binary = office_binary()
-        if not binary:
-            raise ToolError('На сервере нужен LibreOffice. Установите его или укажите LIBREOFFICE_PATH.')
-        profile = source_dir / 'office-profile'
-        profile.mkdir()
-        (profile / 'user').mkdir()
-        (profile / 'user/registrymodifications.xcu').write_text('''<?xml version="1.0"?><oor:items xmlns:oor="http://openoffice.org/2001/registry"><item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop><prop oor:name="DisableMacrosExecution" oor:op="fuse"><value>true</value></prop></item><item oor:path="/org.openoffice.Office.Writer/Content/Update"><prop oor:name="Link" oor:op="fuse"><value>2</value></prop></item></oor:items>''', encoding='utf-8')
-        try:
-            result = subprocess.run([binary, '-env:UserInstallation=' + profile.resolve().as_uri(),
-                                     '--headless', '--nologo', '--nodefault', '--norestore',
-                                     '--convert-to', 'pdf:writer_pdf_Export', '--outdir', str(job), str(source)],
-                                    capture_output=True, timeout=120, shell=False)
-        except subprocess.TimeoutExpired:
-            raise ToolError('Документ обрабатывался дольше двух минут. Уменьшите его размер.')
-        output = job / 'source.pdf'
-        if result.returncode or not output.exists():
-            raise ToolError('LibreOffice не смог преобразовать документ.')
-        target = job / 'document.pdf'
-        output.rename(target)
-        return {'file': target.name, 'message': 'PDF готов.'}
     if not data.startswith(b'%PDF-'):
         raise ToolError('Файл не является PDF.')
     if not importlib.util.find_spec('pdf2docx'):

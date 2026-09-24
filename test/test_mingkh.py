@@ -50,7 +50,7 @@ def test_redirect_never_receives_credentials():
 
 
 class Portal:
-    def query(self,query,params):
+    def query(self,query,params,**kwargs):
         if query=='q_map':return ['title','population'],[['Тестовый округ',100000]]
         return list(dashboard.COLS.values()),[
             ['Тестовый округ','Портал','Вода','Сети','Утечка','Авария','Тест РСО'],
@@ -69,7 +69,7 @@ def test_dataset_filters_and_retains_all_three_periods():
 
 def test_partial_comparison_is_not_presented_as_zero():
     class Partial(Portal):
-        def query(self,query,params):
+        def query(self,query,params,**kwargs):
             if query=='q_download_detalization' and params['curr_period_start']=='13 day':raise client.PortalError('Unavailable')
             return super().query(query,params)
     with pytest.raises(client.PortalError,match='сравнения'):dashboard.build(Partial(),(6,0,13,7))
@@ -84,3 +84,47 @@ def test_cache_is_invalidated_when_credentials_change():
         dashboard.get_dataset({'username':'user','password':'second'}, {})
         assert build.call_count==2
     dashboard.CACHE.clear()
+
+
+def test_monthly_chunks_cover_every_date_exactly_once():
+    spans = list(dashboard.chunks(90, 0))
+    assert spans == [(90, 61), (60, 31), (30, 1), (0, 0)]
+    assert [day for start, end in spans for day in range(start, end-1, -1)] == list(range(90, -1, -1))
+
+
+def test_chunk_merge_deduplicates_ids_but_keeps_rows_without_ids():
+    columns = ['Внутренний Id', 'ОМСУ']
+    result = dashboard.merge_chunks([
+        (columns, [[1, 'Тест'], [None, 'Без ID']]),
+        (columns[::-1], [['Тест', 1], ['Второй', 2], ['Ещё без ID', None]]),
+    ])
+    assert result == (columns, [[1, 'Тест'], [None, 'Без ID'], [2, 'Второй'], [None, 'Ещё без ID']])
+    with pytest.raises(client.PortalError):
+        dashboard.merge_chunks([(columns, [[1, 'Тест']]), (['Новый столбец'], [[2]])])
+
+
+def test_only_transient_chunk_errors_are_retried():
+    from unittest.mock import Mock
+    portal = Mock()
+    portal.query.side_effect = [client.PortalError('Temporary', retryable=True), (['ID'], [[1]])]
+    with patch.object(dashboard.time, 'sleep') as sleep:
+        assert dashboard.fetch_chunk(portal, {}, 29, 0) == (['ID'], [[1]])
+        assert portal.query.call_count == 2
+        sleep.assert_called_once_with(2)
+    portal.reset_mock()
+    portal.query.side_effect = client.PortalError('Invalid credentials')
+    with patch.object(dashboard.time, 'sleep') as sleep:
+        with pytest.raises(client.PortalError): dashboard.fetch_chunk(portal, {}, 29, 0)
+        assert portal.query.call_count == 1
+        sleep.assert_not_called()
+
+
+def test_failed_chunk_invalidates_entire_period():
+    class ChunkPortal:
+        def query(self, query, params, **kwargs):
+            if params['curr_period_start'] == '30 day':
+                raise client.PortalError('Failed chunk')
+            return ['Внутренний Id'], [[params['curr_period_start']]]
+    data, errors = dashboard.fetch_periods(ChunkPortal(), {}, {'curr': (60, 0), 'prev': (10, 0)})
+    assert 'curr' not in data and 'curr' in errors
+    assert data['prev'][1] == [['10 day']]

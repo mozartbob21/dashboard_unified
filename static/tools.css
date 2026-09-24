@@ -3,3 +3,15 @@
 .tool-upload input::file-selector-button{font:inherit;font-weight:600;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--text);padding:8px 12px;margin-right:10px;cursor:pointer}.tool-upload input::file-selector-button:hover{border-color:var(--primary)}
 
 .conversion-options button[aria-pressed=true]{color:var(--text)}.tool-upload input::file-selector-button{min-height:40px;padding:10px 16px;font-size:13px;border-radius:11px}.tools-page input[type=checkbox]{accent-color:var(--primary);width:17px;height:17px}
+
+.tool-file-list{padding:0;margin:0;list-style:none;display:grid;gap:8px}.tool-file-list:empty{display:none}.tool-file-list li{display:flex;align-items:center;gap:12px;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:12px 14px}.tool-file-name{flex:1;min-width:0;overflow-wrap:anywhere;font-size:14px}.tool-file-name small{display:block;color:var(--muted);font-size:12px;margin-top:5px}.tool-file-controls{display:flex;gap:5px;flex-shrink:0}.tool-file-controls button{width:36px;height:36px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--text);cursor:pointer;font-size:17px}.tool-file-controls button[data-remove]{color:var(--danger)}.tool-file-controls button:disabled{cursor:default}.tool-emblem{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:13px}.tool-emblem img{width:64px;height:72px;object-fit:contain;background:var(--bg-soft);border-radius:10px;padding:8px}.tool-templates #brandingWarnings{white-space:pre-line}#pdfInspection.error{color:var(--danger)}
+
+.tool-card select{
+  appearance:none;
+  -webkit-appearance:none;
+  padding-right:48px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 24px) center,calc(100% - 18px) center;
+  background-size:6px 6px;
+  background-repeat:no-repeat;
+}

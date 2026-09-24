@@ -12,7 +12,9 @@ QUERIES = {'q_download_detalization','q_map','q_last_updated'}
 
 
 class PortalError(RuntimeError):
-    pass
+    def __init__(self, message, *, retryable=False):
+        super().__init__(message)
+        self.retryable = retryable
 
 
 def year_ago(days, today=None):
@@ -40,7 +42,7 @@ class Pentaho:
         self.username=username
         self.password=password
 
-    def query(self,query,params=None):
+    def query(self,query,params=None,*,timeout=180):
         if query not in QUERIES:
             raise PortalError('Неизвестный запрос к порталу.')
         request={'path':CDA_PATH,'dataAccessId':query,'outputType':'json'}
@@ -49,12 +51,13 @@ class Pentaho:
             ca=os.getenv('MINGKH_CA_BUNDLE') or None
             context=ssl.create_default_context(cafile=ca)
             with httpx.Client(auth=(self.username,self.password),verify=context,trust_env=False,
-                              follow_redirects=False,timeout=httpx.Timeout(180,connect=15)) as client:
+                              follow_redirects=False,timeout=httpx.Timeout(timeout,connect=15)) as client:
                 with client.stream('GET',BASE,params=request) as response:
                     if response.status_code in (401,403) or response.is_redirect:
                         raise PortalError('Портал не принял логин и пароль. Администратору нужно проверить доступ МИНЖКХ.')
                     if response.status_code!=200:
-                        raise PortalError(f'Портал временно недоступен (HTTP {response.status_code}).')
+                        raise PortalError(f'Портал временно недоступен (HTTP {response.status_code}).',
+                                          retryable=response.status_code == 429 or response.status_code >= 500)
                     payload=bytearray()
                     for part in response.iter_bytes():
                         payload.extend(part)
@@ -69,6 +72,15 @@ class Pentaho:
             return columns,rows
         except PortalError:
             raise
+        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            cause = exc
+            seen = set()
+            while cause is not None and id(cause) not in seen:
+                seen.add(id(cause))
+                if isinstance(cause, ssl.SSLError):
+                    raise PortalError('Не удалось проверить защищённое соединение с cur.bi.mosreg.ru. Проверьте сертификаты на компьютере-сервере.') from None
+                cause = cause.__cause__ or cause.__context__
+            raise PortalError('Соединение с порталом прервалось. Повторите загрузку.', retryable=True) from None
         except (httpx.TransportError,OSError):
             raise PortalError('Нет защищённого соединения с cur.bi.mosreg.ru. Проверьте доступ с компьютера-сервера и сертификаты.')
         except (ValueError,KeyError,TypeError):

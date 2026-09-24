@@ -120,16 +120,10 @@ def test_pdf_to_docx_preserves_text(tmp_path):
     assert 'Neurona conversion test' in '\n'.join(p.text for p in Document(tmp_path/result['file']).paragraphs)
 
 
-def test_docx_uses_private_profile_and_no_shell(tmp_path):
-    from docx import Document
-    buf=io.BytesIO();doc=Document();doc.add_paragraph('Report');doc.save(buf)
-    def convert(args,**kwargs):
-        assert kwargs['shell'] is False
-        assert '--headless' in args and any(a.startswith('-env:UserInstallation=file:') for a in args)
-        (tmp_path/'source.pdf').write_bytes(b'%PDF-test')
-        return type('Result',(),{'returncode':0})()
-    with patch.object(documents,'office_binary',return_value='/trusted/soffice'),patch.object(documents.subprocess,'run',side_effect=convert):
-        assert documents.convert('docx_pdf','report.docx',buf.getvalue(),tmp_path)['file']=='document.pdf'
+def test_word_to_pdf_has_been_removed(tmp_path):
+    with pytest.raises(ToolError, match='только конвертация PDF'):
+        documents.convert('docx_pdf', 'report.docx', b'not-used', tmp_path)
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.fixture
@@ -234,3 +228,82 @@ def test_platform_context_never_reads_ungranted_modules():
     with patch.object(details,'_load') as read:
         details.build_detailed_context('test',allowed_modules=[])
         read.assert_not_called()
+
+
+def test_removed_word_converter_is_not_exposed(api):
+    assert 'docx_pdf' not in api.get('/tools/api/options').json()
+    response = api.post('/tools/api/run', data={'tool': 'docx_pdf'}, files={'file': ('test.docx', b'not-used')})
+    assert response.status_code == 400
+
+
+def test_coordinate_upload_download_and_account_isolation(api):
+    data = workbook(['Широта', 'Долгота', 'Заявка'], [[55.7, 37.5, 'A'], [55.701, 37.5, 'B']])
+    response = api.post('/tools/api/run', data={'tool': 'coordinates', 'radius': '500', 'prefix': 'VZ'},
+                        files={'file': ('points.xlsx', data), 'registry': ('', b'')})
+    assert response.status_code == 200, response.text
+    job = response.json()['job_id']
+    for _ in range(120):
+        state = api.get('/tools/api/jobs/' + job).json()
+        if state['state'] not in ('queued', 'running'): break
+        time.sleep(.03)
+    assert state['state'] == 'done', state
+    result = api.get(state['url'])
+    assert result.status_code == 200
+    book = load_workbook(io.BytesIO(result.content))
+    assert book['Объекты']['A2'].value == 'VZ-0001'
+    assert book['Записи'].max_row == 3
+    assert api.get(state['url'], headers={'x-test-user': '2'}).status_code == 404
+    assert api.get('/tools/api/jobs/' + job, headers={'x-test-user': '2'}).status_code == 404
+
+
+def finished_job(api, response):
+    assert response.status_code == 200, response.text
+    job = response.json()['job_id']
+    for _ in range(150):
+        state = api.get('/tools/api/jobs/' + job).json()
+        if state['state'] not in ('queued', 'running'): return state
+        time.sleep(.03)
+    raise AssertionError('Job did not finish')
+
+
+def test_pdf_pages_api_preserves_order_and_private_results(api):
+    from test.test_pdf_pages import document, texts
+    files = [('file', ('one.pdf', document(['One']))), ('file', ('two.pdf', document(['Two'])))]
+    assert api.post('/tools/api/pdf-info', files=files).json()['files'] == [
+        {'name':'one.pdf','pages':1}, {'name':'two.pdf','pages':1}]
+    assert api.post('/tools/api/pdf-info', files=files, headers={'x-no-grant':'1'}).status_code == 403
+    state = finished_job(api, api.post('/tools/api/run', data={'tool':'pdf_pages','action':'merge'}, files=files[::-1]))
+    assert state['state'] == 'done', state
+    assert texts(api.get(state['url']).content) == ['Two','One']
+    assert api.get(state['url'], headers={'x-test-user':'2'}).status_code == 404
+    state = finished_job(api, api.post('/tools/api/run', data={'tool':'pdf_pages','action':'extract','pages':'2'}, files=files[:1]))
+    assert state['state'] == 'error' and 'url' not in state
+
+
+def test_branding_is_shared_but_presentation_output_is_private(api):
+    from test.test_tools_branding import template
+    from services.tools import branding
+    other = {'x-test-user':'2'}
+    response = api.post('/tools/template', files={'template_file':('Common.pptx',template())})
+    assert response.status_code == 200, response.text
+    assert 'Common.pptx' in api.get('/tools/api/options', headers=other).json()['templates']
+    assert api.post('/tools/emblem', files={'emblem_file':('organization.png',picture())}).status_code == 200
+    emblem = api.get('/tools/emblem', headers=other)
+    assert emblem.content == branding.emblem_png(picture())
+    assert api.get('/tools/emblem', headers={'x-no-grant':'1'}).status_code == 403
+    for name in ['', 'Common.pptx']:
+        response = api.post('/tools/api/run', headers=other,
+                            data={'tool':'html_pptx','html':'<h1>Shared branding</h1>','template':name})
+        assert response.status_code == 200, response.text
+        job = response.json()['job_id']
+        for _ in range(150):
+            state = api.get('/tools/api/jobs/'+job, headers=other).json()
+            if state['state'] not in ('queued','running'): break
+            time.sleep(.03)
+        assert state['state'] == 'done', state
+        with zipfile.ZipFile(io.BytesIO(api.get(state['url'], headers=other).content)) as z:
+            assert emblem.content in [z.read(n) for n in z.namelist() if n.startswith('ppt/media/')]
+        assert api.get(state['url']).status_code == 404
+    deleted = api.post('/tools/template/delete', headers=other, data={'name':'Common.pptx'})
+    assert deleted.status_code == 200
+    assert 'Common.pptx' not in api.get('/tools/api/options').json()['templates']
