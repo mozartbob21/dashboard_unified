@@ -20,6 +20,7 @@ from services.edds.arm import ArmClient, ArmError, BASE_URL, MAX_BYTES
 PROFILE = Path(__file__).resolve().parents[2] / '.private' / 'edds' / 'Chromium-Gost-profile'
 PORTAL_REPORT = Path(__file__).with_name('portal.js').read_text(encoding='utf-8')
 REPORT_URL = BASE_URL + '?act=cds_report_svod&id=3608'
+LOGIN_BUTTON_NAME = re.compile(r'^\s*(?:Войти(?:\s+в\s+систему)?|Авторизоваться|Вход)\s*$', re.I)
 
 # Return only a state code: never collect form values, page text or credentials.
 LOGIN_STATE = r'''() => {
@@ -34,6 +35,11 @@ LOGIN_STATE = r'''() => {
         (!window.__neuronaAuthPriorErrors || window.__neuronaAuthPriorErrors.get(e) !== e.textContent));
     return error ? 'login_error' : 'login';
   }
+  const entry = Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"], [role="button"]'))
+    .some(e => visible(e) && e.id !== 'esia-auth-button' &&
+      /^(?:Войти(?:\s+в\s+систему)?|Авторизоваться|Вход)$/i.test(
+        (e.getAttribute('aria-label') || (e.tagName === 'INPUT' ? e.value : e.textContent) || '').trim()));
+  if (entry && !window.__neuronaAuthAttemptActive) return 'entry';
   if (document.querySelector('[name="date_ot"]') && document.querySelector('[name="date_do"]')) return 'report';
   // A hidden AJAX form may mean its POST is still in flight. Only a new,
   // fully loaded document can be treated as a landing page before report verification.
@@ -180,6 +186,37 @@ class ChromeArmClient(ArmClient):
         if (override['target'] if override['target'] is not None else target['target']) not in ('', '_self'):
             raise ArmError('Форма входа АРМ открывает другое окно. Нужна проверка интеграции.', 409)
 
+    def _login_button(self, scope, *, entry=False):
+        # Keep a semantic locator, not an index in a changing list of modal buttons.
+        visible = scope.locator(':visible:not(#esia-auth-button)')
+        button = scope.get_by_role('button', name=LOGIN_BUTTON_NAME).and_(visible)
+        if entry:
+            button = button.or_(scope.get_by_role('link', name=LOGIN_BUTTON_NAME).and_(visible))
+        if button.count() != 1:
+            label = 'Авторизоваться' if entry else 'Войти'
+            raise ArmError(f'Не удалось однозначно найти кнопку «{label}» АРМ ЕДДС. '
+                           'Нужна проверка страницы входа.')
+        return button.first
+
+    def _open_login_form(self, deadline):
+        button = self._login_button(self.page, entry=True)
+        self.safe_url(self.page.url)
+        href = button.get_attribute('href', timeout=self._login_timeout(deadline))
+        # Modal openers can use a fragment or a local JavaScript handler.
+        # Recheck the actual page origin before entering any credentials.
+        if href and not href.startswith(('#', 'javascript:')):
+            self.safe_url(href)
+        if button.get_attribute('target', timeout=self._login_timeout(deadline)) not in (None, '', '_self'):
+            raise ArmError('Кнопка авторизации АРМ открывает другое окно. Нужна проверка интеграции.', 409)
+        button.click(timeout=self._login_timeout(deadline), no_wait_after=True)
+
+    def _type_login_field(self, field, value, deadline):
+        # Some portal versions enable submit only on keyup/change, not on input.
+        # Clear browser autofill, then type normally so all validators run.
+        field.fill('', timeout=self._login_timeout(deadline))
+        field.press_sequentially(value, delay=20, timeout=self._login_timeout(deadline))
+        field.press('Tab', timeout=self._login_timeout(deadline))
+
     def login(self, account):
         deadline = min(self.deadline, time.monotonic() + 75)
         stage = 'open'
@@ -187,9 +224,15 @@ class ChromeArmClient(ArmClient):
             # Cookies may have expired or been cleared for another admin account.
             # A previously rendered report is not proof that this session is still valid.
             self.open_portal(timeout=self._login_timeout(deadline, 30000))
-            state = self._login_state(['report', 'login', 'login_error', 'captcha', 'verification'], deadline)
+            state = self._login_state(['report', 'entry', 'login', 'login_error', 'captcha', 'verification'], deadline)
             self.safe_url(self.page.url)
             self._login_challenge(state)
+            if state == 'entry':
+                stage = 'entry'
+                self._open_login_form(deadline)
+                state = self._login_state(['report', 'login', 'login_error', 'captcha', 'verification'], deadline)
+                self.safe_url(self.page.url)
+                self._login_challenge(state)
             if state == 'report':
                 return
             stage = 'fields'
@@ -204,27 +247,23 @@ class ChromeArmClient(ArmClient):
                     ':not([name*="captcha" i]):not([name*="otp" i]):not([name*="code" i])').first
             if not username.count():
                 raise ArmError('Не найдено поле логина АРМ ЕДДС. Нужна проверка страницы входа.')
-            submit = form.locator('button[type="submit"]:visible, input[type="submit"]:visible, button:not([type]):visible')
-            candidates = []
-            for button in submit.all():
-                label = (button.inner_text() if button.evaluate('(e) => e.tagName') == 'BUTTON'
-                         else button.get_attribute('value') or '')
-                if button.get_attribute('id') == 'esia-auth-button' or re.search('есиа|госуслуг', label, re.I):
-                    continue
-                candidates.append(button)
-            if len(candidates) != 1:
-                raise ArmError('Не удалось однозначно найти кнопку «Войти» в форме АРМ ЕДДС. Нужна проверка страницы входа.')
-            submit = candidates[0]
+            submit = self._login_button(form)
             self._check_login_target(form, submit)
             self.page.evaluate(LOGIN_GUARD)
-            # fill dispatches input events; Tab also triggers the page's blur/change validation.
-            username.fill(account['username'], timeout=self._login_timeout(deadline))
+            self._type_login_field(username, account['username'], deadline)
             self.safe_url(self.page.url)
-            password.fill(account['password'], timeout=self._login_timeout(deadline))
-            password.press('Tab', timeout=self._login_timeout(deadline))
+            self._type_login_field(password, account['password'], deadline)
+            submit = self._login_button(form)
             self._check_login_target(form, submit)
             stage = 'submit'
-            submit.click(timeout=self._login_timeout(deadline), no_wait_after=True)
+            try:
+                submit.click(timeout=self._login_timeout(deadline), no_wait_after=True)
+            except BrowserTimeout:
+                # No force/Enter fallback: a second submit could duplicate a pending login.
+                if submit.count() and not submit.is_enabled(timeout=self._login_timeout(deadline, 1000)):
+                    raise ArmError('Поля АРМ ЕДДС заполнены, но портал оставил кнопку «Войти» '
+                                   'неактивной. Проверьте подсказки у полей в Chromium-GOST на сервере.', 504) from None
+                raise
             stage = 'result'
             try:
                 state = self._login_state(['report', 'other', 'login_error', 'captcha', 'verification', 'blocked'],
@@ -239,7 +278,7 @@ class ChromeArmClient(ArmClient):
                 raise ArmError('АРМ ЕДДС не принял вход. Проверьте логин и пароль в записи «АРМ ЕДДС» '
                                'и сообщение в окне Chromium-GOST на сервере.', 403)
             self.open_portal(timeout=self._login_timeout(deadline, 20000))
-            state = self._login_state(['report', 'login', 'login_error', 'captcha', 'verification'], deadline)
+            state = self._login_state(['report', 'entry', 'login', 'login_error', 'captcha', 'verification'], deadline)
             self.safe_url(self.page.url)
             self._login_challenge(state)
             if state != 'report':
@@ -248,9 +287,10 @@ class ChromeArmClient(ArmClient):
         except BrowserTimeout:
             messages = {
                 'open': 'АРМ ЕДДС не показал форму входа или отчёт за отведённое время.',
+                'entry': 'После нажатия «Авторизоваться» АРМ ЕДДС не показал поля входа.',
                 'fields': 'Не удалось заполнить поля входа АРМ ЕДДС за отведённое время.',
-                'submit': 'Кнопка «Войти» АРМ ЕДДС не стала доступной или не ответила.',
-                'result': 'АРМ ЕДДС не подтвердил вход за отведённое время.',
+                'submit': 'Не удалось нажать «Войти» АРМ ЕДДС: кнопка скрыта, перекрыта или страница ещё меняется.',
+                'result': 'Кнопка «Войти» нажата, но АРМ ЕДДС не подтвердил вход за отведённое время.',
             }
             raise ArmError(messages[stage] + ' Проверьте окно Chromium-GOST на компьютере-сервере.', 504) from None
         except BrowserError as error:

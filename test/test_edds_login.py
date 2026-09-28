@@ -4,11 +4,28 @@ import tempfile
 from pathlib import Path
 from datetime import date
 import unittest
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from playwright.sync_api import Error as BrowserError, TimeoutError as BrowserTimeout
 from services.edds import arm, chrome
+
+
+class FakeControls:
+    def __init__(self, buttons):
+        self.buttons = buttons
+
+    def and_(self, visible):
+        return FakeControls([b for b in self.buttons if b.present and b.attrs.get('id') != 'esia-auth-button'])
+
+    def or_(self, other):
+        return FakeControls(self.buttons + other.buttons)
+
+    def count(self):
+        return len(self.buttons)
+
+    @property
+    def first(self):
+        return self.buttons[0]
 
 
 class FakeLocator:
@@ -21,6 +38,7 @@ class FakeLocator:
         self.present = present
         self.error = None
         self.on_click = None
+        self.enabled = True
         self.target = {'action': None, 'method': None, 'target': None}
 
     @property
@@ -34,11 +52,14 @@ class FakeLocator:
         if self.name == 'password' and selector == 'xpath=ancestor::form[1]':
             return self.harness.form
         if self.name == 'form':
-            if selector.startswith('button'):
-                return SimpleNamespace(all=lambda: self.harness.buttons)
+            if selector == ':visible:not(#esia-auth-button)':
+                return self
             self.harness.username_selectors.append(selector)
             return self.harness.username
         raise AssertionError('Unexpected locator: ' + selector)
+
+    def get_by_role(self, role, *, name):
+        return FakeControls([b for b in self.harness.buttons if name.search(b.text)])
 
     def evaluate(self, script):
         if script == '(e) => e.tagName':
@@ -48,7 +69,7 @@ class FakeLocator:
     def inner_text(self):
         return self.text
 
-    def get_attribute(self, key):
+    def get_attribute(self, key, **options):
         return self.attrs.get(key)
 
     def fill(self, value, *, timeout):
@@ -60,6 +81,15 @@ class FakeLocator:
     def press(self, key, *, timeout):
         self.harness.events.append(('press', self.name, key))
         self.harness.timeouts.append(timeout)
+
+    def press_sequentially(self, value, *, delay, timeout):
+        self.harness.events.append(('type', self.name, value))
+        self.harness.timeouts.append(timeout)
+        if self.error:
+            raise self.error
+
+    def is_enabled(self, *, timeout):
+        return self.enabled
 
     def click(self, *, timeout, no_wait_after):
         self.harness.events.append(('click', self.name))
@@ -84,11 +114,14 @@ class LoginTests(unittest.TestCase):
         self.esia = FakeLocator(self, 'esia', tag='BUTTON', attrs={'id': 'esia-auth-button'}, text='Войти')
         self.submit = FakeLocator(self, 'submit', tag='BUTTON', attrs={'type': 'submit'}, text='Войти')
         self.buttons = [self.esia, self.submit]
+        self.entry = FakeLocator(self, 'entry', tag='BUTTON', text='Авторизоваться')
         self.page = MagicMock()
         self.page.url = chrome.REPORT_URL
         self.page.locator.side_effect = self.locator
         self.page.evaluate.side_effect = self.evaluate
         self.page.goto.side_effect = self.goto
+        self.page.get_by_role.side_effect = lambda role, name: FakeControls(
+            [self.entry] if role == ('link' if self.entry.tag == 'A' else 'button') else [])
         self.client = object.__new__(chrome.ChromeArmClient)
         self.client.page = self.page
         self.client.context = MagicMock()
@@ -101,6 +134,8 @@ class LoginTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def locator(self, selector):
+        if selector == ':visible:not(#esia-auth-button)':
+            return self.page
         self.assertEqual(selector, 'input[type="password"]:visible')
         return self.password
 
@@ -131,8 +166,9 @@ class LoginTests(unittest.TestCase):
         self.assertEqual(self.page.goto.call_count, 2)
         self.assertEqual(self.events, [
             ('navigate', chrome.REPORT_URL), ('guard',),
-            ('fill', 'username', self.account['username']),
-            ('fill', 'password', self.account['password']),
+            ('fill', 'username', ''), ('type', 'username', self.account['username']),
+            ('press', 'username', 'Tab'),
+            ('fill', 'password', ''), ('type', 'password', self.account['password']),
             ('press', 'password', 'Tab'), ('click', 'submit'),
             ('navigate', chrome.REPORT_URL),
         ])
@@ -174,12 +210,70 @@ class LoginTests(unittest.TestCase):
         self.assert_no_fill()
 
     def test_disabled_submit_timeout_is_bounded_sanitized_and_not_retried(self):
+        self.submit.enabled = False
         self.submit.error = BrowserTimeout('Call log: click disabled, password=' + self.account['password'])
         with self.assertRaises(arm.ArmError) as error:
             self.client.login(self.account)
         self.assert_safe_error(error, 504)
-        self.assertIn('Кнопка', str(error.exception))
+        self.assertIn('неактивной', str(error.exception))
         self.assertEqual(sum(event[0] == 'click' for event in self.events), 1)
+
+    def test_obscured_submit_is_not_force_clicked_or_retried(self):
+        self.submit.error = BrowserTimeout('Call log: overlay intercepts events')
+        with self.assertRaises(arm.ArmError) as error:
+            self.client.login(self.account)
+        self.assert_safe_error(error, 504)
+        self.assertIn('перекрыта', str(error.exception))
+        self.assertEqual(sum(event[0] == 'click' for event in self.events), 1)
+
+    def test_entry_opens_modal_before_typing_and_submitting(self):
+        self.states.side_effect = ['entry', 'login', 'other', 'report']
+        self.client.login(self.account)
+        self.assertEqual(self.events[1], ('click', 'entry'))
+        self.assertEqual([e for e in self.events if e[0] == 'click'], [('click', 'entry'), ('click', 'submit')])
+
+    def test_same_origin_entry_link_opens_form(self):
+        self.entry.tag = 'A'
+        self.entry.attrs = {'href': '/new9/?act=login'}
+        self.states.side_effect = ['entry', 'login', 'other', 'report']
+        self.client.login(self.account)
+        self.assertIn(('click', 'entry'), self.events)
+
+    def test_foreign_entry_link_never_receives_credentials(self):
+        self.entry.tag = 'A'
+        self.entry.attrs = {'href': 'https://outside.invalid/login'}
+        self.states.side_effect = ['entry']
+        with self.assertRaises(arm.ArmError):
+            self.client.login(self.account)
+        self.assert_no_fill()
+        self.assertNotIn(('click', 'entry'), self.events)
+
+    def test_entry_does_not_show_form_returns_specific_timeout(self):
+        self.states.side_effect = ['entry', BrowserTimeout('No modal')]
+        with self.assertRaises(arm.ArmError) as error:
+            self.client.login(self.account)
+        self.assert_safe_error(error, 504)
+        self.assertIn('Авторизоваться', str(error.exception))
+        self.assert_no_fill()
+
+    def test_return_to_entry_after_submission_is_not_success(self):
+        self.states.side_effect = ['login', 'other', 'entry']
+        with self.assertRaises(arm.ArmError) as error:
+            self.client.login(self.account)
+        self.assert_safe_error(error, 403)
+        self.assertEqual([e for e in self.events if e[0] == 'click'], [('click', 'submit')])
+
+    def test_javascript_submit_and_close_button_in_modal(self):
+        self.submit.attrs = {'type': 'button'}
+        self.buttons.insert(0, FakeLocator(self, 'close', tag='BUTTON', text='Закрыть'))
+        self.client.login(self.account)
+        self.assertEqual([e for e in self.events if e[0] == 'click'], [('click', 'submit')])
+
+    def test_ambiguous_login_controls_are_not_guessed(self):
+        self.buttons.append(FakeLocator(self, 'duplicate', tag='BUTTON', text='Войти'))
+        with self.assertRaises(arm.ArmError):
+            self.client.login(self.account)
+        self.assert_no_fill()
 
     def test_fill_error_never_returns_playwright_log_or_password(self):
         self.password.error = BrowserError('Call log: fill("' + self.account['password'] + '")')
