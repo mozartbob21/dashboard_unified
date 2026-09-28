@@ -14,7 +14,7 @@ from services.edds import arm, runner
 
 class ArmTests(unittest.TestCase):
     def setUp(self):
-        environment = patch.dict(arm.os.environ, {"EDDS_ARM_TRANSPORT": "requests"})
+        environment = patch.dict(arm.os.environ, {"EDDS_ARM_TRANSPORT": "chrome"})
         environment.start()
         self.addCleanup(environment.stop)
 
@@ -34,22 +34,23 @@ class ArmTests(unittest.TestCase):
                     arm.fetch_report(start, end)
             credentials.assert_not_called()
 
-    def test_arm_credentials_are_used_and_connection_closed(self):
+    def test_arm_credentials_are_passed_to_shared_browser_service(self):
+        from services.edds import chrome
         with patch.object(arm, 'credentials', return_value={'username': 'user', 'password': 'secret'}) as credentials, \
-                patch.object(arm, 'ArmClient') as client:
-            client.return_value.report.return_value = [['id_cds_claim'], ['1']]
+                patch.object(chrome, 'browser_service') as service:
+            service.report.return_value = [['id_cds_claim'], ['1']]
             self.assertEqual(len(arm.fetch_report(date(2026, 9, 17), date(2026, 9, 17))), 2)
             credentials.assert_called_once_with('edds_arm')
-            client.return_value.login.assert_called_once_with({'username': 'user', 'password': 'secret'})
-            client.return_value.close.assert_called_once()
+            service.report.assert_called_once_with({'username': 'user', 'password': 'secret'}, date(2026,9,17), date(2026,9,17), False)
+            service.close.assert_not_called()
 
-    def test_login_failure_releases_connection_and_lock(self):
+    def test_login_failure_releases_lock_for_retry(self):
+        from services.edds import chrome
         with patch.object(arm, 'credentials', return_value={'username': 'u', 'password': 'secret'}), \
-                patch.object(arm, 'ArmClient') as client:
-            client.return_value.login.side_effect = arm.ArmError('Failed', 403)
+                patch.object(chrome, 'browser_service') as service:
+            service.report.side_effect = arm.ArmError('Failed', 403)
             with self.assertRaises(arm.ArmError):
                 arm.fetch_report(date.today(), date.today())
-            client.return_value.close.assert_called_once()
             self.assertFalse(arm.LOCK.locked())
 
     def test_login_uses_hidden_fields_and_post_without_exposing_secret_in_url(self):
@@ -111,6 +112,13 @@ class RouteTests(unittest.TestCase):
     def test_arm_data_requires_module_access(self):
         response = self.client.get('/edds/arm/report?from_date=2026-09-17&to_date=2026-09-17')
         self.assertEqual(response.status_code, 403)
+
+    def test_application_shutdown_closes_shared_browser(self):
+        from services.edds import chrome
+        with patch.object(chrome.browser_service, 'close') as close:
+            with TestClient(self.app):
+                close.assert_not_called()
+            close.assert_called_once()
 
     def test_status_requires_module_access_before_reading_configuration(self):
         with patch.object(arm, 'transport') as transport:

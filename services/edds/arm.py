@@ -2,7 +2,6 @@
 import csv
 import io
 import os
-import sys
 import threading
 import time
 from datetime import date
@@ -160,23 +159,16 @@ class ArmClient:
 
 def transport():
     mode = os.getenv('EDDS_ARM_TRANSPORT', 'auto').strip().lower()
-    if mode == 'auto':
-        return 'chrome' if sys.platform == 'win32' else 'requests'
-    # Browser brands are not Python modules or Playwright channel names.
-    if mode == 'chromium-gost':
-        if not os.getenv('EDDS_CHROME_EXECUTABLE', '').strip():
-            raise ArmError('Для Chromium-GOST укажите путь к браузеру в EDDS_CHROME_EXECUTABLE.', 503)
+    if mode in {'auto', 'chrome', 'chromium-gost'}:
         return 'chrome'
-    if mode not in {'chrome', 'requests'}:
-        raise ArmError('EDDS_ARM_TRANSPORT должен быть auto, chrome, chromium-gost или requests.', 503)
-    return mode
+    raise ArmError('Для АРМ ЕДДС используется Chromium-GOST. Укажите EDDS_ARM_TRANSPORT=chrome '
+                   'и путь к браузеру в EDDS_CHROME_EXECUTABLE; прямое подключение requests не используется.', 503)
 
 
 def create_client():
-    if transport() == 'chrome':
-        from services.edds.chrome import ChromeArmClient
-        return ChromeArmClient()
-    return ArmClient()
+    transport()
+    from services.edds.chrome import ChromeArmClient
+    return ChromeArmClient()
 
 
 def fetch_report(start, end, coordinates=False):
@@ -186,12 +178,9 @@ def fetch_report(start, end, coordinates=False):
         raise ArmError('Сохраните логин и пароль для «АРМ ЕДДС» в разделе «Пользователи → Логины и пароли».', 400)
     if not LOCK.acquire(blocking=False):
         raise ArmError('Запрос к АРМ ЕДДС уже выполняется. Дождитесь его завершения.', 409)
-    client = None
     try:
-        client = create_client()
-        client.login(account)
-        return client.report(start, end, coordinates)
+        transport()
+        from services.edds.chrome import browser_service
+        return browser_service.report(account, start, end, coordinates)
     finally:
-        if client:
-            client.close()
         LOCK.release()

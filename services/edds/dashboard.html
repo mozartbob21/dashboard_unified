@@ -639,7 +639,7 @@ td.c,th.c{text-align:center}
     </div>
     <button class="btn btn-primary" id="lv-go">Загрузить</button>
     <div class="hint">
-      Отчёт загружается сервером «Нейроны» через сохранённый доступ к АРМ ЕДДС.<br>
+      Отчёт загружается через Chromium-GOST на сервере. Вход выполняется автоматически по данным, сохранённым администратором.<br>
       Область запрашивается целиком. Для первой загрузки выберите небольшой период:<br>
       начните с недели, дальше период можно менять прямо в фильтрах.
     </div>
@@ -6754,6 +6754,6 @@ document.getElementById('tabs').addEventListener('click', e => {
 });
 </script>
 
-<script src="/static/edds-module.js?v=20260924" defer></script>
+<script src="/static/edds-module.js?v=20260924-gost-session" defer></script>
 </body>
 </html>

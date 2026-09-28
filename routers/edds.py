@@ -1,5 +1,7 @@
 from pathlib import Path
 from datetime import date
+from contextlib import asynccontextmanager
+import asyncio
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from core.roles import check_module_access
@@ -13,7 +15,16 @@ def require_edds(request: Request):
         raise HTTPException(403,'Нет доступа к блоку ЕДДС')
 
 
-router=APIRouter(prefix='/edds',dependencies=[Depends(require_edds)])
+@asynccontextmanager
+async def lifespan(app):
+    try:
+        yield
+    finally:
+        from services.edds.chrome import browser_service
+        await asyncio.to_thread(browser_service.close)
+
+
+router=APIRouter(prefix='/edds',dependencies=[Depends(require_edds)],lifespan=lifespan)
 
 
 @router.get('')
@@ -35,7 +46,8 @@ async def status():
     except arm.ArmError as error:
         raise HTTPException(error.status, str(error), headers={'Cache-Control': 'no-store'}) from None
     return {**runner.status(), 'arm_configured': bool(credentials('edds_arm')),
-            'complaints_configured': bool(credentials('edds')), 'arm_transport': transport}
+            'complaints_configured': bool(credentials('edds')), 'arm_transport': transport,
+            'arm_browser': 'Chromium-GOST'}
 
 
 @router.get('/arm/report')

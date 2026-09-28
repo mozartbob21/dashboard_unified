@@ -1,11 +1,15 @@
-"""ARM transport through installed Chrome, including its TLS/certificate stack.
+"""ARM transport through the configured Chromium-GOST and its certificate stack.
 
 No APIRequestContext: that would use a different network stack. All report and
 login requests run as same-origin fetches inside the portal tab.
 """
 import argparse
+import hashlib
+import json
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from playwright.sync_api import Error as BrowserError, sync_playwright
@@ -13,6 +17,15 @@ from playwright.sync_api import Error as BrowserError, sync_playwright
 from services.edds.arm import ArmClient, ArmError, BASE_URL, MAX_BYTES
 
 PROFILE = Path(__file__).resolve().parents[2] / '.private' / 'edds' / 'Chromium-Gost-profile'
+PORTAL_REPORT = Path(__file__).with_name('portal.js').read_text(encoding='utf-8')
+
+
+def browser_executable():
+    executable = os.getenv('EDDS_CHROME_EXECUTABLE', '').strip()
+    if not executable or not Path(executable).is_file():
+        raise ArmError('Укажите существующий EXE Chromium-GOST на компьютере-сервере '
+                       'в EDDS_CHROME_EXECUTABLE (файл .env рядом с app.py).', 503)
+    return executable
 
 # same-origin mode rejects a cross-origin redirect BEFORE forwarding credentials.
 # Bound the stream in Chrome so a huge report never crosses the automation pipe.
@@ -56,7 +69,7 @@ def browser_error(error):
                         'Откройте настройку ЕДДС на сервере под пользователем Windows, у которого работает портал; '
                         'проверьте доверие к УЦ и выбор клиентского сертификата.')
     if 'executable' in message and ('exist' in message or 'found' in message):
-        return ArmError('На сервере не найден браузер ЕДДС. Проверьте путь к Chromium-GOST или Chrome в EDDS_CHROME_EXECUTABLE.', 503)
+        return ArmError('На сервере не найден браузер ЕДДС. Проверьте путь к Chromium-GOST в EDDS_CHROME_EXECUTABLE.', 503)
     if any(word in message for word in ('singleton', 'profile in use', 'processsingleton')):
         return ArmError('Профиль браузера ЕДДС уже открыт. Закройте окно настройки и повторите загрузку.', 409)
     return ArmError('Браузер на сервере не смог открыть АРМ ЕДДС. Выполните настройку профиля ЕДДС '
@@ -68,23 +81,20 @@ class ChromeArmClient(ArmClient):
         self.deadline = time.monotonic() + 150
         self.playwright = self.context = self.page = None
         self.portal_open = False
+        executable = browser_executable()
         try:
             PROFILE.mkdir(parents=True, exist_ok=True, mode=0o700)
         except OSError:
             raise ArmError('Нет доступа к рабочему профилю ЕДДС. Проверьте права на папку .private/edds на сервере.', 503) from None
         if headless is None:
-            headless = os.getenv('EDDS_CHROME_HEADLESS', '1').strip().lower() not in {'0', 'false', 'no'}
+            headless = os.getenv('EDDS_CHROME_HEADLESS', '0').strip().lower() not in {'0', 'false', 'no'}
         try:
             self.playwright = sync_playwright().start()
             options = {'headless': headless, 'ignore_https_errors': False,
                        'chromium_sandbox': True, 'service_workers': 'block',
                        'ignore_default_args': ['--disable-extensions'],
                        'timeout': 30000, 'accept_downloads': False}
-            executable = os.getenv('EDDS_CHROME_EXECUTABLE', '').strip()
-            if executable:
-                options['executable_path'] = executable
-            else:
-                options['channel'] = 'chrome'
+            options['executable_path'] = executable
             self.context = self.playwright.chromium.launch_persistent_context(str(PROFILE), **options)
             self.context.set_default_timeout(45000)
             self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
@@ -92,8 +102,45 @@ class ChromeArmClient(ArmClient):
             self.close()
             raise browser_error(error) from None
 
+    def authenticate(self, account):
+        # Do not reuse the previous administrator's portal session after an account change.
+        marker = PROFILE / 'neurona-account.sha256'
+        identity = hashlib.sha256(account['username'].encode('utf-8')).hexdigest()
+        try:
+            previous = marker.read_text(encoding='ascii', errors='replace') if marker.exists() else ''
+            if previous != identity:
+                self.context.clear_cookies()
+            self.login(account)
+            if previous != identity:
+                marker.write_text(identity, encoding='ascii')
+        except OSError:
+            raise ArmError('Не удалось сохранить настройки рабочего профиля ЕДДС. '
+                           'Проверьте права на .private/edds.', 503) from None
+        except BrowserError as error:
+            raise browser_error(error) from None
+
+    def report(self, start, end, coordinates=False):
+        if not self.portal_open:
+            self.open_portal()
+        self.safe_url(self.page.url)
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise ArmError('АРМ ЕДДС не успел сформировать отчёт. Сократите период.', 504)
+        try:
+            result = self.page.evaluate(PORTAL_REPORT, {
+                'fromDate': start.isoformat(), 'toDate': end.isoformat(), 'coordinates': coordinates,
+                'timeout': int(remaining * 1000), 'limit': MAX_BYTES,
+            })
+        except BrowserError as error:
+            raise browser_error(error) from None
+        if result.get('error'):
+            raise ArmError(result['error'], result.get('status', 502))
+        if not isinstance(result.get('grid'), list) or not result['grid']:
+            raise ArmError('АРМ ЕДДС не вернул таблицу отчёта.')
+        return result['grid']
+
     def close(self):
-        # Always release the Chrome profile, even when a report or login failed.
+        # Called on browser restart or application shutdown, on the owning thread.
         try:
             if self.context:
                 self.context.close()
@@ -148,8 +195,69 @@ class ChromeArmClient(ArmClient):
         return result['text'], self.safe_url(result['url'])
 
 
+class BrowserService:
+    """One long-lived GOST session, used only on its own Playwright worker thread."""
+    def __init__(self, factory=None):
+        self.factory = factory
+        self._guard = threading.Lock()
+        self._executor = None
+        self._client = None
+        self._account = None
+        self._settings = None
+
+    def report(self, account, start, end, coordinates=False):
+        with self._guard:
+            if self._executor is None:
+                self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='edds-gost')
+            future = self._executor.submit(self._report, account, start, end, coordinates)
+        return future.result()
+
+    def _report(self, account, start, end, coordinates):
+        settings = (os.getenv('EDDS_CHROME_EXECUTABLE', '').strip(), os.getenv('EDDS_CHROME_HEADLESS', '0').strip())
+        if self._client is not None and (self._settings != settings or self._client.page.is_closed()):
+            self._close_client()
+        if self._client is None:
+            self._client = (self.factory or ChromeArmClient)()
+            self._settings = settings
+        identity = hashlib.sha256(json.dumps(account, sort_keys=True).encode('utf-8')).digest()
+        if self._account is not None and self._account != identity:
+            try:
+                self._client.context.clear_cookies()
+            except BrowserError as error:
+                self._close_client()
+                raise browser_error(error) from None
+        self._client.deadline = time.monotonic() + 150
+        self._client.authenticate(account)
+        self._account = identity
+        try:
+            return self._client.report(start, end, coordinates)
+        except ArmError as error:
+            if error.status != 403:
+                raise
+            # The portal session may expire between the login check and the export.
+            self._client.authenticate(account)
+            return self._client.report(start, end, coordinates)
+
+    def _close_client(self):
+        if self._client is not None:
+            self._client.close()
+        self._client = self._account = self._settings = None
+
+    def close(self):
+        with self._guard:
+            executor, self._executor = self._executor, None
+            if executor is not None:
+                try:
+                    executor.submit(self._close_client).result()
+                finally:
+                    executor.shutdown(wait=True)
+
+
+browser_service = BrowserService()
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Настройка рабочего профиля Chromium-GOST / Chrome для ЕДДС на сервере')
+    parser = argparse.ArgumentParser(description='Настройка рабочего профиля Chromium-GOST для ЕДДС на сервере')
     parser.add_argument('--setup', action='store_true', required=True)
     parser.parse_args()
     from dotenv import load_dotenv

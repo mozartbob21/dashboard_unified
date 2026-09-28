@@ -473,12 +473,12 @@ function renderHeatmap() {
     // Серый — только когда динамики нет совсем. Всё остальное красится.
     cls = function (x) {
       var v = x[metric];
-      if (v === null || v === 0) return 'dv3';
+      if (v === null || v === 0) return 'd3';
       var m = Math.abs(v);
       var lvl = m >= bands[1] ? 2 : (m >= bands[0] ? 1 : 0);
-      return v < 0 ? 'dv' + (2 - lvl) : 'dv' + (4 + lvl);
+      return v < 0 ? 'd' + (2 - lvl) : 'd' + (4 + lvl);
     };
-    legendSteps = 'dv';
+    legendSteps = 'd';
   } else {
     var vals = items.map(function (x) { return x[metric]; })
                     .sort(function (a, b) { return a - b; });
