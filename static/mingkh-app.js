@@ -7,7 +7,7 @@
 'use strict';
 
 // порядок обязан совпадать с DIMS в dataset.py
-var SERVER_DIMS = ['omsu', 'source', 'direction', 'theme', 'subtopic', 'fact', 'executor'];
+var SERVER_DIMS = ['omsu', 'source', 'direction', 'theme', 'subtopic', 'fact', 'executor', 'date'];
 // popgroup считается здесь же из населения — на портал за ним ходить не нужно
 var DIMS = SERVER_DIMS.concat(['popgroup']);
 var DIM_TITLE = {
@@ -794,6 +794,7 @@ function rerender() {
   var t0 = performance.now();
   expandScopes = {};           // старые раскрытия ссылаются на снесённые узлы
   renderKpi();
+  renderTrend();
   renderSources();
   breakdown('direction', 'direction', 'Направления: период к периоду',
             null, 1, CHILD_DIM.direction);
@@ -827,6 +828,8 @@ window.DASH = {
     DIMS.forEach(function (dim) { sel[dim] = new Set(); });
     buildFilters();
     try {
+      var tc = localStorage.getItem('mingkh_trendcmp');
+      if (tc === 'appg' || tc === 'prev') trendCompare = tc;
       var s = localStorage.getItem('mingkh_mapsort');
       // 'title' остался у тех, кто открывал прошлую версию — больше не поддерживаем
       if (['share', 'amount', 'delta', 'deltaAbs'].indexOf(s) !== -1) mapSort = s;

@@ -158,6 +158,16 @@ class ChromeTests(unittest.TestCase):
                 with self.assertRaisesRegex(arm.ArmError, 'EDDS_CHROME_EXECUTABLE'):
                     arm.create_client()
 
+    def test_gost_directory_is_rejected_before_browser_start(self):
+        with patch.dict(os.environ, {'EDDS_CHROME_EXECUTABLE': self.temp.name}), \
+                patch.object(chrome, 'sync_playwright') as playwright:
+            with self.assertRaisesRegex(arm.ArmError, 'указана папка') as error:
+                chrome.ChromeArmClient()
+        self.assertEqual(error.exception.status, 503)
+        self.assertIn('Application/chrome.exe', str(error.exception))
+        self.assertNotIn(self.temp.name, str(error.exception))
+        playwright.assert_not_called()
+
     def test_account_change_discards_old_cookie_but_same_account_keeps_session(self):
         account = {'username': 'admin-one', 'password': 'secret'}
         with patch.object(self.client, 'login') as login:

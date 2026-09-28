@@ -311,3 +311,44 @@ html[data-theme="dark"] .mingkh-dashboard .d5{background:#c8403e;color:#ffffff}
 html[data-theme="dark"] .mingkh-dashboard .d6{background:#ea8080;color:#0b0b0b}
 
 .mingkh-dashboard .kpi{display:flex;flex-direction:column;align-items:flex-start;gap:8px;border-radius:16px;padding:20px}.mingkh-dashboard .kpi-v{font-size:30px;line-height:1.15}.mingkh-dashboard .kpi-sub{line-height:1.5}
+
+/* график динамики */
+.mingkh-dashboard .trendhead { display: flex; align-items: center; justify-content: space-between;
+             gap: 12px; flex-wrap: wrap; }
+.mingkh-dashboard .trendhead h2 { margin: 0; }
+.mingkh-dashboard .trendhead .seg { display: flex; gap: 4px; }
+.mingkh-dashboard .trendsum { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center;
+            font-size: 13px; color: var(--text2); margin: 10px 0 6px; }
+.mingkh-dashboard .trendsum b { color: var(--text); font-variant-numeric: tabular-nums; }
+.mingkh-dashboard .trendsum .muted { color: var(--muted); }
+.mingkh-dashboard .sw-cur { background: var(--curr); }
+.mingkh-dashboard .sw-cmp { background: var(--prev); }
+.mingkh-dashboard .trendplot { position: relative; width: 100%; overflow: hidden; }
+.mingkh-dashboard .trendplot svg { display: block; width: 100%; height: auto; }
+.mingkh-dashboard .trendplot .trend-grid { stroke: var(--line); stroke-width: 1; }
+.mingkh-dashboard .trendplot .base { stroke: var(--muted); stroke-width: 1; }
+.mingkh-dashboard .trendplot .axlab { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mingkh-dashboard .trendplot .val { fill: var(--text); font-size: 11px; font-weight: 600;
+                  font-variant-numeric: tabular-nums; }
+/* подпись сравнения — вторичная: тот же размер, но цветом второго плана */
+.mingkh-dashboard .trendplot .val-cmp { fill: var(--text2); font-weight: 500; }
+.mingkh-dashboard .trendplot .dlt { font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mingkh-dashboard .trendplot .t-bad { fill: var(--down); }
+.mingkh-dashboard .trendplot .t-good { fill: var(--up); }
+.mingkh-dashboard .trendplot .t-flat { fill: var(--muted); }
+.mingkh-dashboard .trendplot .bar-cur { fill: var(--curr); }
+.mingkh-dashboard .trendplot .bar-cmp { fill: var(--prev); }
+.mingkh-dashboard .trendplot .hit { fill: transparent; cursor: default; }
+.mingkh-dashboard .trendplot .hit.on { fill: var(--text); fill-opacity: .05; }
+.mingkh-dashboard .trendtip { position: absolute; top: 4px; min-width: 150px; pointer-events: none;
+            background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+            box-shadow: 0 6px 18px rgba(0,0,0,.12); padding: 8px 10px;
+            font-size: 12px; line-height: 1.5; color: var(--text2); z-index: 5; }
+.mingkh-dashboard .trendtip b { color: var(--text); }
+
+.mingkh-dashboard .trendplot .axis-y { text-anchor: end; }
+
+.mingkh-dashboard .trendcard { --curr: #2a78d6; --prev: #b9d6f5; }
+html[data-theme="dark"] .mingkh-dashboard .trendcard { --curr: #68a9f4; --prev: #355f91; }
+
+.mingkh-dashboard .trend-note { margin: 8px 0 0; color: var(--muted); font-size: 12px; }

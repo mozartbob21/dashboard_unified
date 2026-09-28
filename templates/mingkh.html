@@ -1,6 +1,6 @@
 {% extends "base_module.html" %}
 {% block title %}МИНЖКХ — Нейрона ИИ{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/mingkh.css?v=20260922">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/mingkh.css?v=20260928-trend">{% endblock %}
 {% block content %}
 <div class="container">
 <header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Дашборд МИНЖКХ</div></div></div><div class="top-actions"><a href="/" class="secondary-button">← Назад</a></div></header>
@@ -70,6 +70,7 @@
 <div id="omsupick"></div>
 <div id="out" class="skel">
   <div id="kpi"></div>
+  <div id="trend"></div>
   <div class="toprow"><div id="sources"></div><div id="direction"></div></div>
   <div id="themes"></div>
   <div id="heatmap"></div>
@@ -80,6 +81,7 @@
 </div></div>
 <script id="mingkhDates" type="application/json">{{ initial_dates | tojson }}</script>
 <script src="/static/mingkh-sort.js"></script>
-<script src="/static/mingkh-app.js?v=20260928-heatmap"></script>
-<script src="/static/mingkh-page.js"></script>
+<script src="/static/mingkh-app.js?v=20260928-trend"></script>
+<script src="/static/mingkh-trend.js?v=20260928-trend"></script>
+<script src="/static/mingkh-page.js?v=20260928-trend"></script>
 {% endblock %}

@@ -22,6 +22,10 @@ PORTAL_REPORT = Path(__file__).with_name('portal.js').read_text(encoding='utf-8'
 
 def browser_executable():
     executable = os.getenv('EDDS_CHROME_EXECUTABLE', '').strip()
+    if executable and Path(executable).is_dir():
+        raise ArmError('В EDDS_CHROME_EXECUTABLE указана папка. Укажите полный путь к файлу '
+                       'браузера Chromium-GOST, например .../Application/chrome.exe '
+                       '(файл .env рядом с app.py).', 503)
     if not executable or not Path(executable).is_file():
         raise ArmError('Укажите существующий EXE Chromium-GOST на компьютере-сервере '
                        'в EDDS_CHROME_EXECUTABLE (файл .env рядом с app.py).', 503)

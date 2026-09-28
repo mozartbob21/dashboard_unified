@@ -54,7 +54,7 @@ function loadData(fresh) {
                 ' &middot; АППГ (' + d.counts.appg + ')' +
                 ' &middot; загружено ' + d.fetched_at.slice(0, 5);
       var bad = Object.keys(d.errors || {});
-      if (bad.length) msg += ' &middot; не отдал портал: ' + bad.join(', ');
+      if (bad.length) msg += ' &middot; ' + bad.map(function (key) { return esc(d.errors[key]); }).join(' ');
       $('status').innerHTML = msg + '<span id="calc"></span><span id="calcNote"></span>';
       $('out').hidden = false;
       window.DASH.setData(d);

@@ -1,14 +1,16 @@
 """Period comparisons and the original dashboard's compact browser dataset."""
 import copy
 import hashlib
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from .client import Pentaho, PortalError, periods, year_ago
 
-DIMS=['omsu','source','direction','theme','subtopic','fact','executor']
-COLS=dict(zip(DIMS,['ОМСУ','Источник','Направление','Синт. группа','Подтема','Факт','Исполнитель']))
+DIMS=['omsu','source','direction','theme','subtopic','fact','executor','date']
+COLS=dict(zip(DIMS,['ОМСУ','Источник','Направление','Синт. группа','Подтема','Факт','Исполнитель',
+                    'Дата (первого взятия в работу)']))
 EXCLUDE={'subtopic':{'Вне компетенции (МИНЖКХ)','Платежные документы (ЕИРЦ)','Деятельность УК\\Кооперативов'},
          'theme':{'Вне компетенции (МИНЖКХ)'},'direction':{'Вне компетенции Ведомств МО'}}
 PRESETS=[('thucur','Текущая неделя с чт'),('thuwed','Неделя чт—ср'),('d7','7 дней'),('d14','14 дней'),('d30','30 дней'),('d90','Квартал'),('d365','Год')]
@@ -138,22 +140,54 @@ def label(start,end,today=None):
     return render(start)+' — '+render(end)
 
 
-def build(portal,windows):
+def normalize_date(value):
+    """Preserve the portal's calendar day without guessing ambiguous dates."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if not isinstance(value, str):
+        return ''
+    value = value.strip()
+    try:
+        if re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+            return date.fromisoformat(value).isoformat()
+        if re.fullmatch(r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:\d{2})?', value):
+            return datetime.fromisoformat(value).date().isoformat()
+        if re.fullmatch(r'\d{2}\.\d{2}\.\d{4}', value):
+            return datetime.strptime(value, '%d.%m.%Y').date().isoformat()
+        for fmt in ('%d.%m.%Y %H:%M:%S', '%d.%m.%Y %H:%M'):
+            try:
+                return datetime.strptime(value, fmt).date().isoformat()
+            except ValueError:
+                pass
+    except ValueError:
+        pass
+    return ''
+
+
+def build(portal,windows,today=None):
+    today = today or date.today()
     cs,ce,ps,pe=windows
     params=periods(cs,ce,ps,pe)
-    spans={'curr':(cs,ce),'prev':(ps,pe),'appg':(year_ago(cs),year_ago(ce))}
+    spans={'curr':(cs,ce),'prev':(ps,pe),'appg':(year_ago(cs,today),year_ago(ce,today))}
+    # All boundaries use one reference day, even if fetching crosses midnight.
+    for start_key, end_key in (('appg_period_start','appg_period_end'), ('appg_start_periods','appg_end_periods')):
+        params[start_key], params[end_key] = (f'{offset} day' for offset in spans['appg'])
+    bounds={key:[(today-timedelta(days=offset)).isoformat() for offset in span]
+            for key,span in spans.items()}
     raw, errors = fetch_periods(portal, params, spans)
     if 'curr' not in raw:
         raise PortalError(errors.get('curr','Не удалось загрузить текущий период.'))
     if any(key not in raw for key in ('prev','appg')):
         raise PortalError('Не удалось получить все периоды сравнения. Повторите загрузку: неполные данные не показаны как нулевые.')
     values={dim:[] for dim in DIMS};indexes={dim:{} for dim in DIMS}
-    packed={};excluded={}
+    packed={};excluded={};unknown_dates={}
     for key,(columns,rows) in raw.items():
-        if not all(column in columns for column in COLS.values()):
+        if not all(column in columns for dim,column in COLS.items() if dim != 'date'):
             raise PortalError('Выгрузка портала изменилась: отсутствуют ожидаемые столбцы.')
-        positions={dim:columns.index(column) for dim,column in COLS.items()}
-        output=[];excluded[key]=0
+        positions={dim:columns.index(column) for dim,column in COLS.items() if column in columns}
+        output=[];excluded[key]=0;unknown_dates[key]=0
         for row in rows:
             if not isinstance(row,list) or len(row)<=max(positions.values()):
                 raise PortalError('Портал вернул неполную строку. Уменьшите период и повторите.')
@@ -161,12 +195,19 @@ def build(portal,windows):
                 excluded[key]+=1;continue
             encoded=[]
             for dim in DIMS:
-                value=str(row[positions[dim]] or '—')
+                if dim == 'date':
+                    value=normalize_date(row[positions[dim]]) if dim in positions else ''
+                    if not value:
+                        unknown_dates[key]+=1
+                else:
+                    value=str(row[positions[dim]] or '—')
                 if value not in indexes[dim]:
                     indexes[dim][value]=len(values[dim]);values[dim].append(value)
                 encoded.append(indexes[dim][value])
             output.append(encoded)
         packed[key]=output
+    if any(unknown_dates.values()):
+        errors['dates']='У части обращений отсутствует корректная дата: они учтены в итогах, но не в графике динамики.'
     population={}
     try:
         columns,rows=portal.query('q_map',params)
@@ -180,8 +221,9 @@ def build(portal,windows):
     except PortalError:updated,not_mapped='Нет данных',None
     return {'dims':values,'rows':packed,'population':population,'not_municipal':['Москва','Московская область'],
             'errors':errors,'counts':{key:len(packed.get(key,[])) if key in packed else None for key in spans},
-            'excluded':excluded,'curr_label':label(cs,ce),'prev_label':label(ps,pe),
-            'appg_label':label(year_ago(cs),year_ago(ce)), 'updated':updated,'not_mapped':not_mapped,
+            'excluded':excluded,'unknown_dates':unknown_dates,'bounds':bounds,
+            'curr_label':label(cs,ce,today),'prev_label':label(ps,pe,today),
+            'appg_label':label(*spans['appg'],today=today), 'updated':updated,'not_mapped':not_mapped,
             'fetched_at':datetime.now().strftime('%H:%M:%S')}
 
 
