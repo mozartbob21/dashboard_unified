@@ -1,23 +1,62 @@
 """ARM transport through the configured Chromium-GOST and its certificate stack.
 
-No APIRequestContext: that would use a different network stack. All report and
-login requests run as same-origin fetches inside the portal tab.
+No APIRequestContext: that would use a different network stack. Login uses the
+live portal form; reports run as same-origin fetches inside the authenticated tab.
 """
 import argparse
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from playwright.sync_api import Error as BrowserError, sync_playwright
+from playwright.sync_api import Error as BrowserError, TimeoutError as BrowserTimeout, sync_playwright
 
 from services.edds.arm import ArmClient, ArmError, BASE_URL, MAX_BYTES
 
 PROFILE = Path(__file__).resolve().parents[2] / '.private' / 'edds' / 'Chromium-Gost-profile'
 PORTAL_REPORT = Path(__file__).with_name('portal.js').read_text(encoding='utf-8')
+REPORT_URL = BASE_URL + '?act=cds_report_svod&id=3608'
+
+# Return only a state code: never collect form values, page text or credentials.
+LOGIN_STATE = r'''() => {
+  const visible = e => !!e && !!e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
+  const has = selector => Array.from(document.querySelectorAll(selector)).some(visible);
+  if (window.__neuronaAuthBlocked) return 'blocked';
+  if (has('iframe[src*="captcha"], .g-recaptcha, .h-captcha, input[name*="captcha" i]')) return 'captcha';
+  if (has('input[autocomplete="one-time-code"], input[name="otp"], input[name="totp"]')) return 'verification';
+  if (has('input[type="password"]')) {
+    const error = Array.from(document.querySelectorAll('[role="alert"], .alert-danger, .login-error, #login-error, .error-message'))
+      .some(e => visible(e) && e.textContent.trim() &&
+        (!window.__neuronaAuthPriorErrors || window.__neuronaAuthPriorErrors.get(e) !== e.textContent));
+    return error ? 'login_error' : 'login';
+  }
+  if (document.querySelector('[name="date_ot"]') && document.querySelector('[name="date_do"]')) return 'report';
+  // A hidden AJAX form may mean its POST is still in flight. Only a new,
+  // fully loaded document can be treated as a landing page before report verification.
+  return document.readyState === 'complete' && !window.__neuronaAuthAttemptActive ? 'other' : '';
+}'''
+
+# Chromium enforces this before a form POST or XHR can follow a foreign redirect.
+# A route/url check after click alone is too late for a 307 carrying the password.
+LOGIN_GUARD = r'''() => {
+  window.__neuronaAuthAttemptActive = true;
+  window.__neuronaAuthPriorErrors = new WeakMap(Array.from(document.querySelectorAll(
+    '[role="alert"], .alert-danger, .login-error, #login-error, .error-message')).map(e => [e, e.textContent]));
+  if (document.querySelector('meta[data-neurona-auth-guard]')) return;
+  window.__neuronaAuthBlocked = false;
+  document.addEventListener('securitypolicyviolation', event => {
+    if (['form-action', 'connect-src'].includes(event.effectiveDirective)) window.__neuronaAuthBlocked = true;
+  });
+  const policy = document.createElement('meta');
+  policy.httpEquiv = 'Content-Security-Policy';
+  policy.content = "form-action 'self'; connect-src 'self'";
+  policy.dataset.neuronaAuthGuard = 'true';
+  document.head.appendChild(policy);
+}'''
 
 
 def browser_executable():
@@ -106,6 +145,117 @@ class ChromeArmClient(ArmClient):
             self.close()
             raise browser_error(error) from None
 
+    def _login_timeout(self, deadline, maximum=15000):
+        remaining = min(self.deadline, deadline) - time.monotonic()
+        if remaining <= 0:
+            raise ArmError('Истекло время входа в АРМ ЕДДС. Проверьте окно Chromium-GOST на сервере и повторите загрузку.', 504)
+        return max(1, min(maximum, int(remaining * 1000)))
+
+    def _login_state(self, states, deadline, maximum=15000):
+        script = '(states) => { const state = (' + LOGIN_STATE + ')(); return states.includes(state) ? state : false; }'
+        return self.page.wait_for_function(script, arg=states,
+            timeout=self._login_timeout(deadline, maximum)).json_value()
+
+    def _login_challenge(self, state):
+        if state == 'blocked':
+            raise ArmError('Форма входа АРМ попыталась отправить запрос на другой сайт. '
+                           'Передача остановлена; нужна проверка интеграции.', 409)
+        if state in {'captcha', 'verification'}:
+            raise ArmError('АРМ ЕДДС требует капчу или код подтверждения. '
+                           'Завершите проверку в Chromium-GOST на компьютере-сервере и повторите загрузку.', 409)
+
+    def _check_login_target(self, form, submit):
+        self.safe_url(self.page.url)
+        # DOM properties resolve relative actions (including <base>) exactly as the browser does.
+        target = form.evaluate('(form) => ({action: form.action, method: form.method, target: form.target})')
+        override = submit.evaluate('''(button) => ({
+          action: button.hasAttribute('formaction') ? button.formAction : null,
+          method: button.hasAttribute('formmethod') ? button.formMethod : null,
+          target: button.hasAttribute('formtarget') ? button.formTarget : null
+        })''')
+        self.safe_url(override['action'] or target['action'] or self.page.url)
+        if (override['method'] or target['method'] or 'get').lower() != 'post':
+            raise ArmError('Форма входа АРМ не использует POST. Отправка пароля в адресной строке запрещена; '
+                           'нужна проверка формы портала.', 409)
+        if (override['target'] if override['target'] is not None else target['target']) not in ('', '_self'):
+            raise ArmError('Форма входа АРМ открывает другое окно. Нужна проверка интеграции.', 409)
+
+    def login(self, account):
+        deadline = min(self.deadline, time.monotonic() + 75)
+        stage = 'open'
+        try:
+            # Cookies may have expired or been cleared for another admin account.
+            # A previously rendered report is not proof that this session is still valid.
+            self.open_portal(timeout=self._login_timeout(deadline, 30000))
+            state = self._login_state(['report', 'login', 'login_error', 'captcha', 'verification'], deadline)
+            self.safe_url(self.page.url)
+            self._login_challenge(state)
+            if state == 'report':
+                return
+            stage = 'fields'
+            password = self.page.locator('input[type="password"]:visible').first
+            form = password.locator('xpath=ancestor::form[1]')
+            if form.count() != 1:
+                raise ArmError('Форма с полем пароля АРМ ЕДДС не найдена. Нужна проверка страницы входа.')
+            username = form.locator('input[autocomplete="username"]:visible, input[name="login"]:visible, '
+                                    'input[name="username"]:visible, input[name="user"]:visible, input[type="email"]:visible').first
+            if not username.count():
+                username = form.locator('input:is(:not([type]), [type="text"]):visible'
+                    ':not([name*="captcha" i]):not([name*="otp" i]):not([name*="code" i])').first
+            if not username.count():
+                raise ArmError('Не найдено поле логина АРМ ЕДДС. Нужна проверка страницы входа.')
+            submit = form.locator('button[type="submit"]:visible, input[type="submit"]:visible, button:not([type]):visible')
+            candidates = []
+            for button in submit.all():
+                label = (button.inner_text() if button.evaluate('(e) => e.tagName') == 'BUTTON'
+                         else button.get_attribute('value') or '')
+                if button.get_attribute('id') == 'esia-auth-button' or re.search('есиа|госуслуг', label, re.I):
+                    continue
+                candidates.append(button)
+            if len(candidates) != 1:
+                raise ArmError('Не удалось однозначно найти кнопку «Войти» в форме АРМ ЕДДС. Нужна проверка страницы входа.')
+            submit = candidates[0]
+            self._check_login_target(form, submit)
+            self.page.evaluate(LOGIN_GUARD)
+            # fill dispatches input events; Tab also triggers the page's blur/change validation.
+            username.fill(account['username'], timeout=self._login_timeout(deadline))
+            self.safe_url(self.page.url)
+            password.fill(account['password'], timeout=self._login_timeout(deadline))
+            password.press('Tab', timeout=self._login_timeout(deadline))
+            self._check_login_target(form, submit)
+            stage = 'submit'
+            submit.click(timeout=self._login_timeout(deadline), no_wait_after=True)
+            stage = 'result'
+            try:
+                state = self._login_state(['report', 'other', 'login_error', 'captcha', 'verification', 'blocked'],
+                                          deadline, 20000)
+            except BrowserTimeout:
+                # Some forms keep the login DOM after setting a session cookie.
+                # Verify by reopening the report, without resubmitting credentials.
+                state = self.page.evaluate(LOGIN_STATE)
+            self.safe_url(self.page.url)
+            self._login_challenge(state)
+            if state == 'login_error':
+                raise ArmError('АРМ ЕДДС не принял вход. Проверьте логин и пароль в записи «АРМ ЕДДС» '
+                               'и сообщение в окне Chromium-GOST на сервере.', 403)
+            self.open_portal(timeout=self._login_timeout(deadline, 20000))
+            state = self._login_state(['report', 'login', 'login_error', 'captcha', 'verification'], deadline)
+            self.safe_url(self.page.url)
+            self._login_challenge(state)
+            if state != 'report':
+                raise ArmError('После отправки формы АРМ ЕДДС снова запросил вход. Проверьте сохранённые '
+                               'реквизиты «АРМ ЕДДС» и права аккаунта на сводный отчёт.', 403)
+        except BrowserTimeout:
+            messages = {
+                'open': 'АРМ ЕДДС не показал форму входа или отчёт за отведённое время.',
+                'fields': 'Не удалось заполнить поля входа АРМ ЕДДС за отведённое время.',
+                'submit': 'Кнопка «Войти» АРМ ЕДДС не стала доступной или не ответила.',
+                'result': 'АРМ ЕДДС не подтвердил вход за отведённое время.',
+            }
+            raise ArmError(messages[stage] + ' Проверьте окно Chromium-GOST на компьютере-сервере.', 504) from None
+        except BrowserError as error:
+            raise browser_error(error) from None
+
     def authenticate(self, account):
         # Do not reuse the previous administrator's portal session after an account change.
         marker = PROFILE / 'neurona-account.sha256'
@@ -114,9 +264,10 @@ class ChromeArmClient(ArmClient):
             previous = marker.read_text(encoding='ascii', errors='replace') if marker.exists() else ''
             if previous != identity:
                 self.context.clear_cookies()
-            self.login(account)
-            if previous != identity:
+                # Bind even a pending login to this account so a manually completed
+                # CAPTCHA/second factor is not erased on the next attempt.
                 marker.write_text(identity, encoding='ascii')
+            self.login(account)
         except OSError:
             raise ArmError('Не удалось сохранить настройки рабочего профиля ЕДДС. '
                            'Проверьте права на .private/edds.', 503) from None
@@ -158,11 +309,14 @@ class ChromeArmClient(ArmClient):
                     pass
             self.context = self.playwright = self.page = None
 
-    def open_portal(self):
+    def open_portal(self, timeout=45000):
         try:
-            self.page.goto(BASE_URL + '?act=cds_report_svod&id=3608', wait_until='domcontentloaded', timeout=45000)
+            self.page.goto(REPORT_URL, wait_until='domcontentloaded', timeout=timeout)
             self.safe_url(self.page.url)
             self.portal_open = True
+        except BrowserTimeout:
+            raise ArmError('Chromium-GOST не дождался страницы АРМ ЕДДС. Проверьте выбор сертификата '
+                           'и открывшееся окно на сервере.', 504) from None
         except BrowserError as error:
             raise browser_error(error) from None
 
@@ -231,8 +385,8 @@ class BrowserService:
                 self._close_client()
                 raise browser_error(error) from None
         self._client.deadline = time.monotonic() + 150
-        self._client.authenticate(account)
         self._account = identity
+        self._client.authenticate(account)
         try:
             return self._client.report(start, end, coordinates)
         except ArmError as error:

@@ -72,25 +72,13 @@ class ChromeTests(unittest.TestCase):
         self.assertTrue(self.client.portal_open)
         self.page.goto.assert_called_once_with(arm.BASE_URL+'?act=cds_report_svod&id=3608', wait_until='domcontentloaded', timeout=45000)
 
-    def test_login_uses_browser_fetch_and_never_places_secret_in_url(self):
-        form='<form method="post"><input name="user"><input name="pass" type="password"></form>'
-        self.page.evaluate.side_effect = [
-            {'status':200,'url':arm.BASE_URL,'text':form},
-            {'status':200,'url':arm.BASE_URL,'text':'<form><input name="date_ot"><input name="date_do"></form>'}]
-        self.client.login({'username':'test','password':'test-secret'})
-        payload=self.page.evaluate.call_args.args[1]
-        self.assertEqual(payload['method'],'POST')
-        self.assertEqual(payload['data']['pass'],'test-secret')
-        self.assertNotIn('test-secret',payload['url'])
-
     def test_active_session_is_reused_without_sending_password(self):
-        self.page.evaluate.return_value = {'status':200,'url':arm.BASE_URL,
-            'text':'<form><input name="date_ot"><input name="date_do"></form>'}
+        self.page.wait_for_function.return_value.json_value.return_value = 'report'
         self.client.login({'username':'saved-admin','password':'saved-secret'})
-        self.assertEqual(self.page.evaluate.call_count, 1)
-        payload = self.page.evaluate.call_args.args[1]
-        self.assertEqual(payload['method'], 'GET')
-        self.assertIsNone(payload['data'])
+        self.page.goto.assert_called_once()
+        self.assertEqual(self.page.goto.call_args.args[0], chrome.REPORT_URL)
+        self.page.locator.assert_not_called()
+        self.page.evaluate.assert_not_called()
 
     def test_coordinates_use_same_browser_and_archive_script(self):
         self.page.evaluate.return_value = {'grid': [['Номер заявки', 'Широта', 'Долгота'], ['1', '55', '37']]}
