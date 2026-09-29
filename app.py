@@ -1146,9 +1146,14 @@ async def security_headers(request: Request, call_next):
     # to other sites. Keep rejecting opaque and foreign origins above.
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+    image_sources = "'self' data: blob:"
+    if request.url.path.rstrip("/") == "/edds":
+        # EDDS basemap only: no external scripts, API calls or arbitrary images.
+        image_sources += " " + " ".join(
+            f"https://tile{i}.maps.2gis.com/tiles" for i in range(4))
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+        f"style-src 'self' 'unsafe-inline'; img-src {image_sources}; "
         "font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; "
         "frame-src 'self' blob:; object-src 'none'; base-uri 'self'; "
         "form-action 'self'; frame-ancestors 'none'")

@@ -246,6 +246,8 @@ class AccessControlTests(unittest.TestCase):
             self.assertEqual(self.client.get(path).status_code,403)
         csp=self.client.get('/aichat').headers['Content-Security-Policy']
         self.assertIn("connect-src 'self'",csp)
+        self.assertIn("img-src 'self' data: blob:;",csp)
+        self.assertNotIn('maps.2gis.com',csp)
         self.assertEqual(self.client.get('/aichat').headers['Cache-Control'],'no-store')
 
     def test_edds_grant_page_and_refresh_without_credentials(self):
@@ -256,6 +258,12 @@ class AccessControlTests(unittest.TestCase):
             conn.execute("UPDATE users SET modules='[\"edds\"]' WHERE username='ordinary'")
         page=self.client.get('/edds')
         self.assertEqual(page.status_code,200);self.assertIn('eddsRefresh',page.text)
+        csp=page.headers['Content-Security-Policy']
+        self.assertIn("img-src 'self' data: blob: " + " ".join(
+            f'https://tile{i}.maps.2gis.com/tiles' for i in range(4)) + ';',csp)
+        self.assertIn("connect-src 'self';",csp)
+        self.assertIn("script-src 'self' 'unsafe-inline';",csp)
+        self.assertNotIn('maps.2gis.com',self.client.get('/edds/status').headers['Content-Security-Policy'])
         self.assertIn("const ZH_URL = EMBEDDED ? '/edds/water-daily'",page.text)
         self.assertIn('days',self.client.get('/edds/water-daily').json())
         self.assertEqual(self.client.post('/edds/refresh').status_code,400)
