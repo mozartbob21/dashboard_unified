@@ -4,7 +4,7 @@ import io
 import os
 import threading
 import time
-from datetime import date
+from datetime import date, timedelta
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -181,6 +181,33 @@ def fetch_report(start, end, coordinates=False):
     try:
         transport()
         from services.edds.chrome import browser_service
-        return browser_service.report(account, start, end, coordinates)
+        # Whole-region exports can exceed the browser's per-response size limit.
+        # Keep that limit; split only the requested period and join the CSV rows.
+        def window(lo, hi):
+            try:
+                return browser_service.report(account, lo, hi, coordinates)
+            except ArmError as error:
+                if error.status != 413 or lo >= hi:
+                    raise
+                middle = lo + timedelta(days=(hi - lo).days // 2)
+                left = window(lo, middle)
+                right = window(middle + timedelta(days=1), hi)
+                if left[0] != right[0]:
+                    raise ArmError('Колонки отчёта АРМ различаются между периодами. Загрузка остановлена.')
+                return left + right[1:]
+
+        merged = None
+        lo = start
+        while lo <= end:
+            hi = min(lo + timedelta(days=30), end)
+            part = window(lo, hi)
+            if merged is None:
+                merged = part
+            elif merged[0] != part[0]:
+                raise ArmError('Колонки отчёта АРМ различаются между периодами. Загрузка остановлена.')
+            else:
+                merged.extend(part[1:])
+            lo = hi + timedelta(days=1)
+        return merged
     finally:
         LOCK.release()

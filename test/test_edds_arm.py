@@ -53,6 +53,47 @@ class ArmTests(unittest.TestCase):
                 arm.fetch_report(date.today(), date.today())
             self.assertFalse(arm.LOCK.locked())
 
+    def test_large_period_is_loaded_in_contiguous_windows(self):
+        from services.edds import chrome
+        start, end = date(2026, 1, 1), date(2026, 3, 5)
+        def report(_account, lo, hi, _coordinates):
+            return [['id_cds_claim'], [lo.isoformat(), hi.isoformat()]]
+        with patch.object(arm, 'credentials', return_value={'username': 'u', 'password': 'secret'}), \
+                patch.object(chrome.browser_service, 'report', side_effect=report) as call:
+            rows = arm.fetch_report(start, end)
+        self.assertEqual(rows, [['id_cds_claim'], ['2026-01-01', '2026-01-31'],
+                                ['2026-02-01', '2026-03-03'], ['2026-03-04', '2026-03-05']])
+        self.assertEqual(call.call_count, 3)
+        self.assertFalse(arm.LOCK.locked())
+
+    def test_oversize_window_is_bisected_without_losing_rows(self):
+        from services.edds import chrome
+        def report(_account, lo, hi, _coordinates):
+            if (hi - lo).days > 1:
+                raise arm.ArmError('Отчёт слишком большой', 413)
+            return [['id_cds_claim'], [lo.isoformat()], [hi.isoformat()]]
+        with patch.object(arm, 'credentials', return_value={'username': 'u', 'password': 'secret'}), \
+                patch.object(chrome.browser_service, 'report', side_effect=report):
+            rows = arm.fetch_report(date(2026, 9, 1), date(2026, 9, 4))
+        self.assertEqual(rows, [['id_cds_claim'], ['2026-09-01'], ['2026-09-02'],
+                                ['2026-09-03'], ['2026-09-04']])
+
+    def test_incompatible_report_headers_stop_merge(self):
+        from services.edds import chrome
+        def report(_account, lo, hi, _coordinates):
+            return [[('id_cds_claim' if lo.month == 1 else 'other')], ['1']]
+        with patch.object(arm, 'credentials', return_value={'username': 'u', 'password': 'secret'}), \
+                patch.object(chrome.browser_service, 'report', side_effect=report):
+            with self.assertRaisesRegex(arm.ArmError, 'Колонки отчёта'):
+                arm.fetch_report(date(2026, 1, 1), date(2026, 2, 2))
+        self.assertFalse(arm.LOCK.locked())
+
+    def test_collector_failure_is_classified_without_exposing_browser_trace(self):
+        message = runner.failure_message('Executable doesn\'t exist at secret-user-path password=secret')
+        self.assertIn('EDDS_CHROME_EXECUTABLE', message)
+        self.assertNotIn('secret', message)
+        self.assertIn('HTTP 503', runner.failure_message('Сервер вернул ошибку 503 на странице 2.'))
+
     def test_login_uses_hidden_fields_and_post_without_exposing_secret_in_url(self):
         client = arm.ArmClient()
         self.addCleanup(client.close)

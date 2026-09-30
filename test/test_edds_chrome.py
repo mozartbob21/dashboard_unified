@@ -184,8 +184,33 @@ class ChromeTests(unittest.TestCase):
             manager.return_value.__enter__.return_value = SimpleNamespace(chromium=chromium)
             with self.assertRaisesRegex(RuntimeError, 'stop before network'):
                 collector.main()
-        chromium.launch.assert_called_once_with(headless=True)
+        chromium.launch.assert_called_once_with(headless=True, executable_path=__file__)
         chromium.launch.return_value.close.assert_called_once()
+
+    def test_complaints_collector_rejects_missing_configured_browser(self):
+        with patch.dict(os.environ, {'EDDS_CHROME_EXECUTABLE': '/missing/chrome.exe'}), \
+                patch.object(collector, 'load_water', return_value=None), \
+                patch.object(collector, 'pull_windows', return_value=[]), \
+                patch.object(collector, 'log'), patch.object(collector, 'sync_playwright') as manager:
+            with self.assertRaisesRegex(RuntimeError, 'EDDS_CHROME_EXECUTABLE'):
+                collector.main()
+            manager.return_value.__enter__.return_value.chromium.launch.assert_not_called()
+
+    def test_complaints_first_run_queries_bounded_contiguous_periods(self):
+        with patch.object(collector, 'DAYS_BACK', 730), patch.object(collector, 'MAX_CATCHUP', 30):
+            windows = collector.pull_windows(None)
+        self.assertEqual(len(windows), 3)
+        self.assertEqual(windows[-1][1], date.today())
+        self.assertEqual((windows[0][0] - windows[-1][1]).days, -29)
+        for previous, following in zip(windows, windows[1:]):
+            self.assertEqual(previous[1].toordinal() + 1, following[0].toordinal())
+        self.assertTrue(all((end - start).days < collector.MAX_WINDOW_DAYS for start, end, _ in windows))
+
+    def test_complaints_report_timeout_is_identified(self):
+        page = MagicMock()
+        page.evaluate.return_value = {'error': 'timeout'}
+        with self.assertRaisesRegex(RuntimeError, '60 секунд'):
+            collector.fetch_all(page, 'filters.statuses=32')
 
     def test_chrome_error_does_not_silently_fallback_to_requests(self):
         with patch.dict(os.environ,{'EDDS_ARM_TRANSPORT':'chrome'}), \

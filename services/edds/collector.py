@@ -1,17 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-КЛИКЕР для дашборда «Контроль жалоб ЕЦУР».
+"""Сбор жалоб Добродела для свода ЕДДС.
 
-Что делает сам, без рук:
-  1. Заходит на admin.vmeste.mosreg.ru под сохранённой сессией
-     (если сессия протухла — логинится паролем из хранилища Windows).
-  2. Тянет операционный отчёт МинЖКХ (активные статусы, срок решения с сегодня)
-     напрямую через API — постранично, без Excel.
-  3. Складывает данные в data.js рядом с HTML.
-  4. Открывает дашборд в браузере.
-
-Пароль нигде в файлах не хранится — только в Диспетчере учётных данных Windows.
-Обновить логин/пароль: запусти настройки в админ-панели.
+Заходит на портал под отдельной учётной записью из настроек «Нейроны»,
+запрашивает отчёт МинЖКХ небольшими периодами и сохраняет water_daily.json.
+Пароль в файл свода не записывается.
 """
 
 import os
@@ -65,11 +57,10 @@ ACTIVE_STATUSES = "37,32,50,54,57,51,511,512"
 # Свод по воде копится. Каждый прогон перетягивает только хвост, история
 # остаётся в файле, поэтому глубина растёт сама и ничем не ограничена сверху.
 OVERLAP = int(os.environ.get("KLIKER_OVERLAP", "7"))     # дней перезапроса внахлёст
-# Потолок ОДНОГО добора назад. Держим порцию небольшой намеренно: 550 дней
-# одним запросом — это ~35 тыс. записей, прогон не укладывается в таймаут и
-# пропадает целиком. Порциями свод дорастает до нужной глубины за несколько
-# прогонов, и каждый из них завершается и сохраняется.
-MAX_CATCHUP = int(os.environ.get("KLIKER_CATCHUP", "180"))
+# Limit work per run; the portal's operative report times out on long windows.
+# Older history is backfilled over later runs.
+MAX_CATCHUP = max(1, int(os.environ.get("KLIKER_CATCHUP", "30")))
+MAX_WINDOW_DAYS = 14
 KEEP_DAYS = int(os.environ.get("KLIKER_KEEP", "1825"))   # сколько истории держим, 0 = вечно
 
 # Глубина истории по «Дате подачи» (filters.createdAfter/createdBefore на портале).
@@ -113,7 +104,8 @@ def logged_in(page):
 def do_login(page):
     email, pwd = get_credentials()
     log("🔑 Сессия недоступна — вхожу под сохранённым паролем…")
-    page.goto(LOGIN_URL, wait_until="networkidle", timeout=60000)
+    # The portal can keep background requests open after the form is ready.
+    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
     # форма Spring Security: j_username / j_password
     page.fill("input[name=j_username]", email)
     page.fill("input[name=j_password]", pwd)
@@ -153,9 +145,17 @@ FETCH_JS = """async (args) => {
     const [cur, filters, pageIdx, size] = args;
     const base = "filters.curators=" + encodeURIComponent(cur) + "&" + filters;
     const url = "/report/operative?orderBy=ID&page=" + pageIdx + "&size=" + size + "&" + base;
-    const r = await fetch(url, {headers:{Accept:'application/json'}});
-    if (!r.ok) return {error: r.status};
-    return {rows: await r.json()};
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+    try {
+        const r = await fetch(url, {headers:{Accept:'application/json'}, signal:controller.signal});
+        if (!r.ok) return {error: r.status};
+        return {rows: await r.json()};
+    } catch (error) {
+        return {error: controller.signal.aborted ? 'timeout' : 'network'};
+    } finally {
+        clearTimeout(timer);
+    }
 }"""
 
 
@@ -166,8 +166,12 @@ def fetch_all(page, filters):
     while True:
         res = page.evaluate(FETCH_JS, [CURATOR, filters, idx, PAGE_SIZE])
         if isinstance(res, dict) and res.get("error"):
-            log(f"❌ Сервер вернул ошибку {res['error']} на странице {idx}.")
-            sys.exit(1)
+            error = res['error']
+            if error == 'timeout':
+                raise RuntimeError('Добродел не ответил за 60 секунд при загрузке страницы отчёта.')
+            if error == 'network':
+                raise RuntimeError('Chromium не смог получить отчёт Добродела по сети.')
+            raise RuntimeError(f'Сервер вернул ошибку {error} на странице {idx}.')
         batch = res.get("rows") or []
         if not batch:
             break
@@ -268,8 +272,17 @@ def pull_windows(existing):
     first = _day((existing or {}).get("from"))
     last = _day((existing or {}).get("to"))
 
+    def small_windows(start, finish, reason):
+        result = []
+        while start <= finish:
+            stop = min(start + dt.timedelta(days=MAX_WINDOW_DAYS - 1), finish)
+            result.append((start, stop, reason))
+            start = stop + dt.timedelta(days=1)
+        return result
+
     if last is None:
-        return [(want_from, until, f"первый сбор, {DAYS_BACK} дн.")]
+        start = max(want_from, until - dt.timedelta(days=MAX_CATCHUP - 1))
+        return small_windows(start, until, 'первый сбор')
 
     wins = []
     since = last - dt.timedelta(days=OVERLAP)
@@ -278,14 +291,12 @@ def pull_windows(existing):
         log(f"⚠ Свод не обновлялся с {last}. Беру последние {MAX_CATCHUP} дн., "
             f"в истории останется разрыв — при необходимости увеличьте KLIKER_CATCHUP.")
         since = floor
-    wins.append((since, until, f"хвост {(until - since).days} дн., нахлёст {OVERLAP}"))
+    wins.extend(small_windows(since, until, f"хвост, нахлёст {OVERLAP} дн."))
 
     if first is not None and want_from < first:
         back_to = first - dt.timedelta(days=1)
-        back_from = max(want_from, back_to - dt.timedelta(days=MAX_CATCHUP))
-        wins.append((back_from, back_to,
-                     f"добор назад {(back_to - back_from).days + 1} дн. "
-                     f"до глубины {DAYS_BACK} дн."))
+        back_from = max(want_from, back_to - dt.timedelta(days=MAX_CATCHUP - 1))
+        wins.extend(small_windows(back_from, back_to, f"добор назад до {DAYS_BACK} дн."))
     return wins
 
 
@@ -358,19 +369,20 @@ def main():
 
     pulled = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        executable = os.environ.get('EDDS_CHROME_EXECUTABLE', '').strip()
+        options = {'headless': True}
+        if executable:
+            if not Path(executable).is_file():
+                raise RuntimeError('EDDS_CHROME_EXECUTABLE не указывает на файл браузера Chromium-GOST.')
+            options['executable_path'] = executable
+        browser = p.chromium.launch(**options)
         try:
             ctx, page = ensure_session(browser)
             log("✅ Сессия активна.")
 
-            # 1) для дашборда жалоб — открытые заявки со сроком от сегодня.
-            #    Без окна по дате подачи: открытая жалоба двухлетней давности
-            #    тоже должна быть видна, она никуда не делась.
-            log("   ── открытые жалобы для data.js …")
-            act_recs = fetch_all(page, "filters.statuses=" + ACTIVE_STATUSES +
-                                 "&filters.deadlineAfter=" + dt.date.today().isoformat())
-
-            # 2) для графика ЕДДС — все статусы за окна подачи
+            # The embedded EDDS page reads only water_daily.json. The old,
+            # unbounded active-complaints export populated data.js for a separate
+            # standalone dashboard and could fail before the water update began.
             for a, b, why in wins:
                 log(f"   ── свод по воде: {a} — {b} ({why}) …")
                 recs = fetch_all(page, "filters.statuses=" + STATUSES +
@@ -380,23 +392,13 @@ def main():
         finally:
             browser.close()
 
-    if not act_recs and not any(r for _, _, r in pulled):
-        log("⚠ Сервер вернул 0 записей по всем запросам. Файлы не тронуты.")
-        sys.exit(1)
-
-    if act_recs:
-        arows = build_rows(act_recs)
-        write_data_js(arows)
-        log(f"✅ Открытых жалоб: {len(arows) - 1}, "
-            f"{len({r[2] for r in arows[1:]})} ОМСУ → {DATA_JS.name}")
-    else:
-        log("⚠ По открытым жалобам пришло 0 записей — data.js не тронут.")
-
+    if not pulled:
+        raise RuntimeError('Не задано окно для обновления свода жалоб.')
+    if not any(recs for _, _, recs in pulled):
+        raise RuntimeError('Добродел вернул пустой отчёт за все запрошенные периоды; прежний свод сохранён.')
     was0 = have
     for a, b, recs in pulled:
-        if not recs:
-            log(f"⚠ Окно {a} — {b}: 0 записей, свод не тронут.")
-            continue
+        # An empty successful response clears stale counts in this window.
         hit, total, ndays, _ = write_water_daily(build_rows(recs), a, b, load_water())
         log(f"   свод {a} — {b}: +{hit} жалоб за {ndays} дн.")
     final = load_water() or {}
