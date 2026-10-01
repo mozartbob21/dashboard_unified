@@ -1,0 +1,113 @@
+{% extends "base_module.html" %}
+{% block title %}Жалобы по воде — МИНЖКХ — Нейрона ИИ{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/mingkh-water-map.css?v=20261001">{% endblock %}
+{% block content %}
+<div class="container">
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">МИНЖКХ · Жалобы по воде</div></div></div><div class="top-actions"><a href="/mingkh" class="secondary-button">← Обращения МИНЖКХ</a><a href="/" class="secondary-button">На главную</a></div></header>
+<div class="water-map">
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Жалобы по воде — карта</h1>
+      <div class="sub" id="meta">Загрузка данных…</div>
+    </div>
+    <button class="btn" id="xls" disabled title="Скачать в Excel жалобы, которые сейчас выбраны фильтрами и областью">⬇ Скачать Excel</button>
+  </div>
+
+  <p class="dataset-note">Карта ДоброДела: архив и дозаписанные жалобы. Период и время обновления указаны выше. Кнопки периода отсчитываются от последнего дня данных.</p>
+  <div id="load-error" role="alert" hidden></div>
+  {% if can_import %}
+  <form id="import-form" class="import-actions">
+    <span id="archive-hint" class="archive-hint">Обновить архив (ZIP или water_points.json)</span>
+    <div class="archive-picker">
+      <input id="archive-file" class="archive-native" type="file" accept=".zip,.json" required
+             aria-label="Выбрать архив жалоб по воде" aria-describedby="archive-hint archive-filename">
+      <label for="archive-file" class="secondary-button archive-picker-button">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3Z"/><path d="M3 10h18"/></svg>
+        <span>Выбрать файл</span>
+      </label>
+      <span id="archive-filename" class="archive-filename" role="status" aria-live="polite">Файл не выбран</span>
+    </div>
+    <button type="submit" class="btn ghost" id="import-submit">Загрузить архив</button>
+    <span class="import-result" id="import-result" role="status"></span>
+  </form>
+  <div class="import-actions"><button type="button" class="btn ghost" id="live-refresh">Дозаписать из ДоброДела</button>
+    <span class="import-result" id="live-status" role="status"></span></div>
+  <p class="dataset-note">Дозапись использует сохранённый доступ «Добродел»: добавляет новые даты и перепроверяет последние 7 дней архива. Ранняя история остаётся по данным архива.</p>
+  {% endif %}
+  <div class="card water-filters-card" data-dataset-ui hidden>
+    <div class="filters">
+      <div class="fld"><span class="lbl">Вид</span><div class="water-kind">
+        <label><input type="checkbox" data-kind="0" checked>ХВС</label>
+        <label><input type="checkbox" data-kind="1" checked>Водоотведение</label>
+        <label><input type="checkbox" data-kind="2" checked>ГВС</label>
+      </div></div>
+      <div class="fld">
+        <span class="lbl">Период подачи</span>
+        <div class="row">
+          <input type="date" id="d-from" aria-label="Начало периода"> <span class="mute">—</span> <input type="date" id="d-to" aria-label="Конец периода">
+        </div>
+        <div class="per-note" id="per-note"></div>
+      </div>
+      <div class="fld">
+        <span class="lbl">Быстро</span>
+        <div class="row" id="quick">
+          <button class="chip" data-q="7">7 дней</button>
+          <button class="chip" data-q="30">30 дней</button>
+          <button class="chip" data-q="90">3 месяца</button>
+          <button class="chip" data-q="365">Год</button>
+          <button class="chip" data-q="all">Всё</button>
+        </div>
+      </div>
+      <div class="fld">
+        <span class="lbl">ОМСУ</span>
+        <div class="ms" data-ms="omsu"></div>
+      </div>
+      <div class="fld">
+        <span class="lbl">Факт (ЕЦУР)</span>
+        <div class="ms ms-wide" data-ms="fact"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-dataset-ui hidden>
+    <div class="kpis" id="kpis"></div>
+    <div class="kpis-note">Карточки групп — это фильтр: щелчок — только эта группа, Ctrl+щелчок — добавить к выбору,
+      повторный щелчок или щелчок по итогу — все группы</div>
+  </div>
+
+  <div class="card" data-dataset-ui hidden>
+    <div class="map-bar">
+      <button type="button" class="btn ghost" id="fit-map">Показать все точки</button>
+      <div class="seg" id="mk">
+        <button type="button" data-mk="heat" aria-pressed="true">Тепловая</button>
+        <button type="button" data-mk="points" aria-pressed="false">Точки с количеством</button>
+      </div>
+      <label class="map-rad" title="Радиус для кнопки «◎ Радиус» на карте">радиус, м
+        <input class="inp" id="rad" value="500" inputmode="numeric"></label>
+      <span class="box-chip" id="box-chip" hidden><span id="box-name"></span>
+        <button type="button" id="box-clear" title="Снять выделение">×</button></span>
+      <span class="spacer"></span>
+      <span class="mute" style="font-size:12px">Выделить на карте: ⬠ Область — щелчками по вершинам,
+        замкнуть двойным щелчком или Enter · ◎ Радиус — щелчок в точку</span>
+    </div>
+    <div id="map"></div>
+    <div class="map-status" id="map-status"></div>
+  </div>
+
+  <div class="card" data-dataset-ui hidden>
+    <div class="tbl-head">
+      <h2>Свод по ОМСУ</h2>
+      <span class="mute" id="ot-note"></span>
+      <span class="spacer"></span>
+      <button class="linkbtn" id="ot-reset" type="button" hidden>Показать все ОМСУ</button>
+    </div>
+    <!-- две колонки: строки делятся пополам, нумерация сквозная -->
+    <div class="ot-grid" id="ot"></div>
+    <div class="ot-total" id="ot-total"></div>
+  </div>
+</div>
+
+</div></div>
+<script src="/static/mingkh-water-map.js?v=20261001" defer></script>
+{% endblock %}

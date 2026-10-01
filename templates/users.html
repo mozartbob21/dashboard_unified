@@ -2,8 +2,8 @@
 {% block title %}Пользователи и доступ — Нейрона{% endblock %}
 {% block body_class %}module-users{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="/static/users.css?v=20260915-delegation">
-  <script src="/static/users.js?v=20260915-delegation" defer></script>
+<link rel="stylesheet" href="/static/users.css?v=20261001-activity">
+  <script src="/static/users.js?v=20261001-activity-dobrodel" defer></script>
 {% endblock %}
 {% block content %}
   <header><a href="/" class="system-link">← Перейти в систему</a><span>Админ-панель Нейроны</span><a href="/logout">Выйти</a></header>
@@ -50,6 +50,32 @@
           <button id="archiveUser" type="button" class="secondary" hidden>В архив</button>
           <p id="archiveNote" class="common-note" hidden>Пользователь в архиве. Вход запрещён; данные и права сохранены. После восстановления включите учётную запись отдельно.</p>
         </form>
+        <section id="userActivity" class="user-activity" aria-labelledby="activityTitle" hidden>
+          <div class="activity-heading"><h3 id="activityTitle">Активность пользователя</h3><button id="refreshActivity" type="button" class="secondary">Обновить</button></div>
+          <p id="activityStatus" role="status" class="muted"></p>
+          <div id="activityContent" hidden>
+            <dl class="activity-summary">
+              <div><dt>Посещений платформы</dt><dd id="activityVisits">0</dd></div>
+              <div><dt>Открытий страниц</dt><dd id="activityViews">0</dd></div>
+              <div><dt>Запросов действий</dt><dd id="activityActions">0</dd></div>
+            </dl>
+            <p id="activityLastSeen"></p>
+            <p id="activitySince" class="muted"></p>
+            <label class="check"><input id="activityUsedOnly" type="checkbox">Только блоки с активностью</label>
+            <div class="activity-table-wrap" tabindex="0" role="region" aria-label="Активность по блокам">
+              <table class="activity-table">
+                <caption>Активность по каждому блоку за всё время сбора</caption>
+                <thead><tr><th scope="col">Блок</th><th scope="col">Посещения</th><th scope="col">Открытия</th><th scope="col">Действия</th><th scope="col">Последняя активность</th></tr></thead>
+                <tbody id="activityRows"></tbody>
+              </table>
+            </div>
+            <details class="activity-help"><summary>Как считаются показатели</summary>
+              <p>Новое посещение начинается после 30 минут без учитываемой активности. Для платформы и каждого блока пауза считается отдельно, поэтому посещения блоков не складываются в посещения платформы. Обновление страницы добавляет открытие, но в пределах этой паузы не добавляет посещение.</p>
+              <p>Учитываются открытия HTML-страниц и запросы действий с ответом HTTP 2xx. Это счётчик запросов, а не завершённых задач; отправка файлов и запросы обработки тоже считаются действиями. Ручные операции автозапуска относятся к выбранному блоку. Фоновые опросы, скачивания файлов, ошибки, перенаправления и задания по расписанию не учитываются. Время открытой вкладки не измеряется.</p>
+              <p>Статистика доступна только управляющим пользователями. Хранятся только счётчики и даты для локальных учётных записей: без IP-адресов, паролей, адресов страниц и содержимого форм. Данные до начала сбора не восстанавливаются; ноль означает отсутствие учтённой активности.</p>
+            </details>
+          </div>
+        </section>
       </section>
     </div>
     <section class="panel" style="margin-top:24px" aria-labelledby="integrationsTitle">
@@ -61,6 +87,8 @@
         <label>Пароль<input name="password" type="password" maxlength="1024" autocomplete="new-password"></label>
         <p id="integrationStatus" role="status"></p>
         <button type="submit">Сохранить доступ</button>
+        <button id="checkEddsLogin" type="button" class="secondary" hidden disabled>Проверить вход</button>
+        <p id="checkEddsHint" class="muted" hidden>Проверяет сохранённые логин и пароль Добродела с компьютера-сервера.</p>
       </form>
       <p class="muted">Для загрузки заявок сохраните доступ к «АРМ ЕДДС», затем откройте блок ЕДДС и выберите период. Доступ к Доброделу настраивается отдельно и используется только для сбора жалоб. Для дашборда МИНЖКХ выберите его в списке и сохраните учётные данные портала cur.bi.mosreg.ru.</p>
     </section>

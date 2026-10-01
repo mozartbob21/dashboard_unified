@@ -1038,7 +1038,7 @@ PUBLIC_PATH_PREFIXES = (
     "/login",
     "/logout",
     "/register",        # страница регистрации
-    "/api/register",    # покрывает /verify и /resend
+    "/api/register",    # регистрация без отправки писем
     "/static",
 
     "/favicon.ico",
@@ -1116,7 +1116,9 @@ async def auth_middleware(request: Request, call_next):
     if path.startswith("/generated/prescriptions/") and not check_module_access(user, "cameras"):
         return JSONResponse(status_code=403, content={"detail": "Нет доступа к этим данным"})
     response = await call_next(request)
-    if (path == "/api/users" or path.startswith("/api/users/")) and "/notifications" not in path and request.method in {"PUT", "POST"} and response.status_code >= 400 and is_account_manager(user):
+    from services.auth.activity import track_response
+    await asyncio.to_thread(track_response, request, response, PATH_MODULE_MAP)
+    if (path == "/api/users" or path.startswith("/api/users/")) and "/notifications" not in path and not path.endswith("/integrations/edds/check") and request.method in {"PUT", "POST"} and response.status_code >= 400 and is_account_manager(user):
         from services.auth.accounts import notify_manager
         import logging
         logging.getLogger("auth").warning("users_api: save rejected path=%s status=%s", path, response.status_code)
@@ -1147,8 +1149,8 @@ async def security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
     image_sources = "'self' data: blob:"
-    if request.url.path.rstrip("/") == "/edds":
-        # EDDS basemap only: no external scripts, API calls or arbitrary images.
+    if request.url.path.rstrip("/") in {"/edds", "/mingkh/water-map"}:
+        # Basemap tiles only: no external scripts, API calls or arbitrary images.
         image_sources += " " + " ".join(
             f"https://tile{i}.maps.2gis.com/tiles" for i in range(4))
     response.headers["Content-Security-Policy"] = (

@@ -1,0 +1,216 @@
+
+.water-map{
+
+  --ground:var(--bg); --surface:var(--card); --surface-2:var(--bg-soft);
+  --ink:var(--text); --ink-2:var(--text2, var(--muted)); --ink-3:var(--muted);
+  --line:var(--border); --line-soft:var(--border);
+  --accent:var(--primary); --accent-soft:var(--bg-soft); --accent-ink:var(--primary);
+  --crit:#a51f1f; --serious:#9a3b00;
+  --shadow:0 1px 2px rgba(15,20,23,.06), 0 6px 20px -12px rgba(15,20,23,.25);
+  --r:10px;
+  --mono:ui-monospace,"Cascadia Mono","Consolas","Segoe UI Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  /* виды жалоб — одни и те же краски на кнопках, точках, в легенде и в цифрах */
+  --hvs:#2a78d6; --vo:#8a5a2b; --gvs:#d9480f;
+}
+.water-map *{box-sizing:border-box}
+.water-map{margin:0; background:var(--ground); color:var(--ink); font:14px/1.45 var(--sans)}
+.water-map .wrap{max-width:1440px; margin:0 auto; padding:16px}
+.water-map h1{font-size:20px; margin:0; font-weight:700; letter-spacing:-.01em}
+.water-map .sub{color:var(--ink-3); font-size:12.5px; margin-top:2px}
+.water-map .mute{color:var(--ink-3)}
+.water-map .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  box-shadow:var(--shadow); padding:12px 14px; margin-top:12px}
+.water-map .head{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between}
+
+/* ---------- фильтры ---------- */
+.water-map .filters{display:flex; flex-wrap:wrap; gap:12px 22px; align-items:flex-end}
+.water-map .fld{display:flex; flex-direction:column; gap:5px}
+.water-map .fld > .lbl{font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.05em; font-weight:600}
+.water-map .row{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.water-map input[type=date],.water-map .inp{font:inherit; font-size:13px; padding:5px 8px; border:1px solid var(--line);
+  border-radius:7px; background:var(--surface); color:var(--ink)}
+.water-map .chip{border:1px solid var(--line); background:var(--surface); color:var(--ink-2); border-radius:999px;
+  padding:4px 11px; font:inherit; font-size:12.5px; cursor:pointer; white-space:nowrap}
+.water-map .chip:hover{border-color:var(--accent)}
+.water-map .chip.on{background:var(--accent); border-color:var(--accent); color:#fff}
+.water-map .btn{font:inherit; font-size:13px; font-weight:600; padding:6px 14px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--accent); background:var(--accent); color:#fff; white-space:nowrap}
+.water-map .btn:hover{filter:brightness(1.07)}
+.water-map .btn.ghost{background:var(--surface); color:var(--accent)}
+.water-map .btn:disabled{opacity:.5; cursor:default; filter:none}
+
+/* выбор ОМСУ: список с поиском и галочками */
+.water-map .ms{position:relative}
+.water-map .ms-btn{min-width:230px; text-align:left; font:inherit; font-size:13px; padding:5px 28px 5px 10px;
+  border:1px solid var(--line); border-radius:7px; background:var(--surface); color:var(--ink); cursor:pointer;
+  position:relative; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.water-map .ms-btn::after{content:"▾"; position:absolute; right:10px; top:5px; color:var(--ink-3)}
+.water-map .ms-pop{position:absolute; z-index:1500; top:calc(100% + 4px); left:0; width:320px; max-width:calc(100vw - 32px);
+  background:linear-gradient(var(--surface),var(--surface)),var(--ground); border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 10px 32px rgba(20,30,50,.18); padding:8px}
+.water-map .ms-pop[hidden]{display:none}
+.water-map .ms-pop .inp{width:100%}
+.water-map .ms-acts{display:flex; gap:12px; padding:6px 4px; font-size:12.5px}
+.water-map .ms-list{max-height:340px; overflow:auto}
+.water-map .ms-opt{display:flex; gap:8px; align-items:center; padding:4px 6px; border-radius:6px; cursor:pointer; font-size:13px}
+.water-map .ms-opt:hover{background:var(--surface-2)}
+.water-map .ms-opt input{margin:0; accent-color:var(--accent)}
+.water-map .ms-opt .n{margin-left:auto; color:var(--ink-3); font-variant-numeric:tabular-nums; font-size:12px}
+.water-map .ms-opt.hide{display:none}
+/* ---------- свод по ОМСУ ---------- */
+.water-map .tbl-head{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline; margin-bottom:8px}
+.water-map .tbl-head h2{font-size:15px; margin:0; font-weight:700}
+.water-map .tbl-head .mute{font-size:12px}
+.water-map .ot-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start}
+@media (max-width: 1000px){
+.water-map .ot-grid{grid-template-columns:1fr} }
+.water-map .ot-grid > div{border:1px solid var(--line-soft); border-radius:8px; overflow:hidden}
+.water-map table.ot{width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums}
+.water-map .ot th{background:var(--surface-2); color:var(--ink-2); font-weight:600;
+  font-size:12px; text-align:right; padding:6px 10px; border-bottom:1px solid var(--line); cursor:pointer;
+  white-space:nowrap; user-select:none}
+.water-map .ot th.no,.water-map .ot td.no{text-align:right; width:34px; color:var(--ink-3); cursor:default; padding-right:4px}
+.water-map .ot-total{display:flex; flex-wrap:wrap; gap:4px 22px; margin-top:10px; font-size:13px; color:var(--ink-2)}
+.water-map .ot-total b{color:var(--ink); font-variant-numeric:tabular-nums}
+.water-map .ot-total i{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px}
+.water-map .ot th:hover{color:var(--accent)}
+.water-map .ot th.l,.water-map .ot td.l{text-align:left}
+.water-map .ot th i{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px}
+.water-map .ot th.sorted::after{content:" ↓"; color:var(--accent)}
+.water-map .ot th.sorted.asc::after{content:" ↑"}
+.water-map .ot td{padding:4px 10px; text-align:right; border-bottom:1px solid var(--line-soft)}
+.water-map .ot tbody tr:last-child td{border-bottom:0}
+.water-map .ot tbody tr{cursor:pointer}
+.water-map .ot tbody tr:hover td{background:var(--surface-2)}
+.water-map .ot tbody tr.on td{background:var(--accent-soft)}
+.water-map .ot tbody tr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent); font-weight:650}
+.water-map .ot tbody tr.zero td{color:var(--ink-3)}
+.water-map .ot td.n{font-weight:700}
+.water-map .ot td.z{color:var(--ink-3)}
+.water-map .share{display:flex; align-items:center; gap:8px; min-width:240px}
+.water-map .share b{display:block; height:8px; border-radius:4px; background:var(--accent); opacity:.75}
+.water-map .share span{color:var(--ink-3); font-size:12px; min-width:42px}
+
+/* карточки групп — они же фильтр */
+.water-map .kpi[data-g],.water-map .kpi-total{cursor:pointer; transition:opacity .15s, border-color .15s}
+.water-map .kpi[data-g]:hover,.water-map .kpi-total:hover{border-color:var(--accent)}
+.water-map .kpi[data-g].on{border-color:var(--accent); box-shadow:inset 0 -3px 0 var(--accent)}
+.water-map .kpi[data-g].off{opacity:.45}
+.water-map .kpi[data-g].off:hover{opacity:.8}
+.water-map .kpis-note{font-size:12px; color:var(--ink-3); margin-top:8px}
+
+/* факты длинные, до 110 знаков: список шире, строки переносятся */
+.water-map .ms-wide .ms-pop{width:480px}
+.water-map .ms-wide .ms-opt{align-items:flex-start; line-height:1.3}
+.water-map .ms-wide .ms-opt input{margin-top:2px}
+.water-map .ms-btn.part{border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft)}
+/* период словами под датами: видно, что именно выбрала кнопка */
+.water-map .per-note{font-size:12px; color:var(--ink-3); min-height:16px}
+.water-map .per-note b{color:var(--ink); font-weight:600}
+@keyframes flash{from{background:var(--accent-soft); border-color:var(--accent)} to{}}
+.water-map input[type=date].flash{animation:flash 1.2s ease-out}
+.water-map .linkbtn{border:0; background:none; padding:0; font:inherit; color:var(--accent); cursor:pointer;
+  text-decoration:underline; text-underline-offset:2px}
+
+/* ---------- цифры ---------- */
+.water-map .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:10px}
+.water-map .kpi-total{background:var(--accent-soft); border-color:var(--accent)}
+.water-map .kpi-total .v{color:var(--accent-ink)}
+.water-map .kpi{background:var(--surface-2); border:1px solid var(--line-soft); border-radius:8px; padding:8px 12px}
+.water-map .kpi .v{font-size:22px; font-weight:750; font-variant-numeric:tabular-nums; line-height:1.2}
+.water-map .kpi .t{font-size:12px; color:var(--ink-3)}
+.water-map .kpi .v i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:7px; vertical-align:middle}
+
+/* ---------- карта ---------- */
+.water-map .map-bar{display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin-bottom:10px}
+.water-map .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+.water-map .seg button{font:inherit; font-size:12.5px; padding:5px 12px; border:0; background:var(--surface);
+  color:var(--ink-2); cursor:pointer}
+.water-map .seg button + button{border-left:1px solid var(--line)}
+.water-map .seg button[aria-pressed="true"]{background:var(--accent); color:#fff}
+.water-map .map-rad{display:inline-flex; align-items:center; gap:5px; color:var(--ink-3); font-size:12.5px}
+.water-map .map-rad input{width:80px; text-align:right}
+.water-map .box-chip{display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border-radius:999px;
+  background:var(--accent-soft); border:1px solid var(--accent); font-size:12px; font-weight:650; color:var(--accent-ink)}
+.water-map .box-chip[hidden]{display:none}
+.water-map .box-chip button{border:0; background:transparent; cursor:pointer; color:var(--accent); font-weight:750; font-size:14px; padding:0 2px}
+.water-map .spacer{flex:1}
+/* высота в пикселях, а не в vh: иначе контейнер меняет размер на каждое
+   появление полосы прокрутки, и Leaflet пересчитывает всё заново */
+.water-map #map{height:660px; width:100%; border-radius:var(--r); background:var(--surface-2)}
+.water-map .map-status{font-size:12.5px; color:var(--ink-2); line-height:1.55; margin-top:8px}
+.water-map .map-status b{color:var(--ink); font-variant-numeric:tabular-nums}
+.water-map .map-bad{color:var(--crit)}
+.water-map .map-hint{color:var(--serious)}
+.water-map .lg{display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:4px}
+.water-map .lg span{display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
+.water-map .lg i{width:11px; height:11px; border-radius:50%; display:inline-block; border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 0 0 1px var(--line)}
+.water-map .lg-grad{width:86px !important; height:10px !important; border-radius:3px !important;
+  background:linear-gradient(90deg,#3a4fa0,#1fa3c4,#2ecc71,#f1c40f,#f76707,#e03131,#7f0000)}
+.water-map .map-msg{height:100%; display:flex; align-items:center; justify-content:center; text-align:center;
+  padding:24px; color:var(--ink-2)}
+.water-map .leaflet-container{background:var(--surface-2); font:inherit}
+.water-map .leaflet-container:focus:not(:focus-visible){outline:none}
+.water-map .leaflet-bar a.map-selbtn{width:auto; min-width:0; height:30px; line-height:30px; padding:0 12px;
+  font-size:13px; font-weight:650; white-space:nowrap}
+.water-map .leaflet-bar a.map-selbtn.on{background:var(--accent); color:#fff}
+/* у значков Leaflet свой pointer-events:auto, поэтому только так, с !important */
+.water-map .selecting .leaflet-marker-pane,.water-map .selecting .leaflet-marker-pane *{pointer-events:none !important}
+/* кружки кластеров: число жалоб, цвет по величине */
+.water-map .cl-ico{display:flex; align-items:center; justify-content:center; border-radius:50%;
+  font-weight:750; font-variant-numeric:tabular-nums; color:#fff;
+  border:2px solid rgba(255,255,255,.75); box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.water-map .cl-s{background:#3987e5; font-size:11px}
+.water-map .cl-m{background:#e0892a; font-size:12px}
+.water-map .cl-l{background:#cc4444; font-size:12.5px}
+.water-map .cl-one{font-size:11.5px}
+/* карточка жалобы по щелчку */
+.water-map .pop-h{font-weight:650; font-size:13.5px}
+.water-map .pop-sub{color:#667; font-size:12px; margin-bottom:6px}
+.water-map table.pop{border-collapse:collapse; font-size:12.5px}
+.water-map table.pop th{text-align:left; color:#778; font-weight:500; padding:2px 10px 2px 0; vertical-align:top; white-space:nowrap}
+.water-map table.pop td{padding:2px 0; max-width:300px}
+.water-map .pop a{color:#1c5cab}
+
+
+/* Leaflet 1.9.4 layout; same locally bundled scripts as EDDS. */
+
+.leaflet-image-layer,.leaflet-layer,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-pane,.leaflet-pane>canvas,.leaflet-pane>svg,.leaflet-tile,.leaflet-tile-container,.leaflet-zoom-box{position:absolute;left:0;top:0}.leaflet-container{overflow:hidden}.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile{-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-user-drag:none}.leaflet-tile::selection{background:0 0}.leaflet-safari .leaflet-tile{image-rendering:-webkit-optimize-contrast}.leaflet-safari .leaflet-tile-container{width:1600px;height:1600px;-webkit-transform-origin:0 0}.leaflet-marker-icon,.leaflet-marker-shadow{display:block}.leaflet-container .leaflet-overlay-pane svg{max-width:none!important;max-height:none!important}.leaflet-container .leaflet-marker-pane img,.leaflet-container .leaflet-shadow-pane img,.leaflet-container .leaflet-tile,.leaflet-container .leaflet-tile-pane img,.leaflet-container img.leaflet-image-layer{max-width:none!important;max-height:none!important;width:auto;padding:0}.leaflet-container img.leaflet-tile{mix-blend-mode:plus-lighter}.leaflet-container.leaflet-touch-zoom{-ms-touch-action:pan-x pan-y;touch-action:pan-x pan-y}.leaflet-container.leaflet-touch-drag{-ms-touch-action:pinch-zoom;touch-action:none;touch-action:pinch-zoom}.leaflet-container.leaflet-touch-drag.leaflet-touch-zoom{-ms-touch-action:none;touch-action:none}.leaflet-container{-webkit-tap-highlight-color:transparent}.leaflet-container a{-webkit-tap-highlight-color:rgba(51,181,229,.4)}.leaflet-tile{filter:inherit;visibility:hidden}.leaflet-tile-loaded{visibility:inherit}.leaflet-zoom-box{width:0;height:0;-moz-box-sizing:border-box;box-sizing:border-box;z-index:800}.leaflet-overlay-pane svg{-moz-user-select:none}.leaflet-pane{z-index:400}.leaflet-tile-pane{z-index:200}.leaflet-overlay-pane{z-index:400}.leaflet-shadow-pane{z-index:500}.leaflet-marker-pane{z-index:600}.leaflet-tooltip-pane{z-index:650}.leaflet-popup-pane{z-index:700}.leaflet-map-pane canvas{z-index:100}.leaflet-map-pane svg{z-index:200}.leaflet-vml-shape{width:1px;height:1px}.lvml{behavior:url(#default#VML);display:inline-block;position:absolute}.leaflet-control{position:relative;z-index:800;pointer-events:visiblePainted;pointer-events:auto}.leaflet-bottom,.leaflet-top{position:absolute;z-index:1000;pointer-events:none}.leaflet-top{top:0}.leaflet-right{right:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-control{float:left;clear:both}.leaflet-right .leaflet-control{float:right}.leaflet-top .leaflet-control{margin-top:10px}.leaflet-bottom .leaflet-control{margin-bottom:10px}.leaflet-left .leaflet-control{margin-left:10px}.leaflet-right .leaflet-control{margin-right:10px}.leaflet-fade-anim .leaflet-popup{opacity:0;-webkit-transition:opacity .2s linear;-moz-transition:opacity .2s linear;transition:opacity .2s linear}.leaflet-fade-anim .leaflet-map-pane .leaflet-popup{opacity:1}.leaflet-zoom-animated{-webkit-transform-origin:0 0;-ms-transform-origin:0 0;transform-origin:0 0}svg.leaflet-zoom-animated{will-change:transform}.leaflet-zoom-anim .leaflet-zoom-animated{-webkit-transition:-webkit-transform .25s cubic-bezier(0,0,.25,1);-moz-transition:-moz-transform .25s cubic-bezier(0,0,.25,1);transition:transform .25s cubic-bezier(0,0,.25,1)}.leaflet-pan-anim .leaflet-tile,.leaflet-zoom-anim .leaflet-tile{-webkit-transition:none;-moz-transition:none;transition:none}.leaflet-zoom-anim .leaflet-zoom-hide{visibility:hidden}.leaflet-interactive{cursor:pointer}.leaflet-grab{cursor:-webkit-grab;cursor:-moz-grab;cursor:grab}.leaflet-crosshair,.leaflet-crosshair .leaflet-interactive{cursor:crosshair}.leaflet-control,.leaflet-popup-pane{cursor:auto}.leaflet-dragging .leaflet-grab,.leaflet-dragging .leaflet-grab .leaflet-interactive,.leaflet-dragging .leaflet-marker-draggable{cursor:move;cursor:-webkit-grabbing;cursor:-moz-grabbing;cursor:grabbing}.leaflet-image-layer,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-pane>svg path,.leaflet-tile-container{pointer-events:none}.leaflet-image-layer.leaflet-interactive,.leaflet-marker-icon.leaflet-interactive,.leaflet-pane>svg path.leaflet-interactive,svg.leaflet-image-layer.leaflet-interactive path{pointer-events:visiblePainted;pointer-events:auto}.leaflet-container{background:#ddd;outline-offset:1px}.leaflet-container a{color:#0078a8}.leaflet-zoom-box{border:2px dotted #38f;background:rgba(255,255,255,.5)}.leaflet-container{font-family:"Helvetica Neue",Arial,Helvetica,sans-serif;font-size:12px;font-size:.75rem;line-height:1.5}.leaflet-bar{box-shadow:0 1px 5px rgba(0,0,0,.65);border-radius:4px}.leaflet-bar a{background-color:#fff;border-bottom:1px solid #ccc;width:26px;height:26px;line-height:26px;display:block;text-align:center;text-decoration:none;color:#000}.leaflet-bar a,.leaflet-control-layers-toggle{background-position:50% 50%;background-repeat:no-repeat;display:block}.leaflet-bar a:focus,.leaflet-bar a:hover{background-color:#f4f4f4}.leaflet-bar a:first-child{border-top-left-radius:4px;border-top-right-radius:4px}.leaflet-bar a:last-child{border-bottom-left-radius:4px;border-bottom-right-radius:4px;border-bottom:none}.leaflet-bar a.leaflet-disabled{cursor:default;background-color:#f4f4f4;color:#bbb}.leaflet-touch .leaflet-bar a{width:30px;height:30px;line-height:30px}.leaflet-touch .leaflet-bar a:first-child{border-top-left-radius:2px;border-top-right-radius:2px}.leaflet-touch .leaflet-bar a:last-child{border-bottom-left-radius:2px;border-bottom-right-radius:2px}.leaflet-control-zoom-in,.leaflet-control-zoom-out{font:bold 18px 'Lucida Console',Monaco,monospace;text-indent:1px}.leaflet-touch .leaflet-control-zoom-in,.leaflet-touch .leaflet-control-zoom-out{font-size:22px}.leaflet-control-layers{box-shadow:0 1px 5px rgba(0,0,0,.4);background:#fff;border-radius:5px}.leaflet-control-layers-toggle{background-image:url(images/layers.png);width:36px;height:36px}.leaflet-retina .leaflet-control-layers-toggle{background-image:url(images/layers-2x.png);background-size:26px 26px}.leaflet-touch .leaflet-control-layers-toggle{width:44px;height:44px}.leaflet-control-layers .leaflet-control-layers-list,.leaflet-control-layers-expanded .leaflet-control-layers-toggle{display:none}.leaflet-control-layers-expanded .leaflet-control-layers-list{display:block;position:relative}.leaflet-control-layers-expanded{padding:6px 10px 6px 6px;color:#333;background:#fff}.leaflet-control-layers-scrollbar{overflow-y:scroll;overflow-x:hidden;padding-right:5px}.leaflet-control-layers-selector{margin-top:2px;position:relative;top:1px}.leaflet-control-layers label{display:block;font-size:13px;font-size:1.08333em}.leaflet-control-layers-separator{height:0;border-top:1px solid #ddd;margin:5px -10px 5px -6px}.leaflet-default-icon-path{background-image:url(images/marker-icon.png)}.leaflet-container .leaflet-control-attribution{background:#fff;background:rgba(255,255,255,.8);margin:0}.leaflet-control-attribution,.leaflet-control-scale-line{padding:0 5px;color:#333;line-height:1.4}.leaflet-control-attribution a{text-decoration:none}.leaflet-control-attribution a:focus,.leaflet-control-attribution a:hover{text-decoration:underline}.leaflet-attribution-flag{display:inline!important;vertical-align:baseline!important;width:1em;height:.6669em}.leaflet-left .leaflet-control-scale{margin-left:5px}.leaflet-bottom .leaflet-control-scale{margin-bottom:5px}.leaflet-control-scale-line{border:2px solid #777;border-top:none;line-height:1.1;padding:2px 5px 1px;white-space:nowrap;-moz-box-sizing:border-box;box-sizing:border-box;background:rgba(255,255,255,.8);text-shadow:1px 1px #fff}.leaflet-control-scale-line:not(:first-child){border-top:2px solid #777;border-bottom:none;margin-top:-2px}.leaflet-control-scale-line:not(:first-child):not(:last-child){border-bottom:2px solid #777}.leaflet-touch .leaflet-bar,.leaflet-touch .leaflet-control-attribution,.leaflet-touch .leaflet-control-layers{box-shadow:none}.leaflet-touch .leaflet-bar,.leaflet-touch .leaflet-control-layers{border:2px solid rgba(0,0,0,.2);background-clip:padding-box}.leaflet-popup{position:absolute;text-align:center;margin-bottom:20px}.leaflet-popup-content-wrapper{padding:1px;text-align:left;border-radius:12px}.leaflet-popup-content{margin:13px 24px 13px 20px;line-height:1.3;font-size:13px;font-size:1.08333em;min-height:1px}.leaflet-popup-content p{margin:17px 0;margin:1.3em 0}.leaflet-popup-tip-container{width:40px;height:20px;position:absolute;left:50%;margin-top:-1px;margin-left:-20px;overflow:hidden;pointer-events:none}.leaflet-popup-tip{width:17px;height:17px;padding:1px;margin:-10px auto 0;pointer-events:auto;-webkit-transform:rotate(45deg);-moz-transform:rotate(45deg);-ms-transform:rotate(45deg);transform:rotate(45deg)}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#fff;color:#333;box-shadow:0 3px 14px rgba(0,0,0,.4)}.leaflet-container a.leaflet-popup-close-button{position:absolute;top:0;right:0;border:none;text-align:center;width:24px;height:24px;font:16px/24px Tahoma,Verdana,sans-serif;color:#757575;text-decoration:none;background:0 0}.leaflet-container a.leaflet-popup-close-button:focus,.leaflet-container a.leaflet-popup-close-button:hover{color:#585858}.leaflet-popup-scrolled{overflow:auto}.leaflet-oldie .leaflet-popup-content-wrapper{-ms-zoom:1}.leaflet-oldie .leaflet-popup-tip{width:24px;margin:0 auto}.leaflet-oldie .leaflet-control-layers,.leaflet-oldie .leaflet-control-zoom,.leaflet-oldie .leaflet-popup-content-wrapper,.leaflet-oldie .leaflet-popup-tip{border:1px solid #999}.leaflet-div-icon{background:#fff;border:1px solid #666}.leaflet-tooltip{position:absolute;padding:6px;background-color:#fff;border:1px solid #fff;border-radius:3px;color:#222;white-space:nowrap;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}.leaflet-tooltip.leaflet-interactive{cursor:pointer;pointer-events:auto}.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before,.leaflet-tooltip-top:before{position:absolute;pointer-events:none;border:6px solid transparent;background:0 0;content:""}.leaflet-tooltip-bottom{margin-top:6px}.leaflet-tooltip-top{margin-top:-6px}.leaflet-tooltip-bottom:before,.leaflet-tooltip-top:before{left:50%;margin-left:-6px}.leaflet-tooltip-top:before{bottom:0;margin-bottom:-12px;border-top-color:#fff}.leaflet-tooltip-bottom:before{top:0;margin-top:-12px;margin-left:-6px;border-bottom-color:#fff}.leaflet-tooltip-left{margin-left:-6px}.leaflet-tooltip-right{margin-left:6px}.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{top:50%;margin-top:-6px}.leaflet-tooltip-left:before{right:0;margin-right:-12px;border-left-color:#fff}.leaflet-tooltip-right:before{left:0;margin-left:-12px;border-right-color:#fff}@media print{.leaflet-control{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.leaflet-cluster-anim .leaflet-marker-icon,.leaflet-cluster-anim .leaflet-marker-shadow{-webkit-transition:-webkit-transform .3s ease-out,opacity .3s ease-in;-moz-transition:-moz-transform .3s ease-out,opacity .3s ease-in;-o-transition:-o-transform .3s ease-out,opacity .3s ease-in;transition:transform .3s ease-out,opacity .3s ease-in}.leaflet-cluster-spider-leg{-webkit-transition:-webkit-stroke-dashoffset .3s ease-out,-webkit-stroke-opacity .3s ease-in;-moz-transition:-moz-stroke-dashoffset .3s ease-out,-moz-stroke-opacity .3s ease-in;-o-transition:-o-stroke-dashoffset .3s ease-out,-o-stroke-opacity .3s ease-in;transition:stroke-dashoffset .3s ease-out,stroke-opacity .3s ease-in}
+
+
+.water-map .import-actions { display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0; }
+.water-map .import-actions input {max-width:100%;}
+.water-map .dataset-note {margin:6px 0;color:var(--ink-2);font-size:13px;}
+.water-map #load-error {color:var(--crit);padding:14px;border:1px solid var(--line);border-radius:10px;}
+.water-map .import-result {font-size:13px;color:var(--ink-2);}
+.water-map .water-kind {display:flex;gap:10px;flex-wrap:wrap;}
+.water-map .water-kind label {display:flex;gap:4px;align-items:center;}
+.water-map .kpi[role=button]:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}
+.water-map .leaflet-popup-content-wrapper,.water-map .leaflet-popup-tip {background:linear-gradient(var(--surface),var(--surface)),var(--ground);color:var(--ink);}
+.water-map .pop-sub,.water-map table.pop th {color:var(--ink-2);}
+.water-map .map-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
+.water-map .ot-grid > div {overflow:auto;}
+@media(max-width:760px){.water-map #map{height:480px}.water-map .wrap{padding:8px 0}.water-map .ms-btn{min-width:180px;max-width:100%}.water-map .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Keep inherited dashboard card effects from clipping the filter menus. */
+.water-map .card { padding:12px 14px!important; margin:12px 0!important; overflow:visible; backdrop-filter:none; -webkit-backdrop-filter:none; }
+.water-map .card::before {content:none;}
+.water-map .water-filters-card {z-index:1100;}
+html[data-theme="dark"] .water-map {--crit:#ff9da6;--serious:#ffc68b;--hvs:#5598e7;--vo:#c08a57;--gvs:#f07a3e;}
+
+/* Accessible archive picker: the native input retains keyboard and form behavior. */
+.water-map .archive-picker {position:relative;display:flex;align-items:center;gap:10px;flex:1 1 360px;min-width:0;max-width:100%;}
+.water-map .archive-hint {font-size:13px;color:var(--ink-2);}
+.water-map .archive-native {position:absolute;width:1px;height:1px;min-height:0!important;padding:0!important;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);clip-path:inset(50%);white-space:nowrap;border:0;}
+.water-map .archive-picker-button,.water-map #import-submit {display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:8px 14px;border-radius:12px;font-size:13px;line-height:1.3;}
+.water-map .archive-picker-button {flex:0 0 auto;margin:0;cursor:pointer;white-space:nowrap;}
+.water-map .archive-picker-button svg {flex:none;}
+.water-map .archive-native:focus-visible + .archive-picker-button {outline:2px solid var(--accent);outline-offset:3px;}
+.water-map .archive-native:disabled + .archive-picker-button {opacity:.5;cursor:default;pointer-events:none;}
+.water-map .archive-filename {min-width:0;color:var(--ink-3);font-size:13px;line-height:1.45;overflow-wrap:anywhere;}
+.water-map .archive-filename.has-file {color:var(--ink);}
+.water-map .import-result {min-width:0;overflow-wrap:anywhere;}
+@media(max-width:600px){.water-map .archive-hint{flex-basis:100%;}.water-map .archive-picker{flex-basis:100%;}.water-map #import-submit{max-width:100%;}.water-map .import-result{flex-basis:100%;}}

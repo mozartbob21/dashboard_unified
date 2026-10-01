@@ -2,47 +2,33 @@
 
 {% block title %}Регистрация — Нейрона ИИ{% endblock %}
 {% block heading %}Создать аккаунт{% endblock %}
-{% block subtitle %}Зарегистрируйтесь, чтобы начать работу.{% endblock %}
+{% block subtitle %}Укажите логин, почту и пароль. Доступ к блокам назначит управляющий учётными записями.{% endblock %}
 
 {% block content %}
-        <div id="step1" class="login-form">
+        <form id="registerForm" class="login-form" method="post" action="/api/register">
             <div class="login-field">
                 <label for="regUsername">Логин</label>
-                <input id="regUsername" type="text" autocomplete="username" placeholder="Придумайте логин"
-                       autocapitalize="none" spellcheck="false" autofocus>
+                <input id="regUsername" name="username" type="text" autocomplete="username" placeholder="Придумайте логин"
+                       autocapitalize="none" spellcheck="false" minlength="3" maxlength="32" required autofocus>
             </div>
             <div class="login-field">
                 <label for="regEmail">Электронная почта</label>
-                <input id="regEmail" type="email" autocomplete="email" placeholder="name@example.ru"
-                       autocapitalize="none" spellcheck="false" aria-describedby="emailHint">
-                <p id="emailHint" class="login-field-hint">Отправим на неё код подтверждения.</p>
+                <input id="regEmail" name="email" type="email" autocomplete="email" placeholder="name@example.ru"
+                       autocapitalize="none" spellcheck="false" required>
             </div>
             <div class="login-field">
                 <label for="regPassword">Пароль</label>
-                <input id="regPassword" type="password" autocomplete="new-password" placeholder="Не менее 6 символов">
+                <input id="regPassword" name="password" type="password" autocomplete="new-password"
+                       placeholder="Не менее 6 символов" minlength="6" required>
             </div>
-            <button id="btnSendCode" type="button" class="login-button">
-                <span>Получить код на почту</span>
+            <button id="btnRegister" type="submit" class="login-button">
+                <span>Создать аккаунт</span>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M5 12h14m-6-6 6 6-6 6"/>
                 </svg>
             </button>
-        </div>
-
-        <div id="step2" class="login-form" hidden>
-            <p id="step2Info" class="register-code-info"></p>
-            <div class="login-field">
-                <label for="regCode">Код из письма</label>
-                <input id="regCode" class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code"
-                       maxlength="6" placeholder="000000" aria-describedby="step2Info">
-            </div>
-            <button id="btnVerify" type="button" class="login-button">Подтвердить и создать аккаунт</button>
-            <div class="register-actions">
-                <button id="btnResend" type="button" class="login-secondary">Отправить код ещё раз</button>
-                <button id="btnBack" type="button" class="login-secondary">Изменить данные</button>
-            </div>
-        </div>
+        </form>
 
         <div id="regStatus" class="login-notice register-status" role="status" aria-live="polite" hidden></div>
 {% endblock %}
@@ -52,10 +38,9 @@
 {% block scripts %}
 <script>
 (function () {
-    var step1 = document.getElementById("step1");
-    var step2 = document.getElementById("step2");
+    var form = document.getElementById("registerForm");
+    var button = document.getElementById("btnRegister");
     var statusBox = document.getElementById("regStatus");
-    var identity = "";
 
     function showStatus(kind, text) {
         statusBox.className = "login-notice register-status " + (kind === "error" ? "login-error" : "login-info");
@@ -63,52 +48,34 @@
         statusBox.textContent = text || "";
     }
 
-    async function post(url, body) {
-        var r = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-        });
-        var data = await r.json().catch(function () { return {}; });
-        return { ok: r.ok, data: data };
-    }
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        if (button.disabled) { return; }
+        button.disabled = true;
+        showStatus("info", "Создаём аккаунт…");
 
-    document.getElementById("btnSendCode").addEventListener("click", async function () {
-        var username = document.getElementById("regUsername").value.trim();
-        var email = document.getElementById("regEmail").value.trim();
-        var password = document.getElementById("regPassword").value;
-
-        var res = await post("/api/register", { username: username, email: email, password: password });
-        if (!res.ok) { showStatus("error", res.data.message || "Ошибка регистрации"); return; }
-
-        identity = username || email;
-        document.getElementById("step2Info").textContent = "Код отправлен на " + email + ". Введите его ниже.";
-        step1.hidden = true;
-        step2.hidden = false;
-        showStatus("success", res.data.debug_code
-            ? "DEV-режим: код " + res.data.debug_code
-            : "Письмо с кодом отправлено.");
-        document.getElementById("regCode").focus();
-    });
-
-    document.getElementById("btnVerify").addEventListener("click", async function () {
-        var code = document.getElementById("regCode").value.trim();
-        var res = await post("/api/register/verify", { username: identity, code: code });
-        if (!res.ok) { showStatus("error", res.data.message || "Неверный код"); return; }
-        showStatus("success", res.data.message || "Аккаунт создан!");
-        setTimeout(function () { window.location.href = res.data.redirect || "/"; }, 700);
-    });
-
-    document.getElementById("btnResend").addEventListener("click", async function () {
-        var res = await post("/api/register/resend", { username: identity });
-        showStatus(res.ok ? "success" : "error",
-            res.data.debug_code ? "DEV-режим: код " + res.data.debug_code : (res.data.message || ""));
-    });
-
-    document.getElementById("btnBack").addEventListener("click", function () {
-        step2.hidden = true;
-        step1.hidden = false;
-        showStatus("", "");
+        try {
+            var response = await fetch("/api/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: document.getElementById("regUsername").value.trim(),
+                    email: document.getElementById("regEmail").value.trim(),
+                    password: document.getElementById("regPassword").value
+                })
+            });
+            var data = await response.json().catch(function () { return {}; });
+            if (!response.ok || !data.ok) {
+                showStatus("error", data.message || "Ошибка регистрации. Попробуйте ещё раз.");
+                button.disabled = false;
+                return;
+            }
+            showStatus("success", data.message || "Аккаунт создан!");
+            window.location.href = data.redirect || "/";
+        } catch (error) {
+            showStatus("error", "Не удалось связаться с сервером. Проверьте соединение и попробуйте ещё раз.");
+            button.disabled = false;
+        }
     });
 })();
 </script>

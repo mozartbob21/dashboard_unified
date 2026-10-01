@@ -63,7 +63,7 @@ def arm_report(from_date: date, to_date: date, coordinates: bool = False):
 
 @router.post('/refresh',status_code=202)
 async def refresh(request: Request, background: BackgroundTasks):
-    if not credentials(): raise HTTPException(400,'Логин и пароль Добродела не настроены. Обратитесь к администратору.')
+    if not credentials('edds'): raise HTTPException(400,'Логин и пароль Добродела не настроены. Обратитесь к администратору.')
     if runner.status()['running']: raise HTTPException(409,'Сбор жалоб уже выполняется')
     background.add_task(runner.run,request.state.user.get('username','—'))
     return {'ok':True,'message':'Сбор поставлен в очередь. Обновление может занять несколько минут.'}

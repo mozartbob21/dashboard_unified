@@ -46,6 +46,23 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Сводные показатели активности; тексты запросов, URL и IP не сохраняются.
+CREATE TABLE IF NOT EXISTS user_activity_collection (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+INSERT OR IGNORE INTO user_activity_collection(id) VALUES (1);
+CREATE TABLE IF NOT EXISTS user_activity (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    module_id TEXT NOT NULL,
+    visits INTEGER NOT NULL DEFAULT 0,
+    page_views INTEGER NOT NULL DEFAULT 0,
+    actions INTEGER NOT NULL DEFAULT 0,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, module_id)
+);
+
 -- История запусков модулей
 CREATE TABLE IF NOT EXISTS account_control (
     id INTEGER PRIMARY KEY CHECK (id = 1),

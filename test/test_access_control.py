@@ -209,6 +209,65 @@ class AccessControlTests(unittest.TestCase):
             for row in conn.execute('SELECT encrypted_value FROM integration_credentials'):
                 self.assertNotIn('secret-test-only',row[0]);self.assertNotIn('testlogin',row[0])
 
+    def test_dobrodel_login_check_is_manager_only_and_checks_origin(self):
+        with patch('services.auth.integrations.credentials') as saved, \
+                patch('services.edds.dobrodel.DobrodelClient') as portal:
+            self.assertEqual(self.client.post('/api/users/integrations/edds/check').status_code, 401)
+            self.login()
+            self.assertEqual(self.client.post('/api/users/integrations/edds/check').status_code, 403)
+            self.manager_login()
+            self.assertEqual(self.client.post('/api/users/integrations/edds/check',
+                headers={'Origin': 'https://other.invalid'}).status_code, 403)
+            saved.assert_not_called()
+            portal.assert_not_called()
+
+    def test_dobrodel_login_check_uses_saved_credentials_without_exporting(self):
+        self.manager_login()
+        self.client.put('/api/users/integrations/edds', json={'username': 'saved-user', 'password': 'saved-secret'})
+        self.client.put('/api/users/integrations/edds_arm', json={'username': 'other-user', 'password': 'other-secret'})
+        with patch('services.edds.dobrodel.DobrodelClient') as portal:
+            response = self.client.post('/api/users/integrations/edds/check',
+                json={'username': 'ignored-user', 'password': 'ignored-secret'})
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()['ok'])
+            self.assertIn('Вход в Добродел подтверждён', response.json()['message'])
+            portal.assert_called_once_with('saved-user', 'saved-secret')
+            client = portal.return_value.__enter__.return_value
+            client.login.assert_called_once_with()
+            client.fetch_all.assert_not_called()
+            portal.return_value.__exit__.assert_called_once()
+        for value in ['saved-user', 'saved-secret', 'ignored-secret', 'other-secret']:
+            self.assertNotIn(value, response.text)
+        self.assertEqual(self.client.post('/api/users/integrations/edds_arm/check').status_code, 404)
+
+    def test_dobrodel_login_check_returns_safe_failures(self):
+        from fastapi import HTTPException
+        from services.edds.dobrodel import DobrodelError
+        self.manager_login()
+        with patch('services.auth.integrations.credentials', return_value=None), \
+                patch('services.edds.dobrodel.DobrodelClient') as portal:
+            response = self.client.post('/api/users/integrations/edds/check')
+            self.assertEqual(response.status_code, 400)
+            self.assertFalse(response.json()['ok'])
+            self.assertEqual(response.json()['message'], str(DobrodelError('credentials')))
+            portal.assert_not_called()
+        with patch('services.auth.integrations.credentials', side_effect=HTTPException(503, 'private key details')):
+            response = self.client.post('/api/users/integrations/edds/check')
+            self.assertEqual(response.status_code, 502)
+            self.assertNotIn('private key details', response.text)
+            self.assertEqual(response.json()['message'], str(DobrodelError('config')))
+        for code, expected_status in [('login', 400), ('access', 400), ('tls', 502), ('timeout', 502)]:
+            with self.subTest(code=code), \
+                    patch('services.auth.integrations.credentials', return_value={'username': 'saved-user', 'password': 'saved-secret'}), \
+                    patch('services.edds.dobrodel.DobrodelClient') as portal:
+                portal.return_value.__enter__.return_value.login.side_effect = DobrodelError(code)
+                response = self.client.post('/api/users/integrations/edds/check')
+                self.assertEqual(response.status_code, expected_status)
+                self.assertFalse(response.json()['ok'])
+                self.assertEqual(response.json()['message'], str(DobrodelError(code)))
+                self.assertNotIn('saved-secret', response.text)
+                portal.return_value.__exit__.assert_called_once()
+
     def test_ai_chat_history_remains_shared_without_implicit_restricted_context(self):
         store=self.module.aichat_store
         chat_dir=Path(self.temp.name)/'shared-chat-test'

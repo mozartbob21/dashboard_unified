@@ -33,6 +33,10 @@ def water_daily():
 
 def failure_message(output):
     """Only fixed diagnostics; Playwright traces can include form values."""
+    diagnostic = re.search(r'DOBRODEL_ERROR:([a-z]+)(?::(\d{3}))?', output)
+    if diagnostic:
+        from services.edds.dobrodel import DobrodelError
+        return str(DobrodelError(diagnostic[1], int(diagnostic[2]) if diagnostic[2] else None))
     if 'Администратор должен настроить логин и пароль' in output:
         return 'Логин и пароль Добродела не настроены в разделе «Пользователи → Логины и пароли».'
     if ('Executable doesn\'t exist' in output or ('executable_path' in output and 'does not exist' in output)
@@ -57,7 +61,7 @@ def failure_message(output):
 
 
 def run(user='Авто-запуск'):
-    if not credentials(): return False
+    if not credentials('edds'): return False
     with get_db_connection() as conn:
         conn.execute('BEGIN IMMEDIATE')
         row=conn.execute('SELECT * FROM edds_job WHERE id=1').fetchone()

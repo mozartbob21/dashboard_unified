@@ -1121,7 +1121,15 @@ function rowsOfReport(doc){
    Зачем это вместо постраничного чтения: неделя по области — это 106 страниц
    и 106 запросов, каждый из которых разбирается регулярками по вёрстке. Здесь
    один запрос и стабильный формат с машинными именами полей. */
-async function armReport(ot, doo, coordinates=false){
+let armQueue = Promise.resolve();
+function armReport(ot, doo, coordinates=false){
+  // ARM exports share one browser on the server. Keep incident and coordinate
+  // requests from this page in order instead of colliding with its lock.
+  const pending = armQueue.then(() => armReportRequest(ot, doo, coordinates));
+  armQueue = pending.catch(() => {});
+  return pending;
+}
+async function armReportRequest(ot, doo, coordinates=false){
   const iso = value => {const m=/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/.exec(value);return m ? (m[3].length===2?'20':'')+m[3]+'-'+m[2]+'-'+m[1] : value;};
   const query = new URLSearchParams({from_date:iso(ot),to_date:iso(doo),coordinates:String(coordinates)});
   const response=await fetch('/edds/arm/report?'+query,{cache:'no-store'});
@@ -1243,6 +1251,8 @@ function build(grid){
   for(const need of ['name_mr','ispolnitel','d_create','d_doklad','type_otkl'])
     if(!F.has(need)) throw new Error('В выгрузке нет обязательного поля «' + need + '».');
 
+  if(!WATER.some(([name]) => F.has(name)))
+    throw new Error('В выгрузке нет полей объектов водоснабжения и водоотведения.');
   const get = (row, name) => F.has(name) ? row[F.get(name)] : null;
 
   /* Строка заявки обязана начинаться с номера. Выгрузка АРМ этого не гарантирует:
@@ -1317,6 +1327,7 @@ function build(grid){
     });
   }
   if(!recs.length){
+    if(broken) throw new Error('В выгрузке повреждены строки заявок. Повторите выгрузку периода.');
     // помечаем случай «данных нет» отдельно: в живом режиме это обычный пустой
     // период, а не сломанная выгрузка, и говорить о нём надо иначе
     const e = new Error('В выгрузке нет ни одного инцидента по объектам ВС/ВО.');
@@ -1837,7 +1848,7 @@ async function zhPoll(){
 
 
 let req = { from: '', to: '' };          // запрошенный у сайта период, строки ГГГГ-ММ-ДД
-let liveBusy = false, liveArmed = false, liveTimer = null;
+let liveBusy = false, liveArmed = false, liveTimer = null, livePending = false;
 const setOf = k => (sel[k] || (sel[k] = new Set()));
 
 function optionsFor(k){
@@ -2226,14 +2237,15 @@ function renderFilters(){
   const fFrom = document.getElementById('fl-from');
   const fTo = document.getElementById('fl-to');
   const readPeriod = byUser => {
-    period.from = dayStart(fFrom.value);
-    period.to = dayEnd(fTo.value);
     // не даём выбрать «по» раньше «с»
     fTo.min = fFrom.value || (LIVE ? '' : isoDay(DATA.from));
     fFrom.max = fTo.value || (LIVE ? '' : isoDay(DATA.to));
+    // Keep showing the last loaded map while the new report is being fetched.
+    // Filtering stale rows by the requested dates can otherwise show a false zero.
+    if(LIVE && byUser){ req.from = fFrom.value; req.to = fTo.value; scheduleLive(); return; }
+    period.from = dayStart(fFrom.value);
+    period.to = dayEnd(fTo.value);
     applyFilters();
-    // в живом режиме смена периода — это новый запрос к ЕДДС, а не фильтр по загруженному
-    if(LIVE && byUser){ req.from = fFrom.value; req.to = fTo.value; scheduleLive(); }
   };
   fFrom.addEventListener('change', () => readPeriod(true));
   fTo.addEventListener('change', () => readPeriod(true));
@@ -3680,7 +3692,10 @@ async function dynLoadMissing(btn){
   }catch(e){
     liveSay(e.message || String(e), 'bad');
     if(btn){ btn.disabled = false; btn.textContent = '↻ Повторить догрузку'; }
-  }finally{ liveBusy = false; }
+  }finally{
+    liveBusy = false;
+    if(livePending){ livePending = false; loadLive(); }
+  }
 }
 
 /* Сортировка разреза. Строки без времени устранения уезжают вниз при любом
@@ -4353,7 +4368,9 @@ function renderMapStatus(){
   const noGeo = all.length - pts.length;
   let h = '';
 
-  if(!GEO || !GEO.n){
+  if(!all.length){
+    h = '<div>По выбранному периоду и фильтрам заявок нет.</div>';
+  }else if(!GEO || !GEO.n){
     h = '<div class="map-bad">Координаты не загружены.' +
         (GEO_NOTE ? ' ' + esc(GEO_NOTE) : '') + '</div>' +
         '<div>Нажмите <b>«Координаты»</b> в шапке и выберите «Отчёт по заявкам» из АРМ ЕДДС ' +
@@ -6272,11 +6289,15 @@ function scheduleLive(){
 }
 
 async function loadLive(){
-  if(!LIVE || liveBusy) return;
-  const ot = siteDay(req.from), doo = siteDay(req.to);
+  if(!LIVE) return;
+  if(liveBusy){ livePending = true; return; }
+  const requested = { ...req };
+  const ot = siteDay(requested.from), doo = siteDay(requested.to);
   if(!ot || !doo){ liveSay('Укажите обе даты периода', 'bad'); return; }
+  if(requested.from > requested.to){ liveSay('Начало периода не может быть позже окончания', 'bad'); return; }
 
   liveBusy = true;
+  livePending = false;
   document.getElementById('lv-go').disabled=true;
   const armButton=document.getElementById('eddsArmRefresh');
   if(armButton)armButton.disabled=true;
@@ -6300,25 +6321,32 @@ async function loadLive(){
       const res = await fetchReport(ot, doo, t => liveSay(t, 'busy'));
       grid = res.grid; bad = res.bad;
     }
-    DATA = build(grid);                       // те же правила, что и для файла
-    req.from = req.from || isoDay(DATA.from);
-    req.to   = req.to   || isoDay(DATA.to);
+    // A later date edit wins. Never label an old response with newer dates.
+    if(req.from !== requested.from || req.to !== requested.to){ livePending = true; return; }
+    try{
+      DATA = build(grid);                     // те же правила, что и для файла
+    }catch(empty){
+      if(!empty.empty) throw empty;
+      DATA = { recs: [], total: 0, broken: 0,
+        from: dayStart(requested.from), to: dayEnd(requested.to) };
+    }
     // спрошено ровно окно запроса, а не диапазон пришедших заявок: крайние дни
     // могли оказаться пустыми, и лист «Динамика» иначе счёл бы их незагруженными
-    DATA.spans = [{ from: req.from, to: req.to }];
+    DATA.spans = [requested];
     showData(had);                            // фильтры переживают обновление
     const t = new Date().toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
     liveSay('Данные из ЕДДС · ' + fmtN(DATA.recs.length) + ' заявок · обновлено ' + t +
       ' · ' + via + (bad ? ' · пропущено строк: ' + bad : ''), '');
     // координаты за тот же период — следом и без вопросов; ждать их незачем,
     // сводка уже на экране
-    geoAuto();
+    if(DATA.recs.length) geoAuto();
   }catch(e){
+    if(req.from !== requested.from || req.to !== requested.to){ livePending = true; return; }
     const msg = e.empty
       ? 'За ' + ot + ' — ' + doo + ' заявок по объектам ВС/ВО нет.'
       : (e.message || String(e));
     if(had){
-      // прежние данные не выбрасываем — иначе один пустой период стирает всю картину
+      // При ошибке сети сохраняем последний успешно загруженный период.
       liveSay(msg + ' Показан прежний период.', 'bad');
     }else{
       liveSay('', '');
@@ -6329,6 +6357,7 @@ async function loadLive(){
     liveBusy = false;
     document.getElementById('lv-go').disabled=false;
     if(armButton)armButton.disabled=false;
+    if(livePending){ livePending = false; loadLive(); }
   }
 }
 
@@ -6666,6 +6695,7 @@ function geoSummary(st, bound){
 /* Окна, за которые координаты в этом сеансе уже спрашивали. Без этого каждая
    перерисовка живого режима дёргала бы АРМ заново за тем же самым. */
 let geoAsked = [];
+const geoPending = new Set();
 
 /* Автоматически, следом за сводкой: период уже выбран, спрашивать пользователя
    не о чем. Молча — но не бесследно: неудача оседает в GEO_NOTE и объясняется
@@ -6673,41 +6703,52 @@ let geoAsked = [];
    экране, координаты доезжают следом. */
 async function geoAuto(){
   if(!LIVE || !DATA) return;
-  const from = req.from || isoDay(DATA.from), to = req.to || isoDay(DATA.to);
+  const target = DATA;
+  const loaded = DATA.spans?.[0];
+  const from = loaded?.from || isoDay(DATA.from), to = loaded?.to || isoDay(DATA.to);
   if(!from || !to) return;
   const key = from + '..' + to;
-  if(geoAsked.includes(key)) return;
-  geoAsked.push(key);
+  if(geoAsked.includes(key) || geoPending.has(key)) return;
+  geoPending.add(key);
   try{
     const st = geoIngest(await geoFetchLive(from, to));
+    geoAsked.push(key);
+    if(DATA !== target) return;
     const bound = geoBind();
     GEO_NOTE = '';
+    if(req.from !== from || req.to !== to) return;
     liveArmed = false; renderFilters(); liveArmed = LIVE;
     applyFilters();
     showNote(esc(geoSummary(st, bound)), true, 10000);
   }catch(ex){
+    if(DATA !== target) return;
     // сводку показывать это не мешает, поэтому не кричим на весь экран
     GEO_NOTE = 'Автоматически координаты получить не вышло: ' + (ex.message || String(ex));
     if(PAGE === 'map') renderMapStatus();
-  }
+  }finally{ geoPending.delete(key); }
 }
 
 /* Запрос координат у АРМ. Отдельной функцией, потому что вызывают её две
    кнопки — в шапке и на листе «Карта», — и обе должны вести себя одинаково. */
 async function geoAskArm(btn){
-  const err = document.getElementById('err');
+  if(!DATA) return;
+  const target = DATA, requested = { ...req };
   const was = btn ? btn.textContent : '';
   if(btn){ btn.disabled = true; btn.textContent = 'Запрашиваю…'; }
   try{
     const w = { from: period.from || DATA.from, to: period.to || DATA.to };
     const st = geoIngest(await geoFetchLive(isoDay(w.from), isoDay(w.to)));
+    if(DATA !== target) return;
     const bound = geoBind();
-    liveArmed = false; renderFilters(); liveArmed = LIVE;
-    applyFilters();
+    if(req.from === requested.from && req.to === requested.to){
+      liveArmed = false; renderFilters(); liveArmed = LIVE;
+      applyFilters();
+    }
     GEO_NOTE = '';
     showNote(esc(geoSummary(st, bound)), true, 12000);
   }catch(ex){
-    // запасной путь оставляем под рукой прямо в сообщении, а не отсылаем искать кнопку
+    if(DATA !== target) return;
+    // запасной путь оставляем под рукой прямо в сообщении
     GEO_NOTE = ex.message || String(ex);
     showNote('Координаты из АРМ: ' + esc(ex.message || String(ex)) +
       ' <a href="#" id="geo-byfile">Загрузить отчёт файлом</a>', false, 0);

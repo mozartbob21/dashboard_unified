@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field, StrictBool, StrictStr
 from typing import Literal
 
@@ -9,6 +9,7 @@ from services.auth.accounts import require_account_manager, list_accounts, save_
 from services.auth.accounts import list_notifications, read_notifications
 from services.auth.accounts import is_parent_manager
 from services.auth.accounts import archive_account
+from services.auth.activity import account_activity, account_summaries
 
 router = APIRouter(dependencies=[Depends(require_account_manager)])
 
@@ -44,6 +45,31 @@ async def integration_save(payload: IntegrationPayload, service: Literal['edds',
     return {'ok':True}
 
 
+@router.post('/api/users/integrations/edds/check')
+def integration_edds_check():
+    """Проверяет сохранённый доступ с сервера без загрузки отчётов."""
+    from services.auth.integrations import credentials
+    from services.edds.dobrodel import DobrodelClient, DobrodelError
+
+    try:
+        try:
+            account = credentials('edds')
+        except HTTPException:
+            raise DobrodelError('config') from None
+        if not isinstance(account, dict) or not all(
+            isinstance(account.get(key), str) and account[key] for key in ('username', 'password')
+        ):
+            raise DobrodelError('credentials')
+        with DobrodelClient(account['username'], account['password']) as client:
+            import time
+            client.deadline = time.monotonic() + 90
+            client.login()
+    except DobrodelError as error:
+        status = 400 if error.code in {'credentials', 'login', 'access'} else 502
+        return JSONResponse(status_code=status, content={'ok': False, 'message': str(error)})
+    return {'ok': True, 'message': 'Вход в Добродел подтверждён. Операционный отчёт доступен.'}
+
+
 @router.post('/api/users/{user_id}/archive')
 async def users_archive(user_id: int, request: Request):
     archive_account(user_id, request.state.user)
@@ -74,8 +100,15 @@ async def users_page(request: Request):
 
 @router.get("/api/users")
 async def users_list(request: Request):
-    return {"users": list_accounts(), "modules": MODULE_NAMES,
+    summaries = account_summaries()
+    users = [{**user, "activity": summaries.get(user["id"])} for user in list_accounts()]
+    return {"users": users, "modules": MODULE_NAMES,
             "is_parent_manager": is_parent_manager(request.state.user)}
+
+
+@router.get("/api/users/{user_id}/activity")
+async def users_activity(user_id: int):
+    return account_activity(user_id)
 
 
 @router.post("/api/users", status_code=201)

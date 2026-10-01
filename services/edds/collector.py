@@ -15,7 +15,7 @@ import datetime as dt
 from pathlib import Path
 
 from services.auth.integrations import credentials
-from playwright.sync_api import sync_playwright
+from services.edds.dobrodel import DobrodelClient, DobrodelError
 
 # ─────────────────────── НАСТРОЙКИ ───────────────────────
 HERE = Path(__file__).resolve().parents[2] / "data" / "edds"
@@ -85,102 +85,13 @@ def log(msg):
 
 
 def get_credentials():
-    value = credentials()
+    try:
+        value = credentials('edds')
+    except Exception:
+        raise DobrodelError('config') from None
     if not value:
-        raise RuntimeError("Администратор должен настроить логин и пароль Добродела")
-    return value['username'], value['password']
-
-
-def logged_in(page):
-    """На странице отчёта и не выкинуло на логин."""
-    if "/login" in page.url.lower():
-        return False
-    try:
-        return page.locator("#curatorSelect").count() > 0
-    except Exception:
-        return False
-
-
-def do_login(page):
-    email, pwd = get_credentials()
-    log("🔑 Сессия недоступна — вхожу под сохранённым паролем…")
-    # The portal can keep background requests open after the form is ready.
-    page.goto(LOGIN_URL, wait_until="domcontentloaded", timeout=60000)
-    # форма Spring Security: j_username / j_password
-    page.fill("input[name=j_username]", email)
-    page.fill("input[name=j_password]", pwd)
-    try:  # «запомнить меня» — сессия живёт дольше
-        page.check("#_spring_security_remember_me")
-    except Exception:
-        pass
-    # надёжный сабмит: Enter в поле пароля, при неудаче — нативная отправка формы
-    page.press("input[name=j_password]", "Enter")
-    try:
-        page.wait_for_url(lambda u: "/login" not in u, timeout=30000)
-    except Exception:
-        try:
-            page.eval_on_selector("form", "f => f.submit()")
-            page.wait_for_url(lambda u: "/login" not in u, timeout=30000)
-        except Exception:
-            pass
-
-
-def ensure_session(browser):
-    ctx = browser.new_context(storage_state=None,
-                              accept_downloads=False)
-    page = ctx.new_page()
-    page.goto(REPORT_URL, wait_until="domcontentloaded", timeout=60000)
-    if not logged_in(page):
-        do_login(page)
-        page.goto(REPORT_URL, wait_until="domcontentloaded", timeout=60000)
-        if not logged_in(page):
-            log("❌ Не удалось войти. Проверь логин/пароль (настройки в админ-панели) "
-                "или капчу/2FA на портале.")
-            sys.exit(1)
-    # Session stays in memory, never in a public file.
-    return ctx, page
-
-
-FETCH_JS = """async (args) => {
-    const [cur, filters, pageIdx, size] = args;
-    const base = "filters.curators=" + encodeURIComponent(cur) + "&" + filters;
-    const url = "/report/operative?orderBy=ID&page=" + pageIdx + "&size=" + size + "&" + base;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
-    try {
-        const r = await fetch(url, {headers:{Accept:'application/json'}, signal:controller.signal});
-        if (!r.ok) return {error: r.status};
-        return {rows: await r.json()};
-    } catch (error) {
-        return {error: controller.signal.aborted ? 'timeout' : 'network'};
-    } finally {
-        clearTimeout(timer);
-    }
-}"""
-
-
-def fetch_all(page, filters):
-    """filters — готовая строка вида «filters.statuses=…&filters.createdAfter=…»."""
-    all_rows = []
-    idx = 0
-    while True:
-        res = page.evaluate(FETCH_JS, [CURATOR, filters, idx, PAGE_SIZE])
-        if isinstance(res, dict) and res.get("error"):
-            error = res['error']
-            if error == 'timeout':
-                raise RuntimeError('Добродел не ответил за 60 секунд при загрузке страницы отчёта.')
-            if error == 'network':
-                raise RuntimeError('Chromium не смог получить отчёт Добродела по сети.')
-            raise RuntimeError(f'Сервер вернул ошибку {error} на странице {idx}.')
-        batch = res.get("rows") or []
-        if not batch:
-            break
-        all_rows += batch
-        log(f"   …страница {idx + 1}: +{len(batch)} (всего {len(all_rows)})")
-        if len(batch) < PAGE_SIZE:
-            break
-        idx += 1
-    return all_rows
+        raise DobrodelError('credentials')
+    return value
 
 
 def clean(v):
@@ -303,15 +214,23 @@ def pull_windows(existing):
 def write_water_daily(rows, since, until, existing):
     """rows — сетка с HEADER в первой строке за окно [since, until].
     Свод накопительный: свежее окно заменяем целиком, всё что вне его —
-    оставляем как накопилось. День → ОМСУ → [ХВС, водоотведение, ГВС]."""
-    fresh = {}
+    оставляем как накопилось. День → ОМСУ → [ХВС, водоотведение, ГВС].
+    Пустой словарь дня означает проверенный ноль; отсутствие дня — неизвестно.
+    Старые разреженные своды дополняем только реально запрошенным окном."""
+    start, finish = _day(since), _day(until)
+    if start is None or finish is None or start > finish:
+        raise ValueError('Некорректное окно свода жалоб')
+    # The dashboard also derives coverage from day keys. Explicit empty buckets
+    # preserve queried boundary days and replace stale counts in browser caches.
+    fresh = {(start + dt.timedelta(days=i)).isoformat(): {}
+             for i in range((finish - start).days + 1)}
     hit = 0
     for r in rows[1:]:
         kind = water_kind(r[4], r[5], r[3])
         if not kind:
             continue
         d = day_of(r[8])
-        if not d:
+        if d not in fresh:
             continue
         omsu = (r[2] or "").strip() or "—"
         slot = fresh.setdefault(d, {}).setdefault(omsu, [0, 0, 0])
@@ -368,29 +287,21 @@ def main():
     log(f"▶ Кликер запущен. В своде {have} дн. истории. Окон к запросу: {len(wins)}.")
 
     pulled = []
-    with sync_playwright() as p:
-        executable = os.environ.get('EDDS_CHROME_EXECUTABLE', '').strip()
-        options = {'headless': True}
-        if executable:
-            if not Path(executable).is_file():
-                raise RuntimeError('EDDS_CHROME_EXECUTABLE не указывает на файл браузера Chromium-GOST.')
-            options['executable_path'] = executable
-        browser = p.chromium.launch(**options)
-        try:
-            ctx, page = ensure_session(browser)
-            log("✅ Сессия активна.")
-
-            # The embedded EDDS page reads only water_daily.json. The old,
-            # unbounded active-complaints export populated data.js for a separate
-            # standalone dashboard and could fail before the water update began.
-            for a, b, why in wins:
-                log(f"   ── свод по воде: {a} — {b} ({why}) …")
-                recs = fetch_all(page, "filters.statuses=" + STATUSES +
-                                 "&filters.createdAfter=" + a.isoformat() +
-                                 "&filters.createdBefore=" + b.isoformat())
-                pulled.append((a.isoformat(), b.isoformat(), recs))
-        finally:
-            browser.close()
+    with DobrodelClient(**get_credentials()) as client:
+        log('Вход в Добродел…')
+        client.login()
+        log('Сессия Добродела подтверждена.')
+        for a, b, why in wins:
+            log(f'   свод по воде: {a} — {b} ({why}) …')
+            recs = client.fetch_all({
+                'filters.curators': CURATOR,
+                'filters.statuses': STATUSES,
+                'filters.createdAfter': a.isoformat(),
+                # Portal dates are midnight boundaries; include the whole last day.
+                'filters.createdBefore': (b + dt.timedelta(days=1)).isoformat(),
+            })
+            recs = [r for r in recs if a.isoformat() <= (day_of(r.get('created')) or '') <= b.isoformat()]
+            pulled.append((a.isoformat(), b.isoformat(), recs))
 
     if not pulled:
         raise RuntimeError('Не задано окно для обновления свода жалоб.')
@@ -416,4 +327,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except DobrodelError as error:
+        # Fixed diagnostic code only. Never print credentials or a response body.
+        log(f'DOBRODEL_ERROR:{error.code}' + (f':{error.status}' if error.status else ''))
+        raise SystemExit(1) from None

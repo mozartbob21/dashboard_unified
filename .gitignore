@@ -205,3 +205,6 @@ tests_html/
 *.pem
 *.pfx
 *.p12
+
+# Authorized compact private water-map seed; served only behind module access.
+!services/mingkh/water_map_seed.json.gz

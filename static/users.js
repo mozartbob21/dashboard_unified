@@ -67,7 +67,9 @@
       details.textContent=user.is_manager ? 'Родительская учётная запись' : `${user.is_active?'Активен':'Отключён'} · блоков: ${user.modules.length}${user.can_manage_users?' · Управляющий':''}`;
       if(user.archived_at) details.textContent='В архиве · вход запрещён';
       const email=document.createElement('small'); email.textContent=user.email||'Почта не указана';
-      button.append(name,details,email); button.addEventListener('click',()=>openUser(user)); list.append(button);
+      const activity=document.createElement('small');
+      activity.textContent=user.activity?.last_seen_at ? `Активность: ${activityDate(user.activity.last_seen_at)}` : 'Активность ещё не учтена';
+      button.append(name,details,email,activity); button.addEventListener('click',()=>openUser(user)); list.append(button);
     }
   }
   function openUser(user=null) {
@@ -93,8 +95,58 @@
     document.getElementById('managerNote').hidden=!user?.is_manager;
     form.querySelectorAll('[name=modules]').forEach(input=>input.checked=!!user?.modules.includes(input.value));
     renderList();
+    loadActivity(user);
   }
   async function loadUsers() { const data=await api('/api/users'); users=data.users; isParentManager=data.is_parent_manager; renderList(); }
+  const activityPanel=document.getElementById('userActivity');
+  const activityStatus=document.getElementById('activityStatus');
+  const activityContent=document.getElementById('activityContent');
+  let activityVersion=0, activityData=null;
+  function activityDate(value) {
+    if(!value) return 'Не учтена';
+    const date=new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('ru-RU');
+  }
+  function renderActivityRows() {
+    const rows=document.getElementById('activityRows'); rows.replaceChildren();
+    const modules=(activityData?.modules||[]).filter(item=>!document.getElementById('activityUsedOnly').checked||item.last_seen_at);
+    for(const item of modules) {
+      const row=document.createElement('tr');
+      [item.label,item.visits,item.page_views,item.actions,activityDate(item.last_seen_at)].forEach((value,index)=>{
+        const cell=document.createElement(index===0?'th':'td');
+        if(index===0) cell.scope='row';
+        cell.textContent=value; row.append(cell);
+      });
+      rows.append(row);
+    }
+    if(!modules.length) {
+      const row=document.createElement('tr'), cell=document.createElement('td');
+      cell.colSpan=5; cell.textContent='За время сбора активность в блоках не учтена.';
+      row.append(cell); rows.append(row);
+    }
+  }
+  async function loadActivity(user) {
+    const version=++activityVersion;
+    activityPanel.hidden=!user; activityContent.hidden=true; activityData=null;
+    if(!user) return;
+    activityStatus.textContent='Загрузка статистики…';
+    try {
+      const data=await api(`/api/users/${user.id}/activity`);
+      if(version!==activityVersion||selected?.id!==user.id) return;
+      activityData=data;
+      document.getElementById('activityVisits').textContent=data.platform.visits;
+      document.getElementById('activityViews').textContent=data.platform.page_views;
+      document.getElementById('activityActions').textContent=data.platform.actions;
+      document.getElementById('activityLastSeen').textContent=`Последняя активность: ${activityDate(data.platform.last_seen_at)}`;
+      document.getElementById('activitySince').textContent=`Сбор начат: ${activityDate(data.tracking_since)}. Время показано в часовом поясе браузера. Данные за всё время сбора.`;
+      activityStatus.textContent=data.platform.last_seen_at?'':'Для этой учётной записи активность ещё не учтена.';
+      user.activity=data.platform; renderList(); renderActivityRows(); activityContent.hidden=false;
+    } catch(error) {
+      if(version===activityVersion) activityStatus.textContent=error.message||'Не удалось загрузить статистику.';
+    }
+  }
+  document.getElementById('activityUsedOnly').addEventListener('change',renderActivityRows);
+  document.getElementById('refreshActivity').addEventListener('click',()=>loadActivity(selected));
   search.addEventListener('input',renderList);
   document.getElementById('userArchiveFilter').addEventListener('change',renderList);
   document.getElementById('archiveUser').addEventListener('click',async()=>{
@@ -169,26 +221,58 @@
   setInterval(()=>{if(!document.hidden&&!sessionExpired) loadNotifications().catch(()=>{});},30000);
   const integrationForm=document.getElementById('integrationForm');
   const integrationStatus=document.getElementById('integrationStatus');
-  let integrationVersion=0;
+  const checkEddsLogin=document.getElementById('checkEddsLogin');
+  const checkEddsHint=document.getElementById('checkEddsHint');
+  let integrationVersion=0, integrationSaved=false, integrationBusy=false;
+  function updateIntegrationCheck(){
+    const isEdds=integrationForm.elements.service.value==='edds';
+    checkEddsLogin.hidden=!isEdds; checkEddsHint.hidden=!isEdds;
+    checkEddsLogin.disabled=integrationBusy||!integrationSaved;
+  }
+  function setIntegrationBusy(busy){
+    integrationBusy=busy;
+    integrationForm.querySelectorAll('input,select,button').forEach(el=>el.disabled=busy);
+    updateIntegrationCheck();
+  }
   async function loadIntegration(){
     const version=++integrationVersion;
+    integrationSaved=false; setIntegrationBusy(true);
     integrationForm.elements.username.value=''; integrationForm.elements.password.value='';
     try{
       const data=await api('/api/users/integrations/'+integrationForm.elements.service.value);
       if(version!==integrationVersion)return;
       integrationForm.elements.username.value=data.username;
+      integrationSaved=!!data.configured;
       integrationStatus.textContent=data.configured?'Доступ сохранён. Пароль скрыт.':'Доступ ещё не настроен.';
     }catch(e){if(version===integrationVersion)integrationStatus.textContent=e.message;}
+    finally{if(version===integrationVersion)setIntegrationBusy(false);}
   }
   integrationForm.elements.service.addEventListener('change',loadIntegration);
+  for(const name of ['username','password']){
+    integrationForm.elements[name].addEventListener('input',()=>{
+      integrationSaved=false; updateIntegrationCheck();
+      integrationStatus.textContent='Сначала сохраните изменения доступа.';
+    });
+  }
   integrationForm.addEventListener('submit',async event=>{
-    event.preventDefault();const button=integrationForm.querySelector('button');button.disabled=true;
+    event.preventDefault();if(integrationBusy)return;
+    integrationSaved=false;setIntegrationBusy(true);
     try{
       await api('/api/users/integrations/'+integrationForm.elements.service.value,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:integrationForm.elements.username.value,password:integrationForm.elements.password.value})});
+      integrationSaved=true;
       integrationForm.elements.password.value='';integrationStatus.textContent='Настройки доступа сохранены.';
       loadNotifications().catch(()=>{});
     }catch(e){integrationStatus.textContent=e.message;}
-    finally{button.disabled=false;}
+    finally{setIntegrationBusy(false);}
+  });
+  checkEddsLogin.addEventListener('click',async()=>{
+    if(integrationBusy||!integrationSaved||integrationForm.elements.service.value!=='edds')return;
+    setIntegrationBusy(true);integrationStatus.textContent='Проверяем вход в Добродел…';
+    try{
+      const data=await api('/api/users/integrations/edds/check',{method:'POST'});
+      integrationStatus.textContent=data.message;
+    }catch(e){integrationStatus.textContent=e instanceof TypeError?'Не удалось связаться с сервером. Повторите проверку.':e.message;}
+    finally{setIntegrationBusy(false);}
   });
   loadIntegration();
 })();
