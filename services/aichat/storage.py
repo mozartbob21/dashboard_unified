@@ -57,13 +57,15 @@ def delete_dialog(did):
     _save(new)
     return True
 
-def append_message(did, role, content, file_name=None, report_scope=None):
+def append_message(did, role, content, file_name=None, report_scope=None, response_kind=None):
     items = _load()
     for d in items:
         if d.get("id") != did:
             continue
         d.setdefault("messages", []).append(
             {"role": role, "content": content, "ts": now_iso(), "file": file_name})
+        if role == "assistant" and response_kind in ("answer", "error", "clarification"):
+            d["messages"][-1]["response_kind"] = response_kind
         if report_scope:
             d["messages"][-1]["report_scope"] = {key: str(report_scope.get(key) or "")[:240]
                                                        for key in ("module", "source", "municipality")}

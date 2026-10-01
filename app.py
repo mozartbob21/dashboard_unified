@@ -3111,20 +3111,33 @@ async def aichat_send(request: Request):
 
     full_user = "\n".join(([text] if text else []) + file_parts)
     history = (d.get("messages") or []) + [{"role": "user", "content": full_user}]
+    response_kind = "answer"
+    failure = None
     try:
         if report and report.get("clarification"):
+            response_kind = "clarification"
             answer = report["clarification"]
         else:
             answer = await asyncio.to_thread(aichat_ask, history, platform_context=ctx)
-    except Exception:
-        if report:
-            from services.aichat.report_context import fallback
-            answer = fallback(report)
-        else:
-            answer = "⚠️ Нейрона ИИ временно недоступна. Проверьте подключение к настроенному ИИ-сервису и попробуйте ещё раз."
-    aichat_store.append_message(did, "assistant", answer)
-    result = {"dialog_id": did, "answer": answer}
-    if report:
+    except Exception as exc:
+        import logging
+        from uuid import uuid4
+        from core.ai_errors import describe_ai_error
+        failure = describe_ai_error(exc)
+        request_id = uuid4().hex[:12]
+        # Never log exception text/traceback: provider errors can include credentials or prompts.
+        logging.getLogger("aichat").warning(
+            "AI request failed code=%s exception=%s status=%s request_id=%s",
+            failure["code"], type(exc).__name__, failure["http_status"], request_id)
+        response_kind = "error"
+        answer = ("Не удалось получить ответ ИИ. " + failure["message"]
+                  + "\n\nКод: " + failure["code"] + " · запрос " + request_id)
+    aichat_store.append_message(did, "assistant", answer, response_kind=response_kind)
+    result = {"dialog_id": did, "answer": answer, "ok": failure is None, "response_kind": response_kind}
+    if failure:
+        result["error_code"] = failure["code"]
+        result["request_id"] = request_id
+    if report and not failure:
         result["report_scope"] = report["selection"]
         result["report_sources"] = [{key: source.get(key) for key in ("id", "title", "status", "collected_at", "data_date")}
                                     for source in report["sources"]]

@@ -192,11 +192,13 @@ def test_engine_receives_factual_context_separately_from_conversation():
     with patch.object(engine, '_qwen_chat', return_value='Отчёт') as qwen:
         assert engine.ask([{'role': 'user', 'content': 'Отчёт', 'report_scope': {'module': 'secret'}}], platform_context='{"sources":[]}') == 'Отчёт'
     sent = qwen.call_args.args[0]
-    assert sent[1]['role'] == 'system'
-    assert '<platform_data>' in sent[2]['content']
-    assert sent[2]['role'] == 'user'
-    assert 'null/отсутствие строк' in sent[1]['content']
-    assert sent[-1] == {'role': 'user', 'content': 'Отчёт'}
+    assert len(sent) == 2
+    assert sent[0]['role'] == 'system'
+    assert 'null/отсутствие строк' in sent[0]['content']
+    assert sent[-1]['role'] == 'user'
+    assert sent[-1]['content'].startswith('Отчёт\n')
+    assert '<platform_data>\n{"sources":[]}\n</platform_data>' in sent[-1]['content']
+    assert all(set(message) == {'role', 'content'} for message in sent)
 
 
 def test_actual_local_water_snapshot_is_readable_and_typed():

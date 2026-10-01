@@ -68,12 +68,19 @@ def test_ordinary_chat_does_not_load_context(chat_client):
     assert ai.call_args.kwargs['platform_context'] == ''
 
 
-def test_unavailable_ai_returns_safe_saved_numbers(chat_client):
+def test_unavailable_ai_reports_error_without_replacing_model_with_saved_data(chat_client, caplog):
     client, app, _ = chat_client
     with patch.object(app, 'aichat_ask', side_effect=RuntimeError('SECRET_TOKEN=forbidden')):
         data = client.post('/aichat/api/send', data={'text': 'РМ МИНЖКХ', 'include_context': 'true'}).json()
-    assert '12' in data['answer'] and '2026-10-01' in data['answer']
-    assert 'SECRET_TOKEN' not in data['answer']
+    assert data['ok'] is False and data['response_kind'] == 'error'
+    assert data['error_code'] == 'AI_INTERNAL_ERROR'
+    assert 'report_sources' not in data
+    assert 'сохранённые показатели' not in data['answer']
+    assert '2026-10-01' not in data['answer']
+    assert 'SECRET_TOKEN' not in data['answer'] + caplog.text
+    assert 'AI_INTERNAL_ERROR' in caplog.text and data['request_id'] in caplog.text
+    messages = client.get('/aichat/api/dialogs/' + data['dialog_id']).json()['messages']
+    assert messages[-1]['response_kind'] == 'error'
 
 
 def test_options_are_permission_filtered(chat_client):
@@ -194,3 +201,68 @@ def test_remaining_modules_use_real_persisted_safe_city_data(chat_client):
     assert all('category_counts' not in s and 'status_counts' not in s for s in grouped['sources'])
     assert 'UNSELECTED_' not in json.dumps(grouped)
     assert 'Категория: Качество воды' in grouped['sources'][0]['municipality_table']['columns']
+
+
+@pytest.fixture
+def real_chat_transport(chat_client, monkeypatch):
+    import httpx
+    from services.aichat.engine import ask
+    client, app, user = chat_client
+    monkeypatch.setattr(app, 'aichat_ask', ask)
+    monkeypatch.setenv('QWEN_API_BASE', 'https://aiplatform.mosreg.ru/api/user-models/v1')
+    monkeypatch.setenv('QWEN_API_KEY', 'test-server-key')
+    monkeypatch.setenv('QWEN_MODEL', 'test-server-model')
+    monkeypatch.delenv('AI_CA_BUNDLE', raising=False)
+    calls = []
+    responses = []
+    def post(url, **kwargs):
+        calls.append(kwargs)
+        assert url == 'https://aiplatform.mosreg.ru/api/user-models/v1/chat/completions'
+        assert kwargs['headers']['Authorization'] == 'Bearer test-server-key'
+        assert kwargs['json']['model'] == 'test-server-model'
+        messages = kwargs['json']['messages']
+        assert [m['role'] for m in messages].count('system') == 1
+        assert messages[0]['role'] == 'system' and messages[-1]['role'] == 'user'
+        assert all(m['role'] == ('user' if i % 2 == 0 else 'assistant') for i, m in enumerate(messages[1:]))
+        status, payload = responses.pop(0) if responses else (200, {'choices': [{'message': {'content': 'Ответ от настроенной модели'}}]})
+        return httpx.Response(status, json=payload, request=httpx.Request('POST', url))
+    monkeypatch.setattr(httpx, 'post', post)
+    return client, calls, responses
+
+
+def test_real_send_report_then_general_question_uses_qwen_for_both(real_chat_transport):
+    client, calls, _ = real_chat_transport
+    did = client.post('/aichat/api/dialogs', json={}).json()['id']
+    report = client.post('/aichat/api/send', data={'dialog_id': did, 'text': 'Дай отчёт по Власихе'}).json()
+    assert report['ok'] and report['answer'] == 'Ответ от настроенной модели'
+    assert '<platform_data>' in calls[-1]['json']['messages'][-1]['content']
+    ordinary = client.post('/aichat/api/send', data={'dialog_id': did, 'text': 'Дай информацию о нейросетях'}).json()
+    assert ordinary['ok'] and ordinary['response_kind'] == 'answer'
+    assert 'report_sources' not in ordinary
+    assert '<platform_data>' not in json.dumps(calls[-1]['json'])
+    assert calls[-1]['json']['messages'][-1]['content'] == 'Дай информацию о нейросетях'
+
+
+def test_real_send_technical_error_is_not_taught_to_qwen_on_next_turn(real_chat_transport, caplog):
+    client, calls, responses = real_chat_transport
+    responses.append((401, {'error': 'PRIVATE_RESPONSE_WITH_KEY test-server-key'}))
+    failed = client.post('/aichat/api/send', data={'text': 'Дай отчёт по всем блокам'}).json()
+    assert not failed['ok'] and failed['error_code'] == 'AI_AUTH_FAILED'
+    assert 'test-server-key' not in json.dumps(failed) + caplog.text
+    assert 'PRIVATE_RESPONSE' not in json.dumps(failed) + caplog.text
+    recovered = client.post('/aichat/api/send', data={'dialog_id': failed['dialog_id'], 'text': 'Напиши поздравление коллеге'}).json()
+    assert recovered['ok'] and recovered['answer'] == 'Ответ от настроенной модели'
+    assert len(calls[-1]['json']['messages']) == 2
+    assert calls[-1]['json']['messages'][-1]['content'] == 'Напиши поздравление коллеге'
+    messages = client.get('/aichat/api/dialogs/' + failed['dialog_id']).json()['messages']
+    assert len(messages) == 4 and messages[1]['response_kind'] == 'error'
+    assert messages[-1]['response_kind'] == 'answer'
+
+
+def test_real_send_attached_text_is_received_by_qwen(real_chat_transport):
+    client, calls, _ = real_chat_transport
+    result = client.post('/aichat/api/send', data={'text': 'Сократи этот текст'},
+                         files={'file': ('note.txt', 'Текст для редактирования'.encode(), 'text/plain')}).json()
+    assert result['ok'] and 'report_sources' not in result
+    last = calls[-1]['json']['messages'][-1]['content']
+    assert 'Текст для редактирования' in last and '<platform_data>' not in last

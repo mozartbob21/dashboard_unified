@@ -286,3 +286,20 @@ def test_region_report_keeps_explicit_block(data):
                                      previous={'modules': ['mingkh'], 'municipalities': ['Химки']})
     assert selected['modules'] == ['edds']
     assert selected['municipalities'] == []
+
+
+@pytest.mark.parametrize('question', [
+    'Дай информацию о нейросетях', 'Что такое отчёт?', 'Напиши пример отчёта о командировке',
+    'Какие показатели важны для бизнеса?', 'Почему небо синее?',
+    'Как работает водоснабжение?', 'Помоги выбрать камеры для офиса',
+    'Напиши стихотворение о Власихе', 'Что делать, если компьютер завис?',
+    'Дай рекомендации по изучению Python', 'Расскажи подробнее про фотосинтез',
+])
+@pytest.mark.parametrize('previous', [None, {'modules': ['water-dashboard'], 'municipalities': ['Власиха']}])
+def test_general_assistant_requests_do_not_become_reports(data, question, previous):
+    assert not reports.wants_context(question, list(reports.MODULES), previous=previous)
+
+
+@pytest.mark.parametrize('question', ['Почему?', 'Почему так?', 'Подробнее', 'Какие выводы?', 'Что рекомендуешь?'])
+def test_short_report_followups_still_read_current_data(data, question):
+    assert reports.wants_context(question, ['water-dashboard'], previous={'modules': ['water-dashboard']})

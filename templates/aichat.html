@@ -9,7 +9,7 @@
 <header class="topbar">
   <div class="brand">
     <img src="{{ url_for('static', path='logo.svg') }}" class="brand-logo" alt="">
-    <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">AI-чат · аналитик платформы ЖКХ</div></div>
+    <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">AI-чат · ваш рабочий помощник</div></div>
   </div>
   <div class="top-actions">
     <button class="secondary-button" id="capsBtn" type="button">Возможности чата</button>
@@ -59,12 +59,12 @@
   <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="capsTitle">
     <h3 id="capsTitle">Что может этот чат?</h3>
     <div class="caps-grid">
-      <div class="cap"><div class="cap-ic">🏘</div><b>Статистика по муниципалитетам</b><span>Запросите отчёт по всей платформе, одному или нескольким блокам. Укажите любой муниципалитет или попросите разбивку по округам.</span></div>
-      <div class="cap"><div class="cap-ic">🚨</div><b>Критичные объекты</b><span>Какие объекты и организации в критичной зоне, кто ответственный и сколько дней просрочки.</span></div>
-      <div class="cap"><div class="cap-ic">💧</div><b>Качество воды</b><span>Анализ результатов контроля воды или приложенной выгрузки.</span></div>
-      <div class="cap"><div class="cap-ic">📷</div><b>Камеры</b><span>Сколько камер не работает и в каких округах.</span></div>
-      <div class="cap"><div class="cap-ic">📑</div><b>Отчёты и доклады</b><span>Подготовит текст отчёта по муниципалитету или теме для доклада и презентации.</span></div>
-      <div class="cap"><div class="cap-ic">📎</div><b>Файлы и фото</b><span>Разберёт docx, xlsx, pdf, pptx, txt и фото с текстом.</span></div>
+      <div class="cap"><div class="cap-ic">💬</div><b>Вопросы и объяснения</b><span>Объяснит сложную тему, поможет разобраться в задаче и обсудить варианты решения.</span></div>
+      <div class="cap"><div class="cap-ic">✍️</div><b>Тексты и переводы</b><span>Поможет составить письмо, отредактировать документ, перевести или сократить текст.</span></div>
+      <div class="cap"><div class="cap-ic">💡</div><b>Идеи и планы</b><span>Предложит идеи, составит план работы или поможет подготовиться к выступлению.</span></div>
+      <div class="cap"><div class="cap-ic">⌨️</div><b>Код и формулы</b><span>Объяснит код, поможет с формулой или подскажет, как автоматизировать задачу.</span></div>
+      <div class="cap"><div class="cap-ic">🏘</div><b>Отчёты по платформе</b><span>Соберёт отчёт по доступным блокам и муниципалитетам из сохранённых данных с датами источников.</span></div>
+      <div class="cap"><div class="cap-ic">📎</div><b>Файлы и фото</b><span>Разберёт извлечённый текст документов, таблиц, презентаций и изображений.</span></div>
     </div>
     <div class="cap-ex"><b>Попробуйте:</b><div class="cap-chips" id="capChips"></div></div>
     <div class="m-row"><button class="btn prim" id="capsClose" type="button">Понятно</button></div>
@@ -78,8 +78,8 @@ var chatEl=$("#chat"),ta=$("#ta");
 var currentDid=null,pending=[],busy=false,draftVersion=0;
 var customCmds=[];
 try{customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");if(!Array.isArray(customCmds))customCmds=[];}catch(error){}
-var STD=[{t:"Дай краткий отчёт по всем блокам"},{t:"Дай отчёт по Власихе"},{t:"Что в критичных по технадзору?"}];
-var EXAMPLES=["Дай краткий отчёт по всем блокам","Дай отчёт по Власихе","Покажи камеры и просрочку по Химкам","Что в критичных по технадзору?"];
+var STD=[{t:"Помоги составить деловое письмо"},{t:"Объясни сложную тему простыми словами"},{t:"Дай краткий отчёт по всем блокам"}];
+var EXAMPLES=["Помоги составить деловое письмо","Объясни, как работает нейросеть","Дай краткий отчёт по всем блокам","Дай отчёт по Власихе в ЕДДС и МинЖКХ"];
 
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 function fmt(s){return window.NeuronaChatFormat.render(s)}
@@ -92,9 +92,9 @@ function prepareDraft(text){
 }
 
 function welcomeHTML(){
-  return '<div class="welcome" id="welcome"><div class="ac-welcome-mark"><img src="/static/logo.svg" alt=""></div><h2>Нейрона — ваш аналитик</h2>'+
-  '<p>Помогу разобраться в данных, подготовить отчёт или проанализировать файл. '+
-  'Просто напишите, что вас интересует: все блоки, конкретные направления или любой муниципалитет.</p>'+
+  return '<div class="welcome" id="welcome"><div class="ac-welcome-mark"><img src="/static/logo.svg" alt=""></div><h2>Нейрона — ваш ИИ-помощник</h2>'+
+  '<p>Отвечу на вопросы, помогу с текстом, идеями и файлами. '+
+  'Для отчёта по платформе просто назовите блоки и муниципалитеты — нужные данные добавятся автоматически.</p>'+
   '<div class="cap-chips" id="wChips"></div></div>';
 }
 function bindChips(root){
@@ -252,7 +252,7 @@ async function send(textOverride){
     if(d.dialog_id&&d.dialog_id!==currentDid){currentDid=d.dialog_id;}
     loadDialogs();
     appendAssist(d.answer||"…");
-    if(d.report_sources&&d.report_sources.length){$("#contextNote").textContent="Источников в отчёте: "+d.report_sources.length+" · Даты и полнота данных указаны в ответе.";$("#contextNote").hidden=false;}
+    if(d.ok!==false&&d.report_sources&&d.report_sources.length){$("#contextNote").textContent="Источников в отчёте: "+d.report_sources.length+" · Даты и полнота данных указаны в ответе.";$("#contextNote").hidden=false;}
   }catch(e){appendAssist("Не удалось получить ответ. "+(e instanceof TypeError?"Проверьте соединение с сервером и повторите запрос.":e.message));}
   finally{showTyping(false);setBusy(false);}
 }

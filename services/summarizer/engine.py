@@ -25,68 +25,70 @@ def _gigachat_chat(messages, creds=None, model=None, max_tokens=2000):
 
 
 def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
-    """OpenAI-совместимый прокси aiplatform.mosreg.ru.
-    Автоматически отключает «размышления» Qwen3, иначе content=None."""
+    """Chat completions for the configured GosChat or local model."""
     import httpx
-    base = (base or os.getenv("QWEN_API_BASE",
-                              "https://aiplatform.mosreg.ru/api/user-models/v1")).strip().rstrip("/")
+    from core.ai_errors import AIServiceError
     from core.privacy import ai_endpoint, ai_tls_context
+    base = (base or os.getenv("QWEN_API_BASE", "").strip()
+            or os.getenv("QWEN_BASE_URL", "").strip()
+            or "https://aiplatform.mosreg.ru/api/user-models/v1").strip().rstrip("/")
     base = ai_endpoint(base)
     key = (key or os.getenv("QWEN_API_KEY", "")).strip()
-    model = (model or os.getenv("QWEN_MODEL", "qwen3.8-27b-fp8")).strip()
+    model = (model or os.getenv("QWEN_MODEL", "").strip() or "qwen3.8-27b-fp8").strip()
     if not key and "aiplatform.mosreg.ru" in base:
-        raise RuntimeError("QWEN_API_KEY (umk_...) не задан в .env")
-
-    headers = {
-        "Content-Type": "application/json",
-    }
-
+        raise AIServiceError('AI_KEY_MISSING')
+    headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
+    try:
+        tls = ai_tls_context()
+    except (OSError, ValueError):
+        raise AIServiceError('AI_TLS_ERROR') from None
+    template_options_supported = True
 
     def _post(payload):
+        nonlocal template_options_supported
+        if not template_options_supported:
+            payload = {k: v for k, v in payload.items() if k != "chat_template_kwargs"}
         resp = httpx.post(f"{base}/chat/completions", json=payload,
-                          headers=headers, timeout=180, verify=ai_tls_context(), trust_env=False, follow_redirects=False)
-        # прокси может не знать chat_template_kwargs — повторяем без него
+                          headers=headers, timeout=180, verify=tls, trust_env=False, follow_redirects=False)
         if resp.status_code == 400 and "chat_template_kwargs" in payload:
-            payload = {k: v for k, v in payload.items()
-                       if k != "chat_template_kwargs"}
+            template_options_supported = False
+            payload = {k: v for k, v in payload.items() if k != "chat_template_kwargs"}
             resp = httpx.post(f"{base}/chat/completions", json=payload,
-                              headers=headers, timeout=180, verify=ai_tls_context(), trust_env=False, follow_redirects=False)
+                              headers=headers, timeout=180, verify=tls, trust_env=False, follow_redirects=False)
+        resp.raise_for_status()
         return resp
 
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.4,
-        "max_tokens": max_tokens,
-        "stream": False,
-        "chat_template_kwargs": {"enable_thinking": False},
-    }
+    def _answer(response):
+        try:
+            data = response.json()
+            choice = data['choices'][0]
+            message = choice['message']
+            if not isinstance(message, dict):
+                raise TypeError()
+            content = message.get('content') or message.get('text') or ''
+            if isinstance(content, list):
+                content = '\n'.join(item['text'] for item in content if isinstance(item, dict)
+                                    and item.get('type') == 'text' and isinstance(item.get('text'), str))
+            if not isinstance(content, str):
+                raise TypeError()
+            thinking_only = bool(message.get('reasoning') or message.get('reasoning_content') or choice.get('finish_reason') == 'length')
+            return content.strip(), thinking_only
+        except (ValueError, KeyError, IndexError, TypeError):
+            raise AIServiceError('AI_INVALID_RESPONSE') from None
 
-    r = _post(payload)
-    if r.status_code == 401:
-        raise RuntimeError("Qwen: невалидный umk_-ключ (401)")
-    if r.status_code == 403:
-        raise RuntimeError(f"Qwen: нет доступа к модели {model} (403)")
-    if r.status_code == 404:
-        raise RuntimeError(f"Qwen: модель {model} не найдена (404)")
-    r.raise_for_status()
-    data = r.json()
-    msg = (data.get("choices") or [{}])[0].get("message") or {}
-    content = msg.get("content") or msg.get("text") or ""
-
-    if not content and msg.get("reasoning"):
-        # размышления съели токены — повтор с удвоенным лимитом
-        payload["max_tokens"] = min(int(max_tokens) * 2, 16000)
-        r = _post(payload)
-        r.raise_for_status()
-        data = r.json()
-        msg = (data.get("choices") or [{}])[0].get("message") or {}
-        content = msg.get("content") or msg.get("text") or ""
-
+    payload = {"model": model, "messages": messages, "temperature": 0.4,
+               "max_tokens": max_tokens, "stream": False,
+               "chat_template_kwargs": {"enable_thinking": False}}
+    content, thinking_only = _answer(_post(payload))
+    if not content and thinking_only:
+        # Different Qwen-compatible backends use reasoning or reasoning_content.
+        # Return only the final answer, never substitute internal reasoning.
+        payload = dict(payload, max_tokens=min(int(max_tokens) * 2, 16000))
+        content, _ = _answer(_post(payload))
     if not content:
-        raise RuntimeError("Qwen вернул пустой content")
+        raise AIServiceError('AI_EMPTY_RESPONSE')
     return content
 
 

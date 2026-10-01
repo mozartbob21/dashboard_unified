@@ -211,7 +211,7 @@ def _named_municipalities(q, names):
 
 
 def wants_context(question, allowed_modules, previous=None, *, has_files=False, explicit=None):
-    """Recognise a report request, not every occurrence of a city in file prose."""
+    """Platform reporting is an extra capability, not the default chat mode."""
     if explicit == 'true':
         return True
     if explicit == 'false':
@@ -219,27 +219,40 @@ def wants_context(question, allowed_modules, previous=None, *, has_files=False, 
     q = water.normalized(question)
     if not q:
         return False
-    modules, sources = _detected_blocks(q)
+    modules, _ = _detected_blocks(q)
     broad = _all_modules(q) or _each_municipality(q)
     report = bool(re.search(r'\b(?:отчет\w*|сводк\w*|сводн\w*|показател\w*|статистик\w*|информаци\w*)\b', q))
     ask = bool(re.search(r'\b(?:дай|дайте|покажи|покажите|подготовь|сформируй|составь|сделай|кто|сколько|какие|что|сравни|проанализируй)\b', q))
-    if has_files and re.search(r'файл|документ|вложени|текст|таблиц', q) and not broad and not modules:
+    platform = bool(re.search(r'\b(?:нашей|этой)\s+платформ|\bданн\w*\s+(?:платформ|нейрон)|\bоб этом блоке|\bпо этому блоку', q))
+    # A module name inside a general explanation/file request is not a request
+    # to inspect working data (e.g. "что такое контроль воды").
+    educational = re.search(r'\b(?:что такое|что значит|что означает|объясни|объясните)\b|\bкак\s+(?:написать|составить|сделать|работает|устроен\w*|выбрать|настроить)\b', q)
+    creative = re.search(r'\b(?:сказк\w*|стих\w*|анекдот\w*|переведи|переведите|шаблон отчета|пример отчета)\b', q)
+    shopping = re.search(r'\b(?:купить|покупк\w*|выбрать)\b', q)
+    if (educational or creative or shopping) and not platform and not (broad and report):
         return False
-    if re.search(r'как (?:написать|составить|сделать)|пример отчета|шаблон отчета|сказк|стихотвор|переведи', q) and not broad:
+    compare = bool(re.search(r'\b(?:сравни|сверь|сопоставь)\b', q))
+    if has_files and re.search(r'файл|документ|вложени|текст|таблиц', q) and not broad and not platform and not (compare and modules):
         return False
     if broad and (report or ask):
         return True
     if modules and (report or ask or len(q.split()) <= 3):
         return True
-    if report and (ask or not has_files):
+    if platform and (report or ask):
         return True
-    if previous and re.search(r'вся область|всю область|всей области|по области|по всей области|в целом', q):
+    if previous and re.fullmatch(r'(?:а\s+)?(?:теперь\s+)?(?:вся область|всю область|по области|по всей области|в целом)[.!?]*', q):
         return True
-    if previous and re.search(r'^(?:а\s+)?(?:подробнее|детальнее|почему|какие выводы|что рекомендуешь|что делать|сравни|по\s+)', q):
+    if previous and re.fullmatch(r'(?:а\s+)?(?:расскажи\s+)?(?:подробнее|детальнее|почему(?: так| такие показатели)?|какие выводы|что рекомендуешь|что делать|сравни(?: их| эти показатели| с прошлым периодом)?)[.!?]*', q):
         return True
     conversational = bool(previous and re.match(r'^(?:а\s+)?(?:теперь\s+)?по\s+', q))
-    if (ask or conversational or modules) and _named_municipalities(q, _known_names(allowed_modules)):
-        return True
+    # Resolve municipalities only when the question actually asks for data.
+    # General conversation about a place remains a normal AI question.
+    operational = bool(re.search(r'ситуаци|обстановк|нарушени|просроч|критичн', q))
+    if report or conversational or modules or (ask and operational):
+        if _named_municipalities(q, _known_names(allowed_modules)):
+            return True
+        if report and re.search(r'\b(?:муниципалитет|округ)\w*\s+', q):
+            return True  # prepare() asks to clarify an unknown municipality.
     return False
 
 
