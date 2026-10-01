@@ -1,19 +1,24 @@
 (() => {
+
 'use strict';
 /* ============================================================
    1. Данные
    ============================================================ */
 const KINDS = [
-  { name: 'ХВС', full: 'Холодное водоснабжение', css: '--hvs' },
-  { name: 'ВО',  full: 'Водоотведение',          css: '--vo'  },
-  { name: 'ГВС', full: 'Горячее водоснабжение',  css: '--gvs' },
+  { name: 'ХВС', full: 'Холодное водоснабжение' },
+  { name: 'ВО',  full: 'Водоотведение' },
+  { name: 'ГВС', full: 'Горячее водоснабжение' },
+  { name: 'КР',  full: 'Капремонт МКД' },
+  { name: 'Др',  full: 'Другое (МинЖКХ)' },
 ];
+const KIND_KR = 3, KIND_ETC = 4;
 /* Группы жалоб — привязка факта ЕЦУР к группе дана пользователем 29.09.2026.
    Три редких факта (крышка люка ЦВС, водозаборный узел, уведомление о работах)
    в его таблице не было — отнесены по аналогии. Факт, которого здесь нет,
    попадает в «Прочее», чтобы новая формулировка портала не пропала молча. */
 const GROUPS = ['Отсутствие воды', 'Ржавая вода', 'Канализация', 'Колодцы/Колонки',
-                'Модернизация сетей', 'Горячее водоснабжение (ГВС) в МКД', 'Экология', 'Прочее'];
+                'Модернизация сетей', 'Горячее водоснабжение (ГВС) в МКД', 'Экология', 'Прочее',
+                'Капремонт МКД'];
 const GROUP_OF = Object.fromEntries([
   ['Восстановить работу внешней системы водоснабжения', 'Отсутствие воды'],
   ['Восстановить работу водозаборного узла', 'Отсутствие воды'],
@@ -39,8 +44,11 @@ const GROUP_OF = Object.fromEntries([
 // двойные пробелы и регистр в формулировках портала гуляют — сравниваем без них
 function normFact(s){ return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 const groupOf = fact => GROUP_OF[normFact(fact)] || 'Прочее';
+/* Таблица групп выше — только для воды. Капремонт — одна группа; прочие жалобы
+   МинЖКХ — группа по подкатегории ЕЦУР, чтобы новая тема была видна отдельно. */
+const groupOfRec = (kind, fact, subcat) => kind === KIND_KR ? 'Капремонт МКД'
+  : kind === KIND_ETC ? (subcat || 'Другое (МинЖКХ)') : groupOf(fact);
 
-const kindColor = k => getComputedStyle(document.querySelector(".water-map")).getPropertyValue(KINDS[k].css).trim();
 const CARD_URL = id => 'https://admin.vmeste.mosreg.ru/CardEditList?show=/Topic?id=' + encodeURIComponent(id);
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -53,29 +61,34 @@ const isoDay = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,
                     String(d.getDate()).padStart(2, '0');
 
 let RECS = [], DMIN = '', DMAX = '';
+/* Водные жалобы (ХВС, ВО, ГВС) — всегда «Инженерная инфраструктура». Портал изредка
+   ставит им «Инженерные системы МКД» или «Водоснабжение, водоотведение» при тех же
+   фактах (4 жалобы за 2024–2026) — отдельной карточкой это выглядело как дубль. */
+const catOf = (kind, cat) => kind <= 2 ? 'Инженерная инфраструктура' : cat;
 function loadData(W){
   if(!W || !W.rows) return false;
   const c = Object.fromEntries(W.cols.map((n, i) => [n, i]));
   RECS = W.rows.map(r => ({
     id: r[c.id], created: r[c.created], day: String(r[c.created]).slice(0, 10),
     omsu: W.omsu[r[c.omsu]], kind: r[c.kind], address: r[c.address],
-    fact: W.fact[r[c.fact]], group: groupOf(W.fact[r[c.fact]]), status: W.status[r[c.status]],
+    fact: W.fact[r[c.fact]], status: W.status[r[c.status]],
+    cat: catOf(r[c.kind], c.cat !== undefined ? W.cat[r[c.cat]] : ''), org: c.org !== undefined ? W.org[r[c.org]] : '',
+    group: groupOfRec(r[c.kind], W.fact[r[c.fact]], c.subcat !== undefined ? W.subcat[r[c.subcat]] : ''),
     lat: r[c.lat], lon: r[c.lon], geo: r[c.geo],
   }));
   const days = RECS.map(r => r.day).filter(Boolean).sort();
   DMIN = days[0] || ''; DMAX = days[days.length - 1] || '';
   const m = W.meta || {};
   document.getElementById('meta').textContent =
-    (m.live_updated ? 'ДоброДел · МинЖКХ · ' : 'Архив ДоброДела · МинЖКХ · ') + fmtN(RECS.length) + ' жалоб за ' +
-    fmtDay(DMIN) + ' — ' + fmtDay(DMAX) + (m.updated ? ' · данные от ' + m.updated : '') +
-    (m.refreshed_from ? ' · перепроверены даты ' + fmtDay(m.refreshed_from) + ' — ' + fmtDay(m.refreshed_to) : '');
+    'ДоброДел · МинЖКХ · все жалобы (вода, капремонт МКД и прочее) · ' + fmtN(RECS.length) + ' жалоб за ' +
+    fmtDay(DMIN) + ' — ' + fmtDay(DMAX) + (m.updated ? ' · данные от ' + m.updated : '');
   return true;
 }
 
 /* ============================================================
    2. Фильтры
    ============================================================ */
-const F = { from: '', to: '', kinds: [true, true, true] };
+const F = { from: '', to: '', kinds: KINDS.map(() => true) };
 let geoBox = null;      // { kind:'poly', pts } | { kind:'circle', lat, lon, r } и рамка bb
 
 /* Списки с галочками: ОМСУ и факт ЕЦУР. sel: null — все, Set — выбранные. */
@@ -84,7 +97,18 @@ const MS = {
           label: { all: 'Все ОМСУ', none: 'Ни одного ОМСУ', many: n => n + ' ОМСУ' } },
   fact: { field: 'fact', all: [], sel: null, find: 'Найти по словам факта…',
           label: { all: 'Все факты', none: 'Ни одного факта', many: n => n + ' фактов из ' + MS.fact.all.length } },
+  org:  { field: 'org', all: [], sel: null, find: 'Найти исполнителя…',
+          label: { all: 'Все исполнители', none: 'Ни одного исполнителя', many: n => n + ' исполнителей' } },
 };
+/* МОВК и ФКР — те же правила, что в дашборде «Контроль жалоб ЕЦУР»:
+   МОВК — округа зоны МОВК и категория «Инженерная инфраструктура»;
+   ФКР — исполнитель «Фонд капитального ремонта…». Работают поверх списков. */
+const MOVK_STEMS = ['богородск', 'воскресенск', 'орехово-зуевск', 'электросталь', 'лосино-петровск',
+                    'павлово-посадск', 'шатур', 'чехов', 'сергиево-посадск'];
+const CAT_ENG = 'Инженерная инфраструктура';
+const FKR_EXEC = 'Фонд капитального ремонта общего имущества многоквартирных домов';
+const isMovk = o => MOVK_STEMS.some(s => String(o).toLowerCase().includes(s));
+F.movk = false; F.fkr = false;
 
 // skip — какой список не учитывать: так у каждого пункта видно, сколько жалоб
 // он даст при остальных фильтрах
@@ -92,20 +116,44 @@ function passesNoBox(r, skip){
   return (!F.from || r.day >= F.from) && (!F.to || r.day <= F.to) && F.kinds[r.kind] &&
          (skip === 'omsu' || !MS.omsu.sel || MS.omsu.sel.has(r.omsu)) &&
          (skip === 'fact' || !MS.fact.sel || MS.fact.sel.has(r.fact)) &&
-         (skip === 'group' || !F.grp || F.grp.has(r.group));
+         (skip === 'org' || !MS.org.sel || MS.org.sel.has(r.org)) &&
+         (!F.movk || (r.cat === CAT_ENG && isMovk(r.omsu))) && (!F.fkr || r.org === FKR_EXEC) &&
+         (skip === 'group' || !F.grp || F.grp.has(r.group)) &&
+         (skip === 'cat' || !F.cats || F.cats.has(r.cat));
 }
 
 // ---- группы: фильтр — это сами карточки с цифрами (renderKpis)
 F.grp = null;            // null — все группы; Set — включённые
+F.cats = null;           // категории ЕЦУР: null — все; Set — включённые
+let CATS_IN = [];
+/* Те же правила щелчка, что у групп: щелчок — только эта категория, Ctrl+щелчок —
+   добавить/убрать, повторный щелчок по единственной выбранной — снова все. */
+function catClick(e){
+  const b = e.target.closest('.catc[data-c]');
+  if(!b) return;
+  const c = b.dataset.c;
+  let next;
+  if(e.ctrlKey || e.metaKey || e.shiftKey){
+    next = new Set(F.cats || []);
+    next.has(c) ? next.delete(c) : next.add(c);
+  } else next = F.cats && F.cats.size === 1 && F.cats.has(c) ? null : new Set([c]);
+  F.cats = next && next.size && next.size < CATS_IN.length ? next : null;
+  applyFilters();
+}
 let GROUPS_IN = [];      // группы, что реально есть в данных
 function buildGroups(){
+  // категории — по числу жалоб, крупные первыми
+  const nc = new Map();
+  for(const r of RECS) nc.set(r.cat, (nc.get(r.cat) || 0) + 1);
+  CATS_IN = [...nc.keys()].sort((a, b) => nc.get(b) - nc.get(a));
   const have = new Set(RECS.map(r => r.group));
-  GROUPS_IN = GROUPS.filter(g => have.has(g));
+  // известные — в заданном порядке, незнакомые (подкатегории «Другого») — следом
+  GROUPS_IN = GROUPS.filter(g => have.has(g)).concat([...have].filter(g => !GROUPS.includes(g)).sort());
 }
 /* Щелчок — только эта группа; Ctrl+щелчок — добавить/убрать; щелчок по
    единственной выбранной или по итогу — снова все. Так же, как строки свода по ОМСУ. */
 function groupClick(e){
-  if(e.target.closest('.kpi-total')){ if(F.grp){ F.grp = null; applyFilters(); } return; }
+  if(e.target.closest('.kpi-total')){ if(F.grp || F.cats){ F.grp = null; F.cats = null; applyFilters(); } return; }
   const b = e.target.closest('.kpi[data-g]');
   if(!b) return;
   const g = b.dataset.g;
@@ -117,7 +165,7 @@ function groupClick(e){
   F.grp = next && next.size && next.size < GROUPS_IN.length ? next : null;
   applyFilters();
 }
-const hasPoint = r => Number.isFinite(r.lat) && Number.isFinite(r.lon) && r.geo === 0;   // точка в пределах МО
+const hasPoint = r => r.lat !== null && r.geo === 0;   // точка в пределах МО
 
 function geoMetres(la1, lo1, la2, lo2){
   const R = 6371000, rad = Math.PI / 180;
@@ -161,7 +209,9 @@ function applyFilters(opts){
   BASE = RECS.filter(r => passesNoBox(r));
   SEL = geoBox ? BASE.filter(inGeoBox) : BASE;
   renderKpis();
-  msCounts('omsu'); msCounts('fact');
+  msCounts('omsu'); msCounts('fact'); msCounts('org');
+  document.getElementById('t-movk').classList.toggle('on', F.movk);
+  document.getElementById('t-fkr').classList.toggle('on', F.fkr);
   renderPeriodNote();
   renderOmsuTable();
   renderBox();
@@ -178,18 +228,27 @@ function setPeriod(from, to){
     // подсветка — чтобы было видно, что даты сменила кнопка, а не остались прежними
     el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
   }
-  document.querySelectorAll('#quick .chip').forEach(b => b.classList.remove('on'));
+  clearQuick();
 }
+// на кнопке — название периода и даты: «30 дней · 31.08 — 29.09.2026»
 function renderPeriodNote(){
-  const days = F.from && F.to ? Math.round((new Date(F.to) - new Date(F.from)) / 864e5) + 1 : 0;
-  document.getElementById('per-note').innerHTML = F.from || F.to
-    ? 'с <b>' + (fmtDay(F.from) || 'начала') + '</b> по <b>' + (fmtDay(F.to) || 'конец') + '</b>' +
-      (days > 0 ? ' · ' + fmtN(days) + ' дн.' : '')
-    : 'весь период';
+  const on = document.querySelector('#quick .per-opt.on');
+  const a = F.from, b = F.to;
+  const range = !a && !b ? 'весь период'
+    : a && b && a.slice(0, 4) === b.slice(0, 4) ? fmtDay(a).slice(0, 5) + ' — ' + fmtDay(b)
+    : (fmtDay(a) || 'с начала') + ' — ' + (fmtDay(b) || 'по конец');
+  const days = a && b ? Math.round((new Date(b) - new Date(a)) / 864e5) + 1 : 0;
+  const btn = document.getElementById('per-btn');
+  btn.textContent = on ? on.firstChild.textContent + ' · ' + range : range + (days > 0 ? ' · ' + fmtN(days) + ' дн.' : '');
+  btn.classList.toggle('part', !on);
 }
 function quick(q){
   if(q === 'all') setPeriod(DMIN, DMAX);
-  else {
+  // «Год» — текущий календарный год с 1 января, а не 365 дней назад
+  else if(q === 'year'){
+    const jan1 = new Date().getFullYear() + '-01-01';
+    setPeriod(jan1 < DMIN ? DMIN : jan1, DMAX);
+  } else {
     const to = new Date(DMAX + 'T00:00:00'), from = new Date(to);
     from.setDate(from.getDate() - (+q - 1));
     setPeriod(isoDay(from) < DMIN ? DMIN : isoDay(from), DMAX);
@@ -204,7 +263,7 @@ function msBuild(key){
   const n = new Map();
   for(const r of RECS) n.set(r[m.field], (n.get(r[m.field]) || 0) + 1);
   // ОМСУ — по алфавиту; факты — по частоте: вверху то, о чём пишут чаще всего
-  m.all = [...n.keys()].sort(key === 'fact' ? (a, b) => n.get(b) - n.get(a) : (a, b) => a.localeCompare(b, 'ru'));
+  m.all = [...n.keys()].sort(key !== 'omsu' ? (a, b) => n.get(b) - n.get(a) : (a, b) => a.localeCompare(b, 'ru'));
   box.innerHTML =
     '<button class="ms-btn" type="button"></button>' +
     '<div class="ms-pop" hidden><input class="inp ms-q" placeholder="' + esc(m.find) + '" autocomplete="off">' +
@@ -218,11 +277,7 @@ function msBuild(key){
   btn.onclick = () => {
     document.querySelectorAll('.ms-pop').forEach(p => { if(p !== pop) p.hidden = true; });
     pop.hidden = !pop.hidden;
-    if(!pop.hidden) {
-      pop.style.left = '0'; pop.style.right = 'auto';
-      if (pop.getBoundingClientRect().right > window.innerWidth - 12) { pop.style.left = 'auto'; pop.style.right = '0'; }
-      box.querySelector('.ms-q').focus();
-    }
+    if(!pop.hidden) box.querySelector('.ms-q').focus();
   };
   box.querySelector('.ms-q').oninput = e => {
     const q = e.target.value.trim().toLowerCase();
@@ -339,11 +394,24 @@ function renderKpis(){
     '<div class="kpi"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><div class="v">' +
     fmtN(v) + '</div><div class="t">' + t + '</div></div>';
   const cls = g => !F.grp ? '' : F.grp.has(g) ? ' on' : ' off';
+  // категории: число — без учёта выбора самих категорий, как у групп
+  const bc = new Map();
+  for(const r of RECS)
+    if(passesNoBox(r, 'cat') && inGeoBox(r)) bc.set(r.cat, (bc.get(r.cat) || 0) + 1);
+  const ccls = c => !F.cats ? '' : F.cats.has(c) ? ' on' : ' off';
+  const catsShown = CATS_IN.slice().sort((a, b) => (bc.get(b) || 0) - (bc.get(a) || 0) || CATS_IN.indexOf(a) - CATS_IN.indexOf(b));
+  document.getElementById('cats').innerHTML = CATS_IN.length < 2 ? '' : catsShown.map(c =>
+    '<button type="button" class="catc' + ccls(c) + '" data-c="' + esc(c) + '"><div class="t">' +
+    (esc(c) || 'Категория не указана') + '</div><div class="v">' + fmtN(bc.get(c) || 0) + '</div></button>').join('');
+  // при выбранной категории группы с нулём из другой категории только мешают
+  // от большего к меньшему по текущим цифрам; при равенстве — в заданном порядке
+  const groupsShown = (F.cats ? GROUPS_IN.filter(g => by.get(g) || (F.grp && F.grp.has(g))) : GROUPS_IN.slice())
+    .sort((a, b) => (by.get(b) || 0) - (by.get(a) || 0) || GROUPS_IN.indexOf(a) - GROUPS_IN.indexOf(b));
   document.getElementById('kpis').innerHTML =
-    '<div class="kpi kpi-total" role="button" tabindex="0" title="' + (F.grp ? 'Щелчок — вернуть все группы' : '') + '"><div class="v">' +
+    '<div class="kpi kpi-total" role="button" tabindex="0" title="' + (F.grp || F.cats ? 'Щелчок — вернуть все категории и группы' : '') + '"><div class="v">' +
     fmtN(SEL.length) + '</div><div class="t">' +
     (geoBox ? 'жалоб в выделенной области' : 'жалоб по фильтрам') + '</div></div>' +
-    GROUPS_IN.map(g => '<div class="kpi' + cls(g) + '" role="button" tabindex="0" data-g="' + esc(g) + '"><div class="v">' +
+    groupsShown.map(g => '<div class="kpi' + cls(g) + '" role="button" tabindex="0" data-g="' + esc(g) + '"><div class="v">' +
       fmtN(by.get(g) || 0) + '</div><div class="t">' + esc(g) + '</div></div>').join('') +
     (geoBox ? '' : k(noPt, 'без точки на карте',
       'Точки нет в карточке, она вне Московской области или координаты ещё не собраны. ' +
@@ -412,19 +480,21 @@ function clusterIcon(n){
 }
 /* Одиночная жалоба — такой же кружок с числом, что и группа, только «1»:
    голая точка рядом с подписанными кружками читалась как что-то другое.
-   Цвет — по виду жалобы. */
-const DOT = [];
-const dotIcon = k => DOT[k] || (DOT[k] = L.divIcon({ className: '', iconSize: [28, 28],
-  html: '<div class="cl-ico cl-one" style="width:28px;height:28px;background:' + kindColor(k) + '">1</div>' }));
+   Цвет один для всех — как у малых групп (разделение по видам убрано 01.10.2026). */
+let DOT = null;
+const dotIcon = () => DOT || (DOT = L.divIcon({ className: '', iconSize: [28, 28],
+  html: '<div class="cl-ico cl-one cl-s" style="width:28px;height:28px">1</div>' }));
 
 function popup(r){
   const row = (k, v) => '<tr><th>' + k + '</th><td>' + v + '</td></tr>';
   return '<div class="pop"><div class="pop-h">Жалоба № <a href="' + CARD_URL(r.id) + '" target="_blank" rel="noopener noreferrer">' +
-    esc(r.id) + '</a></div><div class="pop-sub">' + esc(r.omsu) + ' · ' + KINDS[r.kind].full + '</div><table class="pop">' +
+    r.id + '</a></div><div class="pop-sub">' + esc(r.omsu) + ' · ' + KINDS[r.kind].full + '</div><table class="pop">' +
     row('Подана', esc(fmtDay(r.day) + r.created.slice(10))) +
     row('Адрес', esc(r.address) || '—') +
+    row('Категория', esc(r.cat) || '—') +
     row('Группа', esc(r.group)) +
     row('Факт', esc(r.fact) || '—') +
+    row('Исполнитель', esc(r.org) || '—') +
     row('Статус', esc(r.status) || '—') +
     row('Координаты', r.lat.toFixed(6) + ', ' + r.lon.toFixed(6)) +
     '</table></div>';
@@ -447,7 +517,7 @@ function renderMap(fit){
   } else {
     LAYER = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 50,
       iconCreateFunction: cl => clusterIcon(cl.getChildCount()) });
-    LAYER.addLayers(pts.map(r => L.marker([r.lat, r.lon], { icon: dotIcon(r.kind) }).bindPopup(() => popup(r))));
+    LAYER.addLayers(pts.map(r => L.marker([r.lat, r.lon], { icon: dotIcon() }).bindPopup(() => popup(r))));
   }
   LAYER.addTo(MAP);
   drawBox();
@@ -491,8 +561,7 @@ function renderStatus(){
   s += MAPKIND === 'heat'
     ? '<div class="lg"><span>Цвет — плотность жалоб:</span><span><i class="lg-grad"></i>реже → чаще</span></div>'
     : '<div class="lg"><span>Число в кружке — сколько жалоб:</span>' + dot('#3987e5', 'до ' + CL_LIM[0]) +
-      dot('#e0892a', CL_LIM[0] + ' — ' + (CL_LIM[1] - 1)) + dot('#cc4444', 'от ' + CL_LIM[1]) +
-      '<span class="mute">«1» — одна жалоба, цвет по виду:</span>' + dot(kindColor(0), 'ХВС') + dot(kindColor(1), 'ВО') + dot(kindColor(2), 'ГВС') + '</div>';
+      dot('#e0892a', CL_LIM[0] + ' — ' + (CL_LIM[1] - 1)) + dot('#cc4444', 'от ' + CL_LIM[1]) + '</div>';
   el.innerHTML = s;
 }
 
@@ -674,21 +743,25 @@ async function exportXlsx(){
     const cols = [
       { h: 'Номер жалобы', w: 13, s: XS.int }, { h: 'Дата создания', w: 16, s: XS.dt },
       { h: 'Адрес', w: 60, s: XS.text }, { h: 'Широта', w: 12, s: XS.coord }, { h: 'Долгота', w: 12, s: XS.coord },
-      { h: 'Факт (ЕЦУР)', w: 60, s: XS.text }, { h: 'Группа', w: 24, s: XS.text },
-      { h: 'ОМСУ', w: 22, s: XS.text }, { h: 'Вид', w: 22, s: XS.text },
+      { h: 'Категория (ЕЦУР)', w: 34, s: XS.text }, { h: 'Факт (ЕЦУР)', w: 60, s: XS.text }, { h: 'Группа', w: 24, s: XS.text },
+      { h: 'ОМСУ', w: 22, s: XS.text }, { h: 'Исполнитель', w: 40, s: XS.text }, { h: 'Вид', w: 22, s: XS.text },
       { h: 'Статус', w: 22, s: XS.text }, { h: 'Координаты', w: 30, s: XS.text },
     ];
     const coordNote = r => r.geo === 0 ? '' : r.geo === 1 ? 'точка вне Московской области'
                          : r.geo === 2 ? 'в карточке нет точки' : 'ещё не собраны';
     const rows = recs.map(r => [r.id, serial(r.created), r.address,
-      r.lat !== null ? r.lat : null, r.lon !== null ? r.lon : null, r.fact, r.group, r.omsu, KINDS[r.kind].full, r.status, coordNote(r)]);
+      r.lat !== null ? r.lat : null, r.lon !== null ? r.lon : null, r.cat, r.fact, r.group, r.omsu, r.org, KINDS[r.kind].full, r.status, coordNote(r)]);
 
     const cond = [
-      ['Выгрузка', 'Жалобы ДоброДела по воде (МинЖКХ)'],
+      ['Выгрузка', 'Жалобы ДоброДела (МинЖКХ)'],
       ['Сформировано', new Date().toLocaleString('ru-RU')],
       ['Период подачи', fmtDay(F.from) + ' — ' + fmtDay(F.to)],
       ['ОМСУ', msText('omsu')],
       ['Факт (ЕЦУР)', msText('fact')],
+      ['Исполнитель', msText('org')],
+      ['МОВК', F.movk ? 'да — округа МОВК, категория «' + CAT_ENG + '»' : 'нет'],
+      ['ФКР', F.fkr ? 'да — исполнитель «' + FKR_EXEC + '»' : 'нет'],
+      ['Категория (ЕЦУР)', F.cats ? [...F.cats].join('; ') : 'все'],
       ['Группа', F.grp ? [...F.grp].join('; ') : 'все'],
       ['Область на карте', geoBox ? (geoBox.kind === 'circle'
         ? 'радиус ' + fmtDist(geoBox.r) + ' от точки ' + geoBox.lat.toFixed(6) + ', ' + geoBox.lon.toFixed(6)
@@ -709,7 +782,7 @@ async function exportXlsx(){
     ]);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'Жалобы_по_воде_' + F.from + '_' + F.to + (geoBox ? '_область' : '') + '.xlsx';
+    a.download = 'Жалобы_МинЖКХ_' + F.from + '_' + F.to + (geoBox ? '_область' : '') + '.xlsx';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   } finally {
@@ -721,6 +794,11 @@ async function exportXlsx(){
    6. Запуск
    ============================================================ */
 function wire(){
+  const perBox = document.getElementById('per'), perPop = perBox.querySelector('.ms-pop');
+  document.getElementById('per-btn').onclick = () => {
+    document.querySelectorAll('.ms-pop').forEach(p => { if(p !== perPop) p.hidden = true; });
+    perPop.hidden = !perPop.hidden;
+  };
   document.getElementById('d-from').onchange = e => { F.from = e.target.value; clearQuick(); applyFilters(); };
   document.getElementById('d-to').onchange = e => { F.to = e.target.value; clearQuick(); applyFilters(); };
   // даты, заданные кнопкой, должны стоять в полях всегда — даже если браузер
@@ -729,8 +807,12 @@ function wire(){
     const want = id === 'd-from' ? F.from : F.to;
     if(e.target.value !== want) e.target.value = want;
   };
-  document.querySelectorAll('#quick .chip').forEach(b => b.onclick = () => { quick(b.dataset.q); applyFilters(); });
+  // готовый период выбран — список закрываем; свои даты правятся при открытом
+  document.querySelectorAll('#quick .per-opt').forEach(b => b.onclick = () => { quick(b.dataset.q); perPop.hidden = true; applyFilters(); });
   document.getElementById('kpis').onclick = groupClick;
+  document.getElementById('cats').onclick = catClick;
+  document.getElementById('t-movk').onclick = () => { F.movk = !F.movk; applyFilters({ fit: true }); };
+  document.getElementById('t-fkr').onclick = () => { F.fkr = !F.fkr; applyFilters({ fit: true }); };
 
   // щелчок мимо списка закрывает его
   document.addEventListener('click', e => document.querySelectorAll('.ms').forEach(box => {
@@ -762,8 +844,7 @@ function wire(){
   document.getElementById('ot-reset').onclick = () => msSet('omsu', null);
   document.getElementById('xls').onclick = exportXlsx;
 }
-const clearQuick = () => document.querySelectorAll('#quick .chip').forEach(b => b.classList.remove('on'));
-
+const clearQuick = () => document.querySelectorAll('#quick .per-opt').forEach(b => b.classList.remove('on'));
 
 async function start() {
   try {
@@ -772,7 +853,7 @@ async function start() {
     if (!response.ok) throw new Error(data.error || data.detail || 'Не удалось загрузить карту.');
     if (!loadData(data)) throw new Error('В архиве нет данных карты.');
     document.querySelectorAll('[data-dataset-ui]').forEach(el => el.hidden = false);
-    msBuild('omsu'); msBuild('fact'); buildGroups(); wire(); quick('30'); applyFilters();
+    msBuild('omsu'); msBuild('fact'); msBuild('org'); buildGroups(); wire(); quick('30'); applyFilters();
     document.querySelectorAll('[data-kind]').forEach(el => el.onchange = () => { F.kinds[Number(el.dataset.kind)] = el.checked; applyFilters(); });
     document.getElementById('fit-map').onclick = () => renderMap(true);
     document.getElementById('kpis').addEventListener('keydown', e => {
@@ -855,5 +936,6 @@ if (refreshButton) {
   refreshStatus();
 }
 start();
+
 
 })();

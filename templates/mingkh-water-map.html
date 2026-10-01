@@ -1,14 +1,14 @@
 {% extends "base_module.html" %}
-{% block title %}Жалобы по воде — МИНЖКХ — Нейрона ИИ{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/mingkh-water-map.css?v=20261001-popup">{% endblock %}
+{% block title %}Жалобы МинЖКХ — МИНЖКХ — Нейрона ИИ{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/mingkh-water-map.css?v=20261001-all">{% endblock %}
 {% block content %}
 <div class="container">
-<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">МИНЖКХ · Жалобы по воде</div></div></div><div class="top-actions"><a href="/mingkh" class="secondary-button">← Обращения МИНЖКХ</a><a href="/" class="secondary-button">На главную</a></div></header>
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">МИНЖКХ · Жалобы МинЖКХ</div></div></div><div class="top-actions"><a href="/mingkh" class="secondary-button">← Обращения МИНЖКХ</a><a href="/" class="secondary-button">На главную</a></div></header>
 <div class="water-map">
 <div class="wrap">
   <div class="head">
     <div>
-      <h1>Жалобы по воде — карта</h1>
+      <h1>Жалобы МинЖКХ — карта</h1>
       <div class="sub" id="meta">Загрузка данных…</div>
     </div>
     <button class="btn" id="xls" disabled title="Скачать в Excel жалобы, которые сейчас выбраны фильтрами и областью">⬇ Скачать Excel</button>
@@ -21,7 +21,7 @@
     <span id="archive-hint" class="archive-hint">Обновить архив (ZIP или water_points.json)</span>
     <div class="archive-picker">
       <input id="archive-file" class="archive-native" type="file" accept=".zip,.json" required
-             aria-label="Выбрать архив жалоб по воде" aria-describedby="archive-hint archive-filename">
+             aria-label="Выбрать архив жалоб МинЖКХ" aria-describedby="archive-hint archive-filename">
       <label for="archive-file" class="secondary-button archive-picker-button">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3Z"/><path d="M3 10h18"/></svg>
         <span>Выбрать файл</span>
@@ -37,26 +37,30 @@
   {% endif %}
   <div class="card water-filters-card" data-dataset-ui hidden>
     <div class="filters">
-      <div class="fld"><span class="lbl">Вид</span><div class="water-kind">
-        <label><input type="checkbox" data-kind="0" checked>ХВС</label>
-        <label><input type="checkbox" data-kind="1" checked>Водоотведение</label>
-        <label><input type="checkbox" data-kind="2" checked>ГВС</label>
-      </div></div>
       <div class="fld">
         <span class="lbl">Период подачи</span>
-        <div class="row">
-          <input type="date" id="d-from" aria-label="Начало периода"> <span class="mute">—</span> <input type="date" id="d-to" aria-label="Конец периода">
+        <div class="ms" id="per">
+          <button class="ms-btn" type="button" id="per-btn"></button>
+          <div class="ms-pop per-pop" hidden>
+            <div id="quick">
+              <button type="button" class="per-opt" data-q="7">7 дней</button>
+              <button type="button" class="per-opt" data-q="30">30 дней</button>
+              <button type="button" class="per-opt" data-q="90">3 месяца</button>
+              <button type="button" class="per-opt" data-q="year" title="С 1 января текущего года">Год</button>
+              <button type="button" class="per-opt" data-q="all">Всё время</button>
+            </div>
+            <div class="per-own">
+              <span class="lbl">Свои даты</span>
+              <div class="row"><input type="date" id="d-from" aria-label="Начало периода"> <span class="mute">—</span> <input type="date" id="d-to" aria-label="Конец периода"></div>
+            </div>
+          </div>
         </div>
-        <div class="per-note" id="per-note"></div>
       </div>
       <div class="fld">
-        <span class="lbl">Быстро</span>
-        <div class="row" id="quick">
-          <button class="chip" data-q="7">7 дней</button>
-          <button class="chip" data-q="30">30 дней</button>
-          <button class="chip" data-q="90">3 месяца</button>
-          <button class="chip" data-q="365">Год</button>
-          <button class="chip" data-q="all">Всё</button>
+        <span class="lbl">Быстрый фильтр</span>
+        <div class="row">
+          <button type="button" class="tgl" id="t-movk" title="Зона ответственности МОВК: Богородский, Воскресенский, Орехово-Зуевский, Электросталь, Лосино-Петровский, Павлово-Посадский, Шатура, Чехов, Сергиево-Посадский · категория «Инженерная инфраструктура»"><span class="sw"></span>МОВК</button>
+          <button type="button" class="tgl" id="t-fkr" title="Исполнитель: Фонд капитального ремонта общего имущества многоквартирных домов"><span class="sw"></span>ФКР</button>
         </div>
       </div>
       <div class="fld">
@@ -67,12 +71,17 @@
         <span class="lbl">Факт (ЕЦУР)</span>
         <div class="ms ms-wide" data-ms="fact"></div>
       </div>
+      <div class="fld">
+        <span class="lbl">Исполнитель</span>
+        <div class="ms ms-wide" data-ms="org"></div>
+      </div>
     </div>
   </div>
 
   <div class="card" data-dataset-ui hidden>
+    <div class="cats" id="cats"></div>
     <div class="kpis" id="kpis"></div>
-    <div class="kpis-note">Карточки групп — это фильтр: щелчок — только эта группа, Ctrl+щелчок — добавить к выбору,
+    <div class="kpis-note">Карточки категорий и групп — это фильтр: щелчок — только эта группа, Ctrl+щелчок — добавить к выбору,
       повторный щелчок или щелчок по итогу — все группы</div>
   </div>
 
@@ -109,5 +118,5 @@
 </div>
 
 </div></div>
-<script src="/static/mingkh-water-map.js?v=20261001" defer></script>
+<script src="/static/mingkh-water-map.js?v=20261001-all" defer></script>
 {% endblock %}

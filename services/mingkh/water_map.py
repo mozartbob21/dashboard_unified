@@ -20,12 +20,12 @@ MAX_RECORDS = 200_000
 MOSCOW = timezone(timedelta(hours=3))
 MAX_REFRESH_SECONDS = 20 * 60
 MAX_COORDINATE_REQUESTS = 2000
-COLS = ['id', 'created', 'omsu', 'kind', 'address', 'fact', 'status', 'lat', 'lon', 'geo']
-KINDS = {'hvs': 0, 'vo': 1, 'gvs': 2}
-SKIP_STATUS = {'Опубликовано', 'Сбор подписантов', 'На уточнении', 'Закрыто. Отправлено в ЕДС', 'Модерация ЕДС'}
+COLS = ['id', 'created', 'omsu', 'kind', 'address', 'fact', 'status', 'lat', 'lon', 'geo', 'cat', 'subcat', 'org']
+KINDS = {'hvs': 0, 'vo': 1, 'gvs': 2, 'kr': 3, 'etc': 4}
+SKIP_STATUS = {'Опубликовано', 'Сбор подписантов', 'На уточнении', 'Закрыто. Отправлено в ЕДС', 'Модерация ЕДС', 'Закрыто пользователем'}
 STATUSES = '9,30,32,34,35,37,38,50,51,53,56,60,54,57,111,310,330,511,512,513'
 CURATOR = 'Министерство жилищно-коммунального хозяйства Московской области'
-SOURCE = 'ДоброДел · ЕЦУР · МинЖКХ · жалобы по воде · координаты из карточек'
+SOURCE = 'ДоброДел · ЕЦУР · МинЖКХ · все жалобы · координаты из карточек'
 LOCK = threading.Lock()
 STATE_LOCK = threading.Lock()
 STATE = {'busy': False, 'message': '', 'error': None, 'completed_at': None}
@@ -83,7 +83,8 @@ def _point(point):
             geo = 2
     return [cid, _created(point.get('created')), _text(point.get('omsu'), 250) or '—',
             KINDS[kind], _text(point.get('address'), 3000), _text(point.get('fact'), 1500),
-            _text(point.get('status'), 250), lat, lon, geo]
+            _text(point.get('status'), 250), lat, lon, geo,
+            _text(point.get('cat'), 1500), _text(point.get('subcat'), 1500), _text(point.get('org'), 1500)]
 
 
 def compact(points, meta=None):
@@ -94,7 +95,7 @@ def compact(points, meta=None):
     seen = set()
     omitted = 0
     for point in points.values():
-        if isinstance(point, dict) and (_text(point.get('status'), 250) in SKIP_STATUS or point.get('heatMap')):
+        if isinstance(point, dict) and (_text(point.get('status'), 250) in SKIP_STATUS or point.get('heatMap') or 'не в компетенции' in str(point.get('cat') or '').lower()):
             omitted += 1
             continue
         row = _point(point)
@@ -105,17 +106,17 @@ def compact(points, meta=None):
     if not rows:
         raise ValueError('В архиве нет подходящих жалоб по воде.')
     rows.sort(key=lambda r: (r[1], r[0]))
-    dictionaries = {'omsu': [], 'fact': [], 'status': []}
+    dictionaries = {'omsu': [], 'fact': [], 'status': [], 'cat': [], 'subcat': [], 'org': []}
     indices = {name: {} for name in dictionaries}
     for row in rows:
-        for name, col in [('omsu', 2), ('fact', 5), ('status', 6)]:
+        for name, col in [('omsu', 2), ('fact', 5), ('status', 6), ('cat', 10), ('subcat', 11), ('org', 12)]:
             value = row[col]
             if value not in indices[name]:
                 indices[name][value] = len(dictionaries[name])
                 dictionaries[name].append(value)
             row[col] = indices[name][value]
     raw_meta = meta or {}
-    metadata = {name: raw_meta[name] for name in ('archive_updated', 'live_updated', 'refreshed_from', 'refreshed_to') if name in raw_meta}
+    metadata = {name: raw_meta[name] for name in ('archive_updated', 'live_updated', 'refreshed_from', 'refreshed_to', 'seed_version') if name in raw_meta}
     metadata.update({'updated': _text(raw_meta.get('updated'), 100), 'from': rows[0][1][:10],
                      'to': rows[-1][1][:10], 'count': len(rows), 'source': SOURCE, 'omitted': omitted,
                      'archive': not bool(raw_meta.get('live_updated'))})
@@ -172,21 +173,49 @@ def save(dataset):
             os.unlink(temporary)
 
 
+SEED_VERSION = '2026-10-01-all'
+_seed_checked = None
+
+
 def ensure_seed():
-    """Install the reviewed repository snapshot once; never replace a server's data."""
-    if DATA_FILE.exists() or not SEED_FILE.exists():
+    """Merge the new reviewed archive once, keeping newer live server values."""
+    global _seed_checked
+    if not SEED_FILE.exists():
+        return False
+    signature = (str(DATA_FILE), DATA_FILE.stat().st_mtime_ns if DATA_FILE.exists() else None)
+    if _seed_checked == signature:
         return False
     with LOCK:
+        current = None
         if DATA_FILE.exists():
-            return False
-        with gzip.open(SEED_FILE, 'rb') as stream:
-            content = stream.read(MAX_BYTES + 1)
-        if len(content) > MAX_BYTES:
-            raise ValueError('Начальный архив карты превышает допустимый размер.')
-        dataset = json.loads(content)
-        if dataset.get('cols') != COLS or not isinstance(dataset.get('rows'), list):
+            with gzip.open(DATA_FILE, 'rt', encoding='utf-8') as stream:
+                current = json.load(stream)
+            if current.get('meta', {}).get('seed_version') == SEED_VERSION:
+                _seed_checked = signature
+                return False
+        with gzip.open(SEED_FILE, 'rt', encoding='utf-8') as stream:
+            seed = json.load(stream)
+        if seed.get('cols') != COLS or not isinstance(seed.get('rows'), list):
             raise ValueError('Начальный архив карты повреждён.')
-        save(dataset)
+        points = _expand(seed)
+        meta = dict(seed['meta'])
+        if current:
+            previous = _expand(current)
+            # A live refresh later than the supplied archive is authoritative.
+            def stamp(value):
+                try:
+                    return datetime.strptime(value, '%d.%m.%Y %H:%M')
+                except (TypeError, ValueError):
+                    return datetime.min
+            if stamp(current['meta'].get('live_updated')) > stamp(meta.get('updated')):
+                points.update(previous)
+                meta.update(current['meta'])
+            else:
+                previous.update(points)
+                points = previous
+        meta['seed_version'] = SEED_VERSION
+        save(compact(points, meta))
+        _seed_checked = (str(DATA_FILE), DATA_FILE.stat().st_mtime_ns)
     return True
 
 
@@ -204,6 +233,7 @@ def import_upload(content):
         raise StoreBusy('Карта уже обновляется. Дождитесь завершения.')
     try:
         dataset = parse_upload(content)
+        dataset['meta']['seed_version'] = SEED_VERSION
         save(dataset)
         return dataset['meta']
     finally:
@@ -211,11 +241,13 @@ def import_upload(content):
 
 
 def _expand(dataset):
-    kinds = ['hvs', 'vo', 'gvs']
+    kinds = list(KINDS)
     geos = ['ok', 'out', 'none', None]
     return {str(r[0]): {'id': r[0], 'created': r[1], 'omsu': dataset['omsu'][r[2]],
             'kind': kinds[r[3]], 'address': r[4], 'fact': dataset['fact'][r[5]],
-            'status': dataset['status'][r[6]], 'lat': r[7], 'lon': r[8], 'geo': geos[r[9]]}
+            'status': dataset['status'][r[6]], 'lat': r[7], 'lon': r[8], 'geo': geos[r[9]],
+            **{key: dataset[key][r[col]] if key in dataset and len(r) > col else ''
+               for key, col in [('cat', 10), ('subcat', 11), ('org', 12)]}}
             for r in dataset['rows']}
 
 
@@ -226,7 +258,9 @@ def water_kind(record):
                           ('hvs', r'холодн\w*\s*вод|\bхвс\b|водоснабж|водопровод|водозабор|водоразбор|колонк|скважин|подвоз\w*\s*вод|качеств\w*\s*вод|ржав')]:
         if re.search(pattern, value, re.I):
             return kind
-    return None
+    if re.search(r'капитальн\w*\s+ремонт', value, re.I):
+        return 'kr'
+    return 'etc'
 
 
 def _state(**values):
@@ -273,13 +307,14 @@ def refresh(client, today=None):
                 continue
             seen.add(cid)
             kind = water_kind(record)
-            if not kind or record.get('heatMap') or record.get('status') in SKIP_STATUS:
+            if not kind or record.get('heatMap') or record.get('status') in SKIP_STATUS or 'не в компетенции' in str(record.get('ecurCategory') or '').lower():
                 points.pop(cid, None)
                 continue
             point = points.get(cid, {'id': int(cid), 'lat': None, 'lon': None, 'geo': None})
             point.update({'created': created, 'omsu': record.get('district') or '—', 'kind': kind,
                           'address': record.get('address') or '', 'fact': record.get('ecurFact') or '',
-                          'status': record.get('status') or ''})
+                          'status': record.get('status') or '', 'cat': record.get('ecurCategory') or '',
+                          'subcat': record.get('subcategory') or '', 'org': record.get('org') or ''})
             _point(point)  # Fail closed on unexpected schema before replacing the file.
             points[cid] = point
         # A large disappearance is more likely an incomplete portal response than a real change.

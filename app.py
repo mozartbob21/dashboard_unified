@@ -1306,14 +1306,7 @@ async def water_dashboard_page(request: Request):
             "user_role": user.get("role", ""),
             "user_username": user.get("username", ""),
             "snapshot_date": snap.get("snapshot_date", "—"),
-            "table_json": json.dumps(snap.get("table", []), ensure_ascii=False),
-            "meta_json": json.dumps({
-                "updated_at": snap.get("updated_at", ""),
-                "refresh": snap.get("sources_refresh", {}),
-                "kpi_live": snap.get("kpi_live", {}),
-                "best5": _load_best5(),
-                "bottoms": snap.get("bottoms", {}),
-            }, ensure_ascii=False),
+            "snapshot": snap if snap.get("schema_version") == 2 else {},
         },
     )
 @app.get("/utnkr", response_class=HTMLResponse)
@@ -2940,19 +2933,47 @@ async def ecur_data_js():
 
 
 
+_water_refresh_lock = threading.Lock()
+
+
+def start_water_refresh():
+    # Reserve before starting the thread: simultaneous page visits share one run.
+    with _water_refresh_lock:
+        if run_status['water_dashboard']['running']:
+            return {'ok': True, 'running': True}
+        run_status['water_dashboard']['running'] = True
+        run_status['water_dashboard']['stage'] = 'Запуск сбора'
+        try:
+            threading.Thread(target=run_subprocess_worker,
+                args=('water_dashboard', [sys.executable, '-m', 'services.water_dashboard.runner'], BASE_DIR),
+                daemon=True).start()
+        except Exception:
+            run_status['water_dashboard']['running'] = False
+            raise
+    return {'ok': True}
+
+
 @app.post("/water-dashboard/run-check")
 async def water_dashboard_run_check():
-    command = [sys.executable, "-m", "services.water_dashboard.runner"]
-    return start_background_service("water_dashboard", command)
+    return start_water_refresh()
+
 
 @app.post("/water-dashboard/refresh-source/{source_key}")
 async def refresh_single_source(source_key: str):
-    """Кнопка ↻: штатное фоновое обновление снимка."""
-    command = [sys.executable, "-m", "services.water_dashboard.runner"]
-    return start_background_service("water_dashboard", command)
+    return start_water_refresh()
+
+
+@app.get("/water-dashboard/snapshot")
+async def water_dashboard_snapshot():
+    snap = load_json_file(BASE_DIR / "data/water_dashboard/snapshot.json", default={}) or {}
+    return JSONResponse(snap if snap.get('schema_version') == 2 else {}, headers={'Cache-Control': 'no-store'})
+
 @app.get("/water-dashboard/run-status")
 async def water_dashboard_run_status():
-    return run_status["water_dashboard"]
+    path = BASE_DIR / 'data/water_dashboard/snapshot.json'
+    revision = str(path.stat().st_mtime_ns) if path.exists() else ''
+    return JSONResponse({**run_status['water_dashboard'], 'snapshot_revision': revision}, headers={'Cache-Control': 'no-store'})
+
 
 
 # ===============================

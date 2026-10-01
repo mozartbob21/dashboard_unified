@@ -6,7 +6,8 @@ DEBUG_DIR = DATA_DIR / "debug"
 SNAPSHOT_FILE = DATA_DIR / "snapshot.json"
 PLAYWRIGHT_PROFILE_DIR = DATA_DIR / "playwright_profile"
 
-HEADLESS = False
+import os
+HEADLESS = os.getenv("WATER_DASHBOARD_HEADLESS", "1").lower() not in ("0", "false", "no")
 PAGE_WAIT_SECONDS = 6
 
 SOURCES = [

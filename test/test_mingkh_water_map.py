@@ -187,3 +187,24 @@ class WaterMapTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '20 минут'):
             maps.refresh(UnusedPortal(), date(2026, 9, 30))
         self.assertEqual(maps.DATA_FILE.read_bytes(), before)
+
+class ExpandedMapTests(unittest.TestCase):
+    def test_categories_executors_and_exclusions(self):
+        value=maps.parse_upload(source(point(1,kind='kr',cat='Капитальный ремонт',subcat='Кровля',org='Фонд'),point(2,kind='etc',cat='Иное'),point(3,status='Закрыто пользователем'),point(4,cat='Вопросы не в компетенции МинЖКХ МО')))
+        assert len(value['rows'])==2
+        assert value['org']==['Фонд','']
+        expanded=maps._expand(value)
+        assert expanded['1']['kind']=='kr' and expanded['1']['subcat']=='Кровля'
+        assert 'author' not in expanded['1'] and 'text' not in expanded['1']
+
+    def test_new_archive_merges_without_overwriting_newer_live_data(self):
+        with tempfile.TemporaryDirectory() as temp:
+            data=Path(temp)/'data.gz';seed=Path(temp)/'seed.gz'
+            current=maps.compact({'7':point(7,status='Решено')},{'updated':'02.10.2026 12:00','live_updated':'02.10.2026 12:00'})
+            incoming=maps.compact({'7':point(7,status='В работе'),'8':point(8,kind='kr')},{'updated':'01.10.2026 15:52'})
+            data.write_bytes(gzip.compress(json.dumps(current).encode()));seed.write_bytes(gzip.compress(json.dumps(incoming).encode()))
+            with patch.object(maps,'DATA_FILE',data),patch.object(maps,'SEED_FILE',seed):
+                assert maps.ensure_seed()
+                result=maps._expand(maps.load())
+                assert result['7']['status']=='Решено' and '8' in result
+                assert not maps.ensure_seed()

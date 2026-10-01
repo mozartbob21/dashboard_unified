@@ -893,3 +893,8 @@ html[data-module-view="list"] .home-page .module-card[data-module="telegram"]::a
     body.home-page .topbar .theme-toggle-copy,
     body.home-page .topbar .theme-toggle-arrow { display:none !important; }
 }
+
+html[data-module-view="list"] .home-page .module-card[data-module="mingkh"]::after{content:"▥";font-size:21px;}
+html[data-module-view="list"] .home-page .module-card .action-panel{flex-direction:row;}
+html[data-module-view="list"] .home-page .module-card .action-panel>.secondary-button{order:0;}
+html[data-module-view="list"] .home-page .module-card .action-panel>.module-link{order:1;}

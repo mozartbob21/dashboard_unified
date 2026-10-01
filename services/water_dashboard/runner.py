@@ -11,6 +11,8 @@ def run_water_dashboard_pipeline():
 
     print(f"Готово: ОМСУ в таблице={len(snap['table'])}, "
           f"задач={snap['kpis']['tasks_total']}, резонансных ВС={snap['kpis']['res_vs']}")
+    if not any(snap["sources_updated"].values()):
+        raise RuntimeError("Ни один источник не обновлён. Проверьте доступ к DataLens на сервере.")
     return snap
 
 

@@ -217,3 +217,41 @@ html[data-theme="dark"] .water-map {--crit:#ff9da6;--serious:#ffc68b;--hvs:#5598
 .water-map .archive-filename.has-file {color:var(--ink);}
 .water-map .import-result {min-width:0;overflow-wrap:anywhere;}
 @media(max-width:600px){.water-map .archive-hint{flex-basis:100%;}.water-map .archive-picker{flex-basis:100%;}.water-map #import-submit{max-width:100%;}.water-map .import-result{flex-basis:100%;}}
+
+/* Categories, executors and period controls from the October archive. */
+.water-map .tgl{display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:8px; cursor:pointer;
+  border:1.5px solid var(--accent); background:var(--surface); color:var(--ink); font:inherit; font-size:13px; font-weight:700}
+.water-map .tgl:hover{background:var(--accent-soft)}
+.water-map .tgl.on{background:var(--accent); color:#fff}
+.water-map .tgl .sw{width:26px; height:15px; border-radius:20px; background:var(--line); position:relative; flex-shrink:0}
+.water-map .tgl.on .sw{background:rgba(255,255,255,.45)}
+.water-map .tgl .sw::after{content:""; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%;
+  background:#fff; transition:transform .15s; box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.water-map .tgl.on .sw::after{transform:translateX(11px)}
+.water-map .cats{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin-bottom:12px}
+.water-map .cats:empty{display:none}
+.water-map .catc{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 16px;
+  cursor:pointer; text-align:left; font:inherit; color:inherit; transition:opacity .15s, border-color .15s}
+.water-map .catc:hover{border-color:var(--accent)}
+.water-map .catc .t{font-size:12.5px; font-weight:600; color:var(--ink-2)}
+.water-map .catc .v{font-size:24px; font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums; line-height:1.25}
+.water-map .catc.on{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
+.water-map .catc.off{opacity:.45}
+.water-map .catc.off:hover{opacity:.8}
+.water-map .per-pop{width:300px}
+.water-map .per-opt{display:flex; justify-content:space-between; gap:10px; width:100%; padding:6px 8px; border:0; border-radius:6px;
+  background:none; color:var(--ink); font:inherit; font-size:13px; text-align:left; cursor:pointer}
+.water-map .per-opt:hover{background:var(--surface-2)}
+.water-map .per-opt.on{background:var(--accent-soft); color:var(--accent-ink); font-weight:600}
+.water-map .per-opt .n{color:var(--ink-3); font-size:12px; font-weight:400}
+.water-map .per-own{border-top:1px solid var(--line-soft); margin-top:6px; padding:8px 4px 2px}
+.water-map .per-own .lbl{font-size:11px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.05em; font-weight:600}
+.water-map .per-own .row{margin-top:6px; flex-wrap:nowrap}
+.water-map .per-own input[type=date]{width:100%; min-width:0}
+.water-map table.ot{min-width:0!important;table-layout:fixed}
+.water-map table.ot th,.water-map table.ot td{overflow-wrap:anywhere;white-space:normal}
+
+.water-map .share{min-width:0;max-width:100%;gap:6px}
+.water-map .share b{max-width:calc(100% - 50px);flex-shrink:1}
+.water-map .ot th:nth-child(2){width:36%}
+.water-map .ot th:nth-child(3){width:18%}

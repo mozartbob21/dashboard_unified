@@ -482,6 +482,26 @@ class AccessControlTests(unittest.TestCase):
             self.assertEqual(json.loads(conn.execute("SELECT modules FROM users WHERE username='legacy'").fetchone()[0]),['edo'])
         self.assertEqual(DEFAULT_MODULES,[])
 
+    def test_water_snapshot_requires_module_access(self):
+        self.login('ordinary', 'Test-password-123')
+        self.assertEqual(self.client.get('/water-dashboard/snapshot').status_code, 403)
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules=? WHERE username='ordinary'", (json.dumps(['water-dashboard']),))
+        self.login('ordinary', 'Test-password-123')
+        with patch.object(self.module, 'load_json_file', return_value={'schema_version': 2, 'checked_at': '2026-10-01'}):
+            response = self.client.get('/water-dashboard/snapshot')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['cache-control'], 'no-store')
+        self.assertEqual(response.json()['checked_at'], '2026-10-01')
+
+    def test_water_refresh_reserves_single_run_before_worker_starts(self):
+        with patch.dict(self.module.run_status, {'water_dashboard': {'running': False}}):
+            with patch.object(self.module.threading, 'Thread') as thread:
+                self.assertTrue(self.module.start_water_refresh()['ok'])
+                self.assertTrue(self.module.start_water_refresh()['running'])
+                thread.assert_called_once()
+                thread.return_value.start.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

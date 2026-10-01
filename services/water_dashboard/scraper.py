@@ -36,7 +36,7 @@ TABLES_JS = """
             const cells = Array.from(tr.querySelectorAll('td')).map((td) => norm(td.textContent));
             if (cells.length >= 2) rows.push(cells);
         }
-        if (rows.length >= 3) out.push({ headers, rows });
+        if (rows.length >= 1) out.push({ headers, rows });
     }
     return out;
 }
@@ -45,8 +45,8 @@ TABLES_JS = """
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def _select_penultimate_date(page, sid):
-    """Открывает фильтр «Дата» и выбирает предпоследнюю НАСТУПИВШУЮ дату (для НВОС)."""
+def _select_latest_date(page, sid):
+    """Открывает фильтр «Дата» и выбирает последнюю НАСТУПИВШУЮ дату (для НВОС)."""
     def emit(msg):
         try:
             print(f"[{sid}] {msg}", flush=True)
@@ -78,11 +78,11 @@ def _select_penultimate_date(page, sid):
         )
         if not control_id:
             emit("Контрол даты не найден")
-            return
+            raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
         emit("Контрол найден")
     except Exception as e:
         emit(f"Ошибка поиска контроля: {e}")
-        return
+        raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
 
     # 2. Кликаем по контролу — открывается дропдаун
     try:
@@ -91,7 +91,7 @@ def _select_penultimate_date(page, sid):
         emit("Dropdown открыт")
     except Exception as e:
         emit(f"Не удалось кликнуть контрол: {e}")
-        return
+        raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
 
     # 3. Собираем опции дат
     options = []
@@ -131,23 +131,23 @@ def _select_penultimate_date(page, sid):
                 break
 
     emit(f"Найдено опций дат: {len(options)}")
-    if len(options) < 2:
-        emit("Недостаточно опций — оставляю фильтр как есть")
-        return
+    if not options:
+        emit("Не найдены даты источника")
+        raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
 
-    # 4. Даты, которые НАСТУПИЛИ (<= сегодня); берём предпоследнюю наступившую
+    # 4. Даты, которые НАСТУПИЛИ (<= сегодня); берём последнюю наступившую
     options.sort(key=lambda x: x[0])
     today = _dt.date.today().isoformat()
     passed = [o for o in options if o[0] <= today]
     if len(passed) >= 2:
-        target_text, target_item = passed[-2]
-        emit(f"Наступивших дат: {len(passed)}; выбираю предпоследнюю наступившую: {target_text}")
+        target_text, target_item = passed[-1]
+        emit(f"Наступивших дат: {len(passed)}; выбираю последнюю наступившую: {target_text}")
     elif passed:
         target_text, target_item = passed[-1]
         emit(f"Выбираю единственную наступившую дату: {target_text}")
     else:
-        target_text, target_item = options[-2]
-        emit(f"Выбираю предпоследнюю дату: {target_text}")
+        emit("Нет наступившей даты; источник не обновлён")
+        raise ValueError("Нет наступившей даты НВОС")
 
     # 5. Клик (обычный + fallback по bounding_box)
     try:
@@ -163,10 +163,10 @@ def _select_penultimate_date(page, sid):
                 emit("Клик по bounding_box сработал")
             else:
                 emit("У опции нет bounding_box")
-                return
+                raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
         except Exception as e:
             emit(f"Не удалось выбрать дату: {e}")
-            return
+            raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
 
     # 6. Ждём пересчёт виджетов
     page.wait_for_timeout(3000)
@@ -219,6 +219,7 @@ def scrape_all():
             user_data_dir=str(PLAYWRIGHT_PROFILE_DIR),
             headless=HEADLESS,
             viewport={"width": 1440, "height": 1100},
+            extra_http_headers={"Cache-Control": "no-cache"},
             args=["--disable-blink-features=AutomationControlled"],
         )
         page = context.pages[0] if context.pages else context.new_page()
@@ -232,11 +233,19 @@ def scrape_all():
                 _wait_for_content(page)
 
                 if sid == "nvos":
-                    _select_penultimate_date(page, sid)
+                    _select_latest_date(page, sid)
                     stab_wait_after_date(page)
 
                 tables = page.evaluate(TABLES_JS)
                 text = page.evaluate("() => document.body.innerText")
+                for frame in page.frames[1:]:
+                    try:
+                        tables.extend(frame.evaluate(TABLES_JS))
+                        text += "\n" + frame.evaluate("() => document.body.innerText")
+                    except Exception:
+                        pass
+                if re.search(r"Войдите в аккаунт|Нет доступа к|Авторизуйтесь", text, re.I) and not tables:
+                    raise ValueError("Источник требует входа")
 
                 extractions[sid] = {"tables": tables, "text": text}
 
@@ -247,7 +256,7 @@ def scrape_all():
                 print(f"[saved] {sid}: таблиц={len(tables)}", flush=True)
             except Exception as e:
                 print(f"[warn] {sid}: {e}", flush=True)
-                extractions[sid] = {"tables": [], "text": ""}
+                extractions[sid] = {"tables": [], "text": "", "error": "Не удалось получить данные источника. Проверьте доступ с компьютера-сервера."}
 
         context.close()
 
