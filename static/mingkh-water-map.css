@@ -169,9 +169,12 @@
 /* карточка жалобы по щелчку */
 .water-map .pop-h{font-weight:650; font-size:13.5px}
 .water-map .pop-sub{color:#667; font-size:12px; margin-bottom:6px}
-.water-map table.pop{border-collapse:collapse; font-size:12.5px}
-.water-map table.pop th{text-align:left; color:#778; font-weight:500; padding:2px 10px 2px 0; vertical-align:top; white-space:nowrap}
-.water-map table.pop td{padding:2px 0; max-width:300px}
+/* Override Leaflet intrinsic sizing and global responsive table minimums. */
+.water-map .leaflet-popup-content{width:300px!important; max-width:calc(100vw - 80px)}
+.water-map .pop{min-width:0; overflow-wrap:anywhere; white-space:normal}
+.water-map table.pop{width:100%; min-width:0!important; table-layout:fixed; border-collapse:collapse; font-size:12.5px}
+.water-map table.pop th{text-align:left; color:#778; font-weight:500; padding:4px 10px 4px 0!important; vertical-align:top; width:34%; white-space:normal}
+.water-map table.pop td{padding:4px 0!important; vertical-align:top; overflow-wrap:anywhere}
 .water-map .pop a{color:#1c5cab}
 
 
