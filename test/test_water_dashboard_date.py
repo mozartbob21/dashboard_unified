@@ -146,7 +146,7 @@ def fixed_today(monkeypatch):
 
 def test_latest_selected_date_is_not_toggled_off():
     page = Page(['2026-08-10', '2026-09-10', '2026-10-10'], ['2026-09-10'])
-    scraper._select_latest_date(page, 'nvos')
+    assert scraper._select_latest_date(page, 'nvos') == '2026-09-10'
     assert page.selected == ['2026-09-10']
     assert page.clicked == [] and page.clear_count == 0
     assert page.popup_open is False

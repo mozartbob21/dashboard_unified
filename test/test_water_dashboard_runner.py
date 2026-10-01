@@ -73,7 +73,8 @@ def test_scraper_keeps_other_sources_and_closes_browser_after_portal_error(tmp_p
     context.pages = [page]
     page.frames = []
     table = {'headers': ['ОМСУ', 'Количество задач'], 'rows': [['Тестовый округ', '18']]}
-    page.evaluate.side_effect = [[], 'Внутренняя ошибка\nSomething went wrong', [table], 'Свод задач']
+    page.evaluate.side_effect = [[], [], 'Внутренняя ошибка\nSomething went wrong', '<body></body>',
+                                 [table], [], 'Свод задач', '<body>Свод задач</body>']
     sources = [{'id': 'flush', 'name': 'Промывки', 'url': 'https://example.invalid/flush'},
                {'id': 'tasks', 'name': 'Задачи', 'url': 'https://example.invalid/tasks'}]
     with patch.object(scraper, 'DEBUG_DIR', tmp_path / 'debug'), \
@@ -87,3 +88,23 @@ def test_scraper_keeps_other_sources_and_closes_browser_after_portal_error(tmp_p
     assert result['tasks']['tables'] == [table]
     context.close.assert_called_once()
     assert page.goto.call_count == 2
+
+
+def test_nvos_still_loading_after_date_does_not_reuse_old_text(tmp_path):
+    from unittest.mock import MagicMock
+    page, context, playwright = MagicMock(), MagicMock(), MagicMock()
+    context.pages = [page]
+    page.frames = []
+    with patch.object(scraper, 'DEBUG_DIR', tmp_path / 'debug'), \
+         patch.object(scraper, 'PLAYWRIGHT_PROFILE_DIR', tmp_path / 'profile'), \
+         patch.object(scraper, 'SOURCES', [{'id': 'nvos', 'name': 'НВОС', 'url': 'https://example.invalid/nvos'}]), \
+         patch.object(scraper, 'sync_playwright', return_value=playwright), \
+         patch.object(scraper, 'launch_context', return_value=(context, 'Microsoft Edge')), \
+         patch.object(scraper, '_select_latest_date', return_value='2026-09-10') as select_date, \
+         patch.object(scraper, 'stab_wait_after_date'), \
+         patch.object(scraper, '_wait_for_content', side_effect=[None, TimeoutError('Timeout')]) as ready:
+        result = scraper.scrape_all()
+    assert ready.call_count == 2 and select_date.call_count == 1
+    assert result['nvos']['error'] == diagnostics.MESSAGES['timeout']
+    assert result['nvos']['text'] == '' and result['nvos']['widgets'] == []
+    context.close.assert_called_once()

@@ -7,7 +7,7 @@ from services.water_dashboard import builder
 def test_all_sources_keep_own_dates_and_do_not_relabel_old_values(tmp_path):
     path=tmp_path/'snapshot.json'
     with patch.object(builder,'SNAPSHOT_FILE',path):
-        one=builder.build_snapshot({'tasks':{'tables':[{'headers':['ОМСУ','Просроченные задачи'], 'rows':[['Тестовый округ','12']]}]}, 'valves':{'text':'Внесено задвижек\nЕще 0\n118\nС корректным адресом\n99'}})
+        one=builder.build_snapshot({'tasks':{'tables':[{'headers':['ОМСУ','Просроченные задачи'], 'rows':[['Тестовый округ','12']]}]}, 'valves':{'widgets':[{'label':'Внесено всего на 2026 год','value':'118'}]}})
         assert one['kpis']['tasks_total']==12
         assert one['kpis']['sys_vs'] is None
         assert one['sources']['valves']['widgets'][0]['value']=='118'
@@ -67,7 +67,7 @@ def test_municipality_can_follow_row_number_and_quantity_can_be_zero(header):
 def test_error_screen_numbers_do_not_replace_latest_values_or_date(tmp_path, error_text):
     path = tmp_path / 'snapshot.json'
     with patch.object(builder, 'SNAPSHOT_FILE', path):
-        first = builder.build_snapshot({'valves': {'text': 'Внесено задвижек\n118'}})
+        first = builder.build_snapshot({'valves': {'widgets': [{'label': 'Внесено всего на 2026 год', 'value': '118'}]}})
         first['sources']['valves']['updated_at'] = '2025-01-01T12:00:00'
         path.write_text(json.dumps(first), encoding='utf-8')
         failed = builder.build_snapshot({'valves': {'text': error_text}})
@@ -75,7 +75,7 @@ def test_error_screen_numbers_do_not_replace_latest_values_or_date(tmp_path, err
     assert builder.extract_widgets(error_text) == []
     assert source['ok'] is False
     assert source['updated_at'] == '2025-01-01T12:00:00'
-    assert source['widgets'] == [{'label': 'Внесено задвижек', 'value': '118'}]
+    assert source['widgets'] == [{'label': 'Внесено всего на 2026 год', 'value': '118'}]
     assert not any(failed['sources_updated'].values())
 
 
@@ -100,3 +100,60 @@ def test_nvos_accepts_both_widget_menu_spellings(more):
         'sbor': '80,00', 'nvv_pct': '5,76', 'sum_nvv': '24 491M',
         'plan_year': '500', 'fact_year': '400', 'plan_week': '20', 'fact_week': '0',
     }
+
+
+def test_global_body_numbers_never_become_summary_values(tmp_path):
+    with patch.object(builder, 'SNAPSHOT_FILE', tmp_path / 'snapshot.json'):
+        result = builder.build_snapshot({'valves': {
+            'text': 'Название РСО\n76\nВнесено всего на 2026 год\n1934',
+        }})
+    assert result['sources']['valves']['ok'] is False
+    assert result['sources']['valves']['metrics'][0]['value'] is None
+
+
+def test_exact_count_columns_win_over_population_and_dynamics():
+    table = builder.build_table({
+        'tasks': {'tables': [{'headers': ['ОМСУ', 'Кол-во жителей', 'Кол-во задач'],
+                            'rows': [['Округ', '99999', '12']]}]},
+        'sys_vs': {'tables': [{'headers': ['ОМСУ', 'Динамика системных', 'Системных', 'Резонансных'],
+                             'rows': [['Округ', '15', '120', '250']]}]},
+        'meetings': {'tables': [{'headers': ['ОМСУ', 'Присутствовали на перекличках, %'],
+                               'rows': [['Округ', '58,25']]}]},
+    })
+    assert table[0]['tasks'] == 12
+    assert table[0]['sysVS'] == 120
+    assert table[0]['resVS'] == 250
+    assert table[0]['att'] == 58.25
+
+
+@pytest.mark.parametrize('invalid', ['12%', 'ошибка загрузки', '—', ''])
+def test_incomplete_count_table_is_not_a_fresh_regional_total(tmp_path, invalid):
+    with patch.object(builder, 'SNAPSHOT_FILE', tmp_path / 'snapshot.json'):
+        result = builder.build_snapshot({'tasks': {'tables': [{
+            'headers': ['ОМСУ', 'Кол-во задач'],
+            'rows': [['Первый', '10'], ['Второй', invalid]],
+        }]}})
+    assert not result['sources']['tasks']['ok']
+    assert result['sources']['tasks']['metrics'][0]['value'] is None
+
+
+def test_partial_secondary_metric_has_no_regional_footer_total(tmp_path):
+    with patch.object(builder, 'SNAPSHOT_FILE', tmp_path / 'snapshot.json'):
+        result = builder.build_snapshot({'sys_vs': {'tables': [{
+            'headers': ['ОМСУ', 'Системных', 'Резонансных'],
+            'rows': [['Первый', '10', '5'], ['Второй', '20', 'ошибка']],
+        }]}})
+    assert result['sources']['sys_vs']['ok']
+    assert result['kpis']['sys_vs'] == 30
+    assert result['kpis']['res_vs'] is None
+
+
+def test_unrelated_municipality_table_does_not_spoil_verified_total(tmp_path):
+    with patch.object(builder, 'SNAPSHOT_FILE', tmp_path / 'snapshot.json'):
+        result = builder.build_snapshot({'tasks': {'tables': [
+            {'headers': ['ОМСУ', 'Кол-во задач'], 'rows': [['Первый', '10']]},
+            {'headers': ['ОМСУ', 'Население'], 'rows': [['Второй', '5000']]},
+        ]}})
+    assert result['sources']['tasks']['ok']
+    assert result['kpis']['tasks_total'] == 10
+    assert [row['name'] for row in result['table']] == ['Первый']

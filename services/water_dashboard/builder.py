@@ -1,14 +1,23 @@
 import json
 import re
+import math
 from datetime import datetime
 
 from services.water_dashboard.config import SNAPSHOT_FILE
 
 
 def to_int(v):
+    if '%' in str(v):
+        return None
+    number = to_number(v)
+    return int(number) if number is not None and number.is_integer() else None
+
+
+def to_number(v):
     try:
-        s = str(v).strip().replace(" ", "").replace("\u00a0", "").replace(",", ".")
-        return int(float(s.rstrip("%"))) if s and s not in ("—", "-") else None
+        s = re.sub(r'\s+', '', str(v)).replace(",", ".")
+        value = float(s.rstrip("%")) if s and s not in ("—", "-") else None
+        return value if value is not None and math.isfinite(value) else None
     except Exception:
         return None
 
@@ -35,21 +44,22 @@ def build_table(extractions):
     for src_id, data in (extractions or {}).items():
         for t in data.get("tables", []):
             headers = [str(h).strip().lower() for h in t.get("headers", [])]
-            def col(*keys):
-                for i, h in enumerate(headers):
-                    if any(k in h for k in keys):
-                        return i
+            def exact_col(*keys):
+                for key in keys:
+                    for i, header in enumerate(headers):
+                        if ' '.join(header.split()) == key:
+                            return i
                 return None
 
-            name_index = col("омсу", "муниципал")
+            name_index = exact_col("омсу", "муниципалитет", "муниципальный округ", "городской округ")
             if name_index is None:
                 continue
 
             idx = {
-                "resVS": col("резонанс"),
-                "sysVS": col("систем"),
-                "tasks": col("просроч", "кол-во", "количество", "задач"),
-                "att": col("явка", "присутствовали на перекличках"),
+                "resVS": exact_col("резонансных", "резонансные адреса", "количество резонансных адресов", "кол-во резонансных адресов"),
+                "sysVS": exact_col("системных", "системные адреса", "количество системных адресов", "кол-во системных адресов"),
+                "tasks": exact_col("кол-во задач", "количество задач", "просроченные задачи", "количество просроченных задач", "кол-во просроченных задач", "количество"),
+                "att": exact_col("присутствовали на перекличках, %", "явка, %", "явка (%)", "явка"),
             }
             if src_id == "sys_kr":
                 idx["resKR"], idx["sysKR"] = idx.pop("resVS"), idx.pop("sysVS")
@@ -60,6 +70,8 @@ def build_table(extractions):
             if src_id != "meetings":
                 idx.pop("att", None)
 
+            if not any(i is not None for i in idx.values()):
+                continue
             for cells in t.get("rows", []):
                 if len(cells) <= name_index: continue
                 name = norm_name(cells[name_index])
@@ -68,7 +80,7 @@ def build_table(extractions):
                 r = row(name)
                 for field, i in idx.items():
                     if i is not None and i < len(cells):
-                        r[field] = to_int(cells[i])
+                        r[field] = to_number(cells[i]) if field == 'att' else to_int(cells[i])
 
     return sorted(merged.values(), key=lambda r: -(r["resVS"] or 0))
 
@@ -82,8 +94,22 @@ def derive_kpis(table):
         "res_vs": s("resVS"),
         "sys_kr": s("sysKR"),
         "res_kr": s("resKR"),
-        "att_avg": round(sum(r["att"] for r in att_rows) / len(att_rows)) if att_rows else None,
+        "att_avg": round(sum(r["att"] for r in att_rows) / len(att_rows), 1) if att_rows else None,
     }
+
+
+def verified_kpis(sources):
+    mapping = {
+        'tasks_total': ('tasks', 'overdue_tasks'),
+        'sys_vs': ('sys_vs', 'system_addresses'),
+        'res_vs': ('sys_vs', 'resonant_addresses'),
+        'sys_kr': ('sys_kr', 'system_addresses'),
+        'res_kr': ('sys_kr', 'resonant_addresses'),
+        'att_avg': ('meetings', 'attendance_pct'),
+    }
+    return {key: next((item['value'] for item in sources.get(sid, {}).get('metrics', [])
+                       if item['id'] == metric_id), None)
+            for key, (sid, metric_id) in mapping.items()}
 
 
 def top5(table, field):
@@ -226,6 +252,7 @@ def extract_widgets(text):
 
 def build_snapshot(extractions):
     from services.water_dashboard.config import SOURCES
+    from services.water_dashboard.metrics import source_metrics, primary_available
     import os
     import tempfile
     prev = {}
@@ -240,24 +267,36 @@ def build_snapshot(extractions):
         sid = source['id']
         data = (extractions or {}).get(sid, {})
         tables = data.get('tables') or []
-        widgets = extract_widgets(data.get('text', ''))
-        valid = not data.get('error') and bool(tables or widgets)
+        widgets = data.get('widgets') or []
+        profile = dict(data, widgets=widgets)
+        if sid == 'nvos':
+            profile['nvos'] = parse_nvos_kpis(data.get('text', ''))
+        metrics = source_metrics(sid, profile, build_table({sid: profile}))
+        valid = not data.get('error') and primary_available(metrics)
         previous = (prev.get('sources') or {}).get(sid, {})
+        if previous.get('metric_schema') != 1:
+            previous = {}
         sources[sid] = dict(previous) if not valid else {
-            'tables': tables, 'widgets': widgets,
-            'text': data.get('text', ''), 'updated_at': now,
+            'tables': tables, 'widgets': widgets, 'metrics': metrics,
+            'metric_schema': 1,
+            'text': data.get('text', ''), 'updated_at': now, 'data_date': data.get('data_date'),
             'refresh': extract_refresh_info(data.get('text', '')),
         }
         sources[sid].update(source)
+        if sources[sid].get('metric_schema') != 1:
+            # Old snapshots used adjacent body text as indicators. Do not
+            # present those arbitrary values as verified summary metrics.
+            sources[sid]['metrics'] = source_metrics(sid, {}, [])
+            sources[sid]['metric_schema'] = 1
         sources[sid].update(checked_at=now, ok=valid,
-            error='' if valid else data.get('error') or 'Источник не вернул распознаваемые показатели. Повторите обновление.')
+            error='' if valid else data.get('error') or 'В источнике не найден нужный итоговый показатель. Прежние подтверждённые данные сохранены, если были получены ранее.')
     # Each source retains its own last successful data/time on a partial failure.
     table = build_table(sources)
     snap = {
-        'schema_version': 2, 'checked_at': now,
+        'schema_version': 2, 'metric_schema': 1, 'checked_at': now,
         'updated_at': max((d.get('updated_at', '') for d in sources.values()), default=''),
         'snapshot_date': datetime.now().strftime('%d.%m.%Y') if any(d['ok'] for d in sources.values()) else prev.get('snapshot_date', '—'),
-        'sources': sources, 'table': table, 'kpis': derive_kpis(table),
+        'sources': sources, 'table': table, 'kpis': verified_kpis(sources),
         'sources_refresh': {sid:d.get('refresh','') for sid,d in sources.items()},
         'sources_updated': {sid:d['ok'] for sid,d in sources.items()},
         'kpi_live': {'nvos': parse_nvos_kpis(sources['nvos'].get('text',''))},

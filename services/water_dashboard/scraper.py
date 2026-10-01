@@ -2,6 +2,7 @@ import json
 import re
 import sys
 import datetime as _dt
+from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
 
@@ -24,6 +25,7 @@ TABLES_JS = """
 () => {
     const norm = (s) => (s || '').trim();
     const out = [];
+    const seen = new Set();
     for (const table of Array.from(document.querySelectorAll('table'))) {
         let heads = Array.from(table.querySelectorAll('thead th'));
         if (!heads.length) {
@@ -38,10 +40,30 @@ TABLES_JS = """
             const cells = Array.from(tr.querySelectorAll('td')).map((td) => norm(td.textContent));
             if (cells.length >= 2) rows.push(cells);
         }
-        if (rows.length >= 1) out.push({ headers, rows });
+        const key = JSON.stringify({headers, rows});
+        if (rows.length >= 1 && !seen.has(key)) {
+            seen.add(key);
+            out.push({ headers, rows });
+        }
     }
     return out;
 }
+"""
+
+# Read values inside their own indicator. Adjacent body text also contains
+# organisation rows and chart axes and must never be treated as KPI cards.
+WIDGETS_JS = """
+() => Array.from(document.querySelectorAll('[data-qa="chart-widget"]')).flatMap(widget => {
+    const label = (widget.querySelector('.widget-header')?.innerText || '')
+        .split(/\\n/).map(s => s.trim()).filter(s => s && !/^Ещ[её]\\s+\\d+$/.test(s)).join(' ');
+    if (!label || widget.getAttribute('aria-busy') === 'true') return [];
+    return Array.from(widget.querySelectorAll('.chartkit-indicator__item')).map(item => {
+        const value = (item.querySelector('.chartkit-indicator__item-value')?.innerText || '').trim();
+        const caption = (widget.querySelector('.dl-widget__description')?.innerText ||
+                         (item.innerText || '').replace(value, '')).trim();
+        return {label, value, caption};
+    }).filter(item => item.value);
+})
 """
 
 def _select_latest_date(page, sid):
@@ -101,7 +123,7 @@ def _select_latest_date(page, sid):
             if selected_date() != target_date:
                 raise SourceReadError('date')
             print(f'[{sid}] Последняя наступившая дата уже выбрана', flush=True)
-            return
+            return target_date.isoformat()
 
         clear = popup.get_by_text('Очистить', exact=True)
         if clear.count() and clear.first.is_visible():
@@ -120,7 +142,7 @@ def _select_latest_date(page, sid):
                 page.keyboard.press('Escape')
                 page.wait_for_timeout(3000)
                 print(f'[{sid}] Последняя наступившая дата выбрана', flush=True)
-                return
+                return target_date.isoformat()
             page.wait_for_timeout(250)
         raise SourceReadError('date')
     except SourceReadError:
@@ -131,18 +153,30 @@ def _select_latest_date(page, sid):
 
 
 def _wait_for_content(page):
-    """Ждём реальную готовность виджетов: сеть спокойна, спиннеры исчезли, пауза."""
+    """Wait for rendered charts, not an empty document with idle network."""
+    page.wait_for_selector('[data-qa="chart-widget"]', state='attached', timeout=45000)
+    page.wait_for_function("""() => {
+        const charts = Array.from(document.querySelectorAll('[data-qa="chart-widget"]'));
+        return charts.length > 0 && charts.every(chart => chart.getAttribute('aria-busy') !== 'true');
+    }""", timeout=45000)
     try:
-        page.wait_for_load_state("networkidle", timeout=20000)
+        page.wait_for_load_state("networkidle", timeout=5000)
     except Exception:
         pass
+
+
+def _save_browser_diagnostics(page, sid, response, errors):
     try:
-        page.wait_for_selector(
-            ".dc-loader, .loader, [class*='spinner'], [class*='loading'], [class*='progress']",
-            state="detached", timeout=8000)
+        diagnostics = {
+            'status': response.status if response else None,
+            'title': page.title(), 'errors': errors[-30:],
+            'body': page.evaluate("() => document.body.outerHTML.slice(0,2000)"),
+        }
+        (DEBUG_DIR / f'{sid}-browser.json').write_text(
+            json.dumps(diagnostics, ensure_ascii=False, indent=2), encoding='utf-8')
     except Exception:
+        # Optional diagnostics must not discard a successful source extraction.
         pass
-    page.wait_for_timeout(3500)
 
 
 def stab_wait_after_date(page, max_rounds=15):
@@ -178,24 +212,40 @@ def scrape_all():
         print(f"STAGE: Браузер для сбора: {browser_name}", flush=True)
         try:
             page = context.pages[0] if context.pages else context.new_page()
+            browser_errors = []
+
+            def failed_request(request):
+                url = urlsplit(request.url)
+                browser_errors.append({'kind': 'request', 'host': url.netloc,
+                                       'path': url.path, 'resource': request.resource_type,
+                                       'error': str(request.failure)[:300]})
+
+            page.on('requestfailed', failed_request)
+            page.on('pageerror', lambda exc: browser_errors.append({'kind': 'script', 'error': str(exc)[:500]}))
 
             for src in SOURCES:
                 sid = src["id"]
                 print(f"STAGE: {src['name']}", flush=True)
+                browser_errors.clear()
+                response = None
                 try:
-                    page.goto(src["url"], wait_until="domcontentloaded", timeout=90000)
+                    response = page.goto(src["url"], wait_until="domcontentloaded", timeout=90000)
 
                     _wait_for_content(page)
 
+                    data_date = None
                     if sid == "nvos":
-                        _select_latest_date(page, sid)
+                        data_date = _select_latest_date(page, sid)
                         stab_wait_after_date(page)
+                        _wait_for_content(page)
 
                     tables = page.evaluate(TABLES_JS)
+                    widgets = page.evaluate(WIDGETS_JS)
                     text = page.evaluate("() => document.body.innerText")
                     for frame in page.frames[1:]:
                         try:
                             tables.extend(frame.evaluate(TABLES_JS))
+                            widgets.extend(frame.evaluate(WIDGETS_JS))
                             text += "\n" + frame.evaluate("() => document.body.innerText")
                         except Exception:
                             pass
@@ -206,16 +256,22 @@ def scrape_all():
                     if not tables and re.search(r"Я не робот|Подтвердите.{0,50}человек|SmartCaptcha", text, re.I):
                         raise SourceReadError("captcha")
 
-                    extractions[sid] = {"tables": tables, "text": text}
+                    extractions[sid] = {"tables": tables, "widgets": widgets, "text": text, "data_date": data_date}
 
                     with open(DEBUG_DIR / f"{sid}.json", "w", encoding="utf-8") as f:
-                        json.dump({"url": src["url"], "tables": tables, "text": text},
+                        json.dump({"url": src["url"], **extractions[sid]},
                                   f, ensure_ascii=False, indent=2)
 
                     print(f"[saved] {sid}: таблиц={len(tables)}", flush=True)
                 except Exception as e:
                     print(f"[warn] {sid}: {e}", flush=True)
-                    extractions[sid] = {"tables": [], "text": "", "error": MESSAGES[error_code(e)]}
+                    code = error_code(e)
+                    if any(item.get('resource') == 'script' and item.get('host') == 'yastatic.net'
+                           for item in browser_errors):
+                        code = 'assets'
+                    extractions[sid] = {"tables": [], "widgets": [], "text": "", "error": MESSAGES[code]}
+                finally:
+                    _save_browser_diagnostics(page, sid, response, browser_errors)
 
         finally:
             context.close()

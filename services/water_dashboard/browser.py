@@ -104,7 +104,8 @@ def launch_context(playwright, *, profile_dir, headless=True):
             context = playwright.chromium.launch_persistent_context(
                 user_data_dir=str(profile), headless=headless,
                 viewport={"width": 1440, "height": 1100},
-                extra_http_headers={"Cache-Control": "no-cache"},
+                # Do not add Cache-Control to every request: DataLens loads
+                # cross-origin scripts whose CDN does not allow that header.
                 ignore_https_errors=False, chromium_sandbox=True,
                 accept_downloads=False, timeout=20000, **selection,
             )

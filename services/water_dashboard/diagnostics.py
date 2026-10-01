@@ -13,6 +13,7 @@ MESSAGES = {
     "browser_launch": "Не удалось запустить браузер сводного дашборда. Проверьте WATER_DASHBOARD_BROWSER_EXECUTABLE и журнал сервера. Для запуска без рабочего стола используйте WATER_DASHBOARD_HEADLESS=1.",
     "certificate": "DataLens отклонён при проверке сертификата. Проверьте доверенные сертификаты и доступ к DataLens с компьютера-сервера.",
     "network": "Нет соединения с DataLens. Проверьте доступ к datalens.yandex с компьютера-сервера, DNS и настройки прокси.",
+    "assets": "Не загрузились скрипты DataLens с yastatic.net. Проверьте доступ компьютера-сервера к этому домену; показатели не получены.",
     "timeout": "DataLens не загрузил данные за отведённое время. Проверьте доступ с компьютера-сервера и повторите обновление.",
     "access": "Источник DataLens требует входа или недоступен этой учётной записи.",
     "source_error": "Источник DataLens возвращает внутреннюю ошибку вместо показателей. Повторите обновление позже; прежние данные сохранены.",
@@ -43,6 +44,8 @@ def error_code(exc):
         return code
     if isinstance(exc, ModuleNotFoundError):
         return "playwright_missing" if (exc.name or "").startswith("playwright") else "dependency"
+    if isinstance(exc, TimeoutError):
+        return "timeout"
     if isinstance(exc, (PermissionError, OSError)):
         return "storage"
     # Match known failure signatures; never expose exception text to clients.

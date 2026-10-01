@@ -15,22 +15,21 @@ const defs = [
 ];
 let snap = JSON.parse(document.getElementById('waterSnapshot').textContent || '{}');
 let sortKey='resVS',asc=false,busy=false,observedRunning=false,autoAttempted=false,polling=false,lastRevision=null,loginRequired=false;
-const fields={tasks:[['tasks','Просроченные задачи']],sys_vs:[['sysVS','Системные адреса'],['resVS','Резонансные адреса']],sys_kr:[['sysKR','Системные адреса'],['resKR','Резонансные адреса']],meetings:[['att','Средняя явка, %']]};
-function total(key){const rows=(snap.table||[]).filter(r=>r[key]!=null);if(!rows.length)return null;const n=rows.reduce((a,r)=>a+Number(r[key]),0);return key==='att'?Math.round(n/rows.length):n;}
+const metricValue = item => item?.value == null ? '—' : fmt(item.value)+(item.unit ? ' '+item.unit : '');
+function total(key){const fields={resVS:'res_vs',sysVS:'sys_vs',tasks:'tasks_total',sysKR:'sys_kr',resKR:'res_kr',att:'att_avg'};return snap.metric_schema===1?snap.kpis?.[fields[key]]??null:null;}
 function render(){
  document.getElementById('wdCoverage').textContent=(snap.table||[]).length+' ОМСУ';
  document.querySelector('.wd-snap b').textContent=stamp(snap.updated_at);
  document.getElementById('kpiGrid').innerHTML=defs.map(([id,name,url])=>{
   const d=snap.sources?.[id]||{};
-  const metrics=(d.updated_at?fields[id]||[]:[]).map(([key,label])=>({label,value:total(key)})).filter(x=>x.value!=null);
-  const items=metrics.length?metrics:(d.widgets||[]);
+  const items=d.metric_schema===1 ? d.metrics||[] : [];
   const first=items[0];
   const tables=(d.tables||[]).map(t=>'<div class="wd-source-table"><table><thead><tr>'+t.headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+t.rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>').join('');
-  const rows=items.slice(1,4).map(x=>'<div class="wd-row"><span>'+esc(x.label)+'</span><b>'+esc(fmt(x.value))+'</b></div>').join('');
-  const extra=items.slice(4).map(x=>'<div class="wd-row"><span>'+esc(x.label)+'</span><b>'+esc(fmt(x.value))+'</b></div>').join('');
+  const rows=items.slice(1,4).map(x=>'<div class="wd-row"><span>'+esc(x.label)+'</span><b>'+esc(metricValue(x))+'</b></div>').join('');
+  const extra=items.slice(4).map(x=>'<div class="wd-row"><span>'+esc(x.label)+'</span><b>'+esc(metricValue(x))+'</b></div>').join('');
   const stale=d.updated_at && Date.now()-new Date(d.updated_at).getTime()>30*60*1000;
-  const label=!d.updated_at?'Нет данных':!d.ok?'Прежние данные':stale?'Требует обновления':'Данные получены';
-  return '<article class="wd-card s-'+(d.ok&&!stale?'good':'warn')+'"><div class="wd-head"><span class="wd-src">'+esc(name)+'</span><span class="wd-status">'+label+'</span></div><p class="wd-name">'+esc(first?.label||'Показатели источника')+'</p><div class="wd-num">'+esc(first?fmt(first.value):'—')+'</div>'+(rows?'<div class="wd-rows">'+rows+'</div>':'')+'<p class="wd-source-error">'+esc(d.error||(!d.updated_at?'Нажмите «Обновить снимок» для загрузки данных.':''))+'</p><p class="wd-hint">Получено: '+esc(stamp(d.updated_at))+'</p>'+(tables||extra?'<details><summary>Данные источника</summary>'+extra+tables+'</details>':'')+'<a href="'+url+'" target="_blank" rel="noopener noreferrer">Открыть источник ↗</a></article>';
+  const label=d.metric_schema!==1?'Требует обновления':!d.updated_at?'Нет данных':!d.ok?'Прежние данные':stale?'Требует обновления':'Данные получены';
+  return '<article class="wd-card s-'+(d.metric_schema===1&&d.ok&&!stale?'good':'warn')+'"><div class="wd-head"><span class="wd-src">'+esc(name)+'</span><span class="wd-status">'+label+'</span></div><p class="wd-name">'+esc(first?.label||'Показатели источника')+'</p><div class="wd-num">'+esc(metricValue(first))+'</div>'+(rows?'<div class="wd-rows">'+rows+'</div>':'')+'<p class="wd-source-error">'+esc(d.error||(!d.updated_at?'Нажмите «Обновить снимок» для загрузки данных.':''))+'</p>'+(d.data_date?'<p class="wd-hint">Дата данных источника: '+esc(d.data_date.split('-').reverse().join('.'))+'</p>':'')+'<p class="wd-hint">Получено: '+esc(stamp(d.updated_at))+'</p>'+(tables||extra?'<details><summary>Данные источника</summary>'+extra+tables+'</details>':'')+'<a href="'+url+'" target="_blank" rel="noopener noreferrer">Открыть источник ↗</a></article>';
  }).join('');
  document.getElementById('dynGrid').innerHTML=defs.map(([id,name])=>{const d=snap.sources?.[id]||{};return '<div class="wd-dcard"><p class="lbl">'+esc(name)+'</p><p>'+esc(stamp(d.updated_at))+'</p><p class="note">'+esc(d.error||d.refresh||'Период обновления источника не указан')+'</p></div>';}).join('');
  renderTable();
@@ -69,10 +68,10 @@ async function poll(){
    if(latest.checked_at!==snap.checked_at){snap=latest;render();}
    lastRevision=state.snapshot_revision??'';
   }
-  status.textContent=state.last_error?'Ошибка обновления: '+state.last_error:snap.checked_at?'Последняя проверка: '+stamp(snap.checked_at):'Данные ещё не загружены';
+  status.textContent=state.last_error?'Ошибка обновления: '+state.last_error:snap.checked_at?'Обновлено '+Object.values(snap.sources||{}).filter(s=>s.metric_schema===1&&s.ok).length+' из 8 источников. Последняя проверка: '+stamp(snap.checked_at):'Данные ещё не загружены';
   // One refresh per page visit when the last attempt is older than 30 minutes.
   const elapsed=Date.now()-new Date(snap.checked_at||0).getTime();
-  if(!autoAttempted&&!observedRunning){autoAttempted=true;if(!snap.checked_at||elapsed>30*60*1000)await startRefresh();}
+  if(!autoAttempted&&!observedRunning){autoAttempted=true;if(snap.metric_schema!==1||!snap.checked_at||elapsed>30*60*1000)await startRefresh();}
  }catch(e){status.textContent=e.message;}finally{polling=false;}
 }
 render();poll();setInterval(poll,5000);

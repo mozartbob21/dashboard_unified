@@ -31,6 +31,7 @@ def test_bundled_browser_keeps_tls_sandbox_and_own_profile(tmp_path):
     assert options["ignore_https_errors"] is False
     assert options["chromium_sandbox"] is True
     assert options["accept_downloads"] is False
+    assert not options.get("extra_http_headers")
     assert options["headless"] is False
     assert "--no-sandbox" not in options.get("args", [])
     assert "executable_path" not in options and "channel" not in options
