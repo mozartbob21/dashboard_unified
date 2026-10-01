@@ -2,26 +2,7 @@
 {% block title %}Нейрона ИИ — Качество воды{% endblock %}
 {% block body_class %}compact-module-page{% endblock %}
 {% block head %}
-<script>
-        (function() {
-            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            let activeTheme = savedThemeMode;
-            if (savedThemeMode === "auto-moscow") {
-                const MOSCOW_LAT=55.7558, MOSCOW_LON=37.6173, MOSCOW_TZ=3;
-                const now=new Date(), start=new Date(now.getFullYear(),0,0);
-                const dayOfYear=Math.floor((now-start)/(1000*60*60*24));
-                const decl=0.409*Math.sin(2*Math.PI*(dayOfYear-80)/365);
-                const latRad=MOSCOW_LAT*Math.PI/180;
-                const cosH=(Math.sin(-0.83*Math.PI/180)-Math.sin(latRad)*Math.sin(decl))/(Math.cos(latRad)*Math.cos(decl));
-                let H=cosH>=1?0:cosH<=-1?Math.PI:Math.acos(cosH);
-                const sunriseLocal=(12-(H*12/Math.PI)-(MOSCOW_LON/15)+MOSCOW_TZ+24)%24;
-                const sunsetLocal=(12+(H*12/Math.PI)-(MOSCOW_LON/15)+MOSCOW_TZ+24)%24;
-                const currentHour=now.getHours()+now.getMinutes()/60;
-                activeTheme=(currentHour>=sunriseLocal&&currentHour<sunsetLocal)?"light":"dark";
-            }
-            document.documentElement.setAttribute("data-theme", activeTheme);
-        })();
-    </script>
+
 
 
 
@@ -148,24 +129,7 @@
         </div>
     </div>
 
-    <script>
-        // Тема
-        const themeToggleBtn = document.getElementById("themeToggleBtn");
-        function updateThemeButton() {
-            const theme = document.documentElement.getAttribute("data-theme");
-            const icon = themeToggleBtn.querySelector(".theme-toggle-icon");
-            const text = themeToggleBtn.querySelector(".theme-toggle-text");
-            if (theme === "dark") { icon.textContent="🌙"; text.textContent="Тёмная тема"; }
-            else { icon.textContent="☀️"; text.textContent="Светлая тема"; }
-        }
-        themeToggleBtn.addEventListener("click", function () {
-            const next = document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";
-            document.documentElement.setAttribute("data-theme", next);
-            localStorage.setItem("neurona-theme-mode", next);
-            updateThemeButton();
-        });
-        updateThemeButton();
-    </script>
+
 
     <script>
 let TODAY = new Date(); TODAY.setHours(0,0,0,0);
@@ -702,35 +666,5 @@ function downloadCsv1251(rows, filename){
 }
     </script>
 
-<script>
-(function(){
-    function make(){
-        var host = document.querySelector(".top-actions") || document.querySelector(".topbar");
-        if (!host) { setTimeout(make, 300); return; }
-        if (document.getElementById("glassToggle")) return;
-        var b = document.createElement("button");
-        b.id = "glassToggle";
-        b.type = "button";
-        var anchor = host.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
-        if (anchor) { anchor.parentNode.insertBefore(b, anchor); } else { host.appendChild(b); }
-        function paint(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            var SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>';
-            var SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
-            b.innerHTML = on ? SVG_ON : SVG_OFF;
-            b.classList.toggle("on", on);
-            b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
-        }
-        b.addEventListener("click", function(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            document.documentElement.setAttribute("data-glass", on ? "off" : "on");
-            localStorage.setItem("neurona-glass", on ? "off" : "on");
-            paint();
-        });
-        paint();
-    }
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", make);
-    else make();
-})();
-</script>
+
 {% endblock %}

@@ -1,0 +1,143 @@
+/* Shared home-style appearance controls. Scoped to avoid module button/table rules. */
+.neurona-appearance.appearance-dropdown { position: relative !important; }
+.neurona-appearance .appearance-trigger {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    min-width: 210px;
+    min-height: 50px;
+    padding: 8px 12px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 15px !important;
+    background: color-mix(in srgb, var(--card-strong) 86%, transparent) !important;
+    color: var(--text) !important;
+    box-shadow: none !important;
+    text-align: left;
+}
+.neurona-appearance .appearance-trigger:hover { border-color: var(--border-strong) !important; transform: translateY(-1px); }
+.neurona-appearance .appearance-trigger-icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    border-radius: 10px;
+    background: var(--violet-soft);
+    color: var(--primary-2);
+    font-size: 18px;
+}
+.neurona-appearance .theme-toggle-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.neurona-appearance .theme-toggle-copy small {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+.neurona-appearance .theme-toggle-text { overflow: hidden; font-size: 12px; font-weight: 700; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.neurona-appearance .theme-toggle-arrow { margin-left: 2px; font-size: 16px; opacity: .65; }
+.neurona-appearance .appearance-menu {
+    position: absolute !important;
+    top: calc(100% + 10px) !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 368px !important;
+    min-width: 368px !important;
+    max-height: min(620px, calc(100vh - 120px)) !important;
+    padding: 14px !important;
+    overflow-y: auto !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: 20px !important;
+    background: color-mix(in srgb, var(--card-strong) 94%, transparent) !important;
+    box-shadow: 0 28px 80px rgba(5, 10, 24, .24) !important;
+    backdrop-filter: blur(26px) saturate(160%);
+    -webkit-backdrop-filter: blur(26px) saturate(160%);
+}
+.neurona-appearance .appearance-menu-head { display: flex; align-items: flex-start; padding: 4px 4px 14px; }
+.neurona-appearance .appearance-menu-head div { display: flex; flex-direction: column; gap: 3px; }
+.neurona-appearance .appearance-menu-head strong { font-size: 16px; letter-spacing: -.02em; }
+.neurona-appearance .appearance-menu-head span { color: var(--muted); font-size: 11px; }
+.neurona-appearance .appearance-section-label { padding: 2px 4px 8px; color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+.neurona-appearance .appearance-theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.neurona-appearance .appearance-menu .theme-menu-item {
+    position: relative;
+    min-height: 74px;
+    padding: 10px 8px !important;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    border: 1px solid var(--border) !important;
+    border-radius: 13px !important;
+    background: color-mix(in srgb, var(--card) 72%, transparent) !important;
+    text-align: center;
+}
+.neurona-appearance .appearance-menu .theme-menu-item:hover { border-color: var(--border-strong) !important; background: var(--card-strong) !important; }
+.neurona-appearance .appearance-menu .theme-menu-item.active { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)) !important; background: var(--info-soft) !important; }
+.neurona-appearance .appearance-menu .theme-menu-icon { width: auto; font-size: 18px; }
+.neurona-appearance .appearance-menu .theme-menu-label { flex: 0; font-size: 11px; }
+.neurona-appearance .appearance-menu .theme-menu-check { position: absolute; top: 7px; right: 8px; color: var(--primary); }
+.neurona-appearance .appearance-menu .theme-menu-auto {
+    grid-column: 1 / -1;
+    min-height: 62px;
+    padding: 10px 12px !important;
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+}
+.neurona-appearance .appearance-menu .theme-menu-auto .theme-menu-label { display: flex; flex: 1; flex-direction: column; gap: 2px; }
+.neurona-appearance .appearance-menu .theme-menu-auto .theme-menu-label small { color: var(--muted); font-size: 10px; font-weight: 500; }
+.neurona-appearance .appearance-divider { height: 1px; margin: 12px 2px; background: var(--border); }
+.neurona-appearance .appearance-setting {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 10px 8px;
+    border: 0;
+    border-radius: 13px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+.neurona-appearance .appearance-setting:hover { background: var(--border); }
+.neurona-appearance .appearance-setting-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid var(--border); border-radius: 11px; color: var(--primary-2); background: var(--violet-soft); font-size: 18px; }
+.neurona-appearance .appearance-setting-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.neurona-appearance .appearance-setting-copy strong { font-size: 12px; }
+.neurona-appearance .appearance-setting-copy small { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.neurona-appearance .appearance-switch { position: relative; width: 38px; height: 22px; flex: 0 0 38px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--border); transition: background 180ms ease, border-color 180ms ease; }
+.neurona-appearance .appearance-switch span { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--text); opacity: .7; transition: transform 180ms ease, opacity 180ms ease; }
+.neurona-appearance .appearance-setting.active .appearance-switch { border-color: var(--primary); background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+.neurona-appearance .appearance-setting.active .appearance-switch span { transform: translateX(16px); background: #fff; opacity: 1; }
+
+.neurona-appearance { --appearance-surface:var(--card-strong,var(--surface,var(--panel,#fff))); color:var(--text,var(--ink,#102033)); }
+.neurona-appearance button { font-family:inherit; cursor:pointer; }
+.neurona-appearance .appearance-trigger { font-weight:600; }
+.neurona-appearance .appearance-menu { z-index:100; text-align:left; background:var(--appearance-surface)!important; box-sizing:border-box; }
+.neurona-appearance .appearance-menu[hidden] { display:none!important; }
+.neurona-appearance .appearance-menu:not([hidden]) { display:block!important; }
+.neurona-appearance .theme-menu-item { display:flex; align-items:center; width:100%; color:inherit; font-family:inherit; cursor:pointer; }
+.neurona-appearance .theme-menu-check { visibility:hidden; }
+.neurona-appearance .theme-menu-item.active .theme-menu-check { visibility:visible; }
+.neurona-appearance .appearance-trigger:focus-visible,
+.neurona-appearance .theme-menu-item:focus-visible,
+.neurona-appearance .appearance-setting:focus-visible { outline:2px solid var(--primary,#6366f1); outline-offset:3px; }
+.neurona-appearance .appearance-setting-copy small { white-space:normal; }
+@media (max-width:600px) {
+  .neurona-appearance.appearance-dropdown { min-width:0; }
+  .neurona-appearance .appearance-trigger { min-width:190px; min-height:46px; }
+  .neurona-appearance .appearance-menu { position:fixed!important; top:138px!important; left:12px!important; right:12px!important; width:auto!important; min-width:0!important; max-height:calc(100dvh - 155px)!important; }
+}
+@media (prefers-reduced-motion:reduce) { .neurona-appearance * { transition:none!important; } }
+/* Override the legacy icon-only mobile theme button in style.css. */
+.neurona-appearance #themeToggle.appearance-trigger{
+  width:auto!important;min-width:210px!important;max-width:none!important;
+  height:auto!important;justify-content:flex-start!important;overflow:visible!important;
+}
+.neurona-appearance #themeToggle .theme-toggle-copy{display:flex!important;min-width:0!important}
+.neurona-appearance #themeToggle .theme-toggle-text{display:block!important}
+.neurona-appearance #themeToggle .theme-toggle-arrow{display:block!important}
+@media(max-width:600px){
+  .neurona-appearance #themeToggle.appearance-trigger{min-width:186px!important;gap:8px!important}
+}

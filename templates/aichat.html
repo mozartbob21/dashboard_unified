@@ -1,117 +1,8 @@
 {% extends "base_module.html" %}
 {% block title %}Нейрона — AI-чат{% endblock %}
-{% block body_class %}compact-module-page{% endblock %}
+{% block body_class %}compact-module-page aichat-page{% endblock %}
 {% block head %}
-<script>
-(function(){var m=localStorage.getItem("neurona-theme-mode")||"auto-moscow",t=m;
-if(m==="auto-moscow"){var now=new Date(),d=Math.floor((now-new Date(now.getFullYear(),0,0))/864e5);
-var dec=.409*Math.sin(2*Math.PI*(d-80)/365),r=55.7558*Math.PI/180;
-var c=(Math.sin(-.83*Math.PI/180)-Math.sin(r)*Math.sin(dec))/(Math.cos(r)*Math.cos(dec));
-var H=c>=1?0:c<=-1?Math.PI:Math.acos(c);
-var sr=(12-H*12/Math.PI-37.6173/15+3+24)%24,ss=(12+H*12/Math.PI-37.6173/15+3+24)%24;
-var h=now.getHours()+now.getMinutes()/60;t=(h>=sr&&h<ss)?"light":"dark";}
-document.documentElement.setAttribute("data-theme",t);})();
-</script>
-
-
-
-
-<style>
-.ac-wrap{max-width:none;width:100%;margin:0;padding:0 16px 16px;display:grid;grid-template-columns:300px 1fr;gap:14px;height:calc(100vh - 118px)}
-@media(max-width:980px){.ac-wrap{grid-template-columns:1fr;height:auto}}
-.ac-side{display:flex;flex-direction:column;gap:10px;padding:14px;overflow:hidden}
-.ac-new{border:none;border-radius:14px;padding:12px;font-weight:700;font-size:14px;color:#fff;cursor:pointer;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);box-shadow:0 6px 18px rgba(102,126,234,.35);transition:.2s}
-.ac-new:hover{transform:translateY(-1px)}
-.ac-hub{display:block;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:var(--text-color,#334155);border:1px solid var(--border-color,#e2e8f0);border-radius:14px;padding:10px}
-.ac-list{overflow:auto;display:flex;flex-direction:column;gap:6px}
-.dlg{padding:10px 12px;border-radius:12px;border:1px solid var(--border-color,#e2e8f0);cursor:pointer;position:relative}
-.dlg.active{border-color:#8b5cf6;background:rgba(139,92,246,.08)}
-.dlg .t{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:18px}
-.dlg .p{font-size:11.5px;color:var(--muted-color,#64748b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dlg .del{position:absolute;right:6px;top:8px;border:none;background:none;color:var(--muted-color);cursor:pointer;font-size:13px;opacity:0;transition:.15s}
-.dlg:hover .del{opacity:1}
-.ac-main{display:flex;flex-direction:column;padding:14px;gap:10px;overflow:hidden}
-.ac-chat{flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:6px 4px}
-.ac-msg{display:flex;gap:10px;align-items:flex-end;animation:up .25s ease}
-.ac-msg.user{justify-content:flex-end}
-.ava{flex:none;width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--border-color,#e2e8f0)}
-.ava img{width:26px;height:26px;border-radius:8px}
-.ava.u{background:linear-gradient(135deg,#0ea5e9,#6366f1)}
-.bubble{max-width:78%;width:fit-content;flex:0 1 auto;padding:12px 14px;border-radius:16px;font-size:14px;line-height:1.55}
-.ac-msg.assist .bubble{background:var(--bg-card,#fff);border:1px solid var(--border-color,#e2e8f0);border-bottom-left-radius:6px}
-.ac-msg.user .bubble{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border-bottom-right-radius:6px}
-.bubble img.att{display:block;max-width:230px;border-radius:12px;margin:6px 0;border:1px solid rgba(255,255,255,.35)}
-.att-chip{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);font-size:12px;margin:4px 4px 0 0}
-.ac-msg.assist .att-chip{background:var(--bg-neutral-100,rgba(0,0,0,.05));border-color:var(--border-color)}
-.li{padding-left:16px;position:relative}
-.li:before{content:"•";position:absolute;left:3px;color:#8b5cf6}
-.sp{height:6px}
-.ac-quick{display:flex;gap:8px;flex-wrap:wrap}
-.chip{border:1px solid var(--border-color,#e2e8f0);background:var(--bg-card,#fff);color:var(--text-color,#334155);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;transition:.15s}
-.chip:hover{transform:translateY(-1px);border-color:#8b5cf6;color:#8b5cf6}
-.chip.add{border:1.5px dashed #8b5cf6;color:#8b5cf6;background:transparent}
-.chip .rm{margin-left:6px;opacity:.6}
-.ac-pend{display:flex;gap:8px;flex-wrap:wrap}
-.pend{position:relative}
-.pend img{width:56px;height:56px;object-fit:cover;border-radius:12px;border:1px solid var(--border-color)}
-.pend .fn{max-width:120px;font-size:11px;color:var(--muted-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pend .x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:none;background:#ef4444;color:#fff;cursor:pointer;font-size:12px;line-height:1}
-.ac-input{display:flex;gap:8px;align-items:flex-end}
-.ac-plus{flex:none;width:44px;height:44px;border-radius:14px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-color);font-size:20px;cursor:pointer;transition:.15s}
-.ac-plus:hover{border-color:#8b5cf6;color:#8b5cf6}
-#ta{flex:1;resize:none;border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card);color:var(--text-color);padding:12px 14px;font-size:14px;font-family:inherit;max-height:140px}
-#ta:focus{outline:none;border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.15)}
-.ac-send{flex:none;width:44px;height:44px;border:none;border-radius:14px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;font-size:17px;cursor:pointer;box-shadow:0 6px 16px rgba(102,126,234,.4);transition:.2s}
-.ac-send:hover{transform:translateY(-1px)}
-.ac-hint{font-size:11px;color:var(--muted-color);text-align:center}
-.ovl{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:60;animation:fade .2s}
-.modal{background:var(--bg-card,#fff);border:1px solid var(--border-color);border-radius:20px;padding:20px;width:min(440px,92vw);animation:pop .22s}
-.modal.wide{width:min(780px,94vw);max-height:86vh;overflow:auto}
-.modal h3{margin:0 0 10px;font-size:16px}
-.modal textarea{width:100%;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card);color:var(--text-color);padding:10px;font-family:inherit;resize:vertical}
-.m-row{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
-.btn{border:none;border-radius:12px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:13px}
-.btn.prim{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff}
-.btn.ghost{background:var(--bg-neutral-100,rgba(0,0,0,.05));color:var(--text-color)}
-.caps-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
-@media(max-width:640px){.caps-grid{grid-template-columns:1fr}}
-.cap{border:1px solid var(--border-color);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted-color)}
-.cap b{color:var(--text-color,#1e293b);font-size:13px}
-.cap-ic{font-size:20px}
-.cap-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.welcome{border:1px solid var(--border-color);border-radius:20px;padding:22px;background:linear-gradient(160deg,rgba(102,126,234,.10),rgba(139,92,246,.05));animation:up .3s}
-.welcome h2{margin:0 0 6px;font-size:18px}
-.welcome p{margin:0 0 12px;color:var(--muted-color);font-size:13px}
-.typing .bubble{display:flex;gap:5px;align-items:center}
-.dot{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%;background:#8b5cf6;animation:blink 1s infinite}
-.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
-@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
-@keyframes up{from{opacity:0;transform:translateY(6px)}}
-@keyframes fade{from{opacity:0}}
-@keyframes pop{from{opacity:0;transform:scale(.96)}}
-.ac-chat::-webkit-scrollbar,.ac-list::-webkit-scrollbar{width:8px}
-.ac-chat::-webkit-scrollbar-thumb,.ac-list::-webkit-scrollbar-thumb{background:rgba(139,92,246,.35);border-radius:8px}
-[hidden]{display:none !important}
-
-/* FIX-GAP: компактное расположение шапки и контента */
-body.compact-module-page{padding-top:10px !important}
-.container{padding-top:0 !important;padding-bottom:0 !important;margin-bottom:0 !important}
-.topbar{margin-bottom:0 !important}
-.ac-wrap{margin-top:14px !important}
-.container{max-width:none !important;width:100% !important}
-
-/* LAYOUT-FIX2: ровная стыковка и заполнение до низа */
-html,body{height:100%}
-body.compact-module-page{display:flex;flex-direction:column;overflow:hidden;margin:0 !important;padding:0 !important}
-body.compact-module-page .container{flex:none;max-width:none !important;width:100% !important;margin:0 !important;padding:12px 16px 0 !important;box-sizing:border-box}
-.topbar{margin:0 !important}
-.ac-wrap{flex:1;min-height:0;height:auto !important;max-width:none !important;width:100% !important;margin:0 !important;
-padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:stretch}
-.ac-side{min-height:0;margin:0 !important;border-radius:18px 18px 0 0 !important}
-.ac-main{min-height:0;margin:0 0 14px !important;border-radius:18px !important}
-@media(max-width:980px){body.compact-module-page{overflow:auto}.ac-wrap{grid-template-columns:1fr;height:auto !important}}
-
-</style>
+<link rel="stylesheet" href="{{ url_for('static', path='aichat.css') }}?v=20261002">
 {% endblock %}
 {% block content %}
 <div class="container">
@@ -121,39 +12,42 @@ padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-
     <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">AI-чат · аналитик платформы ЖКХ</div></div>
   </div>
   <div class="top-actions">
-    <button class="secondary-button" id="capsBtn" type="button">❓ Что может чат</button>
+    <button class="secondary-button" id="capsBtn" type="button">Возможности чата</button>
     <a href="/" class="secondary-button" style="text-decoration:none">← Главная</a>
   </div>
 </header>
 </div>
 
 <div class="ac-wrap">
-  <aside class="ac-side card">
+  <aside class="ac-side card" aria-label="История диалогов">
     <button class="ac-new" id="newBtn" type="button">＋ Новый чат</button>
-    <a class="ac-hub" href="/prompthub">💡 ПромтХаб</a>
+    <a class="ac-hub" href="/prompthub">ПромтХаб <span aria-hidden="true">↗</span></a>
+    <div class="ac-history-heading">История диалогов<span>Общая для организации</span></div>
     <div class="ac-list" id="dlgList"></div>
   </aside>
 
   <main class="ac-main card">
-    <div class="ac-chat" id="chat"></div>
-    <div class="ac-quick" id="quickBar"></div>
-    <div class="ac-pend" id="pendRow"></div>
-    <label class="ac-hint" style="display:flex;align-items:center;gap:8px;text-align:left;padding:8px 16px"><input type="checkbox" id="includeContext">Добавить данные моих модулей · ответ останется в общей истории</label>
+    <div class="ac-chat" id="chat" role="log" aria-label="Сообщения чата" aria-live="polite" aria-relevant="additions"></div>
+    <div class="ac-compose">
+    <details class="ac-shortcuts"><summary>Быстрые запросы <span aria-hidden="true">⌄</span></summary><div class="ac-quick" id="quickBar"></div></details>
+    <div class="ac-pend" id="pendRow" aria-label="Прикреплённые файлы"></div>
     <div class="ac-input">
-      <button class="ac-plus" id="plusBtn" type="button" title="Прикрепить файл или фото">＋</button>
+      <button class="ac-plus" id="plusBtn" type="button" title="Прикрепить файл или фото" aria-label="Прикрепить файл или фото"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 7-7a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L13 3" transform="translate(1 -1) scale(.9)"/><path d="m8 13 7-7a2 2 0 0 1 3 3l-8 8"/></svg></button>
       <input type="file" id="fileIn" multiple hidden accept="image/*,.txt,.md,.csv,.doc,.docx,.xls,.xlsx,.pptx,.pdf">
-      <textarea id="ta" rows="1" placeholder="Напишите сообщение…"></textarea>
-      <button class="ac-send" id="sendBtn" type="button" title="Отправить">➤</button>
+      <textarea id="ta" rows="1" aria-label="Сообщение Нейроне" placeholder="Задайте вопрос или опишите задачу…"></textarea>
+      <button class="ac-send" id="sendBtn" type="button" title="Отправить сообщение" aria-label="Отправить сообщение"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>
     </div>
-    <div class="ac-hint">Enter — отправить · Shift+Enter — перенос · ＋ — файлы и фото</div>
+    <p class="ac-report-note" id="contextNote" hidden></p>
+    <div class="ac-hint" id="sendHint"><span>Enter — отправить · Shift+Enter — новая строка</span><span>История доступна всем аккаунтам</span></div>
+    </div>
   </main>
 </div>
 
 
 <div class="ovl" id="cmdOvl" hidden>
-  <div class="modal">
-    <h3>Своя быстрая команда</h3>
-    <textarea id="cmdText" rows="3" placeholder="Например: Дай просрочку по Солнечногорску"></textarea>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cmdTitle">
+    <h3 id="cmdTitle">Своя быстрая команда</h3>
+    <textarea id="cmdText" rows="3" aria-label="Текст быстрой команды" placeholder="Например: Дай просрочку по Солнечногорску"></textarea>
     <div class="m-row">
       <button class="btn ghost" id="cmdCancel" type="button">Отмена</button>
       <button class="btn prim" id="cmdSave" type="button">Сохранить</button>
@@ -162,10 +56,10 @@ padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-
 </div>
 
 <div class="ovl" id="capsOvl" hidden>
-  <div class="modal wide">
-    <h3>Что может этот чат?</h3>
+  <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="capsTitle">
+    <h3 id="capsTitle">Что может этот чат?</h3>
     <div class="caps-grid">
-      <div class="cap"><div class="cap-ic">🏘</div><b>Статистика по муниципалитетам</b><span>При включённой опции — сводка по доступным модулям: технадзор, ЭДО, просрочка, вода, камеры, обращения.</span></div>
+      <div class="cap"><div class="cap-ic">🏘</div><b>Статистика по муниципалитетам</b><span>Запросите отчёт по всей платформе, одному или нескольким блокам. Укажите любой муниципалитет или попросите разбивку по округам.</span></div>
       <div class="cap"><div class="cap-ic">🚨</div><b>Критичные объекты</b><span>Какие объекты и организации в критичной зоне, кто ответственный и сколько дней просрочки.</span></div>
       <div class="cap"><div class="cap-ic">💧</div><b>Качество воды</b><span>Анализ результатов контроля воды или приложенной выгрузки.</span></div>
       <div class="cap"><div class="cap-ic">📷</div><b>Камеры</b><span>Сколько камер не работает и в каких округах.</span></div>
@@ -177,72 +71,84 @@ padding:14px 16px 0 !important;box-sizing:border-box;display:grid;grid-template-
   </div>
 </div>
 
+<script src="{{ url_for('static', path='aichat-message-format.js') }}?v=20261002"></script>
 <script>
 var $=function(s){return document.querySelector(s)};
 var chatEl=$("#chat"),ta=$("#ta");
-var currentDid=null,pending=[],busy=false;
-var customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");
-var STD=[{i:"📊",t:"Дай сводку по платформе"},{i:"🏗",t:"Что в критичных по технадзору?"},{i:"💧",t:"Кто худшие по воде?"}];
-var EXAMPLES=["Дай сводку по платформе","Что в критичных по технадзору?","Кто худшие по воде?","Сколько камер не работает и где?","Сформируй отчёт по Солнечногорску","Какая просрочка по округам?"];
+var currentDid=null,pending=[],busy=false,draftVersion=0;
+var customCmds=[];
+try{customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");if(!Array.isArray(customCmds))customCmds=[];}catch(error){}
+var STD=[{t:"Дай краткий отчёт по всем блокам"},{t:"Дай отчёт по Власихе"},{t:"Что в критичных по технадзору?"}];
+var EXAMPLES=["Дай краткий отчёт по всем блокам","Дай отчёт по Власихе","Покажи камеры и просрочку по Химкам","Что в критичных по технадзору?"];
 
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
-function fmt(s){
-  var h=esc(s).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
-  return h.split("\n").map(function(l){
-    if(/^\s*[-•]\s+/.test(l))return '<div class="li">'+l.replace(/^\s*[-•]\s+/,"")+"</div>";
-    if(l.trim()==="")return '<div class="sp"></div>';
-    return "<div>"+l+"</div>";
-  }).join("");
-}
+function fmt(s){return window.NeuronaChatFormat.render(s)}
 function scroll(){chatEl.scrollTop=chatEl.scrollHeight}
+function prepareDraft(text){
+  if(busy)return;
+  ta.value=text;draftVersion++;
+  ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight,140)+"px";
+  ta.focus();
+}
 
 function welcomeHTML(){
-  return '<div class="welcome" id="welcome"><h2>👋 Я — Нейрона, аналитик платформы</h2>'+
-  '<p>Разбираю приложенные файлы и помогаю подготовить отчёт. '+
-  'Для сводки по платформе включите «Добавить данные моих модулей».</p>'+
+  return '<div class="welcome" id="welcome"><div class="ac-welcome-mark"><img src="/static/logo.svg" alt=""></div><h2>Нейрона — ваш аналитик</h2>'+
+  '<p>Помогу разобраться в данных, подготовить отчёт или проанализировать файл. '+
+  'Просто напишите, что вас интересует: все блоки, конкретные направления или любой муниципалитет.</p>'+
   '<div class="cap-chips" id="wChips"></div></div>';
 }
 function bindChips(root){
   root.querySelectorAll("[data-ex]").forEach(function(b){
-    b.addEventListener("click",function(){send(b.getAttribute("data-ex"))});
+    b.title="Подставить пример в сообщение";
+    b.addEventListener("click",function(){if(!$("#capsOvl").hidden)closeChatModal("#capsOvl");prepareDraft(b.getAttribute("data-ex"))});
   });
 }
 function appendAssist(content){
   var w=document.createElement("div");w.className="ac-msg assist";
-  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="bubble">'+fmt(content)+"</div>";
+  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона</div><div class="bubble">'+fmt(content)+"</div></div>";
   chatEl.appendChild(w);scroll();
 }
-function appendUser(text,atts){
+function appendUser(text,atts,fromHistory){
   var w=document.createElement("div");w.className="ac-msg user";
   var inner="";
   (atts||[]).forEach(function(a){
-    if(a.url)inner+='<img class="att" src="'+a.url+'">';
+    if(a.url)inner+='<img class="att" src="'+esc(a.url)+'" alt="Прикреплённое изображение">';
     else inner+='<span class="att-chip">📎 '+esc(a.name)+"</span>";
   });
   if(text)inner+="<div>"+esc(text).replace(/\n/g,"<br>")+"</div>";
-  w.innerHTML='<div class="bubble">'+inner+'</div><div class="ava u">👤</div>';
+  w.innerHTML='<div class="ac-message-body"><div class="ac-author">'+(fromHistory?"Пользователь":"Вы")+'</div><div class="bubble">'+inner+'</div></div><div class="ava u" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20v-2a7 7 0 0 1 14 0v2"/></svg></div>';
   chatEl.appendChild(w);scroll();
 }
 function showTyping(on){
   var old=$("#typing");if(old)old.remove();
   if(!on)return;
-  var w=document.createElement("div");w.className="ac-msg assist typing";w.id="typing";
-  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  var w=document.createElement("div");w.className="ac-msg assist typing";w.id="typing";w.setAttribute("aria-label","Нейрона готовит ответ");
+  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="typing-label">Готовлю ответ</span></div>';
   chatEl.appendChild(w);scroll();
 }
 
+async function chatJson(url,options){
+  var r=await fetch(url,options);
+  if(r.status===401||(r.redirected&&new URL(r.url,location.href).pathname==="/login"))throw new Error("Сессия завершилась. Обновите страницу и войдите снова.");
+  var d;
+  try{d=await r.json();}catch(error){throw new Error("Не удалось прочитать ответ сервера. Попробуйте ещё раз.");}
+  if(!r.ok)throw new Error(typeof d.detail==="string"?d.detail:typeof d.error==="string"?d.error:"Не удалось выполнить запрос. Попробуйте ещё раз.");
+  return d;
+}
 async function loadDialogs(){
-  var r=await fetch("/aichat/api/dialogs");var d=await r.json();
-  var list=$("#dlgList");list.innerHTML="";
+  var d;
+  try{d=await chatJson("/aichat/api/dialogs");}catch(error){$("#dlgList").innerHTML='<p class="ac-history-empty">'+esc(error.message)+'</p>';return;}
+
+  var list=$("#dlgList");list.innerHTML=(d.items||[]).length?"":'<p class="ac-history-empty">Здесь появятся ваши диалоги с Нейроной.</p>';
   (d.items||[]).forEach(function(it){
     var el=document.createElement("div");
     el.className="dlg"+(it.id===currentDid?" active":"");
-    el.innerHTML='<div class="t">'+esc(it.title)+'</div><div class="p">'+esc(it.preview||"")+'</div><button class="del" title="Удалить">✕</button>';
-    el.addEventListener("click",function(){openDialog(it.id)});
+    el.innerHTML='<button class="dlg-open" type="button" title="'+esc(it.title)+'" aria-current="'+(it.id===currentDid?'true':'false')+'"><span class="t">'+esc(it.title)+'</span><span class="p">'+esc(it.preview||"Нет сообщений")+'</span></button><button class="del" type="button" title="Удалить диалог" aria-label="Удалить диалог: '+esc(it.title)+'">×</button>';
+    el.querySelector(".dlg-open").addEventListener("click",function(){if(!busy)openDialog(it.id)});
     el.querySelector(".del").addEventListener("click",function(ev){
-      ev.stopPropagation();
+      ev.stopPropagation();if(busy)return;
       fetch("/aichat/api/dialogs/"+it.id,{method:"DELETE"}).then(function(){
-        if(currentDid===it.id){currentDid=null;chatEl.innerHTML=welcome();bindChips(chatEl);}
+        if(currentDid===it.id){currentDid=null;welcome();}
         loadDialogs();
       });
     });
@@ -253,27 +159,36 @@ function welcome(){chatEl.innerHTML=welcomeHTML();bindChips(chatEl);
   var wc=$("#wChips");if(wc){wc.innerHTML=EXAMPLES.map(function(e){return '<button class="chip" data-ex="'+esc(e)+'">'+esc(e)+"</button>"}).join("");bindChips(wc);}
 }
 async function openDialog(did){
-  currentDid=did;loadDialogs();
-  var r=await fetch("/aichat/api/dialogs/"+did);var d=await r.json();
-  chatEl.innerHTML="";
-  var msgs=(d.messages||[]);
-  if(!msgs.length){welcome();return;}
-  msgs.forEach(function(m){
-    if(m.role==="user")appendUser(m.content,[]);
-    else appendAssist(m.content);
-  });
+  if(busy)return;
+  setBusy(true);$("#contextNote").hidden=true;
+  try{
+    var d=await chatJson("/aichat/api/dialogs/"+did);
+    currentDid=did;loadDialogs();chatEl.innerHTML="";
+    var msgs=(d.messages||[]);
+    if(!msgs.length){welcome();return;}
+    msgs.forEach(function(m){
+      if(m.role==="user")appendUser(m.content,[],true);
+      else appendAssist(m.content);
+    });
+  }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
+  finally{setBusy(false);}
 }
 async function newChat(){
-  var r=await fetch("/aichat/api/dialogs",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
-  var d=await r.json();currentDid=d.id;loadDialogs();welcome();
+  if(busy)return;
+  setBusy(true);
+  try{
+    var d=await chatJson("/aichat/api/dialogs",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    currentDid=d.id;loadDialogs();welcome();$("#contextNote").hidden=true;ta.focus();
+  }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
+  finally{setBusy(false);}
 }
 
 function renderPending(){
   var row=$("#pendRow");row.innerHTML="";
   pending.forEach(function(p,idx){
     var el=document.createElement("div");el.className="pend";
-    if(p.url)el.innerHTML='<img src="'+p.url+'"><button class="x">✕</button>';
-    else el.innerHTML='<div class="fn">📎 '+esc(p.file?p.file.name:(p.name||'аудио'))+'</div><button class="x">✕</button>';
+    if(p.url)el.innerHTML='<img src="'+p.url+'"><button class="x" type="button" aria-label="Убрать вложение">×</button>';
+    else el.innerHTML='<div class="fn">📎 '+esc(p.file?p.file.name:(p.name||'аудио'))+'</div><button class="x" type="button" aria-label="Убрать вложение">×</button>';
     el.querySelector(".x").addEventListener("click",function(){
       if(p.url)URL.revokeObjectURL(p.url);
       pending.splice(idx,1);renderPending();
@@ -286,8 +201,8 @@ function renderChips(){
   var bar=$("#quickBar");bar.innerHTML="";
   STD.forEach(function(c){
     var b=document.createElement("button");b.className="chip";b.type="button";
-    b.textContent=c.i+" "+c.t;
-    b.addEventListener("click",function(){send(c.t)});
+    b.textContent=c.t;
+    b.addEventListener("click",function(){prepareDraft(c.t)});
     bar.appendChild(b);
   });
   customCmds.forEach(function(t,idx){
@@ -299,13 +214,13 @@ function renderChips(){
         localStorage.setItem("neurona-quick-cmds",JSON.stringify(customCmds));
         renderChips();return;
       }
-      send(t);
+      prepareDraft(t);
     });
     bar.appendChild(b);
   });
   var add=document.createElement("button");add.className="chip add";add.type="button";
   add.textContent="＋ Добавить свою";
-  add.addEventListener("click",function(){$("#cmdOvl").hidden=false;$("#cmdText").focus();});
+  add.addEventListener("click",function(){openChatModal("#cmdOvl","#cmdText");});
   bar.appendChild(add);
 }
 
@@ -313,13 +228,14 @@ async function send(textOverride){
   if(busy)return;
   var text=(typeof textOverride==="string"?textOverride:ta.value).trim();
   if(!text&&!pending.length)return;
+  setBusy(true);$("#contextNote").hidden=true;
   ta.value="";ta.style.height="auto";
   var w=$("#welcome");if(w)w.remove();
   appendUser(text,pending.map(function(p){return {url:p.url,name:(p.file?p.file.name:(p.name||'аудио'))}}));
+  try{
   var fd=new FormData();
   fd.append("dialog_id",currentDid||"");
   fd.append("text",text);
-  if($("#includeContext").checked)fd.append("include_context","true");
   for(var pi=0;pi<pending.length;pi++){
     var pp=pending[pi],pf=pp.file;
     if(!pf&&pp.remote){
@@ -329,24 +245,32 @@ async function send(textOverride){
     if(pp.url)URL.revokeObjectURL(pp.url);
   }
   pending=[];renderPending();
-  busy=true;showTyping(true);
-  try{
-    var r=await fetch("/aichat/api/send",{method:"POST",body:fd});
-    var d=await r.json();
-    showTyping(false);busy=false;
+  showTyping(true);
+    var d=await chatJson("/aichat/api/send",{method:"POST",body:fd});
+    showTyping(false);
     if(d.error){appendAssist("⚠️ "+d.error);return;}
     if(d.dialog_id&&d.dialog_id!==currentDid){currentDid=d.dialog_id;}
     loadDialogs();
     appendAssist(d.answer||"…");
-  }catch(e){showTyping(false);busy=false;appendAssist("⚠️ Ошибка сети: "+e.message);}
+    if(d.report_sources&&d.report_sources.length){$("#contextNote").textContent="Источников в отчёте: "+d.report_sources.length+" · Даты и полнота данных указаны в ответе.";$("#contextNote").hidden=false;}
+  }catch(e){appendAssist("Не удалось получить ответ. "+(e instanceof TypeError?"Проверьте соединение с сервером и повторите запрос.":e.message));}
+  finally{showTyping(false);setBusy(false);}
 }
 
+function setBusy(value){
+  busy=value;
+  $("#sendBtn").disabled=value;
+  $("#sendBtn").setAttribute("aria-label",value?"Нейрона готовит ответ":"Отправить сообщение");
+  $("#newBtn").disabled=value;
+  $("#plusBtn").disabled=value;
+  chatEl.setAttribute("aria-busy",String(value));
+}
 $("#newBtn").addEventListener("click",newChat);
 $("#sendBtn").addEventListener("click",function(){send()});
 ta.addEventListener("keydown",function(e){
-  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}
+  if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();send();}
 });
-ta.addEventListener("input",function(){ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight,140)+"px";});
+ta.addEventListener("input",function(){draftVersion++;ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight,140)+"px";});
 $("#plusBtn").addEventListener("click",function(){$("#fileIn").click()});
 $("#fileIn").addEventListener("change",function(e){
   Array.prototype.forEach.call(e.target.files,function(f){
@@ -355,39 +279,68 @@ $("#fileIn").addEventListener("change",function(e){
   });
   e.target.value="";renderPending();
 });
-$("#cmdCancel").addEventListener("click",function(){$("#cmdOvl").hidden=true});
+$("#cmdCancel").addEventListener("click",function(){closeChatModal("#cmdOvl")});
 $("#cmdSave").addEventListener("click",function(){
   var t=$("#cmdText").value.trim();if(!t)return;
   customCmds.push(t);
   localStorage.setItem("neurona-quick-cmds",JSON.stringify(customCmds));
-  $("#cmdText").value="";$("#cmdOvl").hidden=true;renderChips();
+  $("#cmdText").value="";closeChatModal("#cmdOvl");renderChips();
 });
-$("#capsBtn").addEventListener("click",function(){$("#capsOvl").hidden=false;fillCapChips();});
-$("#capsClose").addEventListener("click",function(){$("#capsOvl").hidden=true;localStorage.setItem("neurona-caps-seen","1");});
+$("#capsBtn").addEventListener("click",function(){fillCapChips();openChatModal("#capsOvl","#capsClose");});
+$("#capsClose").addEventListener("click",function(){closeChatModal("#capsOvl");});
 function fillCapChips(){
   var c=$("#capChips");
   c.innerHTML=EXAMPLES.map(function(e){return '<button class="chip" data-ex="'+esc(e)+'">'+esc(e)+"</button>"}).join("");
   bindChips(c);
 }
+
+var modalReturnFocus=null;
+function openChatModal(selector,focusSelector){
+  modalReturnFocus=document.activeElement;
+  $(selector).hidden=false;
+  $(focusSelector).focus();
+}
+function closeChatModal(selector){
+  $(selector).hidden=true;
+  if(selector==="#capsOvl")localStorage.setItem("neurona-caps-seen","1");
+  if(modalReturnFocus&&modalReturnFocus.isConnected)modalReturnFocus.focus();
+}
+document.addEventListener("keydown",function(e){
+  var overlay=document.querySelector(".aichat-page .ovl:not([hidden])");
+  if(!overlay)return;
+  if(e.key==="Escape"){e.preventDefault();closeChatModal("#"+overlay.id);return;}
+  if(e.key!=="Tab")return;
+  var controls=Array.from(overlay.querySelectorAll("button,textarea,[href],input,select,[tabindex='0']")).filter(function(el){return !el.disabled});
+  var first=controls[0],last=controls[controls.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+});
+
+// Links from modules suggest a question; the next message always defines its own scope.
+async function prefillReportQuestion(){
+  var params=new URLSearchParams(location.search),initialDraftVersion=draftVersion;
+  if(!params.has("module")&&!params.has("source")&&!params.has("municipality"))return;
+  if(params.get("question")){ta.value=params.get("question");ta.dispatchEvent(new Event("input"));return;}
+  var target="";
+  try{
+    var response=await fetch("/aichat/api/report-options",{cache:"no-store"});
+    if(response.ok){
+      var options=await response.json();
+      var source=(options.sources||[]).find(function(s){return s.id===params.get("source")});
+      var module=(options.modules||[]).find(function(m){return m.id===params.get("module")});
+      target=source?source.name:module?module.title:"";
+    }
+  }catch(error){}
+  if(draftVersion!==initialDraftVersion||ta.value)return;
+  var municipality=params.get("municipality");
+  ta.value="Подготовь краткий отчёт"+(target?" по блоку «"+target+"»":" по всем блокам")+
+    (municipality&&municipality!=="*"?". Муниципалитет: "+municipality:"")+".";
+  ta.dispatchEvent(new Event("input"));
+}
+prefillReportQuestion();
+
 loadDialogs();renderChips();welcome();
-if(!localStorage.getItem("neurona-caps-seen")){$("#capsOvl").hidden=false;fillCapChips();}
+if(!localStorage.getItem("neurona-caps-seen")){fillCapChips();openChatModal("#capsOvl","#capsClose");}
 </script>
 
-<script>
-/* FIX-GAP: дотягиваем контент к шапке, если платформа добавила лишние отступы */
-(function(){
-  function fixGap(){
-    var tb=document.querySelector('.topbar');
-    var wrap=document.querySelector('.ac-wrap');
-    if(!tb||!wrap)return;
-    var gap=wrap.getBoundingClientRect().top - tb.getBoundingClientRect().bottom;
-    if(gap>40){
-      var cur=parseFloat(getComputedStyle(wrap).marginTop)||0;
-      wrap.style.marginTop=(cur-(gap-14))+'px';
-    }
-  }
-  window.addEventListener('load',fixGap);
-  setTimeout(fixGap,250);
-})();
-</script>
 {% endblock %}

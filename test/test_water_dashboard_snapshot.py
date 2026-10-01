@@ -19,7 +19,7 @@ def test_all_sources_keep_own_dates_and_do_not_relabel_old_values(tmp_path):
         assert two['sources']['valves']['updated_at']=='2025-01-01T12:00:00'
         assert not two['sources']['valves']['ok']
         assert two['sources']['valves']['widgets'][0]['value']=='118'
-        assert len(two['sources'])==8
+        assert len(two['sources'])==7
 
 
 def test_legacy_example_values_never_become_live_data(tmp_path):

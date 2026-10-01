@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+<script src="/static/appearance-menu.js?v=20261001"></script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Куратор — проверка и согласование · Остатки ЗиП РСО</title>
 <style>
@@ -49,6 +50,17 @@
   #categoryError{color:var(--rose);margin-top:12px}#categoryContext{margin-top:10px;overflow-wrap:anywhere}
   @media(max-width:680px){.top{align-items:flex-start;flex-direction:column}.top-leading{align-items:flex-start}.back-link-text{display:none}.back-link{width:38px;padding:0;justify-content:center}.brand{font-size:14px}}
 </style>
+<link rel="stylesheet" href="/static/appearance-menu.css?v=20261001">
+<style>
+:root { --text:var(--ink); --muted:var(--ink3); --border:var(--line); --border-strong:var(--line); --card:var(--panel); --card-strong:var(--panel); --primary:var(--blue); --primary-2:var(--blue-d); --violet-soft:#eef0ff; --info-soft:#e9efff; }
+html[data-theme="dark"] { color-scheme:dark; --ink:#e7edf6; --ink2:#bfccdc; --ink3:#9eacc1; --line:#344052; --bg:#0f1726; --panel:#1b2535; --blue:#83aaff; --blue-d:#a2bcff; --violet-soft:#29304a; --info-soft:#243a58; }
+html[data-theme="kreml"] { color-scheme:light; --ink:#3a201c; --ink2:#704f47; --ink3:#92736a; --line:#dcc5a6; --bg:#e6d2b5; --panel:#f3e4ca; --blue:#a0473f; --blue-d:#7e2f2c; --violet-soft:#eed7bd; --info-soft:#eed7bd; }
+html[data-theme="dark"] .btn:not(.primary):not(.green), html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] .back-link { color:var(--ink); background:var(--panel); border-color:var(--line); }
+html[data-theme="dark"] td { border-color:var(--line); }
+html[data-glass="on"] .card { background:color-mix(in srgb,var(--panel) 80%,transparent); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); }
+.top { flex-wrap:wrap; position:relative; z-index:40; }
+.top-actions { display:flex; margin-left:auto; }
+</style>
 </head>
 <body>
 <div class="top">
@@ -57,6 +69,7 @@
     <div class="brand">Куратор · проверка и согласование<small>Остатки <b>ЗиП РСО</b> · файлы и очередь сохраняются в системе</small></div>
   </div>
   <div class="mini" id="hstatus"></div>
+  <div class="top-actions"></div>
 </div>
 <div class="wrap">
   <div id="cfgWarn"></div>

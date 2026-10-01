@@ -108,3 +108,91 @@ def test_nvos_still_loading_after_date_does_not_reuse_old_text(tmp_path):
     assert result['nvos']['error'] == diagnostics.MESSAGES['timeout']
     assert result['nvos']['text'] == '' and result['nvos']['widgets'] == []
     context.close.assert_called_once()
+
+
+def test_single_source_pipeline_passes_selection_and_reports_its_own_failure(tmp_path):
+    import json
+    with patch.object(builder, 'SNAPSHOT_FILE', tmp_path / 'snapshot.json'):
+        before = builder.build_snapshot({'meetings': {'tables': [{'headers': ['ОМСУ', 'Явка, %'], 'rows': [['Округ', '60']]}]}})
+        with patch.object(scraper, 'scrape_all', return_value={'tasks': {'error': 'Нет сети'}}) as collect:
+            with pytest.raises(runner.SourcesUnavailableError):
+                runner.run_water_dashboard_pipeline(source='tasks')
+        collect.assert_called_once_with(source_ids=['tasks'])
+        after = json.loads(builder.SNAPSHOT_FILE.read_text())
+    assert after['sources']['meetings'] == before['sources']['meetings']
+    assert after['sources_updated']['meetings'] is True
+    assert after['last_updated_sources'] == []
+
+
+def test_cli_source_argument_is_strict():
+    with patch.object(runner, 'run_water_dashboard_pipeline') as pipeline:
+        assert runner.main(['--source', 'tasks']) == 0
+        pipeline.assert_called_once_with(source='tasks')
+    with pytest.raises(SystemExit) as exc:
+        runner.main(['--source', 'flush'])
+    assert exc.value.code == 2
+
+
+def test_scraper_selected_source_visits_only_its_url(tmp_path):
+    from unittest.mock import MagicMock
+    page, context, playwright = MagicMock(), MagicMock(), MagicMock()
+    context.pages = [page]
+    page.frames = []
+    page.evaluate.side_effect = [[], [], 'Свод задач', '<body>Свод задач</body>']
+    sources = [{'id': 'valves', 'name': 'Задвижки', 'url': 'https://example.invalid/valves'},
+               {'id': 'tasks', 'name': 'Задачи', 'url': 'https://example.invalid/tasks'}]
+    with patch.object(scraper, 'DEBUG_DIR', tmp_path / 'debug'), \
+         patch.object(scraper, 'PLAYWRIGHT_PROFILE_DIR', tmp_path / 'profile'), \
+         patch.object(scraper, 'SOURCES', sources), \
+         patch.object(scraper, 'sync_playwright', return_value=playwright), \
+         patch.object(scraper, 'launch_context', return_value=(context, 'Microsoft Edge')), \
+         patch.object(scraper, '_wait_for_content'):
+        result = scraper.scrape_all(source_ids=['tasks'])
+    assert set(result) == {'tasks'}
+    page.goto.assert_called_once_with('https://example.invalid/tasks', wait_until='domcontentloaded', timeout=90000)
+    context.close.assert_called_once()
+
+
+def test_full_edo_table_uses_bounded_navigation_and_preserves_kpis(tmp_path):
+    from unittest.mock import MagicMock
+    from services.water_dashboard.details import EDO_CURRENT_HEADER
+    page, context, playwright = MagicMock(), MagicMock(), MagicMock()
+    context.pages = [page]
+    page.frames = []
+    overview = {'headers': ['РСО', 'ОМСУ'], 'rows': [['Заполнено', 'Округ']]}
+    widgets = [{'label': 'Доля (%) должностных лиц, имеющих право подписи и ЭЦП', 'value': '61 %'}]
+    ranking = {'headers': ['РСО', 'ОМСУ', EDO_CURRENT_HEADER], 'rows': [['Водоканал', 'Округ', '83']]}
+    page.evaluate.side_effect = [[overview], widgets, 'Обзор ЭДО', [ranking], '<body>таблица</body>']
+    with patch.object(scraper, 'DEBUG_DIR', tmp_path / 'debug'), \
+         patch.object(scraper, 'PLAYWRIGHT_PROFILE_DIR', tmp_path / 'profile'), \
+         patch.object(scraper, 'SOURCES', [{'id': 'edo_rso', 'name': 'ЭДО', 'url': 'https://datalens.yandex/f5wqqij889haz'}]), \
+         patch.object(scraper, 'sync_playwright', return_value=playwright), \
+         patch.object(scraper, 'launch_context', return_value=(context, 'Microsoft Edge')), \
+         patch.object(scraper, '_wait_for_content') as wait:
+        result = scraper.scrape_all(source_ids=['edo_rso'])['edo_rso']
+    assert result['tables'] == [overview] and result['widgets'] == widgets
+    assert result['ranking_tables'] == [ranking]
+    assert result['ranking_url'] == 'https://datalens.yandex/f5wqqij889haz?tab=EL'
+    assert page.goto.call_count == 2 and wait.call_count == 2
+    assert page.goto.call_args.kwargs['timeout'] == 90000
+    context.close.assert_called_once()
+
+
+def test_edo_ranking_timeout_is_separate_from_overview_metrics(tmp_path):
+    from unittest.mock import MagicMock
+    page, context, playwright = MagicMock(), MagicMock(), MagicMock()
+    context.pages = [page]
+    page.frames = []
+    widgets = [{'label': 'Доля (%) должностных лиц, имеющих право подписи и ЭЦП', 'value': '61 %'}]
+    page.evaluate.side_effect = [[], widgets, 'Обзор ЭДО', '<body>таблица</body>']
+    with patch.object(scraper, 'DEBUG_DIR', tmp_path / 'debug'), \
+         patch.object(scraper, 'PLAYWRIGHT_PROFILE_DIR', tmp_path / 'profile'), \
+         patch.object(scraper, 'SOURCES', [{'id': 'edo_rso', 'name': 'ЭДО', 'url': 'https://datalens.yandex/f5wqqij889haz'}]), \
+         patch.object(scraper, 'sync_playwright', return_value=playwright), \
+         patch.object(scraper, 'launch_context', return_value=(context, 'Microsoft Edge')), \
+         patch.object(scraper, '_wait_for_content', side_effect=[None, TimeoutError('Timeout')]):
+        result = scraper.scrape_all(source_ids=['edo_rso'])['edo_rso']
+    assert 'error' not in result and result['widgets'] == widgets
+    assert result['ranking_tables'] == []
+    assert result['ranking_error'].startswith('Полная таблица РСО не получена.')
+    context.close.assert_called_once()

@@ -138,6 +138,7 @@ function mapTaskCols(headers){
   C.created=findCol(headers,['создано',h=>h.includes('создан')]);
   C.tracker=findCol(headers,['трекер']);
   C.project=findCol(headers,['проект']);
+  C.municipality=findCol(headers,['муниципалитет','омсу','городской округ','муниципальный округ']);
   C.subject=findCol(headers,['тема']);
   C.sensors=findCol(headers,[h=>h.includes('датчик')&&h.includes('мутност')]);
   C.sysnum=findCol(headers,[h=>h.includes('sys')&&h.includes('zulugis')]);
@@ -325,7 +326,7 @@ function analyze(tasks){
   for(const r of tasks.rows){
     const id=parseInt(norm(r[C.id]),10); if(isNaN(id)) continue;
     const type=norm(r[C.type]);
-    const meta={id, tracker:norm(r[C.tracker]), project:norm(r[C.project]), subject:norm(r[C.subject])};
+    const meta={id, tracker:norm(r[C.tracker]), project:norm(r[C.project]), subject:norm(r[C.subject]), municipality:C.municipality?norm(r[C.municipality]):''};
     if(r._extReq&&r._extReq>TODAY){
       sys.ext.push({...meta, why:'исполнитель просит продлить до '+fmtD(r._extReq), winEnd:r._extReq, byRequest:true});
       continue;
@@ -380,6 +381,19 @@ async function rmFetch(path,opts){
 }
 function deIso(v){ return String(v==null?'':v).replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3.$2.$1'); }
 function isoD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+// Save analysis separately from applying changes in Redmine.
+async function saveReportHistory(result,total){
+  try{
+    const rows=list=>list.map(item=>({id:item.id,municipality:item.municipality||'',project:item.project||''}));
+    const response=await fetch('/water-rm/history',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rez:{close:rows(result.rez.close),rw:rows(result.rez.rw)},
+        sys:{close:rows(result.sys.close),ext:rows(result.sys.ext),rw:rows(result.sys.rw)},total_tasks:total})
+    });
+    if(!response.ok)throw new Error('HTTP '+response.status);
+  }catch(error){rmLog('⚠ Результат показан, но не сохранён для отчётов ИИ. Повторите проверку позже.');}
+}
 
 async function rmLoadIssues(){
   const rows=[]; let offset=0, total=Infinity;
@@ -456,8 +470,12 @@ async function runRm(auto){
     rmLog('→ Загрузка задач из mgkh.rm.mosreg.ru (выборка №'+RM_QUERY+')…');
     const [tasks, st]=await Promise.all([rmLoadIssues(), rmStatuses()]);
     rmLog('✓ Получено задач: '+tasks.rows.length);
-    if(!tasks.rows.length){ rmLog('Задач нет.'); return; }
+    if(!tasks.rows.length){
+      RES={rez:{close:[],rw:[]},sys:{close:[],ext:[],rw:[]}};render();
+      await saveReportHistory(RES,0);rmLog('Задач нет.');return;
+    }
     RES=analyze(tasks); render();
+    await saveReportHistory(RES,tasks.rows.length);
     const nClose=RES.rez.close.length+RES.sys.close.length,
           nRw=RES.rez.rw.length+RES.sys.rw.length,
           extOk=RES.sys.ext.filter(x=>x.winEnd),
@@ -595,35 +613,5 @@ function downloadCsv1251(rows, filename){
 }
 </script>
 
-<script>
-(function(){
-    function make(){
-        var host = document.querySelector(".top-actions") || document.querySelector(".topbar");
-        if (!host) { setTimeout(make, 300); return; }
-        if (document.getElementById("glassToggle")) return;
-        var b = document.createElement("button");
-        b.id = "glassToggle";
-        b.type = "button";
-        var anchor = host.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
-        if (anchor) { anchor.parentNode.insertBefore(b, anchor); } else { host.appendChild(b); }
-        function paint(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            var SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>';
-            var SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
-            b.innerHTML = on ? SVG_ON : SVG_OFF;
-            b.classList.toggle("on", on);
-            b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
-        }
-        b.addEventListener("click", function(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            document.documentElement.setAttribute("data-glass", on ? "off" : "on");
-            localStorage.setItem("neurona-glass", on ? "off" : "on");
-            paint();
-        });
-        paint();
-    }
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", make);
-    else make();
-})();
-</script>
+
 {% endblock %}

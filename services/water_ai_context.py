@@ -1,97 +1,188 @@
-# -*- coding: utf-8 -*-
-"""Контекст сводного дашборда по качеству водоснабжения для ИИ-чата."""
+"""Read-only, typed reporting view of the latest water dashboard snapshot.
+
+No browser profiles, raw portal text, credentials or debug files are read here.
+The UI and AI consume the same saved snapshot; every source keeps its own date.
+"""
 import json
+import math
+import re
 from pathlib import Path
+from services.report_municipalities import key as municipality_key, display as municipality_display
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-WD_DIR = BASE_DIR / "data" / "water_dashboard"
-SNAP = WD_DIR / "snapshot.json"
-BEST5 = WD_DIR / "best5.json"
+SNAP = BASE_DIR / 'data/water_dashboard/snapshot.json'
+MAX_SNAPSHOT_BYTES = 20 * 1024 * 1024
 
 
-def _load(p):
+def load_snapshot(path=None):
+    path = Path(path or SNAP)
     try:
-        if p.exists():
-            return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        pass
-    return None
+        if path.stat().st_size > MAX_SNAPSHOT_BYTES:
+            return {}
+        data = json.loads(path.read_text(encoding='utf-8-sig'))
+        if not isinstance(data, dict) or data.get('schema_version') not in (2, 3):
+            return {}
+        from services.water_dashboard.builder import normalize_snapshot
+        return normalize_snapshot(data)
+    except (OSError, ValueError, TypeError):
+        return {}
 
 
-def _name_of(e):
-    if isinstance(e, dict):
-        for k in ("municipality", "name", "org", "rso", "object", "label"):
-            v = e.get(k)
-            if v:
-                return str(v)
-        v = next((x for x in e.values() if isinstance(x, str) and x.strip()), None)
-        return str(v) if v else str(e)
-    return str(e)
+def normalized(value):
+    return re.sub(r'\s+', ' ', str(value or '').casefold().replace('ё', 'е')).strip()
 
 
-def build_water_context(limit_rows: int = 15) -> str:
-    snap = _load(SNAP)
-    best5 = _load(BEST5)
-    if not snap and not best5:
-        return ""
-    lines = ["🌊 СВОДНЫЙ ДАШБОРД ПО КАЧЕСТВУ ВОДОСНАБЖЕНИЯ (данные платформы, отвечай строго по ним):"]
+def text(value, limit=240):
+    return str(value or '').strip()[:limit] if isinstance(value, (str, int, float)) else ''
 
-    if snap:
-        lines.append(f"Снимок от {snap.get('snapshot_date', '—')}, обновлено {snap.get('updated_at', '—')}.")
 
-        kpi = snap.get("kpi_live") or {}
-        if isinstance(kpi, dict):
-            for k, v in list(kpi.items())[:12]:
-                lines.append(f"  • {k}: {v}")
+def finite_number(value):
+    return value if type(value) in (int, float) and math.isfinite(value) else None
 
-        srcs = snap.get("sources_refresh") or {}
-        if isinstance(srcs, dict):
-            for k, v in list(srcs.items())[:12]:
-                lines.append(f"  Источник данных «{k}»: обновлён {v}")
 
-        bottoms = snap.get("bottoms") or {}
-        if isinstance(bottoms, dict):
-            for k, v in bottoms.items():
-                if isinstance(v, list):
-                    lines.append(f"  ХУДШИЕ по «{k}»: {', '.join(_name_of(x) for x in v[:5])}")
-                else:
-                    
-        # Добавляем интерпретацию худших показателей
-        if bottoms:
-            lines.append("\n  **Проблемные зоны:**")
-            for k, v in bottoms.items():
-                if isinstance(v, list) and len(v) > 0:
-                    muni_names = [_name_of(x) for x in v[:3]]
-                    metric_desc = {
-                        "resVS": "потерям ресурсной сети",
-                        "sysVS": "потерям системной сети", 
-                        "tasks": "количеству незакрытых задач",
-                        "sysKR": "авариям системной сети",
-                        "resKR": "авариям ресурсной сети",
-                    }.get(k, k)
-                    lines.append(f"    - По {metric_desc}: {', '.join(muni_names)}")
+def metric(item):
+    if not isinstance(item, dict):
+        return None
+    label = text(item.get('label'))
+    if not label:
+        return None
+    value = item.get('value')
+    # Some reviewed NVOS metrics are ratios displayed as "171 / 171".
+    if not (type(value) in (int, float) and math.isfinite(value)):
+        value = text(value, 80) if isinstance(value, str) and re.fullmatch(r'[\d\s.,%/—–+−-]+', value) else None
+    return {'id': text(item.get('id'), 80), 'label': label, 'value': value, 'unit': text(item.get('unit'), 50)}
 
-                lines.append(f"  ХУДШИЕ по «{k}»: {v}")
 
-        table = snap.get("table") or []
-        if isinstance(table, list) and table and isinstance(table[0], dict):
-            hdr = list(table[0].keys())
-            lines.append(f"  Таблица показателей: строк {len(table)}; колонки: {', '.join(hdr[:8])}.")
-            for row in table[:limit_rows]:
-                name = _name_of(row)
-                nums = [f"{k}={row.get(k)}" for k in hdr[1:7]
-                        if row.get(k) not in (None, "", "-")]
-                if nums:
-                    lines.append("  • " + name + " | " + " | ".join(nums))
+def source_catalog():
+    from services.water_dashboard.config import SOURCES
+    # Exclude the retired source even while an old snapshot remains on disk.
+    return [s for s in SOURCES if s['id'] != 'flush']
 
-    if best5:
-        if isinstance(best5, dict):
-            for key, val in best5.items():
-                if isinstance(val, list):
-                    lines.append(f"  ЛУЧШИЕ по «{key}»: {', '.join(_name_of(x) for x in val[:5])}")
-                else:
-                    lines.append(f"  ЛУЧШИЕ по «{key}»: {val}")
-        elif isinstance(best5, list):
-            lines.append("  ЛУЧШИЕ: " + ", ".join(_name_of(x) for x in best5[:5]))
 
-    return "\n".join(lines)
+def municipality_names(snapshot):
+    names = set()
+    for row in snapshot.get('table', []):
+        if isinstance(row, dict) and text(row.get('name')):
+            names.add(municipality_display(row['name']))
+    for sid, source in snapshot.get('sources', {}).items():
+        if not isinstance(source, dict):
+            continue
+        for entity in (source.get('details') or {}).get('entities', []):
+            if isinstance(entity, dict):
+                name = text(entity.get('municipality')) or (text(entity.get('name')) if sid != 'edo_rso' else '')
+                if name:
+                    names.add(municipality_display(name))
+        for table in source.get('tables', []):
+            if not isinstance(table, dict):
+                continue
+            headers = [normalized(h) for h in table.get('headers', [])]
+            name_index = next((i for i, h in enumerate(headers) if h in {'омсу', 'муниципалитет', 'муниципальный округ', 'городской округ'}), None)
+            if name_index is None:
+                continue
+            for row in table.get('rows', []):
+                if isinstance(row, list) and len(row) > name_index:
+                    name = text(row[name_index])
+                    if name and not normalized(name).startswith(('итого', 'всего')):
+                        names.add(municipality_display(name))
+    return sorted(names, key=normalized)
+
+
+TABLE_FIELDS = {
+    'tasks': {'tasks': 'Просроченные задачи'},
+    'sys_vs': {'sysVS': 'Системные адреса ВС', 'resVS': 'Резонансные адреса ВС'},
+    'sys_kr': {'sysKR': 'Системные адреса капремонта', 'resKR': 'Резонансные адреса капремонта'},
+    'meetings': {'att': 'Явка, %'},
+}
+# Labels, not arbitrary keys or a raw JSON dump, are the reporting boundary.
+SAFE_COLUMN = re.compile(r'омсу|муниципал|городской округ|наименование|организац|\bрсо\b|задвиж|внесено|должно быть|план|факт|корректн|процент|доля|\bэдо\b|\bэцп\b|право подписи|подписант|должностн|документ|присутств|явка|системн|резонанс|кол.во задач|количество задач|просроч', re.I)
+UNSAFE_COLUMN = re.compile(r'парол|логин|токен|cookie|секрет|телефон|почт|email|password|token|secret|ключ доступа', re.I)
+
+
+def selected_tables(source, municipality='', limit=12):
+    """Small safe table slices for a requested municipality, never global totals."""
+    tables = []
+    for table in source.get('tables', []):
+        if not isinstance(table, dict):
+            continue
+        headers = table.get('headers', [])
+        indices = [i for i, h in enumerate(headers) if SAFE_COLUMN.search(str(h)) and not UNSAFE_COLUMN.search(str(h))][:10]
+        if not indices:
+            continue
+        muni_index = next((i for i, h in enumerate(headers) if normalized(h) in {'омсу', 'муниципалитет', 'муниципальный округ', 'городской округ'}), None)
+        if municipality and muni_index is None:
+            continue
+        rows = []
+        for row in table.get('rows', []):
+            if not isinstance(row, list):
+                continue
+            if municipality and (len(row) <= muni_index or municipality_key(row[muni_index]) != municipality_key(municipality)):
+                continue
+            rows.append([text(row[i], 180) if i < len(row) else '' for i in indices])
+        if rows:
+            tables.append({'columns': [text(headers[i]) for i in indices], 'rows': rows[:limit],
+                           'matching_rows': len(rows), 'omitted_rows': max(0, len(rows) - limit)})
+        if len(tables) >= 3:
+            break
+    return tables
+
+
+def safe_entity(entity):
+    value = finite_number(entity.get('value'))
+    if value is None and isinstance(entity.get('value'), str):
+        value = text(entity['value'], 100)
+    return {'name': text(entity.get('name')), 'municipality': text(entity.get('municipality')), 'value': value, 'unit': text(entity.get('unit'), 50),
+            'secondary': [m for item in entity.get('secondary', [])[:8] if (m := metric(item))]}
+
+
+def source_reports(snapshot, source_id='', municipality='', limit_rows=12):
+    out = []
+    stored = snapshot.get('sources', {}) if isinstance(snapshot.get('sources'), dict) else {}
+    for spec in source_catalog():
+        sid = spec['id']
+        if source_id and sid != source_id:
+            continue
+        data = stored.get(sid) or {}
+        valid_metrics = [m for item in data.get('metrics', [])[:20] if (m := metric(item))] if data.get('metric_schema') == 1 else []
+        has_values = any(m['value'] is not None for m in valid_metrics)
+        report = {'id': sid, 'module': 'water-dashboard', 'title': spec['name'], 'source_url': spec['url'],
+                  'status': 'current' if has_values and data.get('ok') else ('stale' if has_values else 'missing'),
+                  'collected_at': text(data.get('updated_at'), 50), 'data_date': text(data.get('data_date'), 120),
+                  'checked_at': text(data.get('checked_at') or snapshot.get('checked_at'), 50),
+                  'warning': text(data.get('error'), 500), 'scope': 'municipality' if municipality else 'region',
+                  'metrics': valid_metrics if not municipality else [], 'rows': []}
+        if municipality:
+            for row in snapshot.get('table', []):
+                if not isinstance(row, dict) or municipality_key(row.get('name')) != municipality_key(municipality):
+                    continue
+                values = [{'label': label, 'value': finite_number(row.get(key)), 'unit': '%' if key == 'att' else ''}
+                          for key, label in TABLE_FIELDS.get(sid, {}).items()]
+                if any(v['value'] is not None for v in values):
+                    report['rows'].append({'municipality': text(row['name']), 'metrics': values})
+            report['tables'] = selected_tables(data, municipality, limit_rows)
+            if not report['rows'] and not report['tables']:
+                report['warning'] = (report['warning'] + ' Нет отдельного показателя по выбранному муниципалитету; областной итог не подставлен.').strip()
+        else:
+            report['tables'] = selected_tables(data, limit=limit_rows)
+        details = data.get('details') or {}
+        if isinstance(details, dict) and details.get('schema_version') == 1:
+            entities = [safe_entity(e) for e in details.get('entities', []) if isinstance(e, dict)]
+            if municipality:
+                report['entities'] = [e for e in entities if municipality_key(e.get('municipality') or e['name']) == municipality_key(municipality)]
+                if report['entities']:
+                    report['warning'] = text(data.get('error'), 500)
+            else:
+                report['details'] = {
+                    'basis': text(details.get('basis'), 500),
+                    'coverage_note': text((details.get('coverage') or {}).get('note'), 500),
+                    'groups': [{'title': text(g.get('title')), 'items': [safe_entity(e) for e in g.get('items', [])[:5] if isinstance(e, dict)]}
+                               for g in details.get('groups', [])[:3] if isinstance(g, dict)],
+                }
+        out.append(report)
+    return out
+
+
+def build_water_context(limit_rows=12, *, municipality='', source_id='', allowed_modules=None):
+    """Compatibility entry point. Permission must be supplied explicitly."""
+    if 'water-dashboard' not in set(allowed_modules or []):
+        return ''
+    return json.dumps({'schema_version': 1, 'sources': source_reports(load_snapshot(), source_id, municipality, limit_rows)}, ensure_ascii=False)

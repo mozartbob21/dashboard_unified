@@ -12,7 +12,6 @@ PAGE_WAIT_SECONDS = 6
 
 SOURCES = [
     {"id": "valves",   "name": "Замена задвижек (ZULUGIS)",    "url": "https://datalens.yandex/e2q0obgt7xsex"},
-    {"id": "flush",    "name": "Промывки сетей и РЧВ",         "url": "https://datalens.yandex/j9dqqujx03qa3"},
     {"id": "tasks",    "name": "Просроченные задачи ОМСУ",     "url": "https://datalens.yandex/hdxgldxnx8ui1"},
     {"id": "sys_vs",   "name": "Системные адреса (ВС)",        "url": "https://datalens.yandex/6k9dbjyurmu0q"},
     {"id": "edo_rso",  "name": "Переход РСО на ЭДО",           "url": "https://datalens.yandex/f5wqqij889haz"},

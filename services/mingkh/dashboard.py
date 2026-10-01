@@ -236,6 +236,9 @@ def get_dataset(creds,query):
         if cached and ((query.get('fresh')!='1' and time.monotonic()-cached[0]<600) or time.monotonic()-cached[0]<10):
             return copy.deepcopy(cached[1])
         result=build(Pentaho(**creds),windows)
+        # Persist only aggregate counts, never credentials or complaint text.
+        from services.aichat.local_sources import persist_mingkh_dataset
+        persist_mingkh_dataset(result)
         if len(CACHE)>=8:CACHE.pop(next(iter(CACHE)))
         CACHE[key]=(time.monotonic(),result)
         return copy.deepcopy(result)

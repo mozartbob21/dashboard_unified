@@ -502,6 +502,23 @@ class AccessControlTests(unittest.TestCase):
                 thread.assert_called_once()
                 thread.return_value.start.assert_called_once()
 
+    def test_water_individual_refresh_passes_only_requested_source(self):
+        with patch.dict(self.module.run_status, {'water_dashboard': {'running': False}}):
+            with patch.object(self.module.threading, 'Thread') as thread:
+                self.module.start_water_refresh('tasks')
+                command = thread.call_args.kwargs['args'][1]
+                self.assertEqual(command[-2:], ['--source', 'tasks'])
+                self.assertEqual(self.module.run_status['water_dashboard']['source_key'], 'tasks')
+
+    def test_water_refresh_rejects_retired_or_unknown_source(self):
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules=? WHERE username='ordinary'", (json.dumps(['water-dashboard']),))
+        self.login()
+        with patch.object(self.module, 'start_water_refresh') as start:
+            for source in ('flush', 'unknown'):
+                self.assertEqual(self.client.post('/water-dashboard/refresh-source/' + source).status_code, 404)
+            start.assert_not_called()
+
     def test_water_worker_keeps_useful_safe_error_in_status_and_history(self):
         import io
         from unittest.mock import Mock

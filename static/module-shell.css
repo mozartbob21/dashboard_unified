@@ -47,3 +47,27 @@ html[data-theme="dark"] .module-users .user-item { color:var(--text);background:
 html[data-theme="dark"] .module-users input:not([type=checkbox]),
 html[data-theme="dark"] .module-users select { color:var(--text);background:var(--bg-soft);border-color:var(--border); }
 html[data-theme="dark"] .module-users .common-note { color:var(--muted);background:var(--card);border-color:var(--border); }
+
+/* Header copy and actions occupy separate columns; legacy global rules cannot hide them. */
+.unified-module-page .unified-shell-topbar { box-sizing:border-box; flex-wrap:wrap!important; }
+.unified-module-page .unified-shell-topbar .brand,
+.unified-module-page .unified-shell-topbar .system-shell-brand { flex:1 1 250px!important; }
+.unified-module-page .unified-shell-topbar .brand-link { min-width:0; padding:0!important; margin:0!important; border-radius:0; }
+.unified-module-page .unified-shell-topbar .brand-link > div,
+.unified-module-page .unified-shell-topbar .brand > div,
+.unified-module-page .unified-shell-topbar .system-shell-brand-copy { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.unified-module-page .unified-shell-topbar .brand-title { display:block; margin:0!important; padding:0!important; }
+.unified-module-page .unified-shell-topbar .brand-subtitle { display:block; max-width:100%; margin:0!important; white-space:normal; overflow-wrap:anywhere; }
+.unified-module-page .unified-shell-topbar .top-actions,
+.unified-module-page .unified-shell-topbar .topbar-right,
+.unified-module-page .unified-shell-topbar .system-shell-actions { display:flex!important; flex:0 1 auto!important; align-items:center!important; flex-direction:row!important; width:auto!important; }
+.unified-module-page .unified-shell-topbar .appearance-dropdown { flex:0 0 auto!important; }
+.unified-module-page .unified-shell-topbar .appearance-trigger { min-height:46px; }
+.unified-module-page .unified-shell-topbar #topbarBurger { display:none!important; }
+@media (max-width:760px) {
+  .unified-module-page .unified-shell-topbar .brand,
+  .unified-module-page .unified-shell-topbar .system-shell-brand { flex-basis:100%!important; }
+  .unified-module-page .unified-shell-topbar .top-actions,
+  .unified-module-page .unified-shell-topbar .topbar-right,
+  .unified-module-page .unified-shell-topbar .system-shell-actions { flex:1 1 100%!important; width:100%!important; justify-content:flex-start!important; margin-left:0!important; }
+}

@@ -1,6 +1,7 @@
 import json
 import re
 import math
+from copy import deepcopy
 from datetime import datetime
 
 from services.water_dashboard.config import SNAPSHOT_FILE
@@ -34,9 +35,10 @@ def norm_name(s):
 
 def build_table(extractions):
     merged = {}
+    seen_values = {}
 
     def row(name):
-        return merged.setdefault(name, {
+        return merged.setdefault(name.casefold().replace("ё", "е"), {
             "name": name, "resVS": None, "sysVS": None, "tasks": None,
             "sysKR": None, "resKR": None, "att": None,
         })
@@ -80,7 +82,15 @@ def build_table(extractions):
                 r = row(name)
                 for field, i in idx.items():
                     if i is not None and i < len(cells):
-                        r[field] = to_number(cells[i]) if field == 'att' else to_int(cells[i])
+                        value = to_number(cells[i]) if field == 'att' else to_int(cells[i])
+                        if value is not None and (value < 0 or (field == 'att' and value > 100)):
+                            value = None
+                        key = (name.casefold().replace("ё", "е"), field)
+                        observed = seen_values.setdefault(key, set())
+                        observed.add(value)
+                        # Duplicate tables repeat the same value. Conflicting
+                        # municipality records are unknown, never last-wins.
+                        r[field] = value if len(observed) == 1 else None
 
     return sorted(merged.values(), key=lambda r: -(r["resVS"] or 0))
 
@@ -125,20 +135,18 @@ def bottom5(table, field):
 
 
 def extract_refresh_info(text):
-    """Достаёт строку вида «Дашборд автоматически обновляется каждые 30 мин.»
-    Хвосты после времени/минут обрезаем (лишние пояснения про кликабельность)."""
-    if not text:
+    """Read the schedule published in the source, without inventing an interval."""
+    if not isinstance(text, str):
         return ""
-    m = re.search(r"[^\n]*каждые\s+[\d\s–-]+мин", text, re.IGNORECASE)
-    if m:
-        return m.group(0).strip().rstrip(".,;:")
-    # «…обновляется ежедневно с 9:00 до 10:30» — стоп после времени
-    m = re.search(r"[^\n]*обновляетс[^\n]*?\d{1,2}:\d{2}(?:\s*до\s*\d{1,2}:\d{2})?",
-                  text, re.IGNORECASE)
-    if m:
-        return m.group(0).strip().rstrip(".,;:")
-    m = re.search(r"[^\n]*обновляетс[^\n]*", text, re.IGNORECASE)
-    return m.group(0).strip().rstrip(".,;:") if m else ""
+    for line in text.splitlines():
+        line = ' '.join(line.split()).strip()
+        if not re.search(r'обновля(?:ется|ются)|актуализиру(?:ется|ются)', line, re.I):
+            continue
+        # Exclude adjacent how-to text; preserve weekdays, times and event-based
+        # schedules verbatim, including «после переклички на совещании».
+        line = re.split(r',\s*(?:названия|название|нажмите|для открытия)\b', line, maxsplit=1, flags=re.I)[0]
+        return line[:350].rstrip('.,;:')
+    return ""
 
 
 def parse_nvos_kpis(text):
@@ -250,7 +258,55 @@ def extract_widgets(text):
     return items[:40]
 
 
-def build_snapshot(extractions):
+def normalize_snapshot(snapshot):
+    """Project any saved snapshot onto the current seven-source contract.
+
+    Used on reads as well as writes: removing a source takes effect immediately,
+    even before the next successful collection. Does not mutate the saved object
+    or advance any source's successful observation date.
+    """
+    from services.water_dashboard.config import SOURCES
+    from services.water_dashboard.details import source_details
+    from services.water_dashboard.metrics import source_metrics
+
+    original = snapshot if isinstance(snapshot, dict) else {}
+    saved_sources = original.get('sources') or {}
+    sources = {}
+    for meta in SOURCES:
+        sid = meta['id']
+        data = deepcopy(saved_sources.get(sid) or {})
+        if data.get('metric_schema') != 1:
+            # Unverified legacy examples and adjacent-page-text numbers are not
+            # eligible for either summaries or rankings.
+            data = {'metric_schema': 1, 'metrics': source_metrics(sid, {}, []), 'ok': False}
+        data.update(meta)
+        if not data.get('refresh_checked_at'):
+            saved_frequency = extract_refresh_info(data.get('text', ''))
+            if saved_frequency:
+                data['refresh'] = saved_frequency
+                data['refresh_checked_at'] = data.get('updated_at', '')
+                data['refresh_available'] = True
+        data['details'] = source_details(sid, data)
+        sources[sid] = data
+    table = build_table(sources)
+    result = {
+        'schema_version': 3, 'metric_schema': 1, 'details_schema': 1,
+        'checked_at': original.get('checked_at', ''),
+        'last_checked_sources': [sid for sid in original.get('last_checked_sources', []) if sid in sources],
+        'last_updated_sources': [sid for sid in original.get('last_updated_sources', []) if sid in sources],
+        'updated_at': max((item.get('updated_at', '') for item in sources.values()), default=''),
+        'snapshot_date': original.get('snapshot_date', '—'),
+        'sources': sources, 'table': table, 'kpis': verified_kpis(sources),
+        'sources_refresh': {sid: item.get('refresh', '') for sid, item in sources.items()},
+        'sources_updated': {sid: bool(item.get('ok')) for sid, item in sources.items()},
+        'kpi_live': {'nvos': parse_nvos_kpis(sources['nvos'].get('text', ''))},
+        'tops': {key: top5(table, key) for key in ('resVS', 'sysVS', 'tasks', 'sysKR', 'resKR')},
+        'bottoms': {key: bottom5(table, key) for key in ('resVS', 'sysVS', 'tasks', 'sysKR', 'resKR')},
+    }
+    return result
+
+
+def build_snapshot(extractions, source_ids=None):
     from services.water_dashboard.config import SOURCES
     from services.water_dashboard.metrics import source_metrics, primary_available
     import os
@@ -261,10 +317,19 @@ def build_snapshot(extractions):
             prev = json.loads(SNAPSHOT_FILE.read_text(encoding='utf-8'))
         except (ValueError, OSError):
             pass
+    known_ids = {source['id'] for source in SOURCES}
+    selected = known_ids if source_ids is None else set(source_ids)
+    if not selected or not selected <= known_ids:
+        raise ValueError('Unknown or empty water dashboard source selection')
     now = datetime.now().isoformat(timespec='seconds')
     sources = {}
     for source in SOURCES:
         sid = source['id']
+        previous = (prev.get('sources') or {}).get(sid, {})
+        if sid not in selected:
+            sources[sid] = deepcopy(previous)
+            sources[sid].update(source)
+            continue
         data = (extractions or {}).get(sid, {})
         tables = data.get('tables') or []
         widgets = data.get('widgets') or []
@@ -282,12 +347,22 @@ def build_snapshot(extractions):
             'text': data.get('text', ''), 'updated_at': now, 'data_date': data.get('data_date'),
             'refresh': extract_refresh_info(data.get('text', '')),
         }
+        if valid and sid == 'edo_rso':
+            sources[sid].update(ranking_tables=data.get('ranking_tables') or [],
+                                ranking_url=data.get('ranking_url', ''),
+                                ranking_error=data.get('ranking_error', ''))
         sources[sid].update(source)
         if sources[sid].get('metric_schema') != 1:
             # Old snapshots used adjacent body text as indicators. Do not
             # present those arbitrary values as verified summary metrics.
             sources[sid]['metrics'] = source_metrics(sid, {}, [])
             sources[sid]['metric_schema'] = 1
+        frequency_text = data.get('refresh_text', data.get('text', ''))
+        frequency = extract_refresh_info(frequency_text)
+        if isinstance(frequency_text, str) and frequency_text.strip() and (frequency or not data.get('error')):
+            sources[sid]['refresh'] = frequency
+            sources[sid]['refresh_checked_at'] = now
+            sources[sid]['refresh_available'] = bool(sources[sid]['refresh'])
         sources[sid].update(checked_at=now, ok=valid,
             error='' if valid else data.get('error') or 'В источнике не найден нужный итоговый показатель. Прежние подтверждённые данные сохранены, если были получены ранее.')
     # Each source retains its own last successful data/time on a partial failure.
@@ -295,14 +370,17 @@ def build_snapshot(extractions):
     snap = {
         'schema_version': 2, 'metric_schema': 1, 'checked_at': now,
         'updated_at': max((d.get('updated_at', '') for d in sources.values()), default=''),
-        'snapshot_date': datetime.now().strftime('%d.%m.%Y') if any(d['ok'] for d in sources.values()) else prev.get('snapshot_date', '—'),
+        'snapshot_date': datetime.now().strftime('%d.%m.%Y') if any(sources[sid].get('ok') for sid in selected) else prev.get('snapshot_date', '—'),
+        'last_checked_sources': [source['id'] for source in SOURCES if source['id'] in selected],
+        'last_updated_sources': [source['id'] for source in SOURCES if source['id'] in selected and sources[source['id']].get('ok')],
         'sources': sources, 'table': table, 'kpis': verified_kpis(sources),
         'sources_refresh': {sid:d.get('refresh','') for sid,d in sources.items()},
-        'sources_updated': {sid:d['ok'] for sid,d in sources.items()},
+        'sources_updated': {sid:bool(d.get('ok')) for sid,d in sources.items()},
         'kpi_live': {'nvos': parse_nvos_kpis(sources['nvos'].get('text',''))},
         'tops': {k: top5(table, k) for k in ('resVS','sysVS','tasks','sysKR','resKR')},
         'bottoms': {k: bottom5(table, k) for k in ('resVS','sysVS','tasks','sysKR','resKR')},
     }
+    snap = normalize_snapshot(snap)
     SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=SNAPSHOT_FILE.parent, suffix='.tmp')
     try:

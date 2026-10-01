@@ -199,7 +199,41 @@ def stab_wait_after_date(page, max_rounds=15):
     print("[nvos-stab] пересчёт стабилен", flush=True)
 
 
-def scrape_all():
+def _read_edo_rankings(page, source_url):
+    """Read the full organisation table separately from overview KPI widgets.
+
+    The overview's eight-row ECP table is a filtered list of lagging entries,
+    so it cannot provide a ranking of the best organisations.
+    """
+    from services.water_dashboard.details import is_edo_ranking_table
+    table_url = urlsplit(source_url)._replace(query='tab=EL', fragment='').geturl()
+    print('STAGE: ЭДО — полная таблица РСО', flush=True)
+    try:
+        page.goto(table_url, wait_until='domcontentloaded', timeout=90000)
+        _wait_for_content(page)
+        tables = page.evaluate(TABLES_JS)
+        for frame in page.frames[1:]:
+            try:
+                tables.extend(frame.evaluate(TABLES_JS))
+            except Exception:
+                pass
+        tables = [table for table in tables if is_edo_ranking_table(table)]
+        if not tables or not any(table.get('rows') for table in tables):
+            raise SourceReadError('source_error')
+        return {'ranking_tables': tables, 'ranking_url': table_url, 'ranking_error': ''}
+    except Exception as exc:
+        # The successfully read overview remains valid. Do not turn its ECP
+        # laggards into a fabricated "best" ranking when this tab fails.
+        print(f'[warn] edo_rso rankings: {exc}', flush=True)
+        return {'ranking_tables': [], 'ranking_url': table_url,
+                'ranking_error': 'Полная таблица РСО не получена. ' + MESSAGES[error_code(exc)]}
+
+
+def scrape_all(source_ids=None):
+    selected = {source['id'] for source in SOURCES} if source_ids is None else set(source_ids)
+    known = {source['id'] for source in SOURCES}
+    if not selected or not selected <= known:
+        raise ValueError('Unknown or empty water dashboard source selection')
     DEBUG_DIR.mkdir(parents=True, exist_ok=True)
     PLAYWRIGHT_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -225,9 +259,12 @@ def scrape_all():
 
             for src in SOURCES:
                 sid = src["id"]
+                if sid not in selected:
+                    continue
                 print(f"STAGE: {src['name']}", flush=True)
                 browser_errors.clear()
                 response = None
+                text = ""
                 try:
                     response = page.goto(src["url"], wait_until="domcontentloaded", timeout=90000)
 
@@ -257,6 +294,8 @@ def scrape_all():
                         raise SourceReadError("captcha")
 
                     extractions[sid] = {"tables": tables, "widgets": widgets, "text": text, "data_date": data_date}
+                    if sid == "edo_rso":
+                        extractions[sid].update(_read_edo_rankings(page, src["url"]))
 
                     with open(DEBUG_DIR / f"{sid}.json", "w", encoding="utf-8") as f:
                         json.dump({"url": src["url"], **extractions[sid]},
@@ -269,7 +308,17 @@ def scrape_all():
                     if any(item.get('resource') == 'script' and item.get('host') == 'yastatic.net'
                            for item in browser_errors):
                         code = 'assets'
-                    extractions[sid] = {"tables": [], "widgets": [], "text": "", "error": MESSAGES[code]}
+                    # Frequency notes can remain readable when chart queries
+                    # fail. Read them from this source only, never the previous
+                    # tab after a failed navigation. They are not metric data.
+                    refresh_text = text
+                    if response is not None and not refresh_text:
+                        try:
+                            refresh_text = page.evaluate("() => document.body.innerText")
+                        except Exception:
+                            refresh_text = ""
+                    extractions[sid] = {"tables": [], "widgets": [], "text": "", "error": MESSAGES[code],
+                                        "refresh_text": refresh_text if isinstance(refresh_text, str) else ""}
                 finally:
                     _save_browser_diagnostics(page, sid, response, browser_errors)
 

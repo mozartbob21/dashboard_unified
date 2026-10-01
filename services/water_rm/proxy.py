@@ -107,9 +107,23 @@ async def get_history():
 @router.post("/history")
 async def save_history(request: Request):
     """Перезаписывает результат последней проверки."""
-    body = await request.body()
-    HISTORY_FILE.write_bytes(body)
-    return {"ok": True}
+    # Validate a bounded JSON result; timestamps and the whitelist are server-owned.
+    from services.aichat.remaining_sources import save_water_check
+    limit = 4 * 1024 * 1024
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            raise HTTPException(status_code=413, detail="Результат проверки слишком большой")
+        chunks.append(chunk)
+    try:
+        payload = json.loads(b"".join(chunks))
+        result = save_water_check(payload, data_dir=DATA_DIR.parent)
+    except (ValueError, TypeError, UnicodeDecodeError):
+        raise HTTPException(status_code=422, detail="Некорректный результат проверки задач")
+    except OSError:
+        raise HTTPException(status_code=503, detail="Не удалось сохранить результат проверки")
+    return {"ok": True, "collected_at": result["collected_at"]}
 
 @router.get("/yadisk")
 async def yadisk_download(public_key: str = ""):

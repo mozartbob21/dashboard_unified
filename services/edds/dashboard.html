@@ -2,24 +2,7 @@
 <html lang="ru" data-owner="__NEURONA_EDDS_OWNER__">
 <head>
 <meta charset="utf-8">
-<script>
-(function(){
-  var mode=localStorage.getItem('neurona-theme-mode')||'auto-moscow';
-  var active=mode;
-  if(mode==='auto-moscow'){
-    var now=new Date(),start=new Date(now.getFullYear(),0,0);
-    var day=Math.floor((now-start)/86400000);
-    var decl=.409*Math.sin(2*Math.PI*(day-80)/365),lat=55.7558*Math.PI/180;
-    var cosH=(Math.sin(-.83*Math.PI/180)-Math.sin(lat)*Math.sin(decl))/(Math.cos(lat)*Math.cos(decl));
-    var H=cosH>=1?0:cosH<=-1?Math.PI:Math.acos(cosH);
-    var sunrise=(12-H*12/Math.PI-37.6173/15+3+24)%24;
-    var sunset=(12+H*12/Math.PI-37.6173/15+3+24)%24;
-    var hour=now.getHours()+now.getMinutes()/60;
-    active=hour>=sunrise&&hour<sunset?'light':'dark';
-  }
-  document.documentElement.setAttribute('data-theme',active);
-})();
-</script>
+<script src="/static/appearance-menu.js?v=20261001"></script>
 <!-- Кодировку объявляем сами: файл открывают и с диска, и изнутри АРМ ЕДДС.
      Если сервер отдаст страницу без charset, браузер уйдёт в windows-1251,
      и сломается не только вид — перестанут совпадать разборы по русским
@@ -583,9 +566,14 @@ td.c,th.c{text-align:center}
    и на лист «Пояснения» в выгрузке */
 @media (prefers-reduced-motion: reduce){*{transition:none !important}}
 </style>
-<link rel="stylesheet" href="/static/module-shell.css?v=20260916-2">
+<link rel="stylesheet" href="/static/module-shell.css?v=20261001-appearance">
+<link rel="stylesheet" href="/static/appearance-menu.css?v=20261001">
+<style>
+.edds-page { --text:var(--ink); --muted:var(--ink-3); --border:var(--line); --border-strong:var(--line); --card:var(--surface); --card-strong:var(--surface); --bg-soft:var(--surface-2); --primary:var(--accent); --primary-2:var(--accent-ink); --info-soft:var(--accent-soft); --violet-soft:var(--accent-soft); }
+html[data-glass="on"] .edds-page .card { background:color-mix(in srgb,var(--surface) 80%,transparent); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); }
+</style>
 </head>
-<body class="unified-module-page">
+<body class="unified-module-page edds-page">
 <header class="unified-shell-topbar shell-generated">
   <a class="system-shell-brand" href="/">
     <img class="brand-logo" src="/static/logo.svg" alt="Нейрона ИИ">

@@ -37,12 +37,6 @@ def _count(value):
     return number if isinstance(number, int) else None
 
 
-def _single_count(value):
-    if isinstance(value, str) and len(value.strip().splitlines()) != 1:
-        return None
-    return _count(value)
-
-
 def _percent(value, bounded=False):
     number = _number(value)
     return None if bounded and number is not None and number > 100 else number
@@ -124,11 +118,6 @@ def source_metrics(sid, data, table):
             _metric('correct_address', 'Внесено с корректным адресом', addressed, 'шт.'),
             _metric('completion_pct', 'Внесено к плану', _ratio(inserted, plan), '%'),
         ]
-    if sid == 'flush':
-        # Accept only this verified indicator if/when the dataset recovers.
-        # Chart series, percentages and document/control-row counts are not it.
-        completed = _widget(data, ['Кол-во выполненных промывок от общего кол-ва'], parse=_single_count)
-        return [_metric('completed', 'Выполнено промывок', completed, 'шт.')]
     if sid == 'edo_rso':
         return [
             _metric('signers_ecp_pct', 'Подписанты с ЭЦП', _widget(data,

@@ -55,8 +55,11 @@ def arm_report(from_date: date, to_date: date, coordinates: bool = False):
     # A sync route runs blocking portal requests in FastAPI's worker thread pool.
     from fastapi.responses import JSONResponse
     try:
-        return JSONResponse({'grid': arm.fetch_report(from_date, to_date, coordinates)},
-                            headers={'Cache-Control': 'no-store'})
+        grid = arm.fetch_report(from_date, to_date, coordinates)
+        if not coordinates:
+            from services.edds.report_snapshot import persist
+            persist(grid, from_date, to_date)
+        return JSONResponse({'grid': grid}, headers={'Cache-Control': 'no-store'})
     except arm.ArmError as error:
         payload = {'detail': str(error)}
         if error.code:

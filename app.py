@@ -1321,7 +1321,8 @@ async def water_dashboard_page(request: Request):
     token = request.cookies.get("access_token")
     user = get_user_from_token(token) or {}
 
-    snap = load_json_file(BASE_DIR / "data" / "water_dashboard" / "snapshot.json", default={}) or {}
+    from services.water_dashboard.builder import normalize_snapshot
+    snap = normalize_snapshot(load_json_file(BASE_DIR / "data" / "water_dashboard" / "snapshot.json", default={}))
 
     return templates.TemplateResponse(
         request,
@@ -1332,7 +1333,7 @@ async def water_dashboard_page(request: Request):
             "user_role": user.get("role", ""),
             "user_username": user.get("username", ""),
             "snapshot_date": snap.get("snapshot_date", "—"),
-            "snapshot": snap if snap.get("schema_version") == 2 else {},
+            "snapshot": snap,
         },
     )
 @app.get("/utnkr", response_class=HTMLResponse)
@@ -2962,16 +2963,20 @@ async def ecur_data_js():
 _water_refresh_lock = threading.Lock()
 
 
-def start_water_refresh():
+def start_water_refresh(source_key: str | None = None):
     # Reserve before starting the thread: simultaneous page visits share one run.
     with _water_refresh_lock:
         if run_status['water_dashboard']['running']:
             return {'ok': True, 'running': True}
         run_status['water_dashboard']['running'] = True
         run_status['water_dashboard']['stage'] = 'Запуск сбора'
+        run_status['water_dashboard']['source_key'] = source_key
+        command = [sys.executable, '-m', 'services.water_dashboard.runner']
+        if source_key:
+            command.extend(['--source', source_key])
         try:
             threading.Thread(target=run_subprocess_worker,
-                args=('water_dashboard', [sys.executable, '-m', 'services.water_dashboard.runner'], BASE_DIR),
+                args=('water_dashboard', command, BASE_DIR),
                 daemon=True).start()
         except Exception:
             run_status['water_dashboard']['running'] = False
@@ -2986,13 +2991,17 @@ async def water_dashboard_run_check():
 
 @app.post("/water-dashboard/refresh-source/{source_key}")
 async def refresh_single_source(source_key: str):
-    return start_water_refresh()
+    from services.water_dashboard.config import SOURCES
+    if source_key not in {source['id'] for source in SOURCES}:
+        raise HTTPException(status_code=404, detail="Источник не найден")
+    return start_water_refresh(source_key)
 
 
 @app.get("/water-dashboard/snapshot")
 async def water_dashboard_snapshot():
-    snap = load_json_file(BASE_DIR / "data/water_dashboard/snapshot.json", default={}) or {}
-    return JSONResponse(snap if snap.get('schema_version') == 2 else {}, headers={'Cache-Control': 'no-store'})
+    from services.water_dashboard.builder import normalize_snapshot
+    snap = normalize_snapshot(load_json_file(BASE_DIR / "data/water_dashboard/snapshot.json", default={}))
+    return JSONResponse(snap, headers={'Cache-Control': 'no-store'})
 
 @app.get("/water-dashboard/run-status")
 async def water_dashboard_run_status():
@@ -3032,17 +3041,18 @@ async def aichat_del(did: str):
     return {"ok": aichat_store.delete_dialog(did)}
 
 
-def build_platform_context(question: str, allowed_modules=None) -> str:
-    """Детализированный контекст: муниципалитет / организация / объект / нарушение."""
-    _TRIG = ["эдо", "камер", "просроч", "критич", "вод", "утнкр", "технадзор", "сводк",
-             "жалоб", "доброд", "авари", "срок", "округ", "мкд", "мгх", "redmine",
-             "наруш", "детал", "объект", "какой", "что находится", "что конкретно"]
-    q = (question or "").lower()
-    if not any(t in q for t in _TRIG):
-        return ""
-    from services.platform_details import build_detailed_context
-    return build_detailed_context(question, allowed_modules=allowed_modules)
+def build_platform_context(question: str, allowed_modules=None, selection=None, previous=None):
+    """Current local reporting data, constrained by the caller's module grants."""
+    from services.aichat.report_context import prepare
+    return prepare(question, allowed_modules, requested=selection, previous=previous)
 
+
+@app.get("/aichat/api/report-options")
+async def aichat_report_options(request: Request):
+    from core.roles import effective_modules
+    from services.aichat.report_context import catalog
+    return JSONResponse(await asyncio.to_thread(catalog, effective_modules(request.state.user)),
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.post("/aichat/api/send")
@@ -3064,8 +3074,8 @@ async def aichat_send(request: Request):
             if len(ftext) > 60000:
                 ftext = ftext[:60000] + "\n…[файл обрезан — показаны первые 60 000 символов]"
             file_parts.append(f"── ФАЙЛ: {name} ──\n{ftext}")
-        except Exception as e:
-            file_parts.append(f"── ФАЙЛ: {name} ──\n[не удалось извлечь текст: {e}]")
+        except Exception:
+            file_parts.append(f"── ФАЙЛ: {name} ──\n[не удалось извлечь текст файла]")
 
     if not text and not file_parts:
         return {"error": "пустое сообщение"}
@@ -3075,30 +3085,50 @@ async def aichat_send(request: Request):
         d = aichat_store.create_dialog((text or ("Файл: " + ", ".join(names)))[:60])
         did = d["id"]
 
+    # A request for a report is sufficient to use the caller's accessible data.
+    # Normal chat and file-only analysis do not read platform results.
+    from core.roles import effective_modules
+    from services.aichat.report_context import wants_context, to_prompt
+    allowed = effective_modules(request.state.user)
+    last_user = next((m for m in reversed(d.get("messages") or []) if m.get("role") == "user"), {})
+    previous = last_user.get("report_scope") or {}
+    explicit = str(form.get("include_context") or "")
+    use_context = await asyncio.to_thread(wants_context, text, allowed, previous,
+                                          has_files=bool(file_parts), explicit=explicit)
+    report = None
+    ctx = ""
+    if use_context:
+        # Kept for older API callers; the chat UI only sends normal text.
+        selection = {key: str(form.get("context_" + key) or "")[:240]
+                     for key in ("module", "source", "municipality")}
+        report = await asyncio.to_thread(build_platform_context, text, allowed, selection, previous)
+        ctx = to_prompt(report)
+
     aichat_store.append_message(
-        did, "user",
-        text or ("Приложенные файлы: " + ", ".join(names)),
-        file_name=", ".join(names) or None)
+        did, "user", text or ("Приложенные файлы: " + ", ".join(names)),
+        file_name=", ".join(names) or None,
+        report_scope=report.get("selection") if report and not report.get("clarification") else None)
 
     full_user = "\n".join(([text] if text else []) + file_parts)
-    # Shared history is intentional; platform data require an explicit selection.
-    ctx = ""
-    if form.get("include_context") == "true":
-        from core.roles import effective_modules
-        ctx = build_platform_context(text, effective_modules(request.state.user))
-        if ctx:
-            full_user += "\n\n" + ctx
     history = (d.get("messages") or []) + [{"role": "user", "content": full_user}]
     try:
-        answer = aichat_ask(history)
-    except Exception as e:
-        if ctx:
-            answer = ("⚠️ Нейросеть сейчас недоступна (" + str(e) + ").\n"
-                      "Отвечаю по свежим данным платформы:\n" + ctx)
+        if report and report.get("clarification"):
+            answer = report["clarification"]
         else:
-            answer = f"⚠️ Нейрона ИИ временно недоступна ({e}). Проверь подключение и попробуй ещё раз."
+            answer = await asyncio.to_thread(aichat_ask, history, platform_context=ctx)
+    except Exception:
+        if report:
+            from services.aichat.report_context import fallback
+            answer = fallback(report)
+        else:
+            answer = "⚠️ Нейрона ИИ временно недоступна. Проверьте подключение к настроенному ИИ-сервису и попробуйте ещё раз."
     aichat_store.append_message(did, "assistant", answer)
-    return {"dialog_id": did, "answer": answer}
+    result = {"dialog_id": did, "answer": answer}
+    if report:
+        result["report_scope"] = report["selection"]
+        result["report_sources"] = [{key: source.get(key) for key in ("id", "title", "status", "collected_at", "data_date")}
+                                    for source in report["sources"]]
+    return result
 
 @app.get("/aichat/api/prompts")
 async def aichat_prompts():

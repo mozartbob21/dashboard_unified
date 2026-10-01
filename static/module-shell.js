@@ -25,6 +25,7 @@
   if(brandTitle) brandTitle.textContent='Нейрона ИИ';
   let actions=topbar.querySelector('.top-actions,.topbar-right,.actions,.nav,.system-shell-actions');
   if(!actions){actions=document.createElement('div');actions.className='system-shell-actions';topbar.appendChild(actions)}
+  window.NeuronaAppearance?.mount(actions);
   const internal=[...topbar.querySelectorAll('a[href]')].filter(link=>!link.closest('.brand,.system-shell-brand'));
   let back=internal.find(link=>{
     const href=link.getAttribute('href')||'',text=(link.textContent||'').toLowerCase();
@@ -34,6 +35,6 @@
   if((back.getAttribute('href')||'')==='/') back.textContent='← К модулям';
   back.classList.add('shell-control','system-back-button');
   topbar.querySelectorAll(':scope > a,:scope > button').forEach(control=>control.classList.add('shell-control'));
-  actions.querySelectorAll(':scope > a,:scope > button,:scope > .theme-dropdown > button').forEach(control=>control.classList.add('shell-control'));
+  actions.querySelectorAll(':scope > a,:scope > button').forEach(control=>control.classList.add('shell-control'));
   topbar.dataset.shellReady='true';
 })();

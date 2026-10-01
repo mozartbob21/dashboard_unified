@@ -136,38 +136,11 @@ def test_nvos_accepts_explicit_parsed_fields_without_global_text_guessing():
     assert result['nvv_total'] == 20000000000
 
 
-def test_flush_ignores_unverified_indicators_and_control_row_counts():
-    data = {'widgets': [widget('Всего строк', '123'), widget('Выполнено промывок', '99')],
-            'tables': [{'headers': ['ОМСУ', 'Sys'], 'rows': [['Первый', 1]]}]}
-    metrics = source_metrics('flush', data, [])
-    assert metrics == [{'id': 'completed', 'label': 'Выполнено промывок', 'value': None, 'unit': 'шт.'}]
-    assert not primary_available(metrics)
+def test_removed_flush_source_has_no_metrics():
+    assert source_metrics('flush', {'widgets': [widget('Кол-во выполненных промывок от общего кол-ва', '1250')]}, []) == []
 
 
-def test_flush_recovers_when_verified_numeric_indicator_becomes_available():
-    data = {'widgets': [widget('Кол-во выполненных промывок от общего кол-ва', '1\u00a0250')]}
-    metrics = source_metrics('flush', data, [])
-    assert metrics[0]['value'] == 1250 and primary_available(metrics)
-
-
-def test_flush_percentage_or_chart_series_is_not_a_completed_count():
-    for value in ('65%', '65 %', '1250\n2000', [1250, 2000]):
-        metrics = source_metrics('flush', {'widgets': [
-            widget('Кол-во выполненных промывок от общего кол-ва', value),
-        ]}, [])
-        assert metrics[0]['value'] is None and not primary_available(metrics)
-
-
-def test_flush_conflicting_indicator_values_do_not_supply_primary():
-    data = {'widgets': [
-        widget('Кол-во выполненных промывок от общего кол-ва', '1250'),
-        widget('Кол-во выполненных промывок от общего кол-ва', '2000'),
-    ]}
-    metrics = source_metrics('flush', data, [])
-    assert metrics[0]['value'] is None and not primary_available(metrics)
-
-
-@pytest.mark.parametrize('sid', ['valves', 'flush', 'tasks', 'sys_vs', 'edo_rso', 'nvos', 'meetings', 'sys_kr'])
+@pytest.mark.parametrize('sid', ['valves', 'tasks', 'sys_vs', 'edo_rso', 'nvos', 'meetings', 'sys_kr'])
 def test_arbitrary_table_widgets_never_supply_main_metric(sid):
     data = {'widgets': [widget('Первый округ', '5000000'), widget('Население', '1000')],
             'text': 'Собираемость\n50\nВнесено\n123'}

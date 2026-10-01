@@ -160,8 +160,12 @@ def fetch_report(s: requests.Session):
             return None, "Портал вернул не-JSON."
 
         if isinstance(batch, dict):
-            batch = (batch.get("rows") or batch.get("content")
-                     or batch.get("data") or batch.get("items") or [])
+            if batch.get("error") or batch.get("success") is False:
+                return None, "Портал сообщил об ошибке выгрузки; прежние данные сохранены."
+            batch = next((batch[key] for key in ("rows", "content", "data", "items")
+                          if isinstance(batch.get(key), list)), None)
+        if not isinstance(batch, list) or any(not isinstance(item, dict) for item in batch):
+            return None, "Портал вернул неподдерживаемый формат отчёта; прежние данные сохранены."
 
         if not batch:
             break
@@ -171,9 +175,6 @@ def fetch_report(s: requests.Session):
         if len(batch) < PAGE_SIZE:
             break
         idx += 1
-
-    if not all_recs:
-        return None, "Портал вернул 0 записей под выбранный фильтр."
 
     # РОВНО 11 ЭЛЕМЕНТОВ В СТРОКЕ
     rows = [HEADER]
@@ -222,6 +223,10 @@ def authenticate_user(email: str, password: str):
         STATE["rows"] = rows
         STATE["meta"] = meta
 
+    # Persist only safe aggregates, never STATE, credentials or complaint text.
+    from services.aichat.remaining_sources import persist_ecur_snapshot
+    persist_ecur_snapshot(rows, meta)
+
     return True, len(rows) - 1
 
 
@@ -259,6 +264,10 @@ def refresh_data():
         STATE["rows"] = rows
         STATE["meta"] = meta
 
+    # Persist only safe aggregates, never STATE, credentials or complaint text.
+    from services.aichat.remaining_sources import persist_ecur_snapshot
+    persist_ecur_snapshot(rows, meta)
+
     return True, len(rows) - 1
 
 
@@ -279,4 +288,3 @@ def clear_session():
         STATE["password"] = None
         STATE["rows"] = None
         STATE["meta"] = None
-        

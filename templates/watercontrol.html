@@ -2,34 +2,7 @@
 {% block title %}Нейрона ИИ — Повышение качества водоснабжения{% endblock %}
 {% block body_class %}compact-module-page{% endblock %}
 {% block head %}
-<script>
-        (function() {
-            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            let activeTheme = savedThemeMode;
-            if (savedThemeMode === "auto-moscow") {
-                const MOSCOW_LAT = 55.7558;
-                const MOSCOW_LON = 37.6173;
-                const MOSCOW_TZ = 3;
-                const now = new Date();
-                const start = new Date(now.getFullYear(), 0, 0);
-                const diff = now - start;
-                const oneDay = 1000 * 60 * 60 * 24;
-                const dayOfYear = Math.floor(diff / oneDay);
-                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
-                const latRad = MOSCOW_LAT * Math.PI / 180;
-                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
-                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
-                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
-                const currentHour = now.getHours() + now.getMinutes() / 60;
-                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
-            }
-            document.documentElement.setAttribute("data-theme", activeTheme);
-            document.documentElement.dataset.theme = activeTheme;
-        })();
-    </script>
+
 
 
 
@@ -784,124 +757,9 @@ html[data-theme="dark"] button[data-copy-btn] {
             }
         });
     </script>
-    <script>
-    (function () {
-        const root = document.documentElement;
-        const MOSCOW_LAT = 55.7558;
-        const MOSCOW_LON = 37.6173;
-        const MOSCOW_TZ = 3;
 
-        function isDaytimeInMoscow() {
-            const now = new Date();
-            const start = new Date(now.getFullYear(), 0, 0);
-            const diff = now - start;
-            const oneDay = 1000 * 60 * 60 * 24;
-            const dayOfYear = Math.floor(diff / oneDay);
-            const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
-            const latRad = MOSCOW_LAT * Math.PI / 180;
-            const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
-            let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-            const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-            const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-            const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
-            const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
-            const currentHour = now.getHours() + now.getMinutes() / 60;
-            return currentHour >= sunriseLocal && currentHour < sunsetLocal;
-        }
 
-        function applyTheme(themeMode) {
-            let activeTheme = themeMode;
-            if (themeMode === "auto-moscow") {
-                activeTheme = isDaytimeInMoscow() ? "light" : "dark";
-            }
-            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
-            root.dataset.theme = activeTheme;
 
-            const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
-            if (!toggle) return;
-            const icon = toggle.querySelector(".theme-toggle-icon");
-            const text = toggle.querySelector(".theme-toggle-text");
-
-            if (themeMode === "dark") {
-                if (icon) icon.textContent = "🌙";
-                if (text) text.textContent = "Тёмная тема";
-            } else if (themeMode === "light") {
-                if (icon) icon.textContent = "☀️";
-                if (text) text.textContent = "Светлая тема";
-            } else if (themeMode === "kreml") {
-                if (icon) icon.textContent = "🏛️";
-                if (text) text.textContent = "Московская";
-            } else {
-                const currentStatusIcon = isDaytimeInMoscow() ? "🛰️☀️" : "🛰️🌙";
-                if (icon) icon.textContent = currentStatusIcon;
-                if (text) text.textContent = "Подмосковное солнце";
-            }
-        }
-
-        const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-        applyTheme(savedThemeMode);
-
-        const toggle = document.getElementById("themeToggle") || document.getElementById("themeToggleBtn");
-        if (toggle) {
-            // Удаляем старый обработчик, если он был задан атрибутом
-            toggle.onclick = null;
-            toggle.addEventListener("click", function () {
-                const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-                let nextMode;
-                if (currentMode === "auto-moscow") {
-                    nextMode = "light";
-                } else if (currentMode === "light") {
-                    nextMode = "dark";
-                } else if (currentMode === "dark") {
-                        nextMode = "kreml";
-                    } else {
-                    nextMode = "auto-moscow";
-                }
-                localStorage.setItem("neurona-theme-mode", nextMode);
-                applyTheme(nextMode);
-            });
-        }
-
-        setInterval(() => {
-            const currentMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            if (currentMode === "auto-moscow") {
-                applyTheme("auto-moscow");
-            }
-        }, 60000);
-    })();
-    </script>
-
-<script>
-(function(){
-    function make(){
-        var host = document.querySelector(".top-actions") || document.querySelector(".topbar");
-        if (!host) { setTimeout(make, 300); return; }
-        if (document.getElementById("glassToggle")) return;
-        var b = document.createElement("button");
-        b.id = "glassToggle";
-        b.type = "button";
-        var anchor = host.querySelector(".theme-dropdown, .theme-toggle, .theme-toggle-btn");
-        if (anchor) { anchor.parentNode.insertBefore(b, anchor); } else { host.appendChild(b); }
-        function paint(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            var SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c4.2 5.6 7 9.3 7 13a7 7 0 1 1-14 0c0-3.7 2.8-7.4 7-13z"/></svg>';
-            var SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3c3.7 5 6.3 8.4 6.3 11.8a6.3 6.3 0 1 1-12.6 0C5.7 11.4 8.3 8 12 3z"/></svg>';
-            b.innerHTML = on ? SVG_ON : SVG_OFF;
-            b.classList.toggle("on", on);
-            b.title = on ? "Жидкое стекло: вкл" : "Жидкое стекло: выкл";
-        }
-        b.addEventListener("click", function(){
-            var on = document.documentElement.getAttribute("data-glass") === "on";
-            document.documentElement.setAttribute("data-glass", on ? "off" : "on");
-            localStorage.setItem("neurona-glass", on ? "off" : "on");
-            paint();
-        });
-        paint();
-    }
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", make);
-    else make();
-})();
-</script>
 
 
 <script>

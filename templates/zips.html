@@ -2,34 +2,7 @@
 {% block title %}Остатки ЗиП РСО — Дашборд{% endblock %}
 {% block body_class %}{% endblock %}
 {% block head %}
-<script>
-        (function() {
-            const savedThemeMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            let activeTheme = savedThemeMode;
-            if (savedThemeMode === "auto-moscow") {
-                const MOSCOW_LAT = 55.7558;
-                const MOSCOW_LON = 37.6173;
-                const MOSCOW_TZ = 3;
-                const now = new Date();
-                const start = new Date(now.getFullYear(), 0, 0);
-                const diff = now - start;
-                const oneDay = 1000 * 60 * 60 * 24;
-                const dayOfYear = Math.floor(diff / oneDay);
-                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
-                const latRad = MOSCOW_LAT * Math.PI / 180;
-                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
-                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-                const sunriseGMT = 12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunsetGMT = 12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15);
-                const sunriseLocal = (sunriseGMT + MOSCOW_TZ + 24) % 24;
-                const sunsetLocal = (sunsetGMT + MOSCOW_TZ + 24) % 24;
-                const currentHour = now.getHours() + now.getMinutes() / 60;
-                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
-            }
-            document.documentElement.setAttribute("data-theme", activeTheme);
-            document.documentElement.dataset.theme = activeTheme;
-        })();
-    </script>
+
 
 
 
@@ -936,87 +909,7 @@
 </div>
 
 <!-- ===== СКРИПТЫ ===== -->
-<script>
-    (function() {
-        const root = document.documentElement;
-        const themeToggle = document.getElementById("themeToggle");
-        const menu = document.getElementById("themeMenu");
 
-        function applyTheme(themeMode) {
-            let activeTheme = themeMode;
-            if (themeMode === "auto-moscow") {
-                const MOSCOW_LAT = 55.7558;
-                const MOSCOW_LON = 37.6173;
-                const MOSCOW_TZ = 3;
-                const now = new Date();
-                const start = new Date(now.getFullYear(), 0, 0);
-                const diff = now - start;
-                const oneDay = 1000 * 60 * 60 * 24;
-                const dayOfYear = Math.floor(diff / oneDay);
-                const decl = 0.409 * Math.sin(2 * Math.PI * (dayOfYear - 80) / 365);
-                const latRad = MOSCOW_LAT * Math.PI / 180;
-                const cosH = (Math.sin(-0.83 * Math.PI / 180) - Math.sin(latRad) * Math.sin(decl)) / (Math.cos(latRad) * Math.cos(decl));
-                let H = cosH >= 1 ? 0 : cosH <= -1 ? Math.PI : Math.acos(cosH);
-                const sunriseLocal = ((12 - (H * 12 / Math.PI) - (MOSCOW_LON / 15)) + MOSCOW_TZ + 24) % 24;
-                const sunsetLocal = ((12 + (H * 12 / Math.PI) - (MOSCOW_LON / 15)) + MOSCOW_TZ + 24) % 24;
-                const currentHour = now.getHours() + now.getMinutes() / 60;
-                activeTheme = (currentHour >= sunriseLocal && currentHour < sunsetLocal) ? "light" : "dark";
-            }
-            if (root.getAttribute("data-theme") !== activeTheme) root.setAttribute("data-theme", activeTheme);
-            root.dataset.theme = activeTheme;
-            if (themeToggle) {
-                const icon = themeToggle.querySelector(".theme-toggle-icon");
-                const text = themeToggle.querySelector(".theme-toggle-text");
-                if (themeMode === "dark") { if (icon) icon.textContent = "🌙"; if (text) text.textContent = "Тёмная"; }
-                else if (themeMode === "light") { if (icon) icon.textContent = "☀️"; if (text) text.textContent = "Светлая"; }
-                else if (themeMode === "kreml") { if (icon) icon.textContent = "🏛️"; if (text) text.textContent = "Московская"; }
-                else { if (icon) icon.textContent = "🛰️"; if (text) text.textContent = "Подмосковное солнце"; }
-            }
-            if (menu) {
-                menu.querySelectorAll(".theme-menu-item").forEach(function(btn) {
-                    btn.classList.toggle("active", btn.dataset.themeMode === themeMode);
-                    btn.setAttribute("aria-checked", btn.dataset.themeMode === themeMode ? "true" : "false");
-                });
-            }
-        }
-
-        const savedMode = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-        applyTheme(savedMode);
-
-        if (themeToggle && menu) {
-            themeToggle.addEventListener("click", function(e) {
-                e.stopPropagation();
-                menu.hidden = !menu.hidden;
-                themeToggle.setAttribute("aria-expanded", !menu.hidden);
-            });
-            menu.querySelectorAll(".theme-menu-item").forEach(function(btn) {
-                btn.addEventListener("click", function(e) {
-                    e.stopPropagation();
-                    const mode = btn.dataset.themeMode;
-                    if (mode) {
-                        localStorage.setItem("neurona-theme-mode", mode);
-                        applyTheme(mode);
-                        menu.hidden = true;
-                        themeToggle.setAttribute("aria-expanded", "false");
-                    }
-                });
-            });
-            document.addEventListener("click", function(e) {
-                if (!e.target.closest(".theme-dropdown")) {
-                    menu.hidden = true;
-                    themeToggle.setAttribute("aria-expanded", "false");
-                }
-            });
-        }
-
-        setInterval(function() {
-            const cur = localStorage.getItem("neurona-theme-mode") || "auto-moscow";
-            if (cur === "auto-moscow") {
-                applyTheme("auto-moscow");
-            }
-        }, 60000);
-    })();
-</script>
 
 <!-- ===== СКРИПТ ДАШБОРДА ===== -->
 <script>
