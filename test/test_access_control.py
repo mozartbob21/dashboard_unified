@@ -502,6 +502,40 @@ class AccessControlTests(unittest.TestCase):
                 thread.assert_called_once()
                 thread.return_value.start.assert_called_once()
 
+    def test_water_worker_keeps_useful_safe_error_in_status_and_history(self):
+        import io
+        from unittest.mock import Mock
+        from services.water_dashboard.diagnostics import MESSAGES
+        process = Mock(stdout=io.StringIO('STAGE: Сбор данных\nraw private trace\nWATER_DASHBOARD_ERROR:browser_missing\n'))
+        process.wait.return_value = 1
+        with patch.dict(self.module.run_status, {'water_dashboard': {}}), \
+             patch.object(self.module.subprocess, 'Popen', return_value=process), \
+             patch.object(self.module, 'save_run_time'):
+            self.module.run_subprocess_worker('water_dashboard', ['python', '-m', 'services.water_dashboard.runner'], self.module.BASE_DIR)
+            state = self.module.run_status['water_dashboard']
+            self.assertFalse(state['running'])
+            self.assertEqual(state['last_error'], MESSAGES['browser_missing'])
+            self.assertNotIn('private', json.dumps(state))
+            self.assertTrue(state['finished_at'])
+            with self.db.get_db_connection() as conn:
+                event = conn.execute("SELECT status, error_message FROM run_history WHERE module_id='water_dashboard' ORDER BY id DESC LIMIT 1").fetchone()
+            self.assertEqual(event['status'], 'error')
+            self.assertEqual(event['error_message'], MESSAGES['browser_missing'])
+
+    def test_successful_water_worker_clears_previous_failure(self):
+        import io
+        from unittest.mock import Mock
+        process = Mock(stdout=io.StringIO('STAGE: Сохранение\nГотово: ОМСУ в таблице=1\n'))
+        process.wait.return_value = 0
+        with patch.dict(self.module.run_status, {'water_dashboard': {'last_error': 'Старый сбой'}}), \
+             patch.object(self.module.subprocess, 'Popen', return_value=process), \
+             patch.object(self.module, 'save_run_time'):
+            self.module.run_subprocess_worker('water_dashboard', ['python'], self.module.BASE_DIR)
+            state = self.module.run_status['water_dashboard']
+            self.assertEqual(state['last_error'], '')
+            self.assertEqual(state['stage'], 'Готово')
+            self.assertFalse(state['running'])
+
 
 if __name__ == '__main__':
     unittest.main()

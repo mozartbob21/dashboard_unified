@@ -35,20 +35,21 @@ def build_table(extractions):
     for src_id, data in (extractions or {}).items():
         for t in data.get("tables", []):
             headers = [str(h).strip().lower() for h in t.get("headers", [])]
-            if not headers or not ("омсу" in headers[0] or "муниципал" in headers[0]):
-                continue
-
             def col(*keys):
                 for i, h in enumerate(headers):
                     if any(k in h for k in keys):
                         return i
                 return None
 
+            name_index = col("омсу", "муниципал")
+            if name_index is None:
+                continue
+
             idx = {
                 "resVS": col("резонанс"),
                 "sysVS": col("систем"),
-                "tasks": col("просроч", "кол-во", "задач"),
-                "att": col("явка"),
+                "tasks": col("просроч", "кол-во", "количество", "задач"),
+                "att": col("явка", "присутствовали на перекличках"),
             }
             if src_id == "sys_kr":
                 idx["resKR"], idx["sysKR"] = idx.pop("resVS"), idx.pop("sysVS")
@@ -60,8 +61,8 @@ def build_table(extractions):
                 idx.pop("att", None)
 
             for cells in t.get("rows", []):
-                if not cells: continue
-                name = norm_name(cells[0])
+                if len(cells) <= name_index: continue
+                name = norm_name(cells[name_index])
                 if not name or name.lower().startswith("итого"):
                     continue
                 r = row(name)
@@ -119,6 +120,8 @@ def parse_nvos_kpis(text):
     Формат виджета: «Заголовок → Еще 0 → Значение → (подпись)»."""
     if not text:
         return {}
+    # DataLens uses both spellings in the widget menu label.
+    text = re.sub(r"\bЕщё\b", "Еще", text)
     out = {}
 
     # Собираемость: «Доля (%) / Еще 0 / 80,00 / собираемости...»
@@ -194,6 +197,17 @@ def _merge_live(prev_live, new_live):
 def extract_widgets(text):
     """Read labelled numeric cards, never invent values from an old example."""
     lines = [line.strip() for line in (text or '').splitlines() if line.strip()]
+    # Error/challenge pages may have numeric status or verification codes. Those
+    # are not dashboard values and must not advance the source's success date.
+    error_screen = re.compile(
+        r'^(?:ошибка\b|error\b|код ошибки\b|страница не найдена\b|'
+        r'нет доступа\b|доступ запрещ[её]н\b|access denied\b|forbidden\b|'
+        r'войдите в аккаунт\b|авторизуйтесь\b|captcha\b|капча\b|'
+        r'я не робот\b|подтвердите.{0,60}(?:не робот|человек)|'
+        r'проверка.{0,30}(?:робот|безопасност))', re.IGNORECASE,
+    )
+    if any(error_screen.search(line) for line in lines):
+        return []
     items = []
     for i, label in enumerate(lines[:-1]):
         if not re.search(r'[А-Яа-яA-Za-z]', label) or len(label) > 160:

@@ -704,6 +704,7 @@ def build_table_info(file_path: Path):
 def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
     status = run_status[service_name]
     run_id = None
+    water_error = ""
 
     try:
         run_id = run_history.record_start(service_name, user="—")
@@ -732,12 +733,26 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
                 if not text:
                     continue
 
-                print(f"[{service_name.upper()}]", text)
+                if service_name == "water_dashboard":
+                    from services.water_dashboard.diagnostics import log_server_line
+                    log_server_line(f"[WATER_DASHBOARD] {text}")
+                else:
+                    print(f"[{service_name.upper()}]", text)
+
+                if service_name == "water_dashboard" and text.startswith("WATER_DASHBOARD_ERROR:"):
+                    from services.water_dashboard.diagnostics import failure_message
+                    water_error = failure_message(text)
+                    continue
 
                 if text.startswith("STAGE:"):
                     stage_name = text.replace("STAGE:", "", 1).strip()
                     status["stage"] = stage_name
                     status["message"] = stage_name
+                    continue
+
+                if service_name == "water_dashboard":
+                    # Browser traces can contain URLs and local paths. Only the
+                    # explicit safe diagnostic and named stages reach clients.
                     continue
 
                 lowered = text.lower()
@@ -780,9 +795,14 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
             status["running"] = False
             status["stage"] = "Ошибка"
             status["message"] = f"Процесс {service_name} завершился с ошибкой."
-            status["last_error"] = f"Процесс завершился с кодом {return_code}"
+            if service_name == "water_dashboard":
+                from services.water_dashboard.diagnostics import failure_message
+                status["last_error"] = water_error or failure_message("")
+                status["message"] = status["last_error"]
+            else:
+                status["last_error"] = f"Процесс завершился с кодом {return_code}"
             if run_id:
-                run_history.record_finish(run_id, "error", f"код {return_code}")
+                run_history.record_finish(run_id, "error", status["last_error"])
             return
 
         status["running"] = False
@@ -795,9 +815,15 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
         status["running"] = False
         status["stage"] = "Ошибка"
         status["message"] = "Во время выполнения произошла ошибка."
-        status["last_error"] = str(e)
+        if service_name == "water_dashboard":
+            from services.water_dashboard.diagnostics import MESSAGES, error_code, log_server_line
+            log_server_line(f"[WATER_DASHBOARD] {type(e).__name__}: {e}")
+            status["last_error"] = MESSAGES[error_code(e)]
+            status["message"] = status["last_error"]
+        else:
+            status["last_error"] = str(e)
         if run_id:
-            run_history.record_finish(run_id, "error", str(e))
+            run_history.record_finish(run_id, "error", status["last_error"])
 
     finally:
         status["running"] = False

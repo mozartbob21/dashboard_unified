@@ -1,13 +1,15 @@
 import json
 import re
 import sys
-import time
 import datetime as _dt
 
 from playwright.sync_api import sync_playwright
 
+from services.water_dashboard.browser import launch_context
+from services.water_dashboard.diagnostics import MESSAGES, SourceReadError, error_code
+
 from services.water_dashboard.config import (
-    DEBUG_DIR, HEADLESS, PAGE_WAIT_SECONDS, PLAYWRIGHT_PROFILE_DIR, SOURCES,
+    DEBUG_DIR, HEADLESS, PLAYWRIGHT_PROFILE_DIR, SOURCES,
 )
 
 # Серверная консоль Windows (cp1251) не переживает символы вроде "✓" —
@@ -42,135 +44,90 @@ TABLES_JS = """
 }
 """
 
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-
 def _select_latest_date(page, sid):
-    """Открывает фильтр «Дата» и выбирает последнюю НАСТУПИВШУЮ дату (для НВОС)."""
-    def emit(msg):
-        try:
-            print(f"[{sid}] {msg}", flush=True)
-        except Exception:
-            print(f"[{sid}] {msg}".encode("cp1251", "replace").decode("cp1251"), flush=True)
+    """Выбирает одну последнюю наступившую дату, не снимая текущий выбор."""
+    def parse_date(value):
+        value = (value or '').strip()
+        for pattern, date_format in ((r'\d{4}-\d{2}-\d{2}', '%Y-%m-%d'),
+                                     (r'\d{2}\.\d{2}\.\d{4}', '%d.%m.%Y')):
+            if re.fullmatch(pattern, value):
+                try:
+                    return _dt.datetime.strptime(value, date_format).date()
+                except ValueError:
+                    pass
+        return None
 
-    # 1. Находим контрол даты по лейблу «Дата» и помечаем его data-pw-id
-    emit("Открываю фильтр «Дата»...")
+    def selected_date():
+        return parse_date(control.inner_text(timeout=3000))
+
     try:
         control_id = page.evaluate(
             """
             () => {
                 const labels = Array.from(document.querySelectorAll('[data-qa="chartkit-control-title"]'));
-                const dateLabel = labels.find(l => (l.textContent || '').trim().toLowerCase().startsWith('дата'));
-                if (!dateLabel) return null;
-                let node = dateLabel.parentElement;
-                for (let i = 0; i < 5 && node; i++) {
-                    const c = node.querySelector('[data-qa="chartkit-control-select"]')
-                            || node.querySelector('.yc-select-control');
-                    if (c) {
-                        c.setAttribute('data-pw-id', 'nvos-date');
-                        return 'nvos-date';
-                    }
-                    node = node.parentElement;
-                }
-                return null;
+                const label = labels.find(l => (l.textContent || '').trim().toLowerCase().startsWith('дата'));
+                const container = label && label.closest('[data-qa="chartkit-control"]');
+                const select = container && container.querySelector('[data-qa="chartkit-control-select"]');
+                if (!select) return null;
+                select.setAttribute('data-pw-id', 'nvos-date');
+                return 'nvos-date';
             }
             """
         )
         if not control_id:
-            emit("Контрол даты не найден")
-            raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
-        emit("Контрол найден")
-    except Exception as e:
-        emit(f"Ошибка поиска контроля: {e}")
-        raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
+            raise SourceReadError('date')
+        control = page.locator('[data-pw-id="nvos-date"]').first
+        current = selected_date()
+        control.click(timeout=5000)
+        popup = page.locator('.yc-select-popup:visible').first
+        popup.wait_for(state='visible', timeout=5000)
+        items = popup.locator('.yc-select-item[data-value]')
+        options = []
+        for index in range(items.count()):
+            item = items.nth(index)
+            date = parse_date(item.get_attribute('data-value'))
+            if date is None:
+                title = item.locator('.yc-select-item__title')
+                if title.count():
+                    date = parse_date(title.first.inner_text(timeout=3000))
+            if date is not None and date <= _dt.date.today():
+                options.append((date, index))
+        if not options:
+            raise SourceReadError('date')
+        target_date, target_index = max(options, key=lambda option: option[0])
+        if current == target_date:
+            # DataLens uses toggles: clicking the selected item would clear it.
+            page.keyboard.press('Escape')
+            if selected_date() != target_date:
+                raise SourceReadError('date')
+            print(f'[{sid}] Последняя наступившая дата уже выбрана', flush=True)
+            return
 
-    # 2. Кликаем по контролу — открывается дропдаун
-    try:
-        page.locator('[data-pw-id="nvos-date"]').first.click(timeout=5000)
-        page.wait_for_timeout(2000)
-        emit("Dropdown открыт")
-    except Exception as e:
-        emit(f"Не удалось кликнуть контрол: {e}")
-        raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
-
-    # 3. Собираем опции дат
-    options = []
-    seen = set()
-    try:
-        portals = page.locator('.yc-select-popup')
-        for p in range(min(portals.count(), 5)):
-            inner = portals.nth(p).locator('*')
-            for i in range(min(inner.count(), 500)):
-                item = inner.nth(i)
-                try:
-                    text = (item.inner_text() or '').strip()
-                except Exception:
-                    continue
-                if DATE_RE.match(text) and text not in seen:
-                    seen.add(text)
-                    options.append((text, item))
-    except Exception:
-        pass
-
-    if not options:
-        for sel in ('[role="option"]', '.yc-select-option', '.popup *', 'li'):
-            try:
-                locs = page.locator(sel)
-                for i in range(min(locs.count(), 800)):
-                    item = locs.nth(i)
-                    try:
-                        text = (item.inner_text() or '').strip()
-                    except Exception:
-                        continue
-                    if DATE_RE.match(text) and text not in seen:
-                        seen.add(text)
-                        options.append((text, item))
-            except Exception:
-                continue
-            if options:
-                break
-
-    emit(f"Найдено опций дат: {len(options)}")
-    if not options:
-        emit("Не найдены даты источника")
-        raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
-
-    # 4. Даты, которые НАСТУПИЛИ (<= сегодня); берём последнюю наступившую
-    options.sort(key=lambda x: x[0])
-    today = _dt.date.today().isoformat()
-    passed = [o for o in options if o[0] <= today]
-    if len(passed) >= 2:
-        target_text, target_item = passed[-1]
-        emit(f"Наступивших дат: {len(passed)}; выбираю последнюю наступившую: {target_text}")
-    elif passed:
-        target_text, target_item = passed[-1]
-        emit(f"Выбираю единственную наступившую дату: {target_text}")
-    else:
-        emit("Нет наступившей даты; источник не обновлён")
-        raise ValueError("Нет наступившей даты НВОС")
-
-    # 5. Клик (обычный + fallback по bounding_box)
-    try:
+        clear = popup.get_by_text('Очистить', exact=True)
+        if clear.count() and clear.first.is_visible():
+            clear.first.click(timeout=3000)
+            if not popup.is_visible():
+                control.click(timeout=5000)
+                popup.wait_for(state='visible', timeout=5000)
+        elif current is not None:
+            # Do not add another date to an existing multi-selection.
+            raise SourceReadError('date')
+        target_item = popup.locator('.yc-select-item[data-value]').nth(target_index)
         target_item.scroll_into_view_if_needed(timeout=3000)
-        page.wait_for_timeout(200)
         target_item.click(timeout=3000)
-        emit("Клик по опции сработал")
+        for _ in range(20):
+            if selected_date() == target_date:
+                page.keyboard.press('Escape')
+                page.wait_for_timeout(3000)
+                print(f'[{sid}] Последняя наступившая дата выбрана', flush=True)
+                return
+            page.wait_for_timeout(250)
+        raise SourceReadError('date')
+    except SourceReadError:
+        raise
     except Exception:
-        try:
-            box = target_item.bounding_box()
-            if box:
-                page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-                emit("Клик по bounding_box сработал")
-            else:
-                emit("У опции нет bounding_box")
-                raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
-        except Exception as e:
-            emit(f"Не удалось выбрать дату: {e}")
-            raise ValueError("Не удалось выбрать последнюю дату источника НВОС")
-
-    # 6. Ждём пересчёт виджетов
-    page.wait_for_timeout(3000)
-    emit("Пересчёт данных завершён")
+        # Browser exceptions can contain page contents; expose a stable code only.
+        raise SourceReadError('date') from None
 
 
 def _wait_for_content(page):
@@ -215,49 +172,52 @@ def scrape_all():
     extractions = {}
 
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(PLAYWRIGHT_PROFILE_DIR),
-            headless=HEADLESS,
-            viewport={"width": 1440, "height": 1100},
-            extra_http_headers={"Cache-Control": "no-cache"},
-            args=["--disable-blink-features=AutomationControlled"],
+        context, browser_name = launch_context(
+            p, profile_dir=PLAYWRIGHT_PROFILE_DIR, headless=HEADLESS,
         )
-        page = context.pages[0] if context.pages else context.new_page()
+        print(f"STAGE: Браузер для сбора: {browser_name}", flush=True)
+        try:
+            page = context.pages[0] if context.pages else context.new_page()
 
-        for src in SOURCES:
-            sid = src["id"]
-            print(f"STAGE: {src['name']}", flush=True)
-            try:
-                page.goto(src["url"], wait_until="domcontentloaded", timeout=90000)
+            for src in SOURCES:
+                sid = src["id"]
+                print(f"STAGE: {src['name']}", flush=True)
+                try:
+                    page.goto(src["url"], wait_until="domcontentloaded", timeout=90000)
 
-                _wait_for_content(page)
+                    _wait_for_content(page)
 
-                if sid == "nvos":
-                    _select_latest_date(page, sid)
-                    stab_wait_after_date(page)
+                    if sid == "nvos":
+                        _select_latest_date(page, sid)
+                        stab_wait_after_date(page)
 
-                tables = page.evaluate(TABLES_JS)
-                text = page.evaluate("() => document.body.innerText")
-                for frame in page.frames[1:]:
-                    try:
-                        tables.extend(frame.evaluate(TABLES_JS))
-                        text += "\n" + frame.evaluate("() => document.body.innerText")
-                    except Exception:
-                        pass
-                if re.search(r"Войдите в аккаунт|Нет доступа к|Авторизуйтесь", text, re.I) and not tables:
-                    raise ValueError("Источник требует входа")
+                    tables = page.evaluate(TABLES_JS)
+                    text = page.evaluate("() => document.body.innerText")
+                    for frame in page.frames[1:]:
+                        try:
+                            tables.extend(frame.evaluate(TABLES_JS))
+                            text += "\n" + frame.evaluate("() => document.body.innerText")
+                        except Exception:
+                            pass
+                    if re.search(r"Войдите в аккаунт|Нет доступа к|Авторизуйтесь", text, re.I) and not tables:
+                        raise SourceReadError("access")
+                    if not tables and re.search(r"Внутренняя ошибка|Something went wrong", text, re.I):
+                        raise SourceReadError("source_error")
+                    if not tables and re.search(r"Я не робот|Подтвердите.{0,50}человек|SmartCaptcha", text, re.I):
+                        raise SourceReadError("captcha")
 
-                extractions[sid] = {"tables": tables, "text": text}
+                    extractions[sid] = {"tables": tables, "text": text}
 
-                with open(DEBUG_DIR / f"{sid}.json", "w", encoding="utf-8") as f:
-                    json.dump({"url": src["url"], "tables": tables, "text": text},
-                              f, ensure_ascii=False, indent=2)
+                    with open(DEBUG_DIR / f"{sid}.json", "w", encoding="utf-8") as f:
+                        json.dump({"url": src["url"], "tables": tables, "text": text},
+                                  f, ensure_ascii=False, indent=2)
 
-                print(f"[saved] {sid}: таблиц={len(tables)}", flush=True)
-            except Exception as e:
-                print(f"[warn] {sid}: {e}", flush=True)
-                extractions[sid] = {"tables": [], "text": "", "error": "Не удалось получить данные источника. Проверьте доступ с компьютера-сервера."}
+                    print(f"[saved] {sid}: таблиц={len(tables)}", flush=True)
+                except Exception as e:
+                    print(f"[warn] {sid}: {e}", flush=True)
+                    extractions[sid] = {"tables": [], "text": "", "error": MESSAGES[error_code(e)]}
 
-        context.close()
+        finally:
+            context.close()
 
     return extractions

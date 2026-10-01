@@ -14,7 +14,7 @@ const defs = [
  ['sys_kr','Системные и резонансные адреса (КР)','https://datalens.yandex/6rxd41nckzkep']
 ];
 let snap = JSON.parse(document.getElementById('waterSnapshot').textContent || '{}');
-let sortKey='resVS',asc=false,busy=false,observedRunning=false,autoAttempted=false,polling=false,lastRevision=null;
+let sortKey='resVS',asc=false,busy=false,observedRunning=false,autoAttempted=false,polling=false,lastRevision=null,loginRequired=false;
 const fields={tasks:[['tasks','Просроченные задачи']],sys_vs:[['sysVS','Системные адреса'],['resVS','Резонансные адреса']],sys_kr:[['sysKR','Системные адреса'],['resKR','Резонансные адреса']],meetings:[['att','Средняя явка, %']]};
 function total(key){const rows=(snap.table||[]).filter(r=>r[key]!=null);if(!rows.length)return null;const n=rows.reduce((a,r)=>a+Number(r[key]),0);return key==='att'?Math.round(n/rows.length):n;}
 function render(){
@@ -44,20 +44,28 @@ function renderTable(){
 }
 document.querySelectorAll('#omsu th[data-k]').forEach(h=>h.addEventListener('click',()=>{asc=h.dataset.k===sortKey?!asc:h.dataset.k==='name';sortKey=h.dataset.k;renderTable();}));
 const button=document.getElementById('refreshSnap'),status=document.getElementById('wdStatus');
+async function readResponse(response){
+ if(response.status===401||(response.redirected&&new URL(response.url,location.href).pathname==='/login')){
+  loginRequired=true;throw Error('Сессия истекла. Войдите в Нейрону заново, чтобы проверить обновление свода.');
+ }
+ if(response.status===403)throw Error('Нет доступа к сводному дашборду. Обратитесь к администратору.');
+ if(!response.headers.get('content-type')?.includes('application/json'))throw Error('Сервер не вернул состояние обновления. Обновите страницу.');
+ return response.json();
+}
 async function startRefresh(){
  if(busy)return;busy=true;button.disabled=true;status.textContent='Запускаю обновление восьми источников…';
- try{const r=await fetch('/water-dashboard/run-check',{method:'POST'});const d=await r.json();if(!r.ok||d.ok===false)throw Error(d.message||d.detail||'Не удалось запустить обновление');observedRunning=true;}
+ try{const r=await fetch('/water-dashboard/run-check',{method:'POST'});const d=await readResponse(r);if(!r.ok||d.ok===false)throw Error(d.message||d.detail||'Не удалось запустить обновление');observedRunning=true;}
  catch(e){status.textContent=e.message;busy=false;button.disabled=false;}
 }
 button.addEventListener('click',startRefresh);
 async function poll(){
- if(polling)return;polling=true;
+ if(polling||loginRequired)return;polling=true;
  try{
-  const r=await fetch('/water-dashboard/run-status',{cache:'no-store'});if(!r.ok)throw Error('Не удалось проверить обновление');const state=await r.json();
+  const r=await fetch('/water-dashboard/run-status',{cache:'no-store'});const state=await readResponse(r);if(!r.ok)throw Error('Не удалось проверить обновление');
   busy=!!state.running;button.disabled=busy;button.textContent=busy?'Обновление…':'⟳ Обновить снимок';
   if(busy){observedRunning=true;status.textContent='Обновление: '+(state.stage||'сбор данных');return;}
   if(lastRevision===null||lastRevision!==state.snapshot_revision){
-   const response=await fetch('/water-dashboard/snapshot',{cache:'no-store'});if(!response.ok)throw Error('Не удалось получить снимок');const latest=await response.json();
+   const response=await fetch('/water-dashboard/snapshot',{cache:'no-store'});const latest=await readResponse(response);if(!response.ok)throw Error('Не удалось получить снимок');
    if(latest.checked_at!==snap.checked_at){snap=latest;render();}
    lastRevision=state.snapshot_revision??'';
   }
