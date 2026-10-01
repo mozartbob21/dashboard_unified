@@ -82,7 +82,7 @@
 .mingkh-dashboard .lgi { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
 .mingkh-dashboard .lgv { color: var(--muted); margin-left: 6px; font-variant-numeric: tabular-nums; }/* верхний ряд: источники и направления рядом *//* Колонки тянутся до высоты самой высокой — карточки не «ступеньками». */
 .mingkh-dashboard .toprow { display: grid; grid-template-columns: minmax(330px, 400px) 1fr; gap: 16px; align-items: stretch; }
-.mingkh-dashboard .toprow > div { display: flex; }
+.mingkh-dashboard .toprow > div { display: flex; min-width: 0; }
 .mingkh-dashboard .toprow > div > .card, .mingkh-dashboard .toprow > .card { margin-bottom: 0; flex: 1; }
 @media (max-width: 900px) {
 .mingkh-dashboard .toprow { grid-template-columns: 1fr; } }
@@ -352,3 +352,38 @@ html[data-theme="dark"] .mingkh-dashboard .d6{background:#ea8080;color:#0b0b0b}
 html[data-theme="dark"] .mingkh-dashboard .trendcard { --curr: #68a9f4; --prev: #355f91; }
 
 .mingkh-dashboard .trend-note { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+
+/* A quiet accent keeps the map entry easy to find in the shared module header. */
+.unified-module-page .topbar .mingkh-map-link {
+  gap: 8px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--card-strong)) !important;
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border)) !important;
+  color: color-mix(in srgb, var(--primary) 75%, var(--text)) !important;
+}
+.unified-module-page .topbar .mingkh-map-link svg { flex: 0 0 18px; }
+.unified-module-page .topbar .mingkh-map-link:hover {
+  background: color-mix(in srgb, var(--primary) 15%, var(--card-strong)) !important;
+  border-color: color-mix(in srgb, var(--primary) 60%, var(--border)) !important;
+}
+.unified-module-page .topbar .mingkh-map-link:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 3px;
+}
+
+/* This compact summary must not inherit the site's 760px table minimum. */
+.mingkh-dashboard #sources .sources-card { min-width: 0; padding: 16px; overflow: visible; }
+.mingkh-dashboard #sources h2 { margin-bottom: 10px; }
+.mingkh-dashboard #sources .sources-table { min-width: 0; width: 100%; table-layout: fixed; }
+.mingkh-dashboard .sources-table .source-name { width: 38%; }
+.mingkh-dashboard .sources-table .source-count { width: 20%; }
+.mingkh-dashboard .sources-table .source-share { width: 14%; }
+.mingkh-dashboard .sources-table .source-change { width: 28%; }
+.mingkh-dashboard #sources .sources-table th,
+.mingkh-dashboard #sources .sources-table td {
+  min-width: 0; padding: 8px 4px; line-height: 1.35;
+  white-space: normal; overflow-wrap: anywhere; vertical-align: middle;
+}
+.mingkh-dashboard #sources .sources-table th:first-child { padding-left: 0; }
+.mingkh-dashboard #sources .sources-table th:last-child,
+.mingkh-dashboard #sources .sources-table td:last-child { padding-right: 0; }
+.mingkh-dashboard #sources .sources-table .numcell { text-align: right; }
+.mingkh-dashboard #sources .sources-table th[scope="row"] { color: var(--text); }

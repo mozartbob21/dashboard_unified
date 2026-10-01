@@ -1,9 +1,9 @@
 {% extends "base_module.html" %}
 {% block title %}МИНЖКХ — Нейрона ИИ{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/mingkh.css?v=20260928-trend">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/mingkh.css?v=20261001-layout">{% endblock %}
 {% block content %}
 <div class="container">
-<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Дашборд МИНЖКХ</div></div></div><div class="top-actions"><a href="/mingkh/water-map" class="secondary-button">Карта жалоб по воде</a><a href="/" class="secondary-button">← Назад</a></div></header>
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Дашборд МИНЖКХ</div></div></div><div class="top-actions"><a href="/mingkh/water-map" class="secondary-button mingkh-map-link"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15M15 6v15"/></svg><span>Карта жалоб по воде</span></a><a href="/" class="secondary-button">← Назад</a></div></header>
 <div class="mingkh-dashboard"><div class="wrap">
 <header class="head">
   <div>
@@ -81,7 +81,7 @@
 </div></div>
 <script id="mingkhDates" type="application/json">{{ initial_dates | tojson }}</script>
 <script src="/static/mingkh-sort.js"></script>
-<script src="/static/mingkh-app.js?v=20260928-trend"></script>
+<script src="/static/mingkh-app.js?v=20261001-layout"></script>
 <script src="/static/mingkh-trend.js?v=20260928-trend"></script>
 <script src="/static/mingkh-page.js?v=20260928-trend"></script>
 {% endblock %}

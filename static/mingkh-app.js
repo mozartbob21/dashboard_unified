@@ -251,12 +251,12 @@ function renderSources() {
   }).join('');
 
   $('sources').innerHTML =
-    '<section class="card"><h2>Источники обращений</h2>' +
-    '<table class="plain sortable"><thead><tr>' +
+    '<section class="card sources-card"><h2>Источники обращений</h2>' +
+    '<table class="plain sortable sources-table"><colgroup><col class="source-name"><col class="source-count"><col class="source-share"><col class="source-change"></colgroup><thead><tr>' +
     '<th scope="col" data-sort="text">Источник</th>' +
-    '<th scope="col" class="numcell" data-sort="num" aria-sort="descending">Обращений</th>' +
+    '<th scope="col" class="numcell" data-sort="num" aria-sort="descending" aria-label="Количество обращений" title="Количество обращений">Кол-во</th>' +
     '<th scope="col" class="numcell" data-sort="num">Доля</th>' +
-    '<th scope="col" class="numcell" data-sort="num">К пред. периоду</th>' +
+    '<th scope="col" class="numcell" data-sort="num" aria-label="Изменение к предыдущему периоду">К пред.<br>периоду</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></section>';
 }
 
