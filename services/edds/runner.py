@@ -18,6 +18,14 @@ def status():
     with get_db_connection() as conn:
         row=dict(conn.execute('SELECT * FROM edds_job WHERE id=1').fetchone())
     row['running']=bool(row['running'] and time.time()-row['started_at']<1900)
+    if row['running']:
+        try:
+            progress=json.loads((DATA/'progress.json').read_text(encoding='utf-8'))
+            if (isinstance(progress,dict) and progress.get('updated_at',0)>=row['started_at']
+                    and isinstance(progress.get('message'),str)):
+                row['message']=progress['message'][:500]
+        except (OSError, ValueError, TypeError):
+            pass
     return row
 
 
@@ -69,6 +77,7 @@ def run(user='Авто-запуск'):
         conn.execute("UPDATE edds_job SET running=1,started_at=?,message='Сбор жалоб выполняется' WHERE id=1",(time.time(),))
     run_id=record_start('edds',user=user)
     ok=False
+    started=time.time()
     message='Сбор жалоб не завершён.'
     try:
         DATA.mkdir(parents=True,exist_ok=True)
@@ -84,6 +93,13 @@ def run(user='Авто-запуск'):
     except Exception:
         message='Не удалось запустить сборщик. Проверьте настройки сервера.'
     finally:
+        path=DATA/'water_daily.json'
+        try:
+            saved_fresh=path.stat().st_mtime>=started
+        except OSError:
+            saved_fresh=False
+        if not ok and saved_fresh:
+            message='Часть свода сохранена. '+message
         with get_db_connection() as conn:
             conn.execute('UPDATE edds_job SET running=0,message=? WHERE id=1',(message,))
         record_finish(run_id,status='success' if ok else 'error',error_message='' if ok else message)

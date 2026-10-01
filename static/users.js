@@ -267,7 +267,7 @@
   });
   checkEddsLogin.addEventListener('click',async()=>{
     if(integrationBusy||!integrationSaved||integrationForm.elements.service.value!=='edds')return;
-    setIntegrationBusy(true);integrationStatus.textContent='Проверяем вход в Добродел…';
+    setIntegrationBusy(true);integrationStatus.textContent='Проверяем вход и получение данных Добродела…';
     try{
       const data=await api('/api/users/integrations/edds/check',{method:'POST'});
       integrationStatus.textContent=data.message;

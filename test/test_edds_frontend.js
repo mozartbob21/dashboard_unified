@@ -54,7 +54,7 @@ function liveFixture() {
   let coordinates=0;
   const context=vm.createContext({
     LIVE:true, EMBEDDED:true, DATA:previous,
-    req:{from:'2026-10-01',to:'2026-10-02'}, liveBusy:false, livePending:false, liveTimer:null,
+    req:{from:'2026-10-01',to:'2026-10-02'}, liveBusy:false, livePending:false, liveTimer:null, liveCancelled:false, cancelArmReports:()=>{},
     S:v=>String(v??'').trim(), WATER:[['water_flag','ВЗУ']], PRICH:[], NORM_H:72,
     document:{getElementById:id=>nodes[id]}, clearTimeout:()=>{}, siteDay:value=>value,
     dayStart:value=>new Date(value+'T00:00:00'), dayEnd:value=>new Date(value+'T23:59:59.999'),
@@ -157,13 +157,19 @@ test('a malformed report preserves prior incidents instead of presenting an empt
 });
 
 function armFixture() {
-  const requests=[];
-  const context=vm.createContext({URLSearchParams,fetch:(url,options)=>{
-    const pending=deferred();requests.push({url,options,...pending});return pending.promise;
-  }});
+  const requests=[], nodes={'arm-progress':{textContent:''},'arm-cancel':{hidden:true}};
+  const context=vm.createContext({URLSearchParams,AbortController,TextEncoder,
+    document:{getElementById:id=>nodes[id]},
+    setTimeout:(fn,ms)=>{const timer=setTimeout(fn,ms);timer.unref();return timer;},clearTimeout,
+    setInterval:(fn,ms)=>{const timer=setInterval(fn,ms);timer.unref();return timer;},clearInterval,
+    fetch:(url,options)=>{
+      const pending=deferred();requests.push({url,options,...pending});
+      options.signal.addEventListener('abort',()=>pending.reject(Object.assign(new Error('Aborted'),{name:'AbortError'})),{once:true});
+      return pending.promise;
+    }});
   vm.runInContext(source.slice(source.indexOf('let armQueue = Promise.resolve();'),
     source.indexOf('async function fetchReportCsv(')),context);
-  return {context,requests};
+  return {context,requests,nodes};
 }
 const reportResponse = grid => ({ok:true,status:200,redirected:false,json:async()=>({grid})});
 
@@ -221,4 +227,121 @@ test('malformed rows and missing water fields never clear the previously loaded 
     assert.equal(f.renders.length, 0);
     assert.ok(f.notices.some(n=>n.kind==='bad' && n.text.includes('Показан прежний период')));
   }
+});
+
+
+test('long periods show completed days and use contiguous inclusive week requests', async () => {
+  const f=armFixture();
+  const result=f.context.armReport('2026-01-01','2026-01-16');
+  await flushPromises();
+  const ranges=[];
+  for(let i=0;i<3;i++){
+    const url=new URL(f.requests[i].url,'https://dashboard.invalid');
+    ranges.push([url.searchParams.get('from_date'),url.searchParams.get('to_date')]);
+    f.requests[i].resolve(reportResponse([['id_cds_claim'],[String(i+1)]]));
+    await flushPromises();
+    if(i===0)assert.match(f.nodes['arm-progress'].textContent,/7 из 16 дн/);
+  }
+  assert.deepEqual(ranges,[['2026-01-01','2026-01-07'],['2026-01-08','2026-01-14'],['2026-01-15','2026-01-16']]);
+  assert.deepEqual(plain(await result),[['id_cds_claim'],['1'],['2'],['3']]);
+  assert.match(f.nodes['arm-progress'].textContent,/загружено 16 дн/);
+  assert.equal(f.nodes['arm-cancel'].hidden,true);
+});
+
+test('cancelling a stalled period frees the queue for the latest date and skips stale queued coordinates', async () => {
+  const f=armFixture();
+  const first=f.context.armReport('2026-01-01','2026-10-01');
+  const failed=assert.rejects(first,/отменена/);
+  const staleCoordinates=f.context.armReport('2026-01-01','2026-10-01',true);
+  const skipped=assert.rejects(staleCoordinates,/отменена/);
+  await flushPromises();
+  f.context.cancelArmReports();
+  const latest=f.context.armReport('2026-10-01','2026-10-01');
+  await failed;await skipped;await flushPromises();
+  assert.equal(f.requests.length,2);
+  assert.equal(new URL(f.requests[1].url,'https://dashboard.invalid').searchParams.get('from_date'),'2026-10-01');
+  assert.equal(new URL(f.requests[1].url,'https://dashboard.invalid').searchParams.get('coordinates'),'false');
+  f.requests[1].resolve(reportResponse([['id_cds_claim'],['latest']]));
+  assert.deepEqual(plain(await latest),[['id_cds_claim'],['latest']]);
+});
+
+test('overall deadline aborts a stuck fetch with a clear timeout and releases the queue', async () => {
+  const f=armFixture();
+  vm.runInContext('Date.now = () => 1000',f.context);
+  const pending=f.context.armReport('2026-01-01','2026-10-01');
+  const failed=assert.rejects(pending,/лимиту 10 минут/);
+  await flushPromises();
+  vm.runInContext('Date.now = () => 602000; for(const task of armTasks)task.controller.abort()',f.context);
+  await failed;
+  const next=f.context.armReport('2026-10-01','2026-10-01');
+  await flushPromises();
+  assert.equal(f.requests.length,2);
+  f.requests[1].resolve(reportResponse([['id_cds_claim']]));
+  await next;
+});
+
+
+test('temporary server busy is retried for the same window without overlapping exports', async () => {
+  const f=armFixture();
+  const pending=f.context.armReport('2026-10-01','2026-10-01');
+  await flushPromises();
+  f.requests[0].resolve({ok:false,status:409,redirected:false,json:async()=>({detail:'Previous export running',code:'busy'})});
+  await flushPromises();
+  assert.match(f.nodes['arm-progress'].textContent,/ждём завершения/);
+  assert.equal(f.requests.length,1);
+  await new Promise(resolve=>setTimeout(resolve,1010));
+  assert.equal(f.requests.length,2);
+  assert.equal(f.requests[0].url,f.requests[1].url);
+  f.requests[1].resolve(reportResponse([['id_cds_claim'],['1']]));
+  assert.deepEqual(plain(await pending),[['id_cds_claim'],['1']]);
+});
+
+test('a stuck server worker ends busy retries with an actionable error', async () => {
+  const f=armFixture();
+  vm.runInContext('Date.now=()=>1000',f.context);
+  const pending=f.context.armReport('2026-10-01','2026-10-01');
+  const failed=assert.rejects(pending,/Проверьте окно Chromium-GOST/);
+  await flushPromises();
+  const busy={ok:false,status:409,redirected:false,json:async()=>({detail:'Busy',code:'busy'})};
+  f.requests[0].resolve(busy);
+  await flushPromises();
+  vm.runInContext('Date.now=()=>152000',f.context);
+  await new Promise(resolve=>setTimeout(resolve,1010));
+  f.requests[1].resolve(busy);
+  await failed;
+  assert.equal(f.requests.length,2);
+  assert.equal(f.nodes['arm-cancel'].hidden,true);
+});
+
+
+test('CAPTCHA and other non-busy conflicts are surfaced immediately without retry', async () => {
+  const f=armFixture();
+  const pending=f.context.armReport('2026-10-01','2026-10-01');
+  const failed=assert.rejects(pending,/Complete CAPTCHA/);
+  await flushPromises();
+  f.requests[0].resolve({ok:false,status:409,redirected:false,json:async()=>({detail:'Complete CAPTCHA in Chromium-GOST'})});
+  await failed;await flushPromises();
+  assert.equal(f.requests.length,1);
+  assert.equal(f.nodes['arm-cancel'].hidden,true);
+});
+
+
+test('overall deadline during a busy retry pause reports the limit and releases the queue', async () => {
+  const f=armFixture();
+  vm.runInContext('Date.now = () => 1000',f.context);
+  const pending=f.context.armReport('2026-01-01','2026-10-01');
+  const failed=assert.rejects(pending,/лимиту 10 минут/);
+  await flushPromises();
+  f.requests[0].resolve({ok:false,status:409,redirected:false,json:async()=>({detail:'Busy',code:'busy'})});
+  await flushPromises();
+  assert.match(f.nodes['arm-progress'].textContent,/ждём завершения/);
+  vm.runInContext('Date.now = () => 602000; for(const task of armTasks)task.controller.abort()',f.context);
+  await failed;
+  assert.equal(f.requests.length,1);
+  assert.equal(f.nodes['arm-cancel'].hidden,true);
+  assert.match(f.nodes['arm-progress'].textContent,/Новые данные не применены/);
+  const next=f.context.armReport('2026-10-01','2026-10-01');
+  await flushPromises();
+  f.requests[1].resolve(reportResponse([['id_cds_claim']]));
+  await next;
 });

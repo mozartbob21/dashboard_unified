@@ -10,7 +10,7 @@ import os
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError, ThreadPoolExecutor, TimeoutError as FutureTimeout
 from pathlib import Path
 
 from playwright.sync_api import Error as BrowserError, TimeoutError as BrowserTimeout, sync_playwright
@@ -20,6 +20,7 @@ from services.edds.arm import ArmClient, ArmError, BASE_URL, MAX_BYTES
 PROFILE = Path(__file__).resolve().parents[2] / '.private' / 'edds' / 'Chromium-Gost-profile'
 PORTAL_REPORT = Path(__file__).with_name('portal.js').read_text(encoding='utf-8')
 REPORT_URL = BASE_URL + '?act=cds_report_svod&id=3608'
+REPORT_TIMEOUT = 120
 LOGIN_BUTTON_NAME = re.compile(r'^\s*(?:Войти(?:\s+в\s+систему)?|Авторизоваться|Вход)\s*$', re.I)
 
 # Return only a state code: never collect form values, page text or credentials.
@@ -125,11 +126,23 @@ def browser_error(error):
                     'на офисном компьютере и запускайте «Нейрону» под той же учётной записью Windows.', 502)
 
 
+def remaining_budget(deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise ArmError('АРМ ЕДДС не успел сформировать отчёт. Сократите период и повторите запрос.', 504)
+    return remaining
+
+
+def budget_timeout(deadline, maximum):
+    return max(1, min(maximum, int(remaining_budget(deadline) * 1000)))
+
+
 class ChromeArmClient(ArmClient):
-    def __init__(self, *, headless=None):
-        self.deadline = time.monotonic() + 150
+    def __init__(self, *, headless=None, deadline=None):
+        self.deadline = time.monotonic() + REPORT_TIMEOUT if deadline is None else deadline
         self.playwright = self.context = self.page = None
         self.portal_open = False
+        remaining_budget(self.deadline)
         executable = browser_executable()
         try:
             PROFILE.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -138,15 +151,23 @@ class ChromeArmClient(ArmClient):
         if headless is None:
             headless = os.getenv('EDDS_CHROME_HEADLESS', '0').strip().lower() not in {'0', 'false', 'no'}
         try:
+            remaining_budget(self.deadline)
             self.playwright = sync_playwright().start()
             options = {'headless': headless, 'ignore_https_errors': False,
                        'chromium_sandbox': True, 'service_workers': 'block',
                        'ignore_default_args': ['--disable-extensions'],
-                       'timeout': 30000, 'accept_downloads': False}
+                       'timeout': budget_timeout(self.deadline, 30000), 'accept_downloads': False}
             options['executable_path'] = executable
             self.context = self.playwright.chromium.launch_persistent_context(str(PROFILE), **options)
-            self.context.set_default_timeout(45000)
+            self.context.set_default_timeout(budget_timeout(self.deadline, 45000))
             self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+        except ArmError:
+            self.close()
+            raise
+        except BrowserTimeout:
+            self.close()
+            raise ArmError('Chromium-GOST не успел запуститься. Проверьте окно браузера '
+                           'на сервере и повторите загрузку.', 504) from None
         except BrowserError as error:
             self.close()
             raise browser_error(error) from None
@@ -297,6 +318,7 @@ class ChromeArmClient(ArmClient):
             raise browser_error(error) from None
 
     def authenticate(self, account):
+        remaining_budget(self.deadline)
         # Do not reuse the previous administrator's portal session after an account change.
         marker = PROFILE / 'neurona-account.sha256'
         identity = hashlib.sha256(account['username'].encode('utf-8')).hexdigest()
@@ -315,21 +337,25 @@ class ChromeArmClient(ArmClient):
             raise browser_error(error) from None
 
     def report(self, start, end, coordinates=False):
+        remaining_budget(self.deadline)
         if not self.portal_open:
             self.open_portal()
         self.safe_url(self.page.url)
-        remaining = self.deadline - time.monotonic()
-        if remaining <= 0:
-            raise ArmError('АРМ ЕДДС не успел сформировать отчёт. Сократите период.', 504)
+        remaining = remaining_budget(self.deadline)
         try:
             result = self.page.evaluate(PORTAL_REPORT, {
                 'fromDate': start.isoformat(), 'toDate': end.isoformat(), 'coordinates': coordinates,
-                'timeout': int(remaining * 1000), 'limit': MAX_BYTES,
+                'timeout': int(min(remaining, 60) * 1000), 'limit': MAX_BYTES,
             })
         except BrowserError as error:
             raise browser_error(error) from None
         if result.get('error'):
-            raise ArmError(result['error'], result.get('status', 502))
+            error = ArmError(result['error'], result.get('status', 502))
+            # Only a portal export timeout is eligible for smaller-window retries.
+            # Browser startup and authentication timeouts must never trigger them.
+            error.retry_smaller = error.status == 504
+            raise error
+        remaining_budget(self.deadline)
         if not isinstance(result.get('grid'), list) or not result['grid']:
             raise ArmError('АРМ ЕДДС не вернул таблицу отчёта.')
         return result['grid']
@@ -351,7 +377,9 @@ class ChromeArmClient(ArmClient):
 
     def open_portal(self, timeout=45000):
         try:
-            self.page.goto(REPORT_URL, wait_until='domcontentloaded', timeout=timeout)
+            self.page.goto(REPORT_URL, wait_until='domcontentloaded',
+                           timeout=budget_timeout(self.deadline, timeout))
+            remaining_budget(self.deadline)
             self.safe_url(self.page.url)
             self.portal_open = True
         except BrowserTimeout:
@@ -361,6 +389,7 @@ class ChromeArmClient(ArmClient):
             raise browser_error(error) from None
 
     def request(self, method, url, data=None):
+        remaining_budget(self.deadline)
         url = self.safe_url(url)
         if method not in {'GET', 'POST'}:
             raise ArmError('Неподдерживаемый запрос к АРМ ЕДДС.')
@@ -368,9 +397,7 @@ class ChromeArmClient(ArmClient):
             self.open_portal()
         # Reused profile tabs must never receive credentials while on another site.
         self.safe_url(self.page.url)
-        remaining = self.deadline - time.monotonic()
-        if remaining <= 0:
-            raise ArmError('АРМ ЕДДС не успел сформировать отчёт. Сократите период.', 504)
+        remaining = remaining_budget(self.deadline)
         try:
             result = self.page.evaluate(BROWSER_FETCH, {
                 'url': url, 'method': method, 'data': data,
@@ -378,6 +405,7 @@ class ChromeArmClient(ArmClient):
             })
         except BrowserError as error:
             raise browser_error(error) from None
+        remaining_budget(self.deadline)
         if result.get('error') == 'size':
             raise ArmError('Отчёт слишком большой. Сократите период.', 413)
         if result.get('error') == 'timeout':
@@ -398,25 +426,78 @@ class BrowserService:
     def __init__(self, factory=None):
         self.factory = factory
         self._guard = threading.Lock()
+        self._admission = threading.Lock()
+        self._closing = threading.Event()
+        self._cleanup = None
         self._executor = None
+        self._inflight = None
         self._client = None
         self._account = None
         self._settings = None
 
-    def report(self, account, start, end, coordinates=False):
-        with self._guard:
-            if self._executor is None:
-                self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='edds-gost')
-            future = self._executor.submit(self._report, account, start, end, coordinates)
-        return future.result()
+    def report(self, account, start, end, coordinates=False, *, deadline=None):
+        deadline = time.monotonic() + REPORT_TIMEOUT if deadline is None else deadline
+        # Serialize callers before submitting, so a stuck Playwright operation
+        # cannot accumulate pending tasks or later send expired requests.
+        if not self._admission.acquire(timeout=remaining_budget(deadline)):
+            raise ArmError('Истекло время ожидания АРМ ЕДДС. Повторите запрос позднее.', 504)
+        try:
+            if not self._guard.acquire(timeout=remaining_budget(deadline)):
+                raise ArmError('Истекло время ожидания АРМ ЕДДС. Повторите запрос позднее.', 504)
+            try:
+                remaining_budget(deadline)
+                if self._closing.is_set():
+                    raise ArmError('Браузер АРМ ЕДДС завершает работу. Повторите запрос после запуска сервера.', 503)
+                if self._inflight is not None and not self._inflight.done():
+                    raise ArmError('Браузер АРМ ЕДДС ещё завершает предыдущий запрос. '
+                                   'Дождитесь его завершения и повторите загрузку.', 409, code='busy')
+                if self._executor is None:
+                    self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='edds-gost')
+                future = self._executor.submit(self._report, account, start, end, coordinates, deadline)
+                self._inflight = future
+            finally:
+                self._guard.release()
+            try:
+                result = future.result(timeout=max(0, deadline - time.monotonic()))
+            except FutureTimeout:
+                # A running thread cannot be interrupted safely. Keep tracking it;
+                # never close its browser from this caller's thread.
+                future.cancel()
+                raise ArmError('АРМ ЕДДС не успел сформировать отчёт. '
+                               'Сократите период и повторите запрос.', 504) from None
+            except CancelledError:
+                raise ArmError('Браузер АРМ ЕДДС завершает работу. Повторите запрос после запуска сервера.', 503) from None
+            remaining_budget(deadline)
+            return result
+        finally:
+            self._admission.release()
 
-    def _report(self, account, start, end, coordinates):
+    def _report(self, account, start, end, coordinates, deadline):
+        try:
+            if self._closing.is_set():
+                raise ArmError('Браузер АРМ ЕДДС завершает работу. Повторите запрос после запуска сервера.', 503)
+            return self._perform_report(account, start, end, coordinates, deadline)
+        finally:
+            if self._closing.is_set():
+                # If shutdown canceled queued cleanup behind a stuck operation,
+                # the browser's owning thread still cleans up when it resumes.
+                try:
+                    self._close_client()
+                finally:
+                    if self._executor is not None:
+                        self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _perform_report(self, account, start, end, coordinates, deadline):
+        remaining_budget(deadline)
         settings = (os.getenv('EDDS_CHROME_EXECUTABLE', '').strip(), os.getenv('EDDS_CHROME_HEADLESS', '0').strip())
         if self._client is not None and (self._settings != settings or self._client.page.is_closed()):
             self._close_client()
+        remaining_budget(deadline)
         if self._client is None:
-            self._client = (self.factory or ChromeArmClient)()
+            self._client = self.factory() if self.factory else ChromeArmClient(deadline=deadline)
             self._settings = settings
+        self._client.deadline = deadline
+        remaining_budget(deadline)
         identity = hashlib.sha256(json.dumps(account, sort_keys=True).encode('utf-8')).digest()
         if self._account is not None and self._account != identity:
             try:
@@ -424,16 +505,19 @@ class BrowserService:
             except BrowserError as error:
                 self._close_client()
                 raise browser_error(error) from None
-        self._client.deadline = time.monotonic() + 150
+        remaining_budget(deadline)
         self._account = identity
         self._client.authenticate(account)
+        remaining_budget(deadline)
         try:
             return self._client.report(start, end, coordinates)
         except ArmError as error:
             if error.status != 403:
                 raise
             # The portal session may expire between the login check and the export.
+            remaining_budget(deadline)
             self._client.authenticate(account)
+            remaining_budget(deadline)
             return self._client.report(start, end, coordinates)
 
     def _close_client(self):
@@ -441,14 +525,37 @@ class BrowserService:
             self._client.close()
         self._client = self._account = self._settings = None
 
-    def close(self):
-        with self._guard:
-            executor, self._executor = self._executor, None
+    def close(self, *, timeout=2):
+        deadline = time.monotonic() + max(0, timeout)
+        self._closing.set()
+        if not self._guard.acquire(timeout=max(0, deadline - time.monotonic())):
+            executor = self._executor
             if executor is not None:
+                executor.shutdown(wait=False, cancel_futures=True)
+            return
+        try:
+            executor = self._executor
+            if executor is None:
+                return
+            if self._cleanup is None:
                 try:
-                    executor.submit(self._close_client).result()
-                finally:
-                    executor.shutdown(wait=True)
+                    self._cleanup = executor.submit(self._close_client)
+                except RuntimeError:
+                    # The report worker may already have completed shutdown.
+                    pass
+            cleanup = self._cleanup
+        finally:
+            self._guard.release()
+        try:
+            if cleanup is not None:
+                cleanup.result(timeout=max(0, deadline - time.monotonic()))
+        except (FutureTimeout, CancelledError):
+            pass
+        finally:
+            # ThreadPoolExecutor cannot safely kill a blocked worker. Do not
+            # hold application lifespan shutdown waiting for it or close its
+            # browser on this thread; _report handles eventual cleanup.
+            executor.shutdown(wait=False, cancel_futures=True)
 
 
 browser_service = BrowserService()

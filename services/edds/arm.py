@@ -1,6 +1,7 @@
 """Read ARM reports using the saved integration account, entirely on the server."""
 import csv
 import io
+import json
 import os
 import threading
 import time
@@ -15,12 +16,17 @@ from services.auth.integrations import credentials
 BASE_URL = 'https://zkh-kontur.mosreg.ru/new9/'
 MAX_BYTES = 20 * 1024 * 1024
 LOCK = threading.Lock()
+REPORT_SECONDS = 120
+WINDOW_SECONDS = 120
+WINDOW_DAYS = 7
+MAX_REPORT_BYTES = 100 * 1024 * 1024
 
 
 class ArmError(Exception):
-    def __init__(self, message, status=502):
+    def __init__(self, message, status=502, *, code=None):
         super().__init__(message)
         self.status = status
+        self.code = code
 
 
 def validate_period(start: date, end: date):
@@ -172,23 +178,31 @@ def create_client():
 
 
 def fetch_report(start, end, coordinates=False):
+    deadline = time.monotonic() + REPORT_SECONDS
     validate_period(start, end)
     account = credentials('edds_arm')
     if not account:
         raise ArmError('Сохраните логин и пароль для «АРМ ЕДДС» в разделе «Пользователи → Логины и пароли».', 400)
     if not LOCK.acquire(blocking=False):
-        raise ArmError('Запрос к АРМ ЕДДС уже выполняется. Дождитесь его завершения.', 409)
+        raise ArmError('Запрос к АРМ ЕДДС уже выполняется. Дождитесь его завершения.', 409, code='busy')
     try:
         transport()
         from services.edds.chrome import browser_service
         # Whole-region exports can exceed the browser's per-response size limit.
         # Keep that limit; split only the requested period and join the CSV rows.
+        def check_deadline():
+            if time.monotonic() >= deadline:
+                raise ArmError('Запрос к АРМ ЕДДС остановлен по лимиту 2 минуты. Выберите меньший период.', 504)
+
         def window(lo, hi):
+            check_deadline()
             try:
-                return browser_service.report(account, lo, hi, coordinates)
+                return browser_service.report(account, lo, hi, coordinates,
+                    deadline=min(deadline, time.monotonic() + WINDOW_SECONDS))
             except ArmError as error:
-                if error.status != 413 or lo >= hi:
+                if (error.status != 413 and not getattr(error, 'retry_smaller', False)) or lo >= hi:
                     raise
+                check_deadline()
                 middle = lo + timedelta(days=(hi - lo).days // 2)
                 left = window(lo, middle)
                 right = window(middle + timedelta(days=1), hi)
@@ -197,10 +211,16 @@ def fetch_report(start, end, coordinates=False):
                 return left + right[1:]
 
         merged = None
+        size = 0
         lo = start
         while lo <= end:
-            hi = min(lo + timedelta(days=30), end)
+            check_deadline()
+            hi = min(lo + timedelta(days=WINDOW_DAYS - 1), end)
             part = window(lo, hi)
+            check_deadline()
+            size += len(json.dumps(part, ensure_ascii=False).encode('utf-8'))
+            if size > MAX_REPORT_BYTES:
+                raise ArmError('Отчёт за весь период слишком большой. Выберите меньший период.', 413)
             if merged is None:
                 merged = part
             elif merged[0] != part[0]:

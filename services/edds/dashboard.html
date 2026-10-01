@@ -610,6 +610,8 @@ td.c,th.c{text-align:center}
     <button type="button" role="tab" data-page="map"   aria-selected="false">Карта</button>
   </div>
   <span class="live-badge" id="live-badge" hidden><span class="live-dot"></span><span id="live-text"></span></span>
+  <span id="arm-progress" class="note" role="status" aria-live="polite"></span>
+  <button class="btn btn-sm" id="arm-cancel" hidden>Отменить загрузку</button>
   <input type="file" id="file" accept=".xlsx,.csv,.json" hidden>
   <button class="btn" id="pick">Загрузить выгрузку</button>
   <input type="file" id="zh-file" accept=".xlsx,.json" hidden>
@@ -1122,21 +1124,122 @@ function rowsOfReport(doc){
    и 106 запросов, каждый из которых разбирается регулярками по вёрстке. Здесь
    один запрос и стабильный формат с машинными именами полей. */
 let armQueue = Promise.resolve();
-function armReport(ot, doo, coordinates=false){
-  // ARM exports share one browser on the server. Keep incident and coordinate
-  // requests from this page in order instead of colliding with its lock.
-  const pending = armQueue.then(() => armReportRequest(ot, doo, coordinates));
-  armQueue = pending.catch(() => {});
-  return pending;
+let armGeneration = 0;
+const armTasks = new Set();
+const ARM_TOTAL_MS = 10 * 60 * 1000, ARM_REQUEST_MS = 150000;
+function cancelArmReports(){
+  armGeneration++;
+  for(const task of armTasks){ task.cancelled = true; task.controller.abort(); }
 }
-async function armReportRequest(ot, doo, coordinates=false){
+function armProgress(text){
+  const node = document.getElementById('arm-progress');
+  if(node) node.textContent = text;
+}
+function armReport(ot, doo, coordinates=false){
+  const task = {controller:new AbortController(), cancelled:false,
+    generation:armGeneration, deadline:Date.now()+ARM_TOTAL_MS};
+  armTasks.add(task);
+  const timer = setTimeout(()=>task.controller.abort(), ARM_TOTAL_MS);
+  const pending = armQueue.then(() => armReportRequest(ot, doo, coordinates, task));
+  armQueue = pending.catch(() => {});
+  return pending.finally(()=>{clearTimeout(timer);armTasks.delete(task);});
+}
+async function armReportRequest(ot, doo, coordinates=false, task){
   const iso = value => {const m=/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/.exec(value);return m ? (m[3].length===2?'20':'')+m[3]+'-'+m[2]+'-'+m[1] : value;};
-  const query = new URLSearchParams({from_date:iso(ot),to_date:iso(doo),coordinates:String(coordinates)});
-  const response=await fetch('/edds/arm/report?'+query,{cache:'no-store'});
-  if(response.redirected || response.status===401)throw new Error('Войдите в «Нейрону» заново.');
-  const data=await response.json();
-  if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'Не удалось загрузить отчёт ЕДДС. Проверьте период.');
-  return data.grid;
+  const first=iso(ot), last=iso(doo), DAY=86400000;
+  const start=Date.parse(first+'T00:00:00Z'), end=Date.parse(last+'T00:00:00Z');
+  if(!Number.isFinite(start)||!Number.isFinite(end)||start>end||end-start>366*DAY)
+    throw new Error('Выберите корректный период не больше года.');
+  const toIso = ms=>new Date(ms).toISOString().slice(0,10);
+  const total=Math.round((end-start)/DAY)+1, began=Date.now();
+  let completed=0, activeFrom=first, activeTo=last, waiting=false, busySince=null, merged=null, size=0;
+  const title=coordinates?'Координаты':'Заявки';
+  const check=()=>{
+    if(task.cancelled||task.generation!==armGeneration)throw new Error('Загрузка отменена.');
+    if(task.controller.signal.aborted||Date.now()>=task.deadline)
+      throw new Error('Загрузка периода остановлена по лимиту 10 минут. Выберите меньший период.');
+  };
+  const progress=()=>{
+    if(task.generation===armGeneration)armProgress(title+': '+completed+' из '+total+' дн. · '+
+      activeFrom+' — '+activeTo+' · '+Math.floor((Date.now()-began)/1000)+' с'+
+      (waiting?' · ждём завершения предыдущего запроса':' · загрузка…'));
+  };
+  const pause=ms=>new Promise((resolve,reject)=>{
+    const aborted=()=>{
+      clearTimeout(timer);
+      try{check();}catch(error){reject(error);return;}
+      reject(new Error('Загрузка отменена.'));
+    };
+    const timer=setTimeout(()=>{task.controller.signal.removeEventListener('abort',aborted);resolve();},ms);
+    task.controller.signal.addEventListener('abort',aborted,{once:true});
+  });
+  const request=async(lo,hi)=>{
+    check();activeFrom=toIso(lo);activeTo=toIso(hi);progress();
+    const query=new URLSearchParams({from_date:activeFrom,to_date:activeTo,coordinates:String(coordinates)});
+    // Each network request also has its own timeout: a stalled proxy must not
+    // hold the current selection or the serial browser queue indefinitely.
+    const controller=new AbortController(), abort=()=>controller.abort();
+    task.controller.signal.addEventListener('abort',abort,{once:true});
+    const timer=setTimeout(abort,Math.min(ARM_REQUEST_MS,task.deadline-Date.now()));
+    try{
+      const response=await fetch('/edds/arm/report?'+query,{cache:'no-store',signal:controller.signal});
+      if(response.redirected||response.status===401)throw new Error('Войдите в «Нейрону» заново.');
+      const data=await response.json();check();
+      if(!response.ok){
+        const error=new Error(typeof data.detail==='string'?data.detail:'Не удалось загрузить отчёт ЕДДС.');
+        error.status=response.status;error.code=data.code;throw error;
+      }
+      if(!Array.isArray(data.grid)||!Array.isArray(data.grid[0]))throw new Error('АРМ ЕДДС вернул неверный формат отчёта.');
+      busySince=null;return data.grid;
+    }catch(error){
+      check();
+      if(error.name==='AbortError')throw new Error('АРМ ЕДДС не ответил за 150 секунд. Повторите загрузку меньшего периода.');
+      throw error;
+    }finally{clearTimeout(timer);task.controller.signal.removeEventListener('abort',abort);}
+  };
+  const window=async(lo,hi)=>{
+    for(;;){
+      check();
+      try{return await request(lo,hi);}
+      catch(error){
+        if(error.status===409&&error.code==='busy'){
+          if(busySince===null)busySince=Date.now();
+          if(Date.now()-busySince>=ARM_REQUEST_MS)
+            throw new Error('Предыдущий запрос АРМ ЕДДС не завершился. Проверьте окно Chromium-GOST на сервере и повторите загрузку.');
+          waiting=true;progress();await pause(1000);waiting=false;continue;
+        }
+        if(error.status===413&&lo<hi){
+          const middle=lo+Math.floor((hi-lo)/DAY/2)*DAY;
+          const left=await window(lo,middle),right=await window(middle+DAY,hi);
+          if(JSON.stringify(left[0])!==JSON.stringify(right[0]))throw new Error('Колонки отчётов различаются между периодами.');
+          return left.concat(right.slice(1));
+        }
+        throw error;
+      }
+    }
+  };
+  const clock=setInterval(progress,1000);
+  const cancel=document.getElementById('arm-cancel');
+  if(cancel)cancel.hidden=false;
+  try{
+    check();
+    for(let lo=start;lo<=end;lo+=7*DAY){
+      const hi=Math.min(lo+6*DAY,end),part=await window(lo,hi);check();
+      size+=new TextEncoder().encode(JSON.stringify(part)).byteLength;
+      if(size>100*1024*1024)throw new Error('Отчёт за весь период слишком большой. Выберите меньший период.');
+      if(merged===null)merged=part;
+      else{
+        if(JSON.stringify(merged[0])!==JSON.stringify(part[0]))throw new Error('Колонки отчётов различаются между периодами.');
+        for(let i=1;i<part.length;i++)merged.push(part[i]);
+      }
+      completed+=Math.round((hi-lo)/DAY)+1;progress();
+    }
+    armProgress(title+': загружено '+completed+' дн.');
+    return merged;
+  }catch(error){
+    if(task.generation===armGeneration)armProgress(title+': остановлено после '+completed+' из '+total+' дн. Новые данные не применены.');
+    throw error;
+  }finally{clearInterval(clock);if(cancel)cancel.hidden=true;}
 }
 async function fetchReportCsv(ot, doo){
   if(EMBEDDED)return armReport(ot,doo);
@@ -1848,7 +1951,7 @@ async function zhPoll(){
 
 
 let req = { from: '', to: '' };          // запрошенный у сайта период, строки ГГГГ-ММ-ДД
-let liveBusy = false, liveArmed = false, liveTimer = null, livePending = false;
+let liveBusy = false, liveArmed = false, liveTimer = null, livePending = false, liveCancelled = false;
 const setOf = k => (sel[k] || (sel[k] = new Set()));
 
 function optionsFor(k){
@@ -6283,6 +6386,8 @@ function liveSay(text, kind){
 }
 function scheduleLive(){
   if(!liveArmed) return;
+  liveCancelled=false;
+  if(EMBEDDED)cancelArmReports();
   clearTimeout(liveTimer);
   liveSay('Период изменён — обновляю…', 'busy');
   liveTimer = setTimeout(loadLive, 700);   // даём договорить обе даты
@@ -6290,7 +6395,8 @@ function scheduleLive(){
 
 async function loadLive(){
   if(!LIVE) return;
-  if(liveBusy){ livePending = true; return; }
+  liveCancelled=false;
+  if(liveBusy){ livePending = true; if(EMBEDDED)cancelArmReports(); return; }
   const requested = { ...req };
   const ot = siteDay(requested.from), doo = siteDay(requested.to);
   if(!ot || !doo){ liveSay('Укажите обе даты периода', 'bad'); return; }
@@ -6302,7 +6408,7 @@ async function loadLive(){
   const armButton=document.getElementById('eddsArmRefresh');
   if(armButton)armButton.disabled=true;
   clearTimeout(liveTimer);
-  liveSay('Запрашиваю отчёт…', 'busy');
+  liveSay('Запрашиваю отчёт…'+(DATA?' Пока показан прежний период.':''), 'busy');
   const err = document.getElementById('err');
   err.hidden = true;
   const had = !!DATA;
@@ -6312,7 +6418,7 @@ async function loadLive(){
     // терять из-за этого весь живой режим незачем.
     let grid, bad = 0, via = 'CSV';
     try{
-      liveSay('Запрашиваю выгрузку CSV…', 'busy');
+      liveSay('Загружаю выбранный период…'+(had?' Пока показан прежний период.':''), 'busy');
       grid = await fetchReportCsv(ot, doo);
     }catch(eCsv){
       if(EMBEDDED)throw eCsv;
@@ -6341,6 +6447,7 @@ async function loadLive(){
     // сводка уже на экране
     if(DATA.recs.length) geoAuto();
   }catch(e){
+    if(liveCancelled)return;
     if(req.from !== requested.from || req.to !== requested.to){ livePending = true; return; }
     const msg = e.empty
       ? 'За ' + ot + ' — ' + doo + ' заявок по объектам ВС/ВО нет.'
@@ -6357,7 +6464,7 @@ async function loadLive(){
     liveBusy = false;
     document.getElementById('lv-go').disabled=false;
     if(armButton)armButton.disabled=false;
-    if(livePending){ livePending = false; loadLive(); }
+    if(livePending&&!liveCancelled){ livePending = false; loadLive(); }
   }
 }
 
@@ -6414,6 +6521,10 @@ if(LIVE){
   [f, t].forEach(i => i.addEventListener('keydown', e => { if(e.key === 'Enter') go(); }));
   document.getElementById('pick').textContent = 'Загрузить файл';
   window.eddsLoadArm = () => DATA ? loadLive() : go();
+  document.getElementById('arm-cancel').addEventListener('click',()=>{
+    liveCancelled=true;livePending=false;clearTimeout(liveTimer);cancelArmReports();armProgress('Загрузка отменена.');
+    liveSay(DATA?'Загрузка отменена. Показан прежний период.':'Загрузка отменена.','bad');
+  });
   // В «Нейроне» edds-module.js запускает первую загрузку после проверки настроек.
   // В отдельном HTML запрос начинается кнопкой «Загрузить».
 }

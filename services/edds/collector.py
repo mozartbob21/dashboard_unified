@@ -12,6 +12,7 @@ import sys
 import html
 import json
 import datetime as dt
+import time
 from pathlib import Path
 
 from services.auth.integrations import credentials
@@ -60,7 +61,8 @@ OVERLAP = int(os.environ.get("KLIKER_OVERLAP", "7"))     # дней переза
 # Limit work per run; the portal's operative report times out on long windows.
 # Older history is backfilled over later runs.
 MAX_CATCHUP = max(1, int(os.environ.get("KLIKER_CATCHUP", "30")))
-MAX_WINDOW_DAYS = 14
+MAX_WINDOW_DAYS = 7
+COLLECTOR_VERSION = '2026-10-01.2'
 KEEP_DAYS = int(os.environ.get("KLIKER_KEEP", "1825"))   # сколько истории держим, 0 = вечно
 
 # Глубина истории по «Дате подачи» (filters.createdAfter/createdBefore на портале).
@@ -82,6 +84,30 @@ HEADER = ["Номер", "Адрес", "Район", "Категория ЕЦУР
 
 def log(msg):
     print(msg, flush=True)
+
+
+def progress(message):
+    """Only locally composed stages and counters, never portal responses."""
+    log(message)
+    path = WATER_JSON.with_name('progress.json')
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix('.tmp')
+        tmp.write_text(json.dumps({'updated_at': time.time(), 'message': message,
+            'collector_version': COLLECTOR_VERSION}, ensure_ascii=False), encoding='utf-8')
+        tmp.replace(path)
+    except OSError:
+        pass  # An unavailable progress file must not discard a valid report.
+
+
+def report_progress(event):
+    period = f"{event['from']} — {event['to']}"
+    if event['stage'] == 'split':
+        progress(f'Добродел: делю медленный отчёт {period} на меньшие периоды.')
+    elif event['stage'] == 'retry':
+        progress(f'Добродел: повторяю отчёт {period} меньшими страницами.')
+    else:
+        progress(f"Добродел: {period}, страница {event['page']}, получено {event['count']} обращений.")
 
 
 def get_credentials():
@@ -186,9 +212,9 @@ def pull_windows(existing):
     def small_windows(start, finish, reason):
         result = []
         while start <= finish:
-            stop = min(start + dt.timedelta(days=MAX_WINDOW_DAYS - 1), finish)
-            result.append((start, stop, reason))
-            start = stop + dt.timedelta(days=1)
+            beginning = max(start, finish - dt.timedelta(days=MAX_WINDOW_DAYS - 1))
+            result.append((beginning, finish, reason))
+            finish = beginning - dt.timedelta(days=1)
         return result
 
     if last is None:
@@ -197,15 +223,23 @@ def pull_windows(existing):
 
     wins = []
     since = last - dt.timedelta(days=OVERLAP)
-    floor = until - dt.timedelta(days=MAX_CATCHUP)
+    floor = until - dt.timedelta(days=MAX_CATCHUP - 1)
     if since < floor:
         log(f"⚠ Свод не обновлялся с {last}. Беру последние {MAX_CATCHUP} дн., "
             f"в истории останется разрыв — при необходимости увеличьте KLIKER_CATCHUP.")
         since = floor
+    # Recover gaps left by an interrupted earlier run. An absent day is unknown;
+    # a saved empty bucket is a successfully checked zero.
+    known = (existing or {}).get('days') or {}
+    for offset in range(MAX_CATCHUP):
+        day = until - dt.timedelta(days=offset)
+        if (first is None or day >= first) and day.isoformat() not in known:
+            since = min(since, day)
+    since = max(want_from, since)
     wins.extend(small_windows(since, until, f"хвост, нахлёст {OVERLAP} дн."))
 
     if first is not None and want_from < first:
-        back_to = first - dt.timedelta(days=1)
+        back_to = min(first, since) - dt.timedelta(days=1)
         back_from = max(want_from, back_to - dt.timedelta(days=MAX_CATCHUP - 1))
         wins.extend(small_windows(back_from, back_to, f"добор назад до {DAYS_BACK} дн."))
     return wins
@@ -286,13 +320,23 @@ def main():
     have = len((existing or {}).get("days") or {})
     log(f"▶ Кликер запущен. В своде {have} дн. истории. Окон к запросу: {len(wins)}.")
 
-    pulled = []
+    WATER_JSON.parent.mkdir(parents=True, exist_ok=True)
+    pending_empty = []
+    confirmed = False
+    completed = 0
+
+    def save(a, b, recs):
+        hit, total, ndays, _ = write_water_daily(build_rows(recs), a, b, load_water())
+        progress(f'Сохранён свод {a} — {b}: {hit} жалоб по воде за {ndays} дн.')
+
     with DobrodelClient(**get_credentials()) as client:
-        log('Вход в Добродел…')
+        client.deadline = time.monotonic() + 20 * 60
+        client.on_progress = report_progress
+        progress('Вход в Добродел…')
         client.login()
-        log('Сессия Добродела подтверждена.')
+        progress('Вход подтверждён. Получаю данные операционного отчёта Добродела…')
         for a, b, why in wins:
-            log(f'   свод по воде: {a} — {b} ({why}) …')
+            progress(f'Добродел: окно {completed + 1} из {len(wins)}, {a} — {b} ({why}).')
             recs = client.fetch_all({
                 'filters.curators': CURATOR,
                 'filters.statuses': STATUSES,
@@ -301,17 +345,24 @@ def main():
                 'filters.createdBefore': (b + dt.timedelta(days=1)).isoformat(),
             })
             recs = [r for r in recs if a.isoformat() <= (day_of(r.get('created')) or '') <= b.isoformat()]
-            pulled.append((a.isoformat(), b.isoformat(), recs))
+            # Save each complete interval immediately. A later historical export
+            # failure cannot discard the already downloaded fresh days.
+            if recs:
+                confirmed = True
+            if confirmed:
+                for empty_a, empty_b in pending_empty:
+                    save(empty_a, empty_b, [])
+                pending_empty.clear()
+                save(a.isoformat(), b.isoformat(), recs)
+            else:
+                pending_empty.append((a.isoformat(), b.isoformat()))
+            completed += 1
 
-    if not pulled:
+    if not completed:
         raise RuntimeError('Не задано окно для обновления свода жалоб.')
-    if not any(recs for _, _, recs in pulled):
+    if not confirmed:
         raise RuntimeError('Добродел вернул пустой отчёт за все запрошенные периоды; прежний свод сохранён.')
     was0 = have
-    for a, b, recs in pulled:
-        # An empty successful response clears stale counts in this window.
-        hit, total, ndays, _ = write_water_daily(build_rows(recs), a, b, load_water())
-        log(f"   свод {a} — {b}: +{hit} жалоб за {ndays} дн.")
     final = load_water() or {}
     nd = len(final.get("days") or {})
     log(f"✅ Свод по воде: история {was0} → {nd} дн. ({nd - was0:+d}), "

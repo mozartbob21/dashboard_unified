@@ -221,7 +221,7 @@ class AccessControlTests(unittest.TestCase):
             saved.assert_not_called()
             portal.assert_not_called()
 
-    def test_dobrodel_login_check_uses_saved_credentials_without_exporting(self):
+    def test_dobrodel_login_check_uses_saved_credentials_and_probes_report(self):
         self.manager_login()
         self.client.put('/api/users/integrations/edds', json={'username': 'saved-user', 'password': 'saved-secret'})
         self.client.put('/api/users/integrations/edds_arm', json={'username': 'other-user', 'password': 'other-secret'})
@@ -230,10 +230,15 @@ class AccessControlTests(unittest.TestCase):
                 json={'username': 'ignored-user', 'password': 'ignored-secret'})
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.json()['ok'])
-            self.assertIn('Вход в Добродел подтверждён', response.json()['message'])
+            self.assertIn('получение данных отчёта Добродела подтверждены', response.json()['message'])
             portal.assert_called_once_with('saved-user', 'saved-secret')
             client = portal.return_value.__enter__.return_value
             client.login.assert_called_once_with()
+            client.probe_report.assert_called_once()
+            from datetime import date, timedelta
+            filters=client.probe_report.call_args.args[0]
+            self.assertEqual(filters['filters.createdAfter'], (date.today()-timedelta(days=1)).isoformat())
+            self.assertEqual(filters['filters.createdBefore'], date.today().isoformat())
             client.fetch_all.assert_not_called()
             portal.return_value.__exit__.assert_called_once()
         for value in ['saved-user', 'saved-secret', 'ignored-secret', 'other-secret']:

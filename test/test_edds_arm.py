@@ -1,6 +1,6 @@
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -41,7 +41,8 @@ class ArmTests(unittest.TestCase):
             service.report.return_value = [['id_cds_claim'], ['1']]
             self.assertEqual(len(arm.fetch_report(date(2026, 9, 17), date(2026, 9, 17))), 2)
             credentials.assert_called_once_with('edds_arm')
-            service.report.assert_called_once_with({'username': 'user', 'password': 'secret'}, date(2026,9,17), date(2026,9,17), False)
+            self.assertEqual(service.report.call_args.args, ({'username': 'user', 'password': 'secret'}, date(2026,9,17), date(2026,9,17), False))
+            self.assertGreater(service.report.call_args.kwargs['deadline'], arm.time.monotonic())
             service.close.assert_not_called()
 
     def test_login_failure_releases_lock_for_retry(self):
@@ -56,19 +57,24 @@ class ArmTests(unittest.TestCase):
     def test_large_period_is_loaded_in_contiguous_windows(self):
         from services.edds import chrome
         start, end = date(2026, 1, 1), date(2026, 3, 5)
-        def report(_account, lo, hi, _coordinates):
+        def report(_account, lo, hi, _coordinates, **_options):
             return [['id_cds_claim'], [lo.isoformat(), hi.isoformat()]]
         with patch.object(arm, 'credentials', return_value={'username': 'u', 'password': 'secret'}), \
                 patch.object(chrome.browser_service, 'report', side_effect=report) as call:
             rows = arm.fetch_report(start, end)
-        self.assertEqual(rows, [['id_cds_claim'], ['2026-01-01', '2026-01-31'],
-                                ['2026-02-01', '2026-03-03'], ['2026-03-04', '2026-03-05']])
-        self.assertEqual(call.call_count, 3)
+        ranges = [(date.fromisoformat(row[0]), date.fromisoformat(row[1])) for row in rows[1:]]
+        self.assertEqual(ranges[0][0], start)
+        self.assertEqual(ranges[-1][1], end)
+        self.assertTrue(all((hi-lo).days < 7 for lo,hi in ranges))
+        for (_,previous_end),(following_start,_) in zip(ranges,ranges[1:]):
+            self.assertEqual(previous_end+timedelta(days=1), following_start)
+        self.assertEqual(sum((hi-lo).days+1 for lo,hi in ranges), (end-start).days+1)
+        self.assertEqual(call.call_count, len(ranges))
         self.assertFalse(arm.LOCK.locked())
 
     def test_oversize_window_is_bisected_without_losing_rows(self):
         from services.edds import chrome
-        def report(_account, lo, hi, _coordinates):
+        def report(_account, lo, hi, _coordinates, **_options):
             if (hi - lo).days > 1:
                 raise arm.ArmError('Отчёт слишком большой', 413)
             return [['id_cds_claim'], [lo.isoformat()], [hi.isoformat()]]
@@ -80,12 +86,67 @@ class ArmTests(unittest.TestCase):
 
     def test_incompatible_report_headers_stop_merge(self):
         from services.edds import chrome
-        def report(_account, lo, hi, _coordinates):
-            return [[('id_cds_claim' if lo.month == 1 else 'other')], ['1']]
+        def report(_account, lo, hi, _coordinates, **_options):
+            return [[('id_cds_claim' if lo == date(2026,1,1) else 'other')], ['1']]
         with patch.object(arm, 'credentials', return_value={'username': 'u', 'password': 'secret'}), \
                 patch.object(chrome.browser_service, 'report', side_effect=report):
             with self.assertRaisesRegex(arm.ArmError, 'Колонки отчёта'):
                 arm.fetch_report(date(2026, 1, 1), date(2026, 2, 2))
+        self.assertFalse(arm.LOCK.locked())
+
+    def test_whole_period_deadline_stops_later_windows(self):
+        from services.edds import chrome
+        clock = {'now':0}
+        def report(*args, **kwargs):
+            self.assertLessEqual(kwargs['deadline'], 120)
+            clock['now'] = 121
+            return [['id_cds_claim'], ['1']]
+        with patch.object(arm.time, 'monotonic', side_effect=lambda: clock['now']), \
+             patch.object(arm, 'credentials', return_value={'username':'u','password':'p'}), \
+             patch.object(chrome.browser_service, 'report', side_effect=report) as call:
+            with self.assertRaises(arm.ArmError) as caught:
+                arm.fetch_report(date(2026,1,1), date(2026,10,1))
+        self.assertEqual(caught.exception.status, 504)
+        self.assertEqual(call.call_count, 1)
+        self.assertFalse(arm.LOCK.locked())
+
+    def test_export_timeout_splits_but_login_timeout_does_not(self):
+        from services.edds import chrome
+        def report(_account, lo, hi, _coordinates, **options):
+            if lo < hi:
+                error = arm.ArmError('Export timed out',504)
+                error.retry_smaller = True
+                raise error
+            return [['id_cds_claim'], [lo.isoformat()]]
+        with patch.object(arm, 'credentials', return_value={'username':'u','password':'p'}), \
+             patch.object(chrome.browser_service, 'report', side_effect=report):
+            rows = arm.fetch_report(date(2026,1,1),date(2026,1,3))
+        self.assertEqual(rows[1:],[['2026-01-01'],['2026-01-02'],['2026-01-03']])
+        with patch.object(arm, 'credentials', return_value={'username':'u','password':'p'}), \
+             patch.object(chrome.browser_service, 'report', side_effect=arm.ArmError('Login timed out',504)) as call:
+            with self.assertRaises(arm.ArmError):
+                arm.fetch_report(date(2026,1,1),date(2026,10,1))
+            call.assert_called_once()
+
+    def test_busy_lock_has_specific_retry_code(self):
+        with patch.object(arm,'credentials',return_value={'username':'u','password':'p'}):
+            arm.LOCK.acquire()
+            try:
+                with self.assertRaises(arm.ArmError) as caught:
+                    arm.fetch_report(date(2026,1,1),date(2026,1,1))
+            finally:
+                arm.LOCK.release()
+        self.assertEqual(caught.exception.status,409)
+        self.assertEqual(caught.exception.code,'busy')
+
+    def test_aggregate_size_is_bounded(self):
+        from services.edds import chrome
+        with patch.object(arm,'MAX_REPORT_BYTES',10), \
+             patch.object(arm,'credentials',return_value={'username':'u','password':'p'}), \
+             patch.object(chrome.browser_service,'report',return_value=[['id_cds_claim'],['1']]):
+            with self.assertRaises(arm.ArmError) as caught:
+                arm.fetch_report(date(2026,1,1),date(2026,1,1))
+        self.assertEqual(caught.exception.status,413)
         self.assertFalse(arm.LOCK.locked())
 
     def test_collector_failure_is_classified_without_exposing_browser_trace(self):
@@ -202,6 +263,18 @@ class RouteTests(unittest.TestCase):
             self.assertEqual(response.status_code, 504)
             self.assertEqual(response.json()['detail'], 'Связь недоступна')
             self.assertEqual(response.headers['cache-control'], 'no-store')
+
+
+    def test_only_worker_busy_has_a_retryable_error_code(self):
+        self.app.dependency_overrides[edds.require_edds] = lambda: None
+        route='/edds/arm/report?from_date=2026-09-17&to_date=2026-09-17'
+        for error,code in [(arm.ArmError('Worker still running',409,code='busy'),'busy'),
+                           (arm.ArmError('Complete CAPTCHA on server',409),None)]:
+            with patch.object(arm,'fetch_report',side_effect=error):
+                response=self.client.get(route)
+                self.assertEqual(response.status_code,409)
+                self.assertEqual(response.json().get('code'),code)
+                self.assertEqual(response.json()['detail'],str(error))
 
 
 if __name__ == '__main__':

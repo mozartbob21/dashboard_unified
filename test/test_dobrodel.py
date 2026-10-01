@@ -109,7 +109,7 @@ class DobrodelTests(unittest.TestCase):
             self.assertIn('JSESSIONID=authenticated', request.headers['Cookie'])
         for request, options in adapter.calls:
             self.assertEqual(options['verify'], True)
-            self.assertEqual(options['timeout'], (15,60))
+            self.assertEqual(options['timeout'], (15,240 if urlsplit(request.url).path == '/report/operative' else 60))
             self.assertTrue(options['stream'])
             self.assertNotIn('j_password', request.url)
 
@@ -373,13 +373,13 @@ class CollectorTests(unittest.TestCase):
             self.run_collector([[]])
         self.assertEqual(self.path.read_text(),original)
 
-    def test_later_window_failure_preserves_previous_summary(self):
+    def test_later_window_failure_keeps_successfully_updated_interval(self):
         original=json.dumps({'days':{'2026-09-30':{'Тестовый округ':[9,0,0]}}})
         self.path.write_text(original)
         windows=[(date(2026,9,30),date(2026,9,30),'first'),(date(2026,10,1),date(2026,10,1),'second')]
         with self.assertRaises(dobrodel.DobrodelError):
             self.run_collector([[self.complaint(1,'2026-09-30')],dobrodel.DobrodelError('timeout')],windows)
-        self.assertEqual(self.path.read_text(),original)
+        self.assertEqual(json.loads(self.path.read_text())['days'], {'2026-09-30':{'Тестовый округ':[1,0,0]}})
 
     def test_successful_empty_window_clears_stale_counts_when_another_window_has_data(self):
         self.path.write_text(json.dumps({'days':{'2026-09-29':{'Old':[3,0,0]},'2026-09-30':{'Old':[9,0,0]}}}))
@@ -417,7 +417,7 @@ class CollectorTests(unittest.TestCase):
         older = [(a,b) for a,b,reason in following if reason.startswith('добор назад')]
         self.assertTrue(older)
         self.assertTrue(all(b < back_start for _,b in older))
-        self.assertEqual(older[-1][1], back_start-timedelta(days=1))
+        self.assertEqual(older[0][1], back_start-timedelta(days=1))
 
     def test_legacy_sparse_summary_does_not_gain_unqueried_empty_days(self):
         original = {'from':'2026-09-10', 'to':'2026-09-28',
@@ -461,11 +461,11 @@ class CollectorTests(unittest.TestCase):
     def test_first_run_queries_bounded_contiguous_periods(self):
         with patch.object(collector,'DAYS_BACK',730),patch.object(collector,'MAX_CATCHUP',30):
             windows=collector.pull_windows(None)
-        self.assertEqual(len(windows),3)
-        self.assertEqual(windows[-1][1],date.today())
-        self.assertEqual((windows[0][0]-windows[-1][1]).days,-29)
+        self.assertEqual(len(windows),5)
+        self.assertEqual(windows[0][1],date.today())
+        self.assertEqual((windows[-1][0]-windows[0][1]).days,-29)
         for previous,following in zip(windows,windows[1:]):
-            self.assertEqual(previous[1].toordinal()+1,following[0].toordinal())
+            self.assertEqual(following[1].toordinal()+1,previous[0].toordinal())
         self.assertTrue(all((end-start).days<collector.MAX_WINDOW_DAYS for start,end,_ in windows))
 
 

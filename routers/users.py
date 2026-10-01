@@ -47,10 +47,11 @@ async def integration_save(payload: IntegrationPayload, service: Literal['edds',
 
 @router.post('/api/users/integrations/edds/check')
 def integration_edds_check():
-    """Проверяет сохранённый доступ с сервера без загрузки отчётов."""
+    """Проверяет вход и одну страницу API отчёта без сохранения жалоб."""
     from services.auth.integrations import credentials
     from services.edds.dobrodel import DobrodelClient, DobrodelError
 
+    logged_in = False
     try:
         try:
             account = credentials('edds')
@@ -62,12 +63,20 @@ def integration_edds_check():
             raise DobrodelError('credentials')
         with DobrodelClient(account['username'], account['password']) as client:
             import time
-            client.deadline = time.monotonic() + 90
+            client.deadline = time.monotonic() + 120
             client.login()
+            logged_in = True
+            from datetime import date, timedelta
+            from services.edds.collector import CURATOR, STATUSES
+            today = date.today()
+            client.probe_report({'filters.curators': CURATOR, 'filters.statuses': STATUSES,
+                'filters.createdAfter': (today - timedelta(days=1)).isoformat(),
+                'filters.createdBefore': today.isoformat()})
     except DobrodelError as error:
         status = 400 if error.code in {'credentials', 'login', 'access'} else 502
-        return JSONResponse(status_code=status, content={'ok': False, 'message': str(error)})
-    return {'ok': True, 'message': 'Вход в Добродел подтверждён. Операционный отчёт доступен.'}
+        message = ('Вход подтверждён, но проверка выгрузки не прошла. ' if logged_in else '') + str(error)
+        return JSONResponse(status_code=status, content={'ok': False, 'message': message})
+    return {'ok': True, 'message': 'Вход и получение данных отчёта Добродела подтверждены. Можно обновить свод жалоб.'}
 
 
 @router.post('/api/users/{user_id}/archive')

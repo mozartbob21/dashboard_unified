@@ -58,7 +58,10 @@ def arm_report(from_date: date, to_date: date, coordinates: bool = False):
         return JSONResponse({'grid': arm.fetch_report(from_date, to_date, coordinates)},
                             headers={'Cache-Control': 'no-store'})
     except arm.ArmError as error:
-        raise HTTPException(error.status, str(error), headers={'Cache-Control': 'no-store'}) from None
+        payload = {'detail': str(error)}
+        if error.code:
+            payload['code'] = error.code
+        return JSONResponse(payload, status_code=error.status, headers={'Cache-Control': 'no-store'})
 
 
 @router.post('/refresh',status_code=202)
