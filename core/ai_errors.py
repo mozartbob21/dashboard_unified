@@ -13,6 +13,8 @@ class AIServiceError(RuntimeError):
 
 
 MESSAGES = {
+    'GIGACHAT_CREDENTIALS_MISSING': 'На сервере не задан ключ GigaChat. Проверьте SUMMARIZER_GIGACHAT_CREDENTIALS или GIGACHAT_CREDENTIALS.',
+    'GIGACHAT_SCOPE_INVALID': 'Проверьте GIGACHAT_SCOPE на сервере: допустимы GIGACHAT_API_PERS, GIGACHAT_API_B2B или GIGACHAT_API_CORP.',
     'AI_KEY_MISSING': 'На сервере не задан ключ доступа к ИИ. Администратору нужно проверить QWEN_API_KEY и перезапустить приложение.',
     'AI_AUTH_FAILED': 'ИИ отклонил ключ доступа. Администратору нужно проверить ключ на сервере.',
     'AI_ACCESS_DENIED': 'Настроенной учётной записи не разрешён доступ к выбранной модели ИИ.',

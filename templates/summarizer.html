@@ -8,6 +8,7 @@
 
 
     <style>
+        .sm-card[hidden],.sm-history-dialog [hidden],.sm-history [hidden]{display:none!important}
         .sm-hero{padding:20px 24px!important;margin-bottom:16px!important}
         .sm-title{font-size:20px;font-weight:800;margin:0 0 6px;color:var(--text-color,#1e293b)}
         .sm-sub{font-size:13px;color:var(--muted-color,#64748b);margin:0;max-width:85ch;line-height:1.55}
@@ -39,6 +40,27 @@
         .sm-history{margin-top:16px}
         .sm-hitem{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 12px;border:1px solid var(--border-color,#e2e8f0);border-radius:10px;margin-bottom:6px;font-size:12.5px;color:var(--muted-color,#475569);cursor:pointer}
         .sm-hitem:hover{border-color:#8b5cf6}
+        .sm-btn:disabled{opacity:.55;cursor:wait;transform:none!important}
+        .sm-history-heading,.sm-dialog-head,.sm-detail-heading,.sm-dialog-foot{display:flex;align-items:center;justify-content:space-between;gap:16px}
+        .sm-history-heading p{margin-top:5px}
+        .sm-hitem{width:100%;text-align:left;display:block;font:inherit;background:var(--bg-card,#fff);padding:16px;transition:border-color .15s;overflow-wrap:anywhere}
+        .sm-hitem:focus-visible,.sm-btn:focus-visible{outline:3px solid #818cf8;outline-offset:3px}
+        .sm-history-meta{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;margin-bottom:10px;color:var(--muted-color,#64748b)}
+        .sm-history-preview{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;font-size:13px;line-height:1.6;color:var(--text-color,#1e293b)}
+        .sm-history-preview span{min-width:0;display:block}
+        .sm-history-preview b{display:block;font-size:11px;font-weight:700;color:var(--muted-color,#64748b);margin-bottom:4px}
+        .sm-history-open{display:block;text-align:right;color:#7270cf;font-size:12px;font-weight:700;margin-top:10px}
+        .sm-history-dialog{box-sizing:border-box;width:min(1120px,calc(100% - 32px));max-height:calc(100dvh - 40px);padding:24px;border:1px solid var(--border-color,#e2e8f0);border-radius:22px;background:var(--bg-card,#fff);color:var(--text-color,#1e293b);box-shadow:0 24px 80px #0003}
+        .sm-history-dialog::backdrop{background:#0f172a66;backdrop-filter:blur(4px)}
+        .sm-history-dialog h2{margin:0;font-size:20px;line-height:1.35}.sm-history-dialog h3{margin:0;font-size:14px}
+        .sm-dialog-head{align-items:flex-start;margin-bottom:16px}.sm-dialog-head .sm-sub{margin-top:6px}
+        .sm-version-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;font-size:13px}
+        .sm-version-bar select{min-height:38px;max-width:100%;padding:8px 36px 8px 12px;border:1px solid var(--border-color,#cbd5e1);border-radius:10px;background:var(--bg-card,#fff);color:inherit;font:inherit}
+        .sm-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.sm-detail-grid section{min-width:0}
+        .sm-detail-heading{margin-bottom:8px}.sm-detail-heading button{font-size:12px;padding:7px 10px}
+        .sm-history-text{box-sizing:border-box;white-space:pre-wrap;overflow-wrap:anywhere;max-height:55dvh;overflow:auto;margin:0;padding:16px;border:1px solid var(--border-color,#e2e8f0);border-radius:12px;background:var(--bg-neutral-100,rgba(0,0,0,.025));color:inherit;font-family:inherit;font-size:13px;line-height:1.7}
+        .sm-dialog-foot{flex-wrap:wrap;margin-top:20px}.sm-source-details{margin-bottom:12px;font-size:13px}.sm-source-details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
+        @media(max-width:700px){.sm-history-preview,.sm-detail-grid{grid-template-columns:minmax(0,1fr)}.sm-history-dialog{padding:16px}.sm-history-text{max-height:36dvh}.sm-history-heading{align-items:flex-start}.sm-history-open{text-align:left}}
     </style>
 {% endblock %}
 {% block content %}
@@ -68,17 +90,18 @@
     <div class="sm-grid">
         <section class="card sm-card">
             <h2>1. Текст переписки</h2>
-            <textarea id="srcText" placeholder="Борис: Промывки по Красногорску 38%&#10;Мария: Клин — 40%, нужно совещание&#10;..."></textarea>
-            <div style="display:flex;gap:10px;align-items:center;">
+            <textarea id="srcText" maxlength="200000" aria-label="Текст для суммирования" placeholder="Борис: Промывки по Красногорску 38%&#10;Мария: Клин — 40%, нужно совещание&#10;..."></textarea>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                 <button class="sm-btn primary" id="summaryBtn" type="button">⚡ /summary</button>
                 <button class="sm-btn ghost" id="demoBtn" type="button">✨ Пример</button>
-                <select id="engineSelect" class="sm-btn ghost" style="min-height:40px;">
-                    <option value="">Движок: авто</option>
+                <select id="engineSelect" aria-label="Движок сумматора" class="sm-btn ghost" style="min-height:40px;">
+                    <option value="gigachat" selected>GigaChat</option>
+                    <option value="">По настройкам сервера</option>
                     <option value="qwen">Госчат</option>
                     <option value="algo">Алгоритм</option>
                 </select>
             </div>
-            <div class="sm-status" id="statusLine"></div>
+            <div class="sm-status" id="statusLine" role="status"></div>
         </section>
 
         <section class="card sm-card" id="reportCard" hidden>
@@ -87,112 +110,28 @@
         </section>
     </div>
 
-    <section class="card sm-card sm-history">
-        <h2>История отчётов</h2>
-        <div id="historyBox">
-            {% for r in reports %}
-            <div class="sm-hitem" data-id="{{ r.id }}">
-                <span>📄 {{ r.created_at }} · {{ r.author }}</span>
-                <span class="sm-badge {{ r.status }}">{{ r.status }}</span>
-            </div>
-            {% endfor %}
-        </div>
+    <section class="card sm-card sm-history" aria-labelledby="historyTitle">
+        <div class="sm-history-heading"><div><h2 id="historyTitle">История суммирования</h2><p class="sm-sub">Исходный текст и полученный результат каждой обработки</p></div><button class="sm-btn ghost" id="refreshHistoryBtn" type="button">Обновить</button></div>
+        <div id="historyState" class="sm-status" role="status"></div>
+        <div id="historyBox"></div>
+        <button class="sm-btn ghost" id="moreHistoryBtn" type="button" hidden>Показать ещё</button>
     </section>
 </div>
 
-<script>
-const $ = id => document.getElementById(id);
-let current = null;
-
-const DEMO = "Иванов: По Красногорску промывки выполнены на 38%, отставание от графика.\nПетрова: Клин — явка 40%, прошу совещание с куратором.\nИванов: Собираемость НВОС 80%, план 95%.\nСидоров: По камерам: 22 не работают, 14 не подключены.\nПетрова: Просроченных задач 864, из них 132 более 20 дней.\nИванов: До 15.08 подготовить объяснения по НВОС.\nСидоров: Авария на водоводе в Серпухове устранена за 4 часа.\nПетрова: Напомните про отчёт к совещанию у министра в пятницу.";
-
-$("demoBtn").addEventListener("click", () => { $("srcText").value = DEMO; });
-
-function setStatus(t, cls) { const el = $("statusLine"); el.textContent = t; el.className = "sm-status " + (cls || ""); }
-
-$("summaryBtn").addEventListener("click", async () => {
-    const text = $("srcText").value.trim();
-    if (text.length < 50) return setStatus("Нужно минимум 50 символов текста.", "err");
-    setStatus("⏳ Анализирую переписку…");
-    const r = await fetch("/summarizer/api/summary", {
-        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, backend: $("engineSelect").value})
-    });
-    const d = await r.json();
-    if (!d.ok) return setStatus("❌ " + (d.message || d.error || "Ошибка"), "err");
-    current = d.report;
-    renderReport(current);
-    setStatus("✅ Отчёт готов и отправлен на утверждение.", "ok");
-});
-
-function renderReport(rep) {
-    $("reportCard").hidden = false;
-    const res = rep.result;
-    const st = res.stats || {};
-    const appr = Object.keys(rep.approvals || {});
-    const badges = {pending: "⏳ на утверждении", approved: "✅ утверждён", revision: "🛠 на доработке"};
-    const reportText = res.report_text || "";
-    $("reportBox").innerHTML = `
-        <div class="sm-report">
-            <div class="sm-stats">
-                <span class="sm-stat">🕐 ${st.time || "—"}</span>
-                <span class="sm-stat">📍 ${esc(st.place || "—")}</span>
-                <span class="sm-stat">⚡ ${esc(st.event || "—")}</span>
-                <span class="sm-badge ${rep.status}">${badges[rep.status] || rep.status}</span>
-            </div>
-            <div class="sm-doc" id="docBox" style="white-space:pre-wrap;font-size:13.5px;line-height:1.7;
-                padding:16px 18px;background:var(--bg-card,#fff);border:1px solid var(--border-color,#e2e8f0);
-                border-radius:10px;color:var(--text-color,#1e293b);font-family:Georgia,serif;max-height:420px;overflow:auto;">${esc(reportText)}</div>
-            <div style="display:flex;gap:8px;margin-top:8px;">
-                <button class="sm-btn ghost" id="copyBtn" type="button" style="padding:7px 14px;font-size:12px;">📋 Скопировать</button>
-                <span style="font-size:11.5px;color:var(--muted-color,#94a3b8);align-self:center;">
-                    сжатие ${st.compression || 0}% · ${st.authors || 0} источников
-                </span>
-            </div>
-            ${(res.key_points || []).length ? `<div class="sm-h" style="margin-top:14px;">⚠️ Не распознано (сырой текст)</div>
-                <ul>${res.key_points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+<dialog id="smHistoryDialog" class="sm-history-dialog" aria-labelledby="historyDetailTitle">
+    <div class="sm-dialog-head"><div><h2 id="historyDetailTitle">Что суммировали и что получилось</h2><p id="historyMeta" class="sm-sub"></p></div><button id="closeHistoryBtn" class="sm-btn ghost" type="button" aria-label="Закрыть историю отчёта">✕</button></div>
+    <p id="historyDetailState" class="sm-status" role="status"></p>
+    <div id="historyDetail" hidden>
+        <div class="sm-version-bar"><label for="historyVersion">Версия отчёта</label><select id="historyVersion"></select><span id="historyBackend" class="sm-stat"></span></div>
+        <p id="historyWarning" class="sm-status" hidden></p>
+        <div class="sm-detail-grid">
+            <section><div class="sm-detail-heading"><h3>Исходный текст</h3><button class="sm-btn ghost" id="copySourceBtn" type="button">Скопировать</button></div><pre id="historySource" class="sm-history-text"></pre></section>
+            <section><div class="sm-detail-heading"><h3>Полученный результат</h3><button class="sm-btn ghost" id="copyResultBtn" type="button">Скопировать</button></div><pre id="historyResult" class="sm-history-text"></pre></section>
         </div>
-        <div class="sm-approve">
-            <button class="sm-btn green" id="approveBtn" type="button">✅ Утвердить</button>
-            <button class="sm-btn red" id="rejectBtn" type="button">❌ Отклонить</button>
-            ${rep.status === "revision" ? '<button class="sm-btn primary" id="regenBtn" type="button">🔄 Пересобрать с учётом комментария</button>' : ""}
-            <div class="sm-badges">${appr.map(u => `<span class="sm-badge approved">✅ ${esc(u)}</span>`).join("")}</div>
-            <span style="font-size:11.5px;color:var(--muted-color,#94a3b8);">нужно минимум 2 утверждения</span>
-        </div>
-        ${rep.status !== "approved" ? `<textarea class="sm-comment" id="commentBox" placeholder="Комментарий для доработки (обязателен при отклонении)…">${esc(rep.revision_comment || "")}</textarea>` : ""}
-    `;
-    const cb = $("copyBtn");
-    if (cb) cb.addEventListener("click", async () => {
-        try {
-            await navigator.clipboard.writeText(reportText);
-            cb.textContent = "✅ Скопировано!";
-            setTimeout(() => cb.textContent = "📋 Скопировать", 1500);
-        } catch (e) {
-            alert("Не удалось скопировать");
-        }
-    });
-    const ab = $("approveBtn");
-    if (ab) ab.addEventListener("click", async () => {
-        const r = await fetch("/summarizer/api/approve", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: rep.id})});
-        const d = await r.json();
-        if (d.ok) { current = d.report; renderReport(current); }
-    });
-    const rb = $("rejectBtn");
-    if (rb) rb.addEventListener("click", async () => {
-        const comment = ($("commentBox") || {}).value || "";
-        const r = await fetch("/summarizer/api/reject", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: rep.id, comment})});
-        const d = await r.json();
-        if (d.ok) { current = d.report; renderReport(current); }
-        else alert(d.message || "Ошибка");
-    });
-    const gb = $("regenBtn");
-    if (gb) gb.addEventListener("click", async () => {
-        const r = await fetch("/summarizer/api/regenerate", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: rep.id})});
-        const d = await r.json();
-        if (d.ok) { current = d.report; renderReport(current); }
-    });
-}
-function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-</script>
+        <div class="sm-dialog-foot"><span class="sm-sub">Просмотр истории не меняет ваш текущий текст.</span><button id="historyReviewBtn" class="sm-btn primary" type="button">К согласованию</button></div>
+    </div>
+</dialog>
+<script src="{{ url_for('static', path='summarizer.js') }}?v=20261002"></script>
 
 
 {% endblock %}

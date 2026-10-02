@@ -1,4 +1,4 @@
-"""Сумматор: разрешённый ГосЧат/локальная модель и алгоритмический режим."""
+"""Сумматор: GigaChat, Госчат/Qwen и локальный алгоритм."""
 import os
 import re
 import datetime
@@ -6,22 +6,10 @@ from collections import Counter, OrderedDict
 
 
 # ═══════════════ КЛИЕНТЫ ═══════════════
-_giga_cache = {}
-GIGA_FALLBACKS = ["GigaChat-2-Pro", "GigaChat-2-Max", "GigaChat-2", "GigaChat-3-Ultra"]
-
-
-def _giga_client(credentials):
-    from core.privacy import PrivacyError
-    raise PrivacyError("GigaChat отключён. Используйте ГосЧат.")
-
-
-def _get_giga():
-    return _giga_client(os.getenv("GIGACHAT_CREDENTIALS", "").strip())
-
-
 def _gigachat_chat(messages, creds=None, model=None, max_tokens=2000):
-    from core.privacy import PrivacyError
-    raise PrivacyError("GigaChat отключён. Используйте разрешённый ГосЧат.")
+    # GigaChat is enabled only for the summarizer, never as a Qwen fallback.
+    from services.summarizer.gigachat_client import chat
+    return chat(messages, creds=creds, model=model, max_tokens=max_tokens)
 
 
 def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
@@ -444,6 +432,17 @@ def summarize(text, max_points=7, backend=None, creds=None, qwen_key=None):
                 "key_points": [], "facts": [],
                 "top_authors": Counter(authors).most_common(5), "extracted": {},
             }
-        except Exception as e:
-            print(f"[summarizer] {backend} error: {e} → fallback на алгоритм", flush=True)
+        except Exception as exc:
+            import logging
+            from core.ai_errors import describe_ai_error
+            failure = describe_ai_error(exc)
+            logging.getLogger("summarizer").warning(
+                "AI request failed code=%s exception=%s status=%s; using algorithm",
+                failure["code"], type(exc).__name__, failure["http_status"])
+            result = _summarize_algo(text)
+            result["ai_error_code"] = failure["code"]
+            result["requested_backend"] = backend
+            result["warning"] = ("ИИ не ответил. Результат подготовлен обычным алгоритмом. "
+                                 + failure["message"] + " Код: " + failure["code"])
+            return result
     return _summarize_algo(text)

@@ -2538,8 +2538,21 @@ async def summarizer_page(request: Request):
     return templates.TemplateResponse(request, "summarizer.html", {
         "request": request,
         "user_username": user.get("username", ""),
-        "reports": sum_store.list_reports(10),
     })
+
+
+@app.get("/summarizer/api/reports")
+async def summarizer_reports(limit: int = 20, offset: int = 0):
+    page = sum_store.history_page(max(1, min(limit, 50)), max(0, offset))
+    return JSONResponse({"ok": True, **page}, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/summarizer/api/reports/{rid}")
+async def summarizer_report(rid: str):
+    report = sum_store.get_report(rid)
+    if not report:
+        return JSONResponse(status_code=404, content={"ok": False, "message": "Отчёт не найден"})
+    return JSONResponse({"ok": True, "report": report}, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/summarizer/api/summary")
@@ -2550,7 +2563,9 @@ async def summarizer_summary(request: Request):
     if len(text) < 50:
         return JSONResponse(status_code=400,
                             content={"ok": False, "message": "Текст слишком короткий (мин. 50 символов)"})
-    result = sum_engine.summarize(text, backend=(str(payload.get("backend") or "").strip() or None))
+    if len(text) > sum_store.MAX_SOURCE_CHARS:
+        return JSONResponse(status_code=400, content={"ok": False, "message": "Максимум 200 000 символов. Разделите текст на части."})
+    result = await asyncio.to_thread(sum_engine.summarize, text, backend=(str(payload.get("backend") or "").strip() or None))
     if not result.get("ok"):
         return JSONResponse(status_code=400, content=result)
     item = sum_store.create_report(text, result, user.get("username", "—"))
@@ -2592,12 +2607,21 @@ async def summarizer_regenerate(request: Request):
     src = it["source"]
     if it.get("revision_comment"):
         src += "\nКомментарий для корректировки: " + it["revision_comment"]
-    result = sum_engine.summarize(src)
+    backend = str(payload.get("backend") or "").strip() or (it.get("result") or {}).get("requested_backend") or (it.get("result") or {}).get("backend")
+    result = await asyncio.to_thread(sum_engine.summarize, src, backend=backend)
     if not result.get("ok"):
         return JSONResponse(status_code=400, content=result)
-    it["result"] = result
-    sum_store.to_pending(rid)
-    return {"ok": True, "report": sum_store.get_report(rid)}
+    user = get_user_from_token(request.cookies.get("access_token")) or {}
+    try:
+        report = sum_store.regenerate(rid, result, user.get("username", "—"), src, it.get("revision_comment") or "",
+                                      expected_revision=it.get("revision", 0))
+    except sum_store.ReportConflict:
+        return JSONResponse(status_code=409, content={"ok": False,
+            "message": "Отчёт изменился во время генерации. Показана актуальная версия. Проверьте комментарий и повторите пересборку.",
+            "report": sum_store.get_report(rid)})
+    if not report:
+        return JSONResponse(status_code=404, content={"ok": False, "message": "Отчёт не найден"})
+    return {"ok": True, "report": report}
 
 
 @app.get('/favicon.ico', include_in_schema=False)
@@ -3012,7 +3036,7 @@ async def water_dashboard_run_status():
 
 
 # ===============================
-# AI CHAT — имитатор общения с ИИ (Qwen)
+# AI CHAT — универсальный ИИ-помощник (Qwen)
 # ===============================
 from services.aichat import storage as aichat_store
 from services.aichat.engine import ask as aichat_ask, GREETING
