@@ -2555,6 +2555,18 @@ async def summarizer_report(rid: str):
     return JSONResponse({"ok": True, "report": report}, headers={"Cache-Control": "no-store"})
 
 
+@app.delete("/summarizer/api/reports")
+async def summarizer_clear_reports():
+    return {"ok": True, "deleted": sum_store.clear_reports()}
+
+
+@app.delete("/summarizer/api/reports/{rid}")
+async def summarizer_delete_report(rid: str):
+    if not sum_store.delete_report(rid):
+        return JSONResponse(status_code=404, content={"ok": False, "message": "Запись уже удалена или не найдена"})
+    return {"ok": True}
+
+
 @app.post("/summarizer/api/summary")
 async def summarizer_summary(request: Request):
     user = get_user_from_token(request.cookies.get("access_token")) or {}

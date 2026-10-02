@@ -1,4 +1,4 @@
-"""Сумматор: GigaChat, Госчат/Qwen и локальный алгоритм."""
+"""Сумматор: Госчат/Qwen и локальный алгоритм."""
 import os
 import re
 import datetime
@@ -6,12 +6,6 @@ from collections import Counter, OrderedDict
 
 
 # ═══════════════ КЛИЕНТЫ ═══════════════
-def _gigachat_chat(messages, creds=None, model=None, max_tokens=2000):
-    # GigaChat is enabled only for the summarizer, never as a Qwen fallback.
-    from services.summarizer.gigachat_client import chat
-    return chat(messages, creds=creds, model=model, max_tokens=max_tokens)
-
-
 def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
     """Chat completions for the configured GosChat or local model."""
     import httpx
@@ -408,18 +402,20 @@ def summarize(text, max_points=7, backend=None, creds=None, qwen_key=None):
     if len(text.strip()) < 30:
         return {"ok": False, "error": "Слишком короткий текст"}
     text = _clean_text(text)
-    backend = (backend or os.getenv("SUMMARIZER_BACKEND", "algo")).strip()
-    creds = creds or os.getenv("SUMMARIZER_GIGACHAT_CREDENTIALS", "").strip() or None
+    backend = (str(backend or "").strip() or os.getenv("SUMMARIZER_BACKEND", "").strip() or "qwen").casefold()
+    # Old settings and saved reports can still request the retired provider.
+    # Keep the legacy creds argument for local callers, but never use it.
+    if backend == "gigachat":
+        backend = "qwen"
+    if backend not in {"qwen", "algo"}:
+        return {"ok": False, "error": "Выберите Госчат или локальный алгоритм."}
     qwen_key = qwen_key or os.getenv("SUMMARIZER_QWEN_API_KEY", "").strip() or None
 
-    if backend in ("gigachat", "qwen"):
+    if backend == "qwen":
         try:
             authors = _extract_authors(text)
             msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}]
-            if backend == "gigachat":
-                ai_text = _gigachat_chat(msgs, creds=creds, max_tokens=4000)
-            else:
-                ai_text = _qwen_chat(msgs, max_tokens=8000, key=qwen_key)
+            ai_text = _qwen_chat(msgs, max_tokens=8000, key=qwen_key)
             return {
                 "ok": True, "backend": backend, "report_text": ai_text,
                 "stats": {

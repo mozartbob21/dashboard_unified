@@ -7,14 +7,20 @@ const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g,c=>({
 const statusName = value => badges[value] || 'Статус не указан';
 const statusClass = value => Object.hasOwn(badges,value) ? value : 'pending';
 let current = null, historyReport = null, historyOffset = 0, historyRequest = 0, detailRequest = 0;
+let historyTotal = 0, deleteTarget = null, deleting = false;
+const deletedReports = new Set();
+const trashIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>';
 const DEMO = 'Иванов: В 10:30 произошла авария на водоводе в Серпухове. Отключено холодное водоснабжение 12 домов.\nПетрова: Бригада водоканала на месте, 4 человека и 2 единицы техники.\nИванов: Плановое завершение работ в 14:00. Жители проинформированы.';
 function setStatus(text, type) { $('statusLine').textContent=text; $('statusLine').className='sm-status '+(type||''); }
-async function api(path, payload) {
-    const response = await fetch(path, payload===undefined ? {cache:'no-store'} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+async function api(path, payload, method) {
+    const options=payload===undefined ? {cache:'no-store'} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)};
+    if(method)options.method=method;
+    const response = await fetch(path, options);
     if(response.redirected || !(response.headers.get('content-type')||'').includes('application/json')) throw new Error('Сессия завершена. Войдите в систему заново.');
     const data = await response.json();
     if(!response.ok || data.ok===false) {
         const error=new Error(data.message||data.detail||data.error||'Не удалось выполнить запрос.');
+        error.status=response.status;
         if(response.status===409)error.report=data.report;
         throw error;
     }
@@ -74,8 +80,10 @@ function renderReport(rep) {
             $('reportBox').querySelectorAll('button').forEach(b=>b.disabled=true);
             try {
                 const data=await api('/summarizer/api/'+action,{id:rep.id,comment,backend:$('engineSelect').value});
+                if(deletedReports.has(rep.id))return;
                 current=data.report; renderReport(current); await loadHistory(); setStatus('Изменения сохранены.','ok');
             } catch(error) {
+                if(deletedReports.has(rep.id))return;
                 if(error.report){current=error.report;renderReport(current);await loadHistory();}
                 setStatus(error.message,'err');
             }
@@ -86,22 +94,73 @@ function renderReport(rep) {
 async function loadHistory(append=false) {
     const sequence=++historyRequest, offset=append?historyOffset:0;
     $('refreshHistoryBtn').disabled=true; $('moreHistoryBtn').disabled=true;
+    $('clearHistoryBtn').disabled=true;
     $('historyState').textContent='Загружаю историю…';
     try {
         const data=await api('/summarizer/api/reports?limit=20&offset='+offset);
         if(sequence!==historyRequest)return;
         if(!append)$('historyBox').replaceChildren();
         data.items.forEach(item=>{
+            const row=document.createElement('div');row.className='sm-hrow';
             const button=document.createElement('button');button.type='button';button.className='sm-hitem';
             button.innerHTML=`<span class="sm-history-meta"><span>${esc(item.created_at)} · ${esc(item.author)} · ${esc(backendName(item.backend))}</span><span class="sm-badge ${statusClass(item.status)}">${esc(statusName(item.status))}</span></span><span class="sm-history-preview"><span><b>Исходный текст</b>${esc(item.source_preview||'Не сохранён')}</span><span><b>Полученный результат</b>${esc(item.result_preview||'Нет текста результата')}</span></span><span class="sm-history-open">Открыть полностью${item.version_count>1?' · версий: '+esc(item.version_count):''} →</span>`;
-            button.addEventListener('click',()=>openHistory(item.id));$('historyBox').appendChild(button);
+            button.addEventListener('click',()=>openHistory(item.id));
+            const remove=document.createElement('button');remove.type='button';remove.className='sm-btn sm-delete sm-delete-icon';
+            remove.innerHTML=trashIcon;remove.title='Удалить запись';
+            remove.setAttribute('aria-label','Удалить запись от '+item.created_at+' · '+item.author);
+            remove.addEventListener('click',()=>askDelete(item));
+            row.append(button,remove);$('historyBox').appendChild(row);
         });
+        historyTotal=data.total;
         historyOffset=offset+data.items.length;
         $('moreHistoryBtn').hidden=!data.has_more;
         $('historyState').textContent=data.total?'Показано '+historyOffset+' из '+data.total:'Здесь появятся исходные тексты и результаты после первого суммирования.';
     } catch(error) {if(sequence===historyRequest)$('historyState').textContent=error.message;}
-    finally { if(sequence===historyRequest){$('refreshHistoryBtn').disabled=false;$('moreHistoryBtn').disabled=false;} }
+    finally { if(sequence===historyRequest){$('refreshHistoryBtn').disabled=false;$('moreHistoryBtn').disabled=false;$('clearHistoryBtn').disabled=!historyTotal||deleting;} }
 }
+function askDelete(item=null) {
+    if(deleting)return;
+    deleteTarget=item;
+    $('deleteTitle').textContent=item?'Удалить запись?':'Очистить всю историю?';
+    $('deleteDescription').textContent=item
+        ? 'Запись от '+item.created_at+' будет удалена из общей истории для всех сотрудников вместе с исходным текстом, результатом и версиями. Восстановить её не получится.'
+        : 'Будут удалены все записи общей истории, включая записи на следующих страницах, исходные тексты, результаты и версии. Это действие нельзя отменить.';
+    $('confirmDeleteBtn').textContent=item?'Удалить запись':'Очистить всё';
+    $('deleteState').textContent='';$('smDeleteDialog').showModal();$('cancelDeleteBtn').focus();
+}
+function forgetDeletedReport(id) {
+    if(id)deletedReports.add(id);
+    if(current && (!id||current.id===id)){
+        deletedReports.add(current.id);current=null;$('reportBox').replaceChildren();$('reportCard').hidden=true;
+        setStatus('');
+    }
+    if(historyReport && (!id||historyReport.id===id)){
+        historyReport=null;detailRequest++;$('smHistoryDialog').close();
+    }
+}
+$('clearHistoryBtn').addEventListener('click',()=>askDelete());
+$('cancelDeleteBtn').addEventListener('click',()=>{$('smDeleteDialog').close();});
+$('smDeleteDialog').addEventListener('cancel',event=>{if(deleting)event.preventDefault();});
+$('confirmDeleteBtn').addEventListener('click',async()=>{
+    if(deleting)return;
+    const target=deleteTarget;
+    deleting=true;$('confirmDeleteBtn').disabled=true;$('cancelDeleteBtn').disabled=true;$('clearHistoryBtn').disabled=true;
+    $('deleteState').textContent='Удаляю…';
+    historyRequest++;
+    try {
+        try { await api('/summarizer/api/reports'+(target?'/'+encodeURIComponent(target.id):''),undefined,'DELETE'); }
+        catch(error){if(!(target && error.status===404))throw error;}
+        forgetDeletedReport(target?target.id:null);
+        $('smDeleteDialog').close();
+        await loadHistory();
+        $('historyState').textContent=(target?'Запись удалена. ':'История очищена. ')+$('historyState').textContent;
+        $('refreshHistoryBtn').focus();
+    } catch(error){$('deleteState').textContent=error.message;}
+    finally{
+        deleting=false;$('confirmDeleteBtn').disabled=false;$('cancelDeleteBtn').disabled=false;
+        $('refreshHistoryBtn').disabled=false;$('moreHistoryBtn').disabled=false;$('clearHistoryBtn').disabled=!historyTotal;
+    }
+});
 async function openHistory(id) {
     const sequence=++detailRequest;
     historyReport=null;$('historyDetail').hidden=true;$('historyMeta').textContent='';$('historyDetailState').textContent='Загружаю отчёт…';

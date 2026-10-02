@@ -8,6 +8,7 @@
 
 
     <style>
+        .compact-module-page{--bg-card:var(--bg-soft);--text-color:var(--text);--muted-color:var(--muted);--border-color:var(--border);--bg-neutral-100:var(--card)}
         .sm-card[hidden],.sm-history-dialog [hidden],.sm-history [hidden]{display:none!important}
         .sm-hero{padding:20px 24px!important;margin-bottom:16px!important}
         .sm-title{font-size:20px;font-weight:800;margin:0 0 6px;color:var(--text-color,#1e293b)}
@@ -38,13 +39,24 @@
         .sm-badge.revision{background:rgba(239,68,68,.12);color:#ef4444}
         .sm-comment{width:100%;min-height:70px;padding:10px;border-radius:10px;border:1px solid var(--border-color,#cbd5e1);background:var(--bg-card,#fff);color:var(--text-color,#1e293b);font-size:12.5px;font-family:inherit;box-sizing:border-box}
         .sm-history{margin-top:16px}
-        .sm-hitem{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 12px;border:1px solid var(--border-color,#e2e8f0);border-radius:10px;margin-bottom:6px;font-size:12.5px;color:var(--muted-color,#475569);cursor:pointer}
-        .sm-hitem:hover{border-color:#8b5cf6}
+        .sm-hrow{display:flex;align-items:center;gap:4px;border:1px solid var(--border-color,#e2e8f0);border-radius:14px;margin-bottom:10px;background:var(--bg-card,#fff);transition:border-color .15s}
+        .sm-hrow:hover{border-color:#a5a0df}
         .sm-btn:disabled{opacity:.55;cursor:wait;transform:none!important}
         .sm-history-heading,.sm-dialog-head,.sm-detail-heading,.sm-dialog-foot{display:flex;align-items:center;justify-content:space-between;gap:16px}
         .sm-history-heading p{margin-top:5px}
-        .sm-hitem{width:100%;text-align:left;display:block;font:inherit;background:var(--bg-card,#fff);padding:16px;transition:border-color .15s;overflow-wrap:anywhere}
+        .sm-hitem{flex:1;min-width:0;text-align:left;display:block;font:inherit;color:var(--text-color,#1e293b);border:0;border-radius:13px;background:transparent;padding:16px;overflow-wrap:anywhere;cursor:pointer}
         .sm-hitem:focus-visible,.sm-btn:focus-visible{outline:3px solid #818cf8;outline-offset:3px}
+        .sm-history-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+        .sm-btn.sm-delete{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:rgba(220,38,38,.06);color:#c62828;border:1px solid rgba(220,38,38,.18);box-shadow:none}
+        .sm-btn.sm-delete:hover:not(:disabled){background:rgba(220,38,38,.12);border-color:rgba(220,38,38,.36)}
+        .sm-delete svg{width:19px;height:19px;flex-shrink:0}
+        .sm-delete-icon{width:42px;height:42px;padding:0;margin-right:16px;flex-shrink:0;border-radius:12px}
+        .sm-btn.sm-delete-confirm{background:#c62828;color:white;border:1px solid #c62828}
+        html[data-theme="dark"] .sm-btn.sm-delete{color:#fca5a5;background:rgba(248,113,113,.09);border-color:rgba(248,113,113,.25)}
+        html[data-theme="dark"] .sm-btn.sm-delete-confirm{color:white;background:#b91c1c}
+        .sm-history-dialog.sm-delete-dialog{width:min(460px,calc(100% - 32px))}
+        .sm-delete-dialog p{line-height:1.65;font-size:14px;color:var(--muted-color,#64748b)}
+        .sm-delete-dialog .sm-dialog-foot{justify-content:flex-end}
         .sm-history-meta{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;margin-bottom:10px;color:var(--muted-color,#64748b)}
         .sm-history-preview{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;font-size:13px;line-height:1.6;color:var(--text-color,#1e293b)}
         .sm-history-preview span{min-width:0;display:block}
@@ -60,7 +72,7 @@
         .sm-detail-heading{margin-bottom:8px}.sm-detail-heading button{font-size:12px;padding:7px 10px}
         .sm-history-text{box-sizing:border-box;white-space:pre-wrap;overflow-wrap:anywhere;max-height:55dvh;overflow:auto;margin:0;padding:16px;border:1px solid var(--border-color,#e2e8f0);border-radius:12px;background:var(--bg-neutral-100,rgba(0,0,0,.025));color:inherit;font-family:inherit;font-size:13px;line-height:1.7}
         .sm-dialog-foot{flex-wrap:wrap;margin-top:20px}.sm-source-details{margin-bottom:12px;font-size:13px}.sm-source-details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
-        @media(max-width:700px){.sm-history-preview,.sm-detail-grid{grid-template-columns:minmax(0,1fr)}.sm-history-dialog{padding:16px}.sm-history-text{max-height:36dvh}.sm-history-heading{align-items:flex-start}.sm-history-open{text-align:left}}
+        @media(max-width:700px){.sm-history-preview,.sm-detail-grid{grid-template-columns:minmax(0,1fr)}.sm-history-dialog{padding:16px}.sm-history-text{max-height:36dvh}.sm-history-heading{align-items:flex-start;flex-wrap:wrap}.sm-history-open{text-align:left}.sm-delete-icon{margin-right:10px}.sm-hitem{padding:12px}}
     </style>
 {% endblock %}
 {% block content %}
@@ -95,9 +107,8 @@
                 <button class="sm-btn primary" id="summaryBtn" type="button">⚡ /summary</button>
                 <button class="sm-btn ghost" id="demoBtn" type="button">✨ Пример</button>
                 <select id="engineSelect" aria-label="Движок сумматора" class="sm-btn ghost" style="min-height:40px;">
-                    <option value="gigachat" selected>GigaChat</option>
+                    <option value="qwen" selected>Госчат</option>
                     <option value="">По настройкам сервера</option>
-                    <option value="qwen">Госчат</option>
                     <option value="algo">Алгоритм</option>
                 </select>
             </div>
@@ -111,7 +122,7 @@
     </div>
 
     <section class="card sm-card sm-history" aria-labelledby="historyTitle">
-        <div class="sm-history-heading"><div><h2 id="historyTitle">История суммирования</h2><p class="sm-sub">Исходный текст и полученный результат каждой обработки</p></div><button class="sm-btn ghost" id="refreshHistoryBtn" type="button">Обновить</button></div>
+        <div class="sm-history-heading"><div><h2 id="historyTitle">История суммирования</h2><p class="sm-sub">Исходный текст и полученный результат каждой обработки</p></div><div class="sm-history-actions"><button class="sm-btn ghost" id="refreshHistoryBtn" type="button">Обновить</button><button class="sm-btn sm-delete" id="clearHistoryBtn" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6"/></svg>Очистить всё</button></div></div>
         <div id="historyState" class="sm-status" role="status"></div>
         <div id="historyBox"></div>
         <button class="sm-btn ghost" id="moreHistoryBtn" type="button" hidden>Показать ещё</button>
@@ -131,7 +142,13 @@
         <div class="sm-dialog-foot"><span class="sm-sub">Просмотр истории не меняет ваш текущий текст.</span><button id="historyReviewBtn" class="sm-btn primary" type="button">К согласованию</button></div>
     </div>
 </dialog>
-<script src="{{ url_for('static', path='summarizer.js') }}?v=20261002"></script>
+<dialog id="smDeleteDialog" class="sm-history-dialog sm-delete-dialog" aria-labelledby="deleteTitle" aria-describedby="deleteDescription">
+    <h2 id="deleteTitle">Удалить запись?</h2>
+    <p id="deleteDescription"></p>
+    <div id="deleteState" class="sm-status err" role="status"></div>
+    <div class="sm-dialog-foot"><button class="sm-btn ghost" id="cancelDeleteBtn" type="button">Отмена</button><button class="sm-btn sm-delete-confirm" id="confirmDeleteBtn" type="button">Удалить</button></div>
+</dialog>
+<script src="{{ url_for('static', path='summarizer.js') }}?v=20261002-history-delete"></script>
 
 
 {% endblock %}

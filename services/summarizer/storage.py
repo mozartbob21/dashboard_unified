@@ -93,6 +93,26 @@ def list_reports(limit=20):
         return [_details(it) for it in _load()[:limit]]
 
 
+def delete_report(rid):
+    """Delete one saved report, including its source and all versions."""
+    with _LOCK:
+        items = _load()
+        remaining = [item for item in items if item.get('id') != rid]
+        if len(remaining) == len(items):
+            return False
+        _save(remaining)
+        return True
+
+
+def clear_reports():
+    """Clear the entire shared archive, including records beyond the first page."""
+    with _LOCK:
+        items = _load()
+        if items:
+            _save([])
+        return len(items)
+
+
 def history_page(limit=20, offset=0):
     def preview(text):
         value = ' '.join(str(text or '').split())

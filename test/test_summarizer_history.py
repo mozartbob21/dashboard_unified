@@ -160,40 +160,33 @@ def test_new_revision_during_ai_generation_is_preserved(client):
     assert response.json()['report'] == saved
 
 
-def test_gigachat_request_persists_actual_answer_in_history(client, monkeypatch):
-    import time
-    from services.summarizer import gigachat_client as giga
+def test_qwen_request_persists_actual_answer_in_history(client, monkeypatch):
     c, app, user = client
-    monkeypatch.setattr(giga, '_TOKENS', {})
-    for name in ('GIGACHAT_BASE_URL', 'GIGACHAT_MODEL', 'GIGACHAT_MODE',
-                 'GIGACHAT_CA_BUNDLE_FILE', 'AI_CA_BUNDLE'):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv('SUMMARIZER_GIGACHAT_CREDENTIALS', 'synthetic-summary-key')
-    monkeypatch.setenv('GIGACHAT_SCOPE', 'GIGACHAT_API_PERS')
+    monkeypatch.setenv('QWEN_API_BASE', 'https://aiplatform.mosreg.ru/api/user-models/v1')
+    monkeypatch.setenv('QWEN_API_KEY', 'synthetic-summary-key')
+    monkeypatch.setenv('QWEN_MODEL', 'synthetic-qwen')
+    monkeypatch.delenv('SUMMARIZER_QWEN_API_KEY', raising=False)
+    monkeypatch.delenv('AI_CA_BUNDLE', raising=False)
     source = 'Синтетическая переписка для проверки сумматора: работы завершатся в 15:00.'
     calls = []
     def post(url, **kwargs):
         calls.append(url)
-        if url == giga.AUTH_URL:
-            assert kwargs['headers']['Authorization'] == 'Basic synthetic-summary-key'
-            data = {'access_token': 'synthetic-token', 'expires_at': int((time.time() + 1800) * 1000)}
-        else:
-            assert url == giga.DEFAULT_BASE + '/chat/completions'
-            assert kwargs['headers']['Authorization'] == 'Bearer synthetic-token'
-            assert kwargs['json']['messages'][-1]['content'] == source
-            data = {'choices': [{'message': {'content': 'Работы завершатся в 15:00.'}}]}
+        assert url == 'https://aiplatform.mosreg.ru/api/user-models/v1/chat/completions'
+        assert kwargs['headers']['Authorization'] == 'Bearer synthetic-summary-key'
+        assert kwargs['json']['messages'][-1]['content'] == source
+        data = {'choices': [{'message': {'content': 'Работы завершатся в 15:00.'}}]}
         return httpx.Response(200, json=data, request=httpx.Request('POST', url))
     monkeypatch.setattr(httpx, 'post', post)
-    created = c.post('/summarizer/api/summary', json={'text': source, 'backend': 'gigachat'})
+    created = c.post('/summarizer/api/summary', json={'text': source, 'backend': 'qwen'})
     assert created.status_code == 200
     rid = created.json()['report']['id']
     saved = c.get('/summarizer/api/reports/' + rid).json()['report']
     assert saved['source'] == source
-    assert saved['result']['backend'] == 'gigachat'
+    assert saved['result']['backend'] == 'qwen'
     assert saved['result']['report_text'] == 'Работы завершатся в 15:00.'
     assert saved['versions'][0]['result'] == saved['result']
-    assert c.get('/summarizer/api/reports').json()['items'][0]['backend'] == 'gigachat'
-    assert len(calls) == 2
+    assert c.get('/summarizer/api/reports').json()['items'][0]['backend'] == 'qwen'
+    assert len(calls) == 1
 
 
 def test_missing_report_and_invalid_size(client):
@@ -217,3 +210,68 @@ def test_summarizer_fallback_is_labeled_and_never_logs_key(caplog, monkeypatch):
     assert answer['ai_error_code'] == 'AI_AUTH_FAILED' and answer['requested_backend'] == 'qwen'
     assert 'обычным алгоритмом' in answer['warning']
     assert 'SECRET_KEY' not in caplog.text + json.dumps(answer)
+
+
+def test_delete_one_report_preserves_others_and_removes_all_versions(client):
+    c, app, user = client
+    kept = storage.create_report('Запись, которую нужно оставить', result(), 'Анна')
+    removed = storage.create_report('Удаляемый уникальный исходник', result('Уникальная старая версия'), 'Борис')
+    rid = removed['id']
+    storage.regenerate(rid, result('Уникальная новая версия'), 'Борис', 'Удаляемая доработка')
+    assert c.delete('/summarizer/api/reports/' + rid).status_code == 200
+    assert c.get('/summarizer/api/reports/' + rid).status_code == 404
+    assert c.delete('/summarizer/api/reports/' + rid).status_code == 404
+    listing = c.get('/summarizer/api/reports').json()
+    assert listing['total'] == 1 and listing['items'][0]['id'] == kept['id']
+    assert storage.get_report(kept['id'])['source'] == kept['source']
+    on_disk = storage.FILE.read_text()
+    assert rid not in on_disk and 'Уникальная' not in on_disk and 'Удаляем' not in on_disk
+
+
+def test_clear_history_includes_all_pages_and_is_persistent(client):
+    c, app, user = client
+    for index in range(25):
+        storage.create_report('Исходник ' + str(index), result(), 'Анна')
+    assert c.get('/summarizer/api/reports').json()['has_more']
+    response = c.delete('/summarizer/api/reports')
+    assert response.json() == {'ok': True, 'deleted': 25}
+    assert c.get('/summarizer/api/reports').json()['total'] == 0
+    assert json.loads(storage.FILE.read_text()) == []
+    assert c.delete('/summarizer/api/reports').json()['deleted'] == 0
+
+
+def test_delete_requires_module_access_and_same_origin(client):
+    c, app, user = client
+    rid = storage.create_report('Сохранённый текст', result(), 'Анна')['id']
+    for path in ('/summarizer/api/reports', '/summarizer/api/reports/' + rid):
+        assert c.delete(path, headers={'origin': 'https://foreign.invalid'}).status_code == 403
+    user['modules'] = []
+    for path in ('/summarizer/api/reports', '/summarizer/api/reports/' + rid):
+        assert c.delete(path).status_code == 403
+    assert storage.get_report(rid) is not None
+
+
+@pytest.mark.parametrize('clear_all', [False, True])
+def test_regeneration_cannot_restore_a_deleted_report(client, clear_all):
+    c, app, user = client
+    rid = storage.create_report('Достаточно длинный исходный текст для проверки пересборки.', result(), 'Иван')['id']
+    def generation_during_delete(*args, **kwargs):
+        if clear_all:
+            storage.clear_reports()
+        else:
+            storage.delete_report(rid)
+        return result('Этот ответ уже не нужно сохранять')
+    with patch.object(app.sum_engine, 'summarize', side_effect=generation_during_delete):
+        response = c.post('/summarizer/api/regenerate', json={'id': rid})
+    assert response.status_code == 404
+    assert storage.get_report(rid) is None
+    assert storage.history_page()['total'] == 0
+
+
+def test_delete_does_not_overwrite_a_damaged_archive(archive):
+    archive.DATA.mkdir(); archive.FILE.write_text('damaged')
+    with pytest.raises(ValueError):
+        archive.clear_reports()
+    with pytest.raises(ValueError):
+        archive.delete_report('missing')
+    assert archive.FILE.read_text() == 'damaged'
