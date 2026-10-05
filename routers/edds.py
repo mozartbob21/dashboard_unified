@@ -5,6 +5,7 @@ import asyncio
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from core.roles import check_module_access
+from core.map_tiles import script_config
 from services.auth.integrations import credentials
 from services.edds import runner, arm
 from services.tools.workspace import owner_key
@@ -31,6 +32,7 @@ router=APIRouter(prefix='/edds',dependencies=[Depends(require_edds)],lifespan=li
 async def page(request: Request):
     html = (Path(__file__).resolve().parents[1]/'services/edds/dashboard.html').read_text(encoding='utf-8')
     html = html.replace('__NEURONA_EDDS_OWNER__', owner_key(request.state.user))
+    html = html.replace('__NEURONA_MAP_CONFIG__', script_config())
     return HTMLResponse(html, headers={'Cache-Control':'no-store'})
 
 

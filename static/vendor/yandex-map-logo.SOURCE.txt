@@ -1,0 +1,8 @@
+Official Yandex logo, unmodified SVG from yandex_logo/SVG/yndex_logo_ru.svg.
+Downloaded 2026-10-05 from the archive linked by the Tiles API documentation:
+https://yandex.ru/maps-api/docs/tiles-api/index.html
+https://download.cdn.yandex.net/tech/ru/zout_maps-tiles/doc/dg_5991b5839950b3d45e6991d40308f5a6/files/yandex_logo.zip
+
+Used as the clickable corner logo required for Yandex Tiles API maps.
+Yandex retains rights to its logo; this file does not grant additional rights.
+https://yandex.ru/legal/maps_api/ru/

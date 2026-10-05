@@ -1177,8 +1177,8 @@ async def security_headers(request: Request, call_next):
     image_sources = "'self' data: blob:"
     if request.url.path.rstrip("/") in {"/edds", "/mingkh/water-map"}:
         # Basemap tiles only: no external scripts, API calls or arbitrary images.
-        image_sources += " " + " ".join(
-            f"https://tile{i}.maps.2gis.com/tiles" for i in range(4))
+        from core.map_tiles import image_origin
+        image_sources += " " + image_origin()
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
         f"style-src 'self' 'unsafe-inline'; img-src {image_sources}; "

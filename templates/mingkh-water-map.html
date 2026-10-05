@@ -1,6 +1,9 @@
 {% extends "base_module.html" %}
 {% block title %}Жалобы МинЖКХ — МИНЖКХ — Нейрона ИИ{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/mingkh-water-map.css?v=20261001-all">{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/mingkh-water-map.css?v=20261001-all">
+<link rel="stylesheet" href="/static/map-basemap.css?v=20261005-yandex">
+{% endblock %}
 {% block content %}
 <div class="container">
 <header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">МИНЖКХ · Жалобы МинЖКХ</div></div></div><div class="top-actions"><a href="/mingkh" class="secondary-button">← Обращения МИНЖКХ</a><a href="/" class="secondary-button">На главную</a></div></header>
@@ -118,5 +121,7 @@
 </div>
 
 </div></div>
-<script src="/static/mingkh-water-map.js?v=20261001-all" defer></script>
+<script type="application/json" id="neurona-map-config">{{ map_config | default({}) | tojson }}</script>
+<script src="/static/map-basemap.js?v=20261005-yandex" defer></script>
+<script src="/static/mingkh-water-map.js?v=20261005-osm" defer></script>
 {% endblock %}

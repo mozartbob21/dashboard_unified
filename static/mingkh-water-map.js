@@ -440,13 +440,7 @@ const loadJs = src => withTimeout(new Promise((res, rej) => {
   document.head.appendChild(t);
 }), WAIT, src);
 
-/* Подложка — 2ГИС. OpenStreetMap из сети ЕДДС отдаёт заглушку «Access blocked»,
-   зарубежные серверы без VPN недоступны, а Яндекс в эллиптическом Меркаторе
-   сдвигает точки: жалоба встала бы не у своего дома. */
-const TILE = { url: 'https://tile{s}.maps.2gis.com/tiles?x={x}&y={y}&z={z}',
-               opts: { subdomains: '0123', maxZoom: 18, attribution: '© 2ГИС' } };
-
-let MAP = null, LAYER = null, BOXLAYER = null, DRAW = null, tileNote = '';
+let MAP = null, LAYER = null, BOXLAYER = null, DRAW = null, tileNote = '', basemap = null;
 let MAPKIND = 'heat';
 let mapSel = null, polyPts = null;
 let mapRadius = 500;
@@ -460,10 +454,9 @@ async function initMap(){
   }
   MAP = L.map('map', { preferCanvas: true }).setView([55.75, 37.6], 8);
   MAP.attributionControl.setPrefix('');
-  const tl = L.tileLayer(TILE.url, TILE.opts).addTo(MAP);
-  let ok = 0;
-  const watch = setTimeout(() => { if(!ok){ tileNote = 'Подложка 2ГИС не отвечает — точки есть, фона под ними нет.'; renderStatus(); } }, WAIT);
-  tl.on('tileload', () => { if(!ok++){ clearTimeout(watch); if(tileNote){ tileNote = ''; renderStatus(); } } });
+  basemap = NeuronaBasemap.create(MAP, {onStatus: note => {
+    tileNote = note; renderStatus();
+  }});
   addSelectTools();
   renderMap(true);
 }
@@ -556,13 +549,15 @@ function renderStatus(){
     (polyPts && polyPts.length ? ' (поставлено ' + polyPts.length + ')' : '') +
     '. Замкнуть — щелчок по первой вершине, двойной щелчок или Enter. Backspace — убрать последнюю, Esc — отмена.</span>';
   if(mapSel === 'circle') s += '<br><span class="map-hint">Щёлкните в точку — выделится всё в радиусе ' + fmtDist(mapRadius) + '.</span>';
-  if(tileNote) s += '<br><span class="map-bad">' + esc(tileNote) + '</span>';
+  if(tileNote) s += '<br><span class="map-bad">' + esc(tileNote) + '</span> <button type="button" class="btn btn-sm" id="tile-retry">Повторить</button>';
   const dot = (c, t) => '<span><i style="background:' + c + '"></i>' + t + '</span>';
   s += MAPKIND === 'heat'
     ? '<div class="lg"><span>Цвет — плотность жалоб:</span><span><i class="lg-grad"></i>реже → чаще</span></div>'
     : '<div class="lg"><span>Число в кружке — сколько жалоб:</span>' + dot('#3987e5', 'до ' + CL_LIM[0]) +
       dot('#e0892a', CL_LIM[0] + ' — ' + (CL_LIM[1] - 1)) + dot('#cc4444', 'от ' + CL_LIM[1]) + '</div>';
   el.innerHTML = s;
+  const retry = document.getElementById('tile-retry');
+  if(retry) retry.addEventListener('click', () => { if(basemap) basemap.retry(); });
 }
 
 /* Выделение на карте — как в дашборде ЕДДС:

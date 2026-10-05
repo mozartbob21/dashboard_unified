@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from core.web import templates
 from core.roles import check_module_access
+from core.map_tiles import browser_config
 from services.auth.integrations import credentials
 from services.mingkh import dashboard
 from services.mingkh.client import Pentaho, PortalError
@@ -53,7 +54,8 @@ async def updated():
 async def water_map_page(request: Request):
     from services.auth.accounts import is_account_manager
     return templates.TemplateResponse(request, 'mingkh-water-map.html', {
-        'request': request, 'can_import': is_account_manager(getattr(request.state, 'user', None))})
+        'request': request, 'map_config': browser_config(),
+        'can_import': is_account_manager(getattr(request.state, 'user', None))})
 
 
 @router.get('/api/water-map')

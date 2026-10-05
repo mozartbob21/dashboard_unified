@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <script src="/static/appearance-menu.js?v=20261001"></script>
+<link rel="stylesheet" href="/static/map-basemap.css?v=20261005-yandex">
+<script type="application/json" id="neurona-map-config">__NEURONA_MAP_CONFIG__</script>
+<script src="/static/map-basemap.js?v=20261005-yandex"></script>
 <!-- Кодировку объявляем сами: файл открывают и с диска, и изнутри АРМ ЕДДС.
      Если сервер отдаст страницу без charset, браузер уйдёт в windows-1251,
      и сломается не только вид — перестанут совпадать разборы по русским
@@ -4371,46 +4374,14 @@ function clearGeoBox(){
   applyFilters();
 }
 
-/* Источник из рабочего архива ЕДДС: растровые XYZ-тайлы 2ГИС.
-   Наружу уходят только x/y/z видимого участка; заявки рисуются локально.
-   Разрешение img-src для этих четырёх хостов задано только для /edds в app.py.
-   URL РГИС/Яндекса нельзя подставлять без адаптации их схемы/проекции. */
-const TILE = { name: '2ГИС',
-  url: 'https://tile{s}.maps.2gis.com/tiles?x={x}&y={y}&z={z}',
-  opts: { subdomains: '0123', maxZoom: 18, attribution: '© 2ГИС',
-          crossOrigin: 'anonymous', referrerPolicy: 'no-referrer' } };
-const TILE_WAIT = 12000;   // столько ждём первый тайл, прежде чем признать отказ
-
-let tileIdx = -1, tileLayer = null, tileFails = 0, tileNote = '', tileWatch = null;
-let tileOk = 0;   // сколько тайлов реально отрисовалось
-
+/* Общая подложка обеих карт: координаты и слои заявок остаются локальными. */
+let basemap = null, tileNote = '';
 function useTiles(){
-  if(tileLayer) MAP.removeLayer(tileLayer);
-  clearTimeout(tileWatch);
-  tileFails = 0; tileIdx = 0;
-  const fail = why => {
-    clearTimeout(tileWatch); tileWatch = null;
-    tileNote = 'Подложка ' + why + '. Точки на карте есть, фона под ними нет.';
+  if(basemap) return basemap.retry();
+  basemap = NeuronaBasemap.create(MAP, {onStatus: note => {
+    tileNote = note;
     if(PAGE === 'map') renderMapStatus();
-  };
-  tileOk = 0;
-  tileLayer = L.tileLayer(TILE.url, TILE.opts).addTo(MAP);
-  // Сервер может не отвечать вовсе — тогда ошибки не будет, браузер просто
-  // ждёт до своего таймаута, а человек смотрит на пустой прямоугольник.
-  tileWatch = setTimeout(() => fail('не отвечает'), TILE_WAIT);
-  tileLayer.on('tileload', () => { tileOk++; });
-  tileLayer.on('tileerror', () => {
-    if(++tileFails >= 3 && !tileOk) fail('недоступна');   // ни один тайл не дошёл
-  });
-  /* Внимание: событие load у слоя означает «работа закончена», а не «получилось».
-     Оно приходит и когда все до одного тайлы упали — на блокировке 451 их было
-     24, и обработчик успеха снимал сторожа и обнулял счётчик ошибок, из-за чего
-     карта молча оставалась пустой. Успехом считаем только реально пришедшие тайлы. */
-  tileLayer.on('load', () => {
-    if(!tileOk) return fail('недоступна');
-    clearTimeout(tileWatch); tileWatch = null; tileFails = 0;
-    if(tileNote){ tileNote = ''; if(PAGE === 'map') renderMapStatus(); }
-  });
+  }});
 }
 
 /* Вкладку только что показали — размеры контейнера браузер ещё не посчитал, он
@@ -4518,7 +4489,6 @@ function renderMapStatus(){
   const tr = document.getElementById('tile-retry');
   if(tr) tr.addEventListener('click', e => {
     e.preventDefault();
-    tileNote = '';
     if(MAP) useTiles();
     renderMapStatus();
   });

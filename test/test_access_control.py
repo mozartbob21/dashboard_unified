@@ -1,6 +1,8 @@
 """Run with python -m unittest test.test_access_control; uses an isolated SQLite DB."""
 import importlib
 import json
+import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,6 +37,9 @@ class AccessControlTests(unittest.TestCase):
         cls.temp.cleanup()
 
     def setUp(self):
+        self.map_env = patch.dict(os.environ, {'MAP_TILE_PROVIDER': 'auto', 'YANDEX_TILES_API_KEY': ''})
+        self.map_env.start()
+        self.addCleanup(self.map_env.stop)
         from routers.auth import LOGIN_ATTEMPTS
         LOGIN_ATTEMPTS.clear()  # Each isolated test has its own login attempt window.
         from fastapi.testclient import TestClient
@@ -311,7 +316,7 @@ class AccessControlTests(unittest.TestCase):
         csp=self.client.get('/aichat').headers['Content-Security-Policy']
         self.assertIn("connect-src 'self'",csp)
         self.assertIn("img-src 'self' data: blob:;",csp)
-        self.assertNotIn('maps.2gis.com',csp)
+        self.assertNotIn('tile.openstreetmap.org',csp)
         self.assertEqual(self.client.get('/aichat').headers['Cache-Control'],'no-store')
 
     def test_edds_grant_page_and_refresh_without_credentials(self):
@@ -323,11 +328,10 @@ class AccessControlTests(unittest.TestCase):
         page=self.client.get('/edds')
         self.assertEqual(page.status_code,200);self.assertIn('eddsRefresh',page.text)
         csp=page.headers['Content-Security-Policy']
-        self.assertIn("img-src 'self' data: blob: " + " ".join(
-            f'https://tile{i}.maps.2gis.com/tiles' for i in range(4)) + ';',csp)
+        self.assertIn("img-src 'self' data: blob: https://tile.openstreetmap.org;",csp)
         self.assertIn("connect-src 'self';",csp)
         self.assertIn("script-src 'self' 'unsafe-inline';",csp)
-        self.assertNotIn('maps.2gis.com',self.client.get('/edds/status').headers['Content-Security-Policy'])
+        self.assertNotIn('tile.openstreetmap.org',self.client.get('/edds/status').headers['Content-Security-Policy'])
         self.assertIn("const ZH_URL = EMBEDDED ? '/edds/water-daily'",page.text)
         self.assertIn('days',self.client.get('/edds/water-daily').json())
         self.assertEqual(self.client.post('/edds/refresh').status_code,400)
@@ -335,6 +339,63 @@ class AccessControlTests(unittest.TestCase):
         self.assertIn('data-module="edds"',home)
         self.assertNotIn('data-module="water_rm"',home)
         self.assertIn('data-module-view="list"',home)
+
+    def test_basemap_images_are_allowed_only_on_both_map_pages(self):
+        self.login()
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[\"edds\",\"mingkh\"]' WHERE username='ordinary'")
+        for path in ['/edds', '/mingkh/water-map']:
+            with self.subTest(path=path):
+                page = self.client.get(path)
+                self.assertEqual(page.status_code, 200)
+                directives = {part.strip().split()[0]: part.strip().split()[1:]
+                              for part in page.headers['Content-Security-Policy'].split(';') if part.strip()}
+                self.assertEqual(directives['img-src'],
+                                 ["'self'", 'data:', 'blob:', 'https://tile.openstreetmap.org'])
+                self.assertEqual(directives['connect-src'], ["'self'"])
+                self.assertEqual(directives['script-src'], ["'self'", "'unsafe-inline'"])
+                self.assertEqual(page.headers['Referrer-Policy'], 'same-origin')
+                self.assertEqual(page.text.count('src="/static/map-basemap.js'), 1)
+                self.assertNotIn('maps.2gis.com', page.text)
+        with patch('routers.edds.arm.transport', return_value='chrome'), \
+                patch('routers.edds.runner.status', return_value={'running': False}), \
+                patch('routers.edds.credentials', return_value=None):
+            for path in ['/aichat', '/mingkh', '/edds/status', '/mingkh/api/water-map/status']:
+                with self.subTest(path=path):
+                    page = self.client.get(path)
+                    self.assertEqual(page.status_code, 200)
+                    csp = page.headers['Content-Security-Policy']
+                    self.assertIn("img-src 'self' data: blob:;", csp)
+                    self.assertNotIn('tile.openstreetmap.org', csp)
+                    self.assertNotIn('maps.2gis.com', csp)
+
+    def test_yandex_config_matches_map_csp_and_stays_within_module_permissions(self):
+        self.login()
+        key = 'synthetic</script><img src=x>&key'
+        with patch.dict(os.environ, {'YANDEX_TILES_API_KEY': key, 'MAP_TILE_PROVIDER': 'auto'}):
+            for path in ['/edds', '/mingkh/water-map']:
+                denied = self.client.get(path)
+                self.assertEqual(denied.status_code, 403)
+                self.assertNotIn('synthetic', denied.text)
+            with self.db.get_db_connection() as conn:
+                conn.execute("UPDATE users SET modules='[\"edds\",\"mingkh\"]' WHERE username='ordinary'")
+            for path in ['/edds', '/mingkh/water-map']:
+                with self.subTest(path=path):
+                    page = self.client.get(path)
+                    self.assertEqual(page.status_code, 200)
+                    csp = page.headers['Content-Security-Policy']
+                    self.assertIn("img-src 'self' data: blob: https://tiles.api-maps.yandex.ru;", csp)
+                    self.assertNotIn('tile.openstreetmap.org', csp)
+                    self.assertIn("connect-src 'self';", csp)
+                    self.assertEqual(page.headers['Cache-Control'], 'no-store')
+                    payload = re.search(r'id="neurona-map-config">(.*?)</script>', page.text, re.S).group(1)
+                    self.assertEqual(json.loads(payload), {'provider':'yandex','notice':'','api_key':key})
+                    self.assertNotIn('<', payload)
+                    self.assertNotIn('__NEURONA_MAP_CONFIG__', page.text)
+            for path in ['/aichat', '/mingkh']:
+                page = self.client.get(path)
+                self.assertNotIn('tiles.api-maps.yandex.ru', page.headers['Content-Security-Policy'])
+                self.assertNotIn('synthetic', page.text)
 
     def test_delegated_manager_permissions_and_live_revocation(self):
         self.manager_login()
