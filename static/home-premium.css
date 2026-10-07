@@ -746,7 +746,7 @@ html[data-module-view="cards"] .home-page .module-card .secondary-button {
 .home-page .module-search button[hidden] { display:none; }
 .home-page .module-search-status { min-height:18px; margin:-14px 6px 10px; color:var(--muted); font-size:12px; text-align:right; }
 .home-page .module-search-status:empty { display:none; }
-.home-page .module-card[hidden], .home-page .wide-pair[hidden], .home-page .module-search-empty[hidden] { display:none !important; }
+html[data-module-view] .home-page .module-card[hidden], html[data-module-view] .home-page .wide-pair[hidden], .home-page .module-search-empty[hidden] { display:none !important; }
 .home-page .module-search-empty { margin:18px 0 28px; padding:30px; border:1px dashed var(--border-strong); border-radius:20px; color:var(--muted); background:var(--card); text-align:center; }
 .home-page .module-search-empty strong, .home-page .module-search-empty span { display:block; }
 .home-page .module-search-empty strong { margin-bottom:5px; color:var(--text); font-size:18px; }
@@ -895,6 +895,7 @@ html[data-module-view="list"] .home-page .module-card[data-module="telegram"]::a
 }
 
 html[data-module-view="list"] .home-page .module-card[data-module="mingkh"]::after{content:"▥";font-size:21px;}
+html[data-module-view="list"] .home-page .module-card[data-module="collective"]::after{content:"☷";font-size:24px;}
 html[data-module-view="list"] .home-page .module-card .action-panel{flex-direction:row;}
 html[data-module-view="list"] .home-page .module-card .action-panel>.secondary-button{order:0;}
 html[data-module-view="list"] .home-page .module-card .action-panel>.module-link{order:1;}

@@ -8,12 +8,17 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from core.web import templates
-from routers.mingkh import require_mingkh
+from core.roles import check_module_access
 from services.auth.integrations import credentials
 from services.collective.client import CollectivePortal, HEADERS, PortalError, period
 from services.collective import presentation
 
-router = APIRouter(prefix='/mingkh/collective', dependencies=[Depends(require_mingkh)])
+def require_collective(request: Request):
+    if not check_module_access(getattr(request.state, 'user', None), 'collective'):
+        raise HTTPException(403, 'Нет доступа к коллективным жалобам')
+
+
+router = APIRouter(prefix='/mingkh/collective', dependencies=[Depends(require_collective)])
 PRIVATE = {'Cache-Control': 'private, no-store'}
 MAX_EXPORT_BYTES = 20 * 1024 * 1024
 
@@ -24,6 +29,7 @@ async def page(request: Request):
     owner = str(user.get('id') or user.get('username') or '')
     return templates.TemplateResponse(request, 'collective.html', {
         'request': request, 'owner_key': hashlib.sha256(owner.encode()).hexdigest()[:24],
+        'can_view_mingkh': check_module_access(user, 'mingkh'),
     }, headers=PRIVATE)
 
 

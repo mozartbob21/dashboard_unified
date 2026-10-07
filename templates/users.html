@@ -2,7 +2,7 @@
 {% block title %}Пользователи и доступ — Нейрона{% endblock %}
 {% block body_class %}module-users{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="/static/users.css?v=20261001-activity">
+<link rel="stylesheet" href="/static/users.css?v=20261007-collective">
   <script src="/static/users.js?v=20261001-activity-dobrodel" defer></script>
 {% endblock %}
 {% block content %}
@@ -82,7 +82,7 @@
       <h2 id="integrationsTitle">Логины и пароли</h2>
       <p>Доступ к внешним системам. Сохранённые пароли не отображаются. Пустое поле оставляет прежний пароль.</p>
       <form id="integrationForm">
-        <label>Система<select name="service"><option value="edds">ЕДДС · сбор жалоб Добродела</option><option value="edds_arm">АРМ ЕДДС</option><option value="mingkh">МИНЖКХ · cur.bi.mosreg.ru</option></select></label>
+        <label>Система<select name="service"><option value="edds">ЕДДС · сбор жалоб Добродела</option><option value="edds_arm">АРМ ЕДДС</option><option value="mingkh">МИНЖКХ и коллективные жалобы · cur.bi.mosreg.ru</option></select></label>
         <label>Логин<input name="username" required maxlength="254" autocomplete="off"></label>
         <label>Пароль<input name="password" type="password" maxlength="1024" autocomplete="new-password"></label>
         <p id="integrationStatus" role="status"></p>
@@ -90,7 +90,9 @@
         <button id="checkEddsLogin" type="button" class="secondary" hidden disabled>Проверить вход и выгрузку</button>
         <p id="checkEddsHint" class="muted" hidden>Проверяет вход и получение одной записи отчёта Добродела с компьютера-сервера. Проверка может занять до двух минут.</p>
       </form>
-      <p class="muted">Для загрузки заявок сохраните доступ к «АРМ ЕДДС», затем откройте блок ЕДДС и выберите период. Доступ к Доброделу настраивается отдельно и используется только для сбора жалоб. Для дашборда МИНЖКХ и коллективных жалоб выберите «МИНЖКХ · cur.bi.mosreg.ru» и сохраните учётные данные портала. Это общее подключение: сотрудники с доступом к блоку МИНЖКХ используют его без повторного ввода пароля.</p>
+      <p class="muted">Для загрузки заявок сохраните доступ к «АРМ ЕДДС», затем откройте блок ЕДДС и выберите период. Доступ к Доброделу настраивается отдельно и используется только для сбора жалоб.</p>
+      <h3>Коллективные жалобы</h3>
+      <p class="muted">В доступных блоках пользователя отметьте «Коллективные жалобы — МинЖКХ МО». Для подключения выберите выше «МИНЖКХ и коллективные жалобы · cur.bi.mosreg.ru» и сохраните логин и пароль портала. Одна учётная запись используется обоими дашбордами; сотрудники работают без повторного ввода пароля. Если доступ к МИНЖКХ уже сохранён, вводить его заново не нужно.</p>
     </section>
   </main>
 {% endblock %}

@@ -10,8 +10,39 @@ from services.auth.security import hash_password, get_user_from_token
 from utils.db import get_db_connection
 
 
+COLLECTIVE_GRANT_MIGRATION = 'collective_module_grant_v1'
+
+
+def _migrate_collective_grants(conn):
+    """Preserve the former MINGKH subpage grant exactly once, within the caller's transaction.
+
+    Subsequent restarts must respect an administrator revoking the new independent
+    grant. Neither roles, account status, manager privileges nor credentials change.
+    """
+    conn.execute("""CREATE TABLE IF NOT EXISTS account_access_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    if conn.execute('SELECT 1 FROM account_access_migrations WHERE name=?',
+                    (COLLECTIVE_GRANT_MIGRATION,)).fetchone():
+        return
+    for user in conn.execute('SELECT id, modules FROM users').fetchall():
+        try:
+            modules = json.loads(user['modules'] or '[]')
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(modules, list) or 'mingkh' not in modules or 'collective' in modules:
+            continue
+        conn.execute('UPDATE users SET modules=? WHERE id=?',
+                     (json.dumps([*modules, 'collective'], ensure_ascii=False), user['id']))
+    # Record completion even on an empty installation; newly assigned MINGKH grants
+    # are independent and must never silently assign collective access later.
+    conn.execute('INSERT INTO account_access_migrations(name) VALUES (?)',
+                 (COLLECTIVE_GRANT_MIGRATION,))
+
+
 def initialize_access_control():
-    """Однократно переводит прежний полный доступ в явный список блоков."""
+    """Однократно применяет миграции прав, сохраняя последующие решения администратора."""
     with get_db_connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT grants_migrated FROM account_control WHERE id=1").fetchone()
@@ -20,6 +51,7 @@ def initialize_access_control():
                 if user["role"].strip().lower() in {"admin", "администратор", "руководитель", "пользователь"}:
                     conn.execute("UPDATE users SET modules=? WHERE id=?", (json.dumps(ALL_MODULE_IDS), user["id"]))
             conn.execute("UPDATE account_control SET grants_migrated=1 WHERE id=1")
+        _migrate_collective_grants(conn)
 
 
 def is_parent_manager(user):

@@ -307,6 +307,151 @@ class AccessControlTests(unittest.TestCase):
         self.assertIn('data-module="mingkh"',self.client.get('/').text)
         self.assertEqual(self.client.get('/api/users/integrations/mingkh').status_code,403)
 
+    def test_collective_is_assignable_in_admin_and_works_without_mingkh(self):
+        from bs4 import BeautifulSoup
+        from routers import collective
+        from services.collective.client import HEADERS
+        self.manager_login()
+        catalog = self.client.get('/api/users').json()
+        self.assertIn('collective', catalog['modules'])
+        self.assertIn('Коллективные жалобы', catalog['modules']['collective'])
+        page = BeautifulSoup(self.client.get('/users').text, 'html.parser')
+        choice = page.select_one('#moduleChoices input[name="modules"][value="collective"]')
+        self.assertIsNotNone(choice)
+        self.assertIn('Коллективные жалобы', choice.parent.get_text())
+        self.assertIsNotNone(page.select_one('#moduleChoices input[name="modules"][value="mingkh"]'))
+        user = next(u for u in catalog['users'] if u['username'] == 'ordinary')
+        response = self.client.put('/api/users/' + str(user['id']), json={
+            'username': 'ordinary', 'modules': ['collective'],
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.client.put('/api/users/integrations/mingkh', json={
+            'username': 'synthetic-curator', 'password': 'synthetic-portal-password',
+        }).status_code, 200)
+        self.login()
+
+        home = BeautifulSoup(self.client.get('/').text, 'html.parser')
+        card = home.select_one('.module-card[data-module="collective"]')
+        self.assertIsNotNone(card)
+        self.assertIn('Коллективные жалобы', card.select_one('.module-title').get_text())
+        self.assertEqual(card.select_one('a.module-link')['href'], '/mingkh/collective')
+        self.assertIsNone(home.select_one('.module-card[data-module="mingkh"]'))
+        self.assertEqual(self.client.get('/mingkh/collective').status_code, 200)
+        self.assertEqual(self.client.get('/mingkh').status_code, 403)
+        self.assertEqual(self.client.get('/mingkh/api/dataset').status_code, 403)
+        self.assertEqual(self.client.get('/api/users').status_code, 403)
+        self.assertEqual(self.client.get('/api/users/integrations/mingkh').status_code, 403)
+
+        # Uses the manager's real encrypted, temporary integration record, while
+        # only the network-facing client and presentation builder are mocked.
+        with patch.object(collective, 'CollectivePortal') as portal:
+            portal.return_value.fetch.return_value = ([('17', 'Куратор')], [[''] * len(HEADERS)])
+            response = self.client.get('/mingkh/collective/api/data?start=2026-01-01&end=2026-01-02')
+        self.assertEqual(response.status_code, 200, response.text)
+        portal.assert_called_once_with(username='synthetic-curator', password='synthetic-portal-password')
+        self.assertNotIn('synthetic-portal-password', response.text)
+        row = {key: '' for key in HEADERS}
+        row.update({'_theme': 'kr', 'ОМСУ': 'Тестовый округ'})
+        with patch.object(collective.presentation, 'build', return_value=b'synthetic-pptx') as build:
+            response = self.client.post('/mingkh/collective/api/pptx', json={
+                'start': '2026-01-01', 'end': '2026-01-02', 'rows': [row],
+            })
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.content, b'synthetic-pptx')
+        self.assertEqual(build.call_args.args[0][0]['_theme'], 'kr')
+
+    def test_collective_admin_revocation_preserves_mingkh_and_survives_restart(self):
+        from bs4 import BeautifulSoup
+        from routers import collective
+        from services.auth.accounts import initialize_access_control
+        self.manager_login()
+        user = next(u for u in self.client.get('/api/users').json()['users'] if u['username'] == 'ordinary')
+        url = '/api/users/' + str(user['id'])
+        self.assertEqual(self.client.put(url, json={
+            'username': 'ordinary', 'modules': ['mingkh', 'collective'],
+        }).status_code, 200)
+        self.login()
+        user_cookie = self.client.cookies.get('access_token')
+        self.assertEqual(self.client.get('/mingkh/collective').status_code, 200)
+        self.manager_login()
+        self.assertEqual(self.client.put(url, json={
+            'username': 'ordinary', 'modules': ['mingkh'],
+        }).status_code, 200)
+        initialize_access_control()
+        initialize_access_control()
+        self.client.cookies.set('access_token', user_cookie, domain='testserver.local', path='/')
+        with patch.object(collective, 'credentials') as credentials, \
+                patch.object(collective, 'CollectivePortal') as portal, \
+                patch.object(collective.presentation, 'build') as build:
+            self.assertEqual(self.client.get('/mingkh/collective').status_code, 403)
+            self.assertEqual(self.client.get('/mingkh/collective/api/data?start=2026-01-01&end=2026-01-02').status_code, 403)
+            self.assertEqual(self.client.post('/mingkh/collective/api/pptx', json={}).status_code, 403)
+        credentials.assert_not_called()
+        portal.assert_not_called()
+        build.assert_not_called()
+        self.assertEqual(self.client.get('/mingkh').status_code, 200)
+        home = BeautifulSoup(self.client.get('/').text, 'html.parser')
+        self.assertIsNone(home.select_one('.module-card[data-module="collective"]'))
+        self.assertIsNotNone(home.select_one('.module-card[data-module="mingkh"]'))
+
+    def test_collective_upgrade_migrates_existing_mingkh_once_without_other_privileges(self):
+        from services.auth.accounts import initialize_access_control
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE account_control SET grants_migrated=1")
+            conn.execute("DELETE FROM account_access_migrations WHERE name='collective_module_grant_v1'")
+            conn.execute("UPDATE users SET modules=? WHERE username='ordinary'", (json.dumps(['mingkh', 'edo']),))
+            conn.execute("UPDATE users SET modules='[\"edo\"]' WHERE username='legacy'")
+            cases = [
+                ('empty_admin', 'Администратор', '[]', 1),
+                ('disabled_mingkh', 'Пользователь', '["mingkh"]', 0),
+                ('malformed_grants', 'Пользователь', 'not-json', 1),
+                ('object_grants', 'Пользователь', '{"mingkh": true}', 1),
+            ]
+            for username, role, modules, active in cases:
+                conn.execute('INSERT INTO users(username,password_hash,role,modules,is_active) '
+                             'SELECT ?,password_hash,?,?,? FROM users WHERE username=\'ordinary\'',
+                             (username, role, modules, active))
+            managers_before = list(conn.execute('SELECT * FROM account_managers'))
+            control_before = dict(conn.execute('SELECT * FROM account_control WHERE id=1').fetchone())
+        initialize_access_control()
+        initialize_access_control()
+        with self.db.get_db_connection() as conn:
+            users = {row['username']: dict(row) for row in conn.execute('SELECT username,modules,role,is_active FROM users')}
+            self.assertEqual(json.loads(users['ordinary']['modules']), ['mingkh', 'edo', 'collective'])
+            self.assertEqual(json.loads(users['legacy']['modules']), ['edo'])
+            self.assertEqual(json.loads(users[self.credentials['username']]['modules']), [])
+            self.assertEqual(json.loads(users['empty_admin']['modules']), [])
+            self.assertEqual(users['empty_admin']['role'], 'Администратор')
+            self.assertEqual(json.loads(users['disabled_mingkh']['modules']), ['mingkh', 'collective'])
+            self.assertEqual(users['disabled_mingkh']['is_active'], 0)
+            self.assertEqual(users['malformed_grants']['modules'], 'not-json')
+            self.assertEqual(users['object_grants']['modules'], '{"mingkh": true}')
+            self.assertEqual(list(conn.execute('SELECT * FROM account_managers')), managers_before)
+            self.assertEqual(dict(conn.execute('SELECT * FROM account_control WHERE id=1').fetchone()), control_before)
+            self.assertEqual(conn.execute("SELECT count(*) FROM account_access_migrations WHERE name='collective_module_grant_v1'").fetchone()[0], 1)
+            conn.execute("UPDATE users SET modules='[\"mingkh\",\"edo\"]' WHERE username='ordinary'")
+            conn.execute('INSERT INTO users(username,password_hash,role,modules) '
+                         'SELECT \'new_mingkh\',password_hash,\'Пользователь\',\'["mingkh"]\' '
+                         'FROM users WHERE username=\'ordinary\'')
+        initialize_access_control()
+        with self.db.get_db_connection() as conn:
+            for username, expected in [('ordinary', ['mingkh', 'edo']), ('new_mingkh', ['mingkh'])]:
+                self.assertEqual(json.loads(conn.execute('SELECT modules FROM users WHERE username=?', (username,)).fetchone()[0]), expected)
+
+    def test_collective_favorite_uses_its_own_grant(self):
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules=? WHERE username='ordinary'",
+                         (json.dumps(['collective', 'edo', 'overdue', 'edds']),))
+        self.login()
+        response = self.client.put('/api/me/home-favorites', json={'favorites': ['collective']})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['favorites'], ['collective'])
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules=? WHERE username='ordinary'",
+                         (json.dumps(['mingkh', 'edo', 'overdue', 'edds']),))
+        self.assertEqual(self.client.get('/api/me/home-favorites').json()['favorites'], [])
+        self.assertEqual(self.client.put('/api/me/home-favorites', json={'favorites': ['collective']}).status_code, 403)
+
     def test_cross_site_writes_and_secret_downloads_are_blocked(self):
         self.login()
         response=self.client.post('/api/home/preferences',json={},headers={'Origin':'https://example.invalid'})

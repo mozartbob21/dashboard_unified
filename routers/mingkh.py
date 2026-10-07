@@ -28,7 +28,8 @@ def access():
 async def page(request:Request):
     today=date.today();start=(today.weekday()-3)%7
     return templates.TemplateResponse(request,'mingkh.html',{'request':request,'presets':dashboard.PRESETS,
-        'initial_dates':[(today-timedelta(days=d)).isoformat() for d in (start,0,start+7,7)]})
+        'initial_dates':[(today-timedelta(days=d)).isoformat() for d in (start,0,start+7,7)],
+        'can_view_collective':check_module_access(getattr(request.state, 'user', None), 'collective')})
 
 
 @router.get('/api/dataset')

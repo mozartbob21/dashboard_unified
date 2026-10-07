@@ -913,8 +913,8 @@
         @media(max-width:1080px){.wide-pair{grid-template-columns:1fr;}}
     </style>
 <link rel="stylesheet" href="/static/module-layout.css?v=20260915">
-<link rel="stylesheet" href="/static/home-premium.css?v=20261001-modules">
-<script src="/static/module-layout.js?v=20261001-modules" defer></script>
+<link rel="stylesheet" href="/static/home-premium.css?v=20261007-collective">
+<script src="/static/module-layout.js?v=20261007-collective" defer></script>
 <link rel="stylesheet" href="/static/appearance-menu.css?v=20261001">
 </head>
 
@@ -1509,9 +1509,18 @@
         <article data-module="mingkh" class="card module-card">
           <div class="module-head"><div class="head-pills"><span class="pill primary">МИНЖКХ</span><span class="pill primary">Обращения</span></div></div>
           <h2 class="module-title">Дашборд МИНЖКХ</h2>
-          <div class="module-description is-collapsed">Показывает обращения по муниципалитетам и темам, сравнивает периоды. Коллективные жалобы — подписи, статусы, свод по ОМСУ и выгрузка в Excel и PowerPoint.</div>
+          <div class="module-description is-collapsed">Показывает обращения по муниципалитетам и темам, сравнивает периоды, отображает динамику и карту жалоб.</div>
           <div class="tag-row"><span class="tag">Динамика обращений</span><span class="tag">Муниципалитеты</span></div>
-          <div class="action-panel"><a href="/mingkh/collective" class="secondary-button" aria-label="Коллективные жалобы">Коллективные жалобы</a><a href="/mingkh" class="module-link">Перейти <span aria-hidden="true">→</span></a></div>
+          <div class="action-panel"><a href="https://cur.bi.mosreg.ru" target="_blank" rel="noopener noreferrer" class="secondary-button">Открыть источник ↗</a><a href="/mingkh" class="module-link">Перейти <span aria-hidden="true">→</span></a></div>
+        </article>
+        {% endif %}
+        {% if "collective" in user_modules %}
+        <article data-module="collective" class="card module-card">
+          <div class="module-head"><div class="head-pills"><span class="pill primary">МИНЖКХ</span><span class="pill primary">Коллективные обращения</span></div></div>
+          <h2 class="module-title">Коллективные жалобы</h2>
+          <div class="module-description is-collapsed">Обращения жителей с подписями: статусы, повторные жалобы, свод по муниципалитетам и темам, выгрузка в Excel и PowerPoint.</div>
+          <div class="tag-row"><span class="tag">Подписи жителей</span><span class="tag">Свод по ОМСУ</span><span class="tag">Excel и PowerPoint</span></div>
+          <div class="action-panel"><a href="/mingkh/collective" class="module-link" aria-label="Открыть коллективные жалобы">Перейти <span aria-hidden="true">→</span></a></div>
         </article>
         {% endif %}
         {% if "edds" in user_modules %}

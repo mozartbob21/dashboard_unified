@@ -1035,6 +1035,7 @@ def has_local_git_changes():
 PATH_MODULE_MAP = {
     "/telegram": "telegram",
     "/edds": "edds",
+    "/mingkh/collective": "collective",
     "/mingkh": "mingkh",
     "/edo": "edo",
     "/overdue": "overdue",

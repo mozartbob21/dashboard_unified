@@ -3,7 +3,7 @@
 {% block head %}<link rel="stylesheet" href="/static/mingkh.css?v=20261001-layout">{% endblock %}
 {% block content %}
 <div class="container">
-<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Дашборд МИНЖКХ</div></div></div><div class="top-actions"><a href="/mingkh/collective" class="secondary-button">Коллективные жалобы</a><a href="/mingkh/water-map" class="secondary-button mingkh-map-link"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15M15 6v15"/></svg><span>Карта жалоб МинЖКХ</span></a><a href="/" class="secondary-button">← Назад</a></div></header>
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Дашборд МИНЖКХ</div></div></div><div class="top-actions">{% if can_view_collective %}<a href="/mingkh/collective" class="secondary-button">Коллективные жалобы</a>{% endif %}<a href="/mingkh/water-map" class="secondary-button mingkh-map-link"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15M15 6v15"/></svg><span>Карта жалоб МинЖКХ</span></a><a href="/" class="secondary-button">← Назад</a></div></header>
 <div class="mingkh-dashboard"><div class="wrap">
 <header class="head">
   <div>

@@ -108,12 +108,14 @@ class CollectiveTests(unittest.TestCase):
                 client.period(start, end, today)
 
     def test_access_control_and_shared_admin_credentials(self):
-        for user in [None, {'modules': []}]:
+        for user in [None, {'modules': []}, {'modules': ['mingkh']},
+                     {'role': 'Администратор', 'modules': ['mingkh']}]:
             c = api(user)
             for path in ['/mingkh/collective', '/mingkh/collective/api/data']:
                 self.assertEqual(c.get(path).status_code, 403)
             self.assertEqual(c.post('/mingkh/collective/api/pptx', json={}).status_code, 403)
-        c = api({'modules': ['mingkh'], 'username': 'synthetic'})
+        c = api({'modules': ['collective'], 'username': 'synthetic'})
+        self.assertEqual(c.get('/mingkh/collective').status_code, 200)
         with patch.object(collective, 'credentials', return_value=None):
             response = c.get('/mingkh/collective/api/data?start=2026-01-01&end=2026-01-02')
             self.assertEqual(response.status_code, 503)
@@ -127,6 +129,23 @@ class CollectiveTests(unittest.TestCase):
             self.assertEqual(response.headers['cache-control'], 'private, no-store')
             credentials.assert_called_once_with('mingkh')
 
+        with patch.object(collective.presentation, 'build', return_value=b'synthetic-presentation') as build:
+            response = c.post('/mingkh/collective/api/pptx', json={
+                'start': '2026-01-01', 'end': '2026-01-02', 'rows': [record('pr')],
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b'synthetic-presentation')
+        self.assertEqual(build.call_args.args[0][0]['_theme'], 'pr')
+
+    def test_local_and_keycloak_collective_grants_are_independent(self):
+        from core.roles import check_module_access
+        for modules in [['mingkh'], ['collective'], []]:
+            for user in [{'modules': modules},
+                         {'kc_sub': 'synthetic-subject', 'role': 'user', 'roles': modules}]:
+                with self.subTest(user=user):
+                    self.assertEqual(check_module_access(user, 'collective'), 'collective' in modules)
+                    self.assertEqual(check_module_access(user, 'mingkh'), 'mingkh' in modules)
+
     def test_export_validation_and_manual_themes(self):
         rows = presentation.validate_rows([record('kr', '100'), record('pr', '101')])
         self.assertEqual(rows[0]['_theme'], 'kr')
@@ -135,7 +154,7 @@ class CollectiveTests(unittest.TestCase):
         for bad in [None, [], [record('__proto__')], [record(**{'Ответ': []})]]:
             with self.assertRaises(ValueError):
                 presentation.validate_rows(bad)
-        c = api({'modules': ['mingkh']})
+        c = api({'modules': ['collective']})
         self.assertEqual(c.post('/mingkh/collective/api/pptx', json={'start': '2026-01-01', 'end': '2026-01-02', 'rows': []}).status_code, 400)
         with patch.object(collective, 'MAX_EXPORT_BYTES', 1):
             self.assertEqual(c.post('/mingkh/collective/api/pptx', content=b'{}').status_code, 413)

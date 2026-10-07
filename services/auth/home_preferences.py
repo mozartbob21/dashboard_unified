@@ -7,7 +7,7 @@ from utils.db import get_db_connection
 
 FAVORITABLE = frozenset({
     'edo', 'overdue', 'watercontrol', 'utnkr', 'cameras', 'appeals',
-    'mingkh', 'summarizer', 'cds', 'mgkh_rm', 'telegram', 'zips', 'ecur', 'edds',
+    'mingkh', 'collective', 'summarizer', 'cds', 'mgkh_rm', 'telegram', 'zips', 'ecur', 'edds',
 })
 
 
