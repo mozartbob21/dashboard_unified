@@ -89,7 +89,9 @@
   // The initial order is supplied by the server and belongs to the signed-in account.
   applyFavorites();
   document.querySelectorAll('.module-card .tag, .module-card .pill').forEach(tag=>tag.title=tag.textContent.trim());
-  document.querySelectorAll('.module-card .action-panel .secondary-button').forEach(link=>link.setAttribute('aria-label','Открыть источник'));
+  document.querySelectorAll('.module-card .action-panel .secondary-button').forEach(link=>{
+    if(!link.hasAttribute('aria-label')) link.setAttribute('aria-label','Открыть источник');
+  });
 
   function setView(view){
     view=view==='list'?'list':'cards';

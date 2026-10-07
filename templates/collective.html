@@ -1,0 +1,87 @@
+{% extends "base_module.html" %}
+{% block title %}Коллективные обращения — Нейрона ИИ{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/collective.css?v=20261007">{% endblock %}
+{% block content %}
+<div class="container">
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Коллективные обращения</div></div></div><div class="top-actions"><a href="/mingkh" class="secondary-button">Дашборд МИНЖКХ</a><a href="/" class="secondary-button">← Назад</a></div></header>
+<div class="collective-dashboard" data-owner="{{ owner_key }}">
+
+<header>
+  <div>
+    <h1>Коллективные жалобы — МинЖКХ МО</h1>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div class="hdr-tools">
+    <span id="liveTools">
+      <select id="periodSel" title="Период">
+        <option value="today">Сегодня</option>
+        <option value="d7" selected>7 дней</option>
+        <option value="month">Текущий месяц</option>
+        <option value="d30">30 дней</option>
+        <option value="custom">Свои даты…</option>
+      </select>
+      <span id="customDates" hidden>
+        <input type="date" id="dStart" aria-label="Начало периода"> – <input type="date" id="dEnd" aria-label="Конец периода">
+      </span>
+      <button class="btn" id="refresh">⟳ Обновить</button>
+    </span>
+    <button class="btn" id="exportPptx" title="Презентация по обращениям, которые сейчас на экране">Презентация</button>
+    <button class="btn primary" id="exportAll">Выгрузить в Excel</button>
+  </div>
+</header>
+<main>
+  <div class="err" id="err" role="alert" hidden></div>
+  <section class="kpis" id="kpis" aria-live="polite"></section>
+  <nav class="tabs" id="tabs" aria-label="Темы обращений"></nav>
+  <section class="filters">
+    <div class="ms" data-key="omsu" data-all="Все ОМСУ" data-many="ОМСУ"></div>
+    <div class="ms" data-key="status" data-all="Все статусы" data-many="статусов"></div>
+    <input type="search" id="q" aria-label="Поиск обращений" placeholder="Поиск: адрес, номер, текст…">
+    <select id="sortSel" aria-label="Сортировка обращений">
+      <option value="sig">Сначала больше подписей</option>
+      <option value="date">Сначала новые</option>
+      <option value="omsu">По ОМСУ</option>
+    </select>
+    <label class="toggle"><input type="checkbox" id="bigOnly"><span class="dot"></span>Более 100 подписей</label>
+    <label class="toggle"><input type="checkbox" id="repOnly"><span class="dot"></span>Повторные</label>
+    <label class="toggle"><input type="checkbox" id="hideNc"><span class="dot"></span>Скрыть «Не учитывается»</label>
+    <button class="btn" id="resetFilters" title="Сбросить все фильтры">✕ Сбросить</button>
+  </section>
+  <section class="grid">
+    <div class="card">
+      <h2>В разрезе ОМСУ <small>клик — фильтр по ОМСУ</small></h2>      <div class="scroll">
+        <table id="omsuTable">
+          <thead><tr>
+            <th data-k="omsu">ОМСУ</th><th class="n" data-k="n">Обр.</th>
+            <th class="n hide-sm" data-k="ii" title="Инженерная инфраструктура">ИИ</th>
+            <th class="n hide-sm" data-k="kr" title="Капитальный ремонт">КР</th>
+            <th class="n hide-sm" data-k="pr" title="Прочее">Пр.</th>
+            <th class="n" data-k="sig">Подписи</th>
+          </tr></thead>
+          <tbody></tbody><tfoot></tfoot>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2><span id="listTitle">Обращения</span> <small>клик — карточка</small></h2>
+      <div class="scroll"><div class="list" id="list"></div></div>
+    </div>
+  </section>
+<p class="source-note">Источник: коллективные обращения МинЖКХ МО, cur.bi.mosreg.ru. Ручная тема сохраняется в этом браузере для вашей учётной записи. Выгрузки учитывают выбранные фильтры.</p></main>
+
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <div class="dlg-head">
+    <div><h3 id="dlgTitle"></h3><div id="dlgSub" style="color:var(--muted);font-size:11px;margin-top:3px"></div></div>
+    <div class="dlg-actions">
+      <select id="dlgTheme" title="Тема (можно поправить вручную)"></select>
+      <button class="btn" id="dlgExport">В Excel</button>
+      <button class="btn" id="dlgClose" aria-label="Закрыть">✕</button>
+    </div>
+  </div>
+  <div class="dlg-body"><dl id="dlgBody"></dl></div>
+</dialog>
+
+</div></div>
+<script src="/static/vendor/xlsx.full.min.js"></script>
+<script src="/static/collective.js?v=20261007"></script>
+{% endblock %}

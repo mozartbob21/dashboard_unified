@@ -2,7 +2,7 @@
 {% block title %}Нейрона — AI-чат{% endblock %}
 {% block body_class %}compact-module-page aichat-page{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', path='aichat.css') }}?v=20261002">
+<link rel="stylesheet" href="{{ url_for('static', path='aichat.css') }}?v=20261007-teams">
 {% endblock %}
 {% block content %}
 <div class="container">
@@ -22,11 +22,20 @@
   <aside class="ac-side card" aria-label="История диалогов">
     <button class="ac-new" id="newBtn" type="button">＋ Новый чат</button>
     <a class="ac-hub" href="/prompthub">ПромтХаб <span aria-hidden="true">↗</span></a>
+    <button class="ac-team-entry" id="teamBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="teamOvl">
+      <span class="ac-team-entry-icon" id="teamEntryIcon" aria-hidden="true"></span>
+      <span><strong>ИИ-команда</strong><small id="teamEntryHint">Несколько взглядов на задачу</small></span>
+      <span class="ac-team-entry-arrow" aria-hidden="true">↗</span>
+    </button>
     <div class="ac-history-heading">История диалогов<span>Общая для организации</span></div>
     <div class="ac-list" id="dlgList"></div>
   </aside>
 
   <main class="ac-main card">
+    <div class="ac-team-strip" id="teamStrip" hidden>
+      <div class="ac-team-strip-info"><span class="ac-team-eyebrow">ИИ-команда</span><strong id="teamActiveName"></strong><span id="teamActiveRoles"></span></div>
+      <div class="ac-team-strip-actions"><button type="button" id="teamEdit">Состав команды</button><button type="button" id="teamReset" aria-label="Переключиться в обычный чат">Обычный чат</button></div>
+    </div>
     <div class="ac-chat" id="chat" role="log" aria-label="Сообщения чата" aria-live="polite" aria-relevant="additions"></div>
     <div class="ac-compose">
     <details class="ac-shortcuts"><summary>Быстрые запросы <span aria-hidden="true">⌄</span></summary><div class="ac-quick" id="quickBar"></div></details>
@@ -71,11 +80,36 @@
   </div>
 </div>
 
+
+<div class="ovl" id="teamOvl" hidden>
+  <section class="modal ac-team-modal" id="teamPanel" role="dialog" aria-modal="true" aria-labelledby="teamTitle" aria-describedby="teamIntro">
+    <div class="ac-team-modal-heading">
+      <div><span class="ac-team-eyebrow">Нейрона · ИИ-команда</span><h3 id="teamTitle">Соберите ИИ-команду</h3></div>
+      <button class="ac-team-close" type="button" id="teamClose" aria-label="Закрыть выбор команды">×</button>
+    </div>
+    <p class="ac-team-intro" id="teamIntro">Взгляните на задачу с разных сторон. Выберите готовую команду или добавьте роли под свою цель.</p>
+    <p class="ac-team-loading" id="teamLoading" role="status" hidden>Загружаем роли…</p>
+    <div class="ac-team-layout" id="teamLayout" hidden>
+      <nav class="ac-team-presets-column" aria-label="Готовые составы"><h4>Начните с команды</h4><div id="teamPresets" class="ac-team-presets"></div></nav>
+      <div class="ac-team-roles-column"><div class="ac-team-roles-heading"><h4>Профессиональные роли</h4><span>Можно выбрать несколько</span></div><div id="teamRoles" class="ac-team-roles"></div></div>
+    </div>
+    <div class="ac-team-error" id="teamError" role="alert" hidden></div>
+    <button class="btn ghost" id="teamRetry" type="button" hidden>Попробовать снова</button>
+    <div class="ac-team-selection" aria-live="polite"><strong id="teamSelectionCount">Выберите команду</strong><span id="teamSelectionNames">Состав применяется к следующим сообщениям этого чата.</span></div>
+    <div class="ac-team-modal-footer">
+      <p>Одна ИИ-модель, несколько профессиональных взглядов и общий вывод.</p>
+      <div class="m-row"><button class="btn ghost" id="teamStandard" type="button">Обычный чат</button><button class="btn prim" id="teamApply" type="button" disabled>Применить команду</button></div>
+    </div>
+  </section>
+</div>
+
 <script src="{{ url_for('static', path='aichat-message-format.js') }}?v=20261002"></script>
+<script src="{{ url_for('static', path='aichat-teams.js') }}?v=20261007"></script>
 <script>
 var $=function(s){return document.querySelector(s)};
 var chatEl=$("#chat"),ta=$("#ta");
 var currentDid=null,pending=[],busy=false,draftVersion=0;
+var teamUI=null;
 var customCmds=[];
 try{customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");if(!Array.isArray(customCmds))customCmds=[];}catch(error){}
 var STD=[{t:"Помоги составить деловое письмо"},{t:"Объясни сложную тему простыми словами"},{t:"Дай краткий отчёт по всем блокам"}];
@@ -103,9 +137,9 @@ function bindChips(root){
     b.addEventListener("click",function(){if(!$("#capsOvl").hidden)closeChatModal("#capsOvl");prepareDraft(b.getAttribute("data-ex"))});
   });
 }
-function appendAssist(content){
+function appendAssist(content,team){
   var w=document.createElement("div");w.className="ac-msg assist";
-  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона</div><div class="bubble">'+fmt(content)+"</div></div>";
+  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона '+window.NeuronaTeams.messageBadge(team)+'</div><div class="bubble">'+fmt(content)+"</div></div>";
   chatEl.appendChild(w);scroll();
 }
 function appendUser(text,atts,fromHistory){
@@ -148,7 +182,7 @@ async function loadDialogs(){
     el.querySelector(".del").addEventListener("click",function(ev){
       ev.stopPropagation();if(busy)return;
       fetch("/aichat/api/dialogs/"+it.id,{method:"DELETE"}).then(function(){
-        if(currentDid===it.id){currentDid=null;welcome();}
+        if(currentDid===it.id){currentDid=null;teamUI.restore(null);welcome();}
         loadDialogs();
       });
     });
@@ -163,12 +197,12 @@ async function openDialog(did){
   setBusy(true);$("#contextNote").hidden=true;
   try{
     var d=await chatJson("/aichat/api/dialogs/"+did);
-    currentDid=did;loadDialogs();chatEl.innerHTML="";
+    currentDid=did;teamUI.restore(d.team||null);loadDialogs();chatEl.innerHTML="";
     var msgs=(d.messages||[]);
     if(!msgs.length){welcome();return;}
     msgs.forEach(function(m){
       if(m.role==="user")appendUser(m.content,[],true);
-      else appendAssist(m.content);
+      else appendAssist(m.content,m.team);
     });
   }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
   finally{setBusy(false);}
@@ -177,8 +211,8 @@ async function newChat(){
   if(busy)return;
   setBusy(true);
   try{
-    var d=await chatJson("/aichat/api/dialogs",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
-    currentDid=d.id;loadDialogs();welcome();$("#contextNote").hidden=true;ta.focus();
+    var d=await chatJson("/aichat/api/dialogs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({team:teamUI.get()})});
+    currentDid=d.id;teamUI.restore(d.team||null);loadDialogs();welcome();$("#contextNote").hidden=true;ta.focus();
   }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
   finally{setBusy(false);}
 }
@@ -236,6 +270,7 @@ async function send(textOverride){
   var fd=new FormData();
   fd.append("dialog_id",currentDid||"");
   fd.append("text",text);
+  if(!currentDid)fd.append("team",JSON.stringify(teamUI.get()));
   for(var pi=0;pi<pending.length;pi++){
     var pp=pending[pi],pf=pp.file;
     if(!pf&&pp.remote){
@@ -251,7 +286,8 @@ async function send(textOverride){
     if(d.error){appendAssist("⚠️ "+d.error);return;}
     if(d.dialog_id&&d.dialog_id!==currentDid){currentDid=d.dialog_id;}
     loadDialogs();
-    appendAssist(d.answer||"…");
+    if(Object.prototype.hasOwnProperty.call(d,"team"))teamUI.restore(d.team);
+    appendAssist(d.answer||"…",d.team);
     if(d.ok!==false&&d.report_sources&&d.report_sources.length){$("#contextNote").textContent="Источников в отчёте: "+d.report_sources.length+" · Даты и полнота данных указаны в ответе.";$("#contextNote").hidden=false;}
   }catch(e){appendAssist("Не удалось получить ответ. "+(e instanceof TypeError?"Проверьте соединение с сервером и повторите запрос.":e.message));}
   finally{showTyping(false);setBusy(false);}
@@ -264,6 +300,7 @@ function setBusy(value){
   $("#newBtn").disabled=value;
   $("#plusBtn").disabled=value;
   chatEl.setAttribute("aria-busy",String(value));
+  if(teamUI)teamUI.syncBusy();
 }
 $("#newBtn").addEventListener("click",newChat);
 $("#sendBtn").addEventListener("click",function(){send()});
@@ -301,7 +338,9 @@ function openChatModal(selector,focusSelector){
   $(focusSelector).focus();
 }
 function closeChatModal(selector){
+  if(selector==="#teamOvl"&&teamUI&&teamUI.isSaving())return;
   $(selector).hidden=true;
+  if(selector==="#teamOvl")$("#teamBtn").setAttribute("aria-expanded","false");
   if(selector==="#capsOvl")localStorage.setItem("neurona-caps-seen","1");
   if(modalReturnFocus&&modalReturnFocus.isConnected)modalReturnFocus.focus();
 }
@@ -339,6 +378,15 @@ async function prefillReportQuestion(){
 }
 prefillReportQuestion();
 
+teamUI=window.NeuronaTeams.create({
+  request:chatJson,
+  getDialogId:function(){return currentDid;},
+  isBusy:function(){return busy;},
+  setBusy:setBusy,
+  openModal:openChatModal,
+  closeModal:closeChatModal,
+  showError:function(message){$("#contextNote").textContent=message;$("#contextNote").hidden=false;}
+});
 loadDialogs();renderChips();welcome();
 if(!localStorage.getItem("neurona-caps-seen")){fillCapChips();openChatModal("#capsOvl","#capsClose");}
 </script>

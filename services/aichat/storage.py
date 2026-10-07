@@ -1,12 +1,25 @@
 """Хранилище диалогов AI-чата."""
 import json
 import uuid
+import os
+import tempfile
+from functools import wraps
+from threading import RLock
 from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data" / "aichat"
 DIALOGS_FILE = DATA_DIR / "dialogs.json"
+_DIALOG_LOCK = RLock()
+
+
+def _locked(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        with _DIALOG_LOCK:
+            return function(*args, **kwargs)
+    return wrapped
 
 def now_iso():
     return datetime.now().isoformat(timespec="seconds")
@@ -22,7 +35,16 @@ def _load():
 
 def _save(items):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    DIALOGS_FILE.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=DATA_DIR,
+                                         prefix=".dialogs-", suffix=".tmp", delete=False) as handle:
+            temporary = handle.name
+            json.dump(items, handle, ensure_ascii=False, indent=2)
+        os.replace(temporary, DIALOGS_FILE)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
 
 def list_dialogs():
     items = sorted(_load(), key=lambda d: d.get("updated_at") or "", reverse=True)
@@ -32,7 +54,7 @@ def list_dialogs():
         last = msgs[-1]["content"][:80] if msgs else "Нет сообщений"
         out.append({"id": d["id"], "title": d.get("title") or "Новый чат",
                     "updated_at": d.get("updated_at") or "", "preview": last,
-                    "count": len(msgs)})
+                    "count": len(msgs), "team": d.get("team")})
     return out
 
 def get_dialog(did):
@@ -41,14 +63,32 @@ def get_dialog(did):
             return d
     return None
 
-def create_dialog(title="Новый чат"):
+@_locked
+def create_dialog(title="Новый чат", team=None):
+    from services.aichat.teams import normalize_team
     d = {"id": str(uuid.uuid4())[:8], "title": title or "Новый чат",
-         "created_at": now_iso(), "updated_at": now_iso(), "messages": []}
+         "created_at": now_iso(), "updated_at": now_iso(), "messages": [],
+         "team": normalize_team(team)}
     items = _load()
     items.append(d)
     _save(items)
     return d
 
+@_locked
+def set_team(did, team):
+    from services.aichat.teams import normalize_team
+    selected = normalize_team(team)
+    items = _load()
+    for dialog in items:
+        if dialog.get("id") == did:
+            dialog["team"] = selected
+            dialog["updated_at"] = now_iso()
+            _save(items)
+            return dialog
+    return None
+
+
+@_locked
 def delete_dialog(did):
     items = _load()
     new = [d for d in items if d.get("id") != did]
@@ -57,13 +97,16 @@ def delete_dialog(did):
     _save(new)
     return True
 
-def append_message(did, role, content, file_name=None, report_scope=None, response_kind=None):
+@_locked
+def append_message(did, role, content, file_name=None, report_scope=None, response_kind=None, team=None):
+    from services.aichat.teams import normalize_team
+    selected = normalize_team(team)
     items = _load()
     for d in items:
         if d.get("id") != did:
             continue
         d.setdefault("messages", []).append(
-            {"role": role, "content": content, "ts": now_iso(), "file": file_name})
+            {"role": role, "content": content, "ts": now_iso(), "file": file_name, "team": selected})
         if role == "assistant" and response_kind in ("answer", "error", "clarification"):
             d["messages"][-1]["response_kind"] = response_kind
         if report_scope:

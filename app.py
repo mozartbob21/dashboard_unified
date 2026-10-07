@@ -139,6 +139,8 @@ from routers.edds import router as edds_router
 app.include_router(edds_router)
 from routers.mingkh import router as mingkh_router
 app.include_router(mingkh_router)
+from routers.collective import router as collective_router
+app.include_router(collective_router)
 from routers.telegram import router as telegram_router
 app.include_router(telegram_router)
 # =========================
@@ -3052,6 +3054,19 @@ async def water_dashboard_run_status():
 # ===============================
 from services.aichat import storage as aichat_store
 from services.aichat.engine import ask as aichat_ask, GREETING
+from services.aichat.teams import normalize_team, public_catalog
+
+
+def validated_chat_team(value):
+    try:
+        return normalize_team(value)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@app.get("/aichat/api/teams")
+async def aichat_teams():
+    return public_catalog()
 
 @app.get("/aichat", response_class=HTMLResponse)
 async def aichat_page(request: Request):
@@ -3063,14 +3078,29 @@ async def aichat_dialogs():
 
 @app.post("/aichat/api/dialogs")
 async def aichat_create(payload: dict = None):
-    d = aichat_store.create_dialog((payload or {}).get("title") or "Новый чат")
+    payload = payload or {}
+    team = validated_chat_team(payload.get("team"))
+    d = aichat_store.create_dialog(payload.get("title") or "Новый чат", team=team)
     aichat_store.append_message(d["id"], "assistant", GREETING)
     return d
 
 @app.get("/aichat/api/dialogs/{did}")
 async def aichat_get(did: str):
     d = aichat_store.get_dialog(did)
-    return d or {"error": "не найден"}
+    if d is None:
+        raise HTTPException(404, "Диалог не найден")
+    return {**d, "team": d.get("team")}
+
+
+@app.patch("/aichat/api/dialogs/{did}/team")
+async def aichat_set_team(did: str, payload: dict):
+    if "team" not in payload:
+        raise HTTPException(400, "Укажите состав ИИ-команды или null для обычного чата")
+    team = validated_chat_team(payload["team"])
+    d = aichat_store.set_team(did, team)
+    if d is None:
+        raise HTTPException(404, "Диалог не найден")
+    return d
 
 @app.delete("/aichat/api/dialogs/{did}")
 async def aichat_del(did: str):
@@ -3095,6 +3125,19 @@ async def aichat_report_options(request: Request):
 async def aichat_send(request: Request):
     form = await request.form()
     did = form.get("dialog_id") or ""
+    d = aichat_store.get_dialog(did) if did else None
+    if did and d is None:
+        raise HTTPException(404, "Диалог не найден. Создайте новый чат.")
+    team = (d or {}).get("team")
+    if "team" in form:
+        raw_team = form.get("team")
+        if not isinstance(raw_team, str) or len(raw_team) > 4096:
+            raise HTTPException(400, "Некорректный состав ИИ-команды")
+        try:
+            team = json.loads(raw_team)
+        except ValueError:
+            raise HTTPException(400, "Некорректный состав ИИ-команды") from None
+    team = validated_chat_team(team)
     text = (form.get("text") or "").strip()
     uploads = form.getlist("file")
 
@@ -3116,10 +3159,13 @@ async def aichat_send(request: Request):
     if not text and not file_parts:
         return {"error": "пустое сообщение"}
 
-    d = aichat_store.get_dialog(did) if did else None
     if not d:
-        d = aichat_store.create_dialog((text or ("Файл: " + ", ".join(names)))[:60])
+        d = aichat_store.create_dialog((text or ("Файл: " + ", ".join(names)))[:60], team=team)
         did = d["id"]
+    elif "team" in form:
+        d = aichat_store.set_team(did, team)
+        if d is None:
+            raise HTTPException(404, "Диалог удалён. Создайте новый чат.")
 
     # A request for a report is sufficient to use the caller's accessible data.
     # Normal chat and file-only analysis do not read platform results.
@@ -3143,6 +3189,7 @@ async def aichat_send(request: Request):
     aichat_store.append_message(
         did, "user", text or ("Приложенные файлы: " + ", ".join(names)),
         file_name=", ".join(names) or None,
+        team=team,
         report_scope=report.get("selection") if report and not report.get("clarification") else None)
 
     full_user = "\n".join(([text] if text else []) + file_parts)
@@ -3154,7 +3201,10 @@ async def aichat_send(request: Request):
             response_kind = "clarification"
             answer = report["clarification"]
         else:
-            answer = await asyncio.to_thread(aichat_ask, history, platform_context=ctx)
+            options = {"platform_context": ctx}
+            if team is not None:
+                options["team"] = team
+            answer = await asyncio.to_thread(aichat_ask, history, **options)
     except Exception as exc:
         import logging
         from uuid import uuid4
@@ -3168,8 +3218,9 @@ async def aichat_send(request: Request):
         response_kind = "error"
         answer = ("Не удалось получить ответ ИИ. " + failure["message"]
                   + "\n\nКод: " + failure["code"] + " · запрос " + request_id)
-    aichat_store.append_message(did, "assistant", answer, response_kind=response_kind)
-    result = {"dialog_id": did, "answer": answer, "ok": failure is None, "response_kind": response_kind}
+    aichat_store.append_message(did, "assistant", answer, response_kind=response_kind, team=team)
+    result = {"dialog_id": did, "answer": answer, "ok": failure is None,
+              "response_kind": response_kind, "team": team}
     if failure:
         result["error_code"] = failure["code"]
         result["request_id"] = request_id
