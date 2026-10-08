@@ -169,16 +169,16 @@ class CollectiveTests(unittest.TestCase):
             self.assertFalse(any('thumbnail' in name.lower() for name in archive.namelist()))
             self.assertNotIn(b'thumbnail', archive.read('_rels/.rels'))
         prs = Presentation(io.BytesIO(data))
-        self.assertEqual(len(prs.slides), 5)  # cover, summary, two theme slides, closing
+        self.assertEqual(len(prs.slides), 4)  # cover, summary, compact detail table, closing
         summary = prs.slides[1]
         totals = presentation.named(summary, 'collective_totals').table
-        self.assertEqual([totals.cell(2, i).text for i in range(4)], ['2', '1', '1', '1'])
+        self.assertEqual([totals.cell(2, i).text.splitlines()[0] for i in range(4)], ['2', '1', '1', '1'])
         themes = presentation.named(summary, 'collective_themes').table
         self.assertEqual(themes.cell(3, 1).text, '0')  # excluded KR appeal
         self.assertEqual(themes.cell(4, 1).text, '1')
         table = presentation.named(prs.slides[2], 'collective_rows').table
-        self.assertEqual(table.cell(1, 1).text, '100')
-        self.assertIn('Не учитывается', table.cell(1, 3).text)
+        self.assertEqual(table.cell(1, 1).text, '101')
+        self.assertIn('Не учитывается', table.cell(2, 3).text)
         all_text = '\n'.join(shape.text if shape.has_text_frame else '\n'.join(c.text for r in shape.table.rows for c in r.cells) if shape.has_table else '' for slide in prs.slides for shape in slide.shapes)
         self.assertIn('01.01.2026', all_text)
         self.assertIn('Прочее', all_text)
@@ -195,7 +195,7 @@ class CollectiveTests(unittest.TestCase):
         count = 0
         for slide in list(prs.slides)[2:-1]:
             shape = presentation.named(slide, 'collective_rows')
-            count += len(shape.table.rows) - 1
+            count += sum(not row.cells[0].text.startswith('Продолж.') for row in list(shape.table.rows)[1:])
             self.assertLessEqual(shape.top + shape.height, prs.slide_height)
         self.assertEqual(count, 6)
 

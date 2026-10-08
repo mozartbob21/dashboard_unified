@@ -25,15 +25,31 @@ class ToolsBodyLimit:
         self.app=app;self.max_bytes=max_bytes
 
     async def __call__(self,scope,receive,send):
-        if scope['type']!='http' or not scope.get('path','').startswith('/tools/') or scope.get('method') not in {'POST','PUT'}:
-            return await self.app(scope,receive,send)
+        if scope['type'] != 'http':
+            return await self.app(scope, receive, send)
+        path, method = scope.get('path', ''), scope.get('method')
+        chat_upload = path.rstrip('/') == '/aichat/api/send' and method == 'POST'
+        tool_upload = path.startswith('/tools/') and method in {'POST', 'PUT'}
+        if not (chat_upload or tool_upload):
+            return await self.app(scope, receive, send)
+        # Bound the raw multipart envelope before Starlette can spool files.
+        limit = 25 * 1024 * 1024 if chat_upload else self.max_bytes
+        error = ('До 8 МБ на файл и до 24 МБ на сообщение.' if chat_upload
+                 else 'Общий размер запроса превышает 60 МБ.')
+        headers = dict(scope.get('headers', []))
+        try:
+            declared = int(headers.get(b'content-length', b'0'))
+        except ValueError:
+            declared = 0
+        if declared > limit:
+            return await JSONResponse({'ok': False, 'message': error, 'detail': error}, status_code=413)(scope, receive, send)
         messages=[];size=0
         while True:
             message=await receive()
             if message['type']=='http.disconnect':return
             size+=len(message.get('body',b''))
-            if size>self.max_bytes:
-                return await JSONResponse({'ok':False,'message':'Общий размер запроса превышает 60 МБ.'},status_code=413)(scope,receive,send)
+            if size > limit:
+                return await JSONResponse({'ok': False, 'message': error, 'detail': error}, status_code=413)(scope, receive, send)
             messages.append(message)
             if not message.get('more_body'):break
         iterator=iter(messages)

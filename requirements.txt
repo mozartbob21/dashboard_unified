@@ -31,3 +31,6 @@ pdf2docx>=0.5.8,<0.6
 PyMuPDF>=1.24.2,<2
 xlrd>=2.0.1
 pyxlsb>=1.0.10
+
+# Agent Skills: безопасный разбор YAML frontmatter
+PyYAML>=6,<7

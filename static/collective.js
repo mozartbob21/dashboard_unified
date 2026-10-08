@@ -42,7 +42,7 @@ const BIG = 100;  // «крупные» жалобы — более 100 подп
 const NO_STATUS = "Без статуса";
 // status — набор выбранных статусов; пустой = все
 const state = { theme: "all", omsu: new Set(), status: new Set(), q: "", sort: "sig", hideNc: false, big: false, rep: false, omsuSort: "sig" };
-const isRep = r => /^да$/i.test(r["Повтор"]);
+const isRep = r => /^да$/i.test(String(r["Повтор"] ?? "").trim());
 
 function num(v) { const n = parseInt(String(v ?? "").replace(/\s/g, ""), 10); return Number.isSafeInteger(n) ? Math.max(0, n) : 0; }
 function parseDate(s) { const m = String(s || "").match(/(\d{2})\.(\d{2})\.(\d{4})/); return m ? m[3] + m[2] + m[1] : ""; }
@@ -105,7 +105,7 @@ function render() {
   // KPI
   const sig = rows.reduce((s, r) => s + r._sig, 0);
   const om = new Set(rows.map(r => r["ОМСУ"])).size;
-  const rep = rows.filter(r => /^да$/i.test(r["Повтор"])).length;
+  const rep = rows.filter(isRep).length;
   const big = rows.filter(r => r._sig > BIG).length;
   const kp = [["Обращений", fmt(rows.length)], ["Подписей", fmt(sig)], ["ОМСУ", fmt(om)],
     ["Подписей на обращение", rows.length ? (sig / rows.length).toFixed(1).replace(".", ",") : "0"],
@@ -167,7 +167,7 @@ function renderList(rows) {
   el.innerHTML = sorted(rows).map(r => `<div class="item" data-id="${r._id}" tabindex="0" role="button" aria-label="Открыть обращение ${esc(r["Номер обращения ЕЦУР, МСЭД"] || r["Номер обращения исходной системы"] || String(r._id + 1))}, ${esc(r["ОМСУ"] || "ОМСУ не указан")}">
       <div class="top"><span>${esc(r["Дата поступления обращения"])}</span><span class="omsu">${esc(r["ОМСУ"])}</span>
         ${chip(r._theme)}${r._nc ? '<span class="chip warn">Не учитывается</span>' : ""}
-        ${/^да$/i.test(r["Повтор"]) ? '<span class="chip warn">Повтор</span>' : ""}
+        ${isRep(r) ? '<span class="chip warn">Повтор</span>' : ""}
         ${r._sig > BIG ? '<span class="chip big">100+</span>' : ""}
         <span>${esc(r["Источник"])}${r["Источник обращения ЕЦУР"] ? " · " + esc(r["Источник обращения ЕЦУР"]) : ""}</span>
         <span class="sig">${r._sig} подп.</span></div>

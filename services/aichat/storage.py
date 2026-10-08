@@ -98,7 +98,7 @@ def delete_dialog(did):
     return True
 
 @_locked
-def append_message(did, role, content, file_name=None, report_scope=None, response_kind=None, team=None):
+def append_message(did, role, content, file_name=None, report_scope=None, response_kind=None, team=None, skill_run=None):
     from services.aichat.teams import normalize_team
     selected = normalize_team(team)
     items = _load()
@@ -109,6 +109,9 @@ def append_message(did, role, content, file_name=None, report_scope=None, respon
             {"role": role, "content": content, "ts": now_iso(), "file": file_name, "team": selected})
         if role == "assistant" and response_kind in ("answer", "error", "clarification"):
             d["messages"][-1]["response_kind"] = response_kind
+        if role == "assistant" and skill_run is not None:
+            from services.aichat.skill_trace import normalize_run
+            d["messages"][-1]["skill_run"] = normalize_run(skill_run)
         if report_scope:
             d["messages"][-1]["report_scope"] = {key: str(report_scope.get(key) or "")[:240]
                                                        for key in ("module", "source", "municipality")}

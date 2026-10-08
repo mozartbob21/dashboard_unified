@@ -6,7 +6,7 @@ from collections import Counter, OrderedDict
 
 
 # ═══════════════ КЛИЕНТЫ ═══════════════
-def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
+def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None, timeout=180):
     """Chat completions for the configured GosChat or local model."""
     import httpx
     from core.ai_errors import AIServiceError
@@ -33,12 +33,12 @@ def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None):
         if not template_options_supported:
             payload = {k: v for k, v in payload.items() if k != "chat_template_kwargs"}
         resp = httpx.post(f"{base}/chat/completions", json=payload,
-                          headers=headers, timeout=180, verify=tls, trust_env=False, follow_redirects=False)
+                          headers=headers, timeout=timeout, verify=tls, trust_env=False, follow_redirects=False)
         if resp.status_code == 400 and "chat_template_kwargs" in payload:
             template_options_supported = False
             payload = {k: v for k, v in payload.items() if k != "chat_template_kwargs"}
             resp = httpx.post(f"{base}/chat/completions", json=payload,
-                              headers=headers, timeout=180, verify=tls, trust_env=False, follow_redirects=False)
+                              headers=headers, timeout=timeout, verify=tls, trust_env=False, follow_redirects=False)
         resp.raise_for_status()
         return resp
 

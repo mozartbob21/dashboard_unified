@@ -1,15 +1,16 @@
 {% extends "base_module.html" %}
-{% block title %}Нейрона — AI-чат{% endblock %}
+{% block title %}Нейрона — ИИ-чат{% endblock %}
 {% block body_class %}compact-module-page aichat-page{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', path='aichat.css') }}?v=20261007-teams">
+<link rel="stylesheet" href="{{ url_for('static', path='aichat-skills.css') }}?v=20261008">
 {% endblock %}
 {% block content %}
 <div class="container">
 <header class="topbar">
   <div class="brand">
     <img src="{{ url_for('static', path='logo.svg') }}" class="brand-logo" alt="">
-    <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">AI-чат · ваш рабочий помощник</div></div>
+    <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">ИИ-чат · ваш рабочий помощник</div></div>
   </div>
   <div class="top-actions">
     <button class="secondary-button" id="capsBtn" type="button">Возможности чата</button>
@@ -27,6 +28,11 @@
       <span><strong>ИИ-команда</strong><small id="teamEntryHint">Несколько взглядов на задачу</small></span>
       <span class="ac-team-entry-arrow" aria-hidden="true">↗</span>
     </button>
+    <button class="ac-skills-entry" id="skillsBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="skillsOvl">
+      <span class="ac-skills-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 2.6 5.4 5.9.8-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.8Z"/></svg></span>
+      <span><strong>Навыки</strong><small id="skillsEntryHint">Инструменты для ваших задач</small></span>
+      <span class="ac-skills-entry-arrow" aria-hidden="true">↗</span>
+    </button>
     <div class="ac-history-heading">История диалогов<span>Общая для организации</span></div>
     <div class="ac-list" id="dlgList"></div>
   </aside>
@@ -41,8 +47,8 @@
     <details class="ac-shortcuts"><summary>Быстрые запросы <span aria-hidden="true">⌄</span></summary><div class="ac-quick" id="quickBar"></div></details>
     <div class="ac-pend" id="pendRow" aria-label="Прикреплённые файлы"></div>
     <div class="ac-input">
-      <button class="ac-plus" id="plusBtn" type="button" title="Прикрепить файл или фото" aria-label="Прикрепить файл или фото"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 7-7a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L13 3" transform="translate(1 -1) scale(.9)"/><path d="m8 13 7-7a2 2 0 0 1 3 3l-8 8"/></svg></button>
-      <input type="file" id="fileIn" multiple hidden accept="image/*,.txt,.md,.csv,.doc,.docx,.xls,.xlsx,.pptx,.pdf">
+      <button class="ac-plus" id="plusBtn" type="button" title="Прикрепить файл" aria-label="Прикрепить файл"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 7-7a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L13 3" transform="translate(1 -1) scale(.9)"/><path d="m8 13 7-7a2 2 0 0 1 3 3l-8 8"/></svg></button>
+      <input type="file" id="fileIn" multiple hidden accept=".txt,.md,.csv,.docx,.xls,.xlsx,.pptx,.pdf">
       <textarea id="ta" rows="1" aria-label="Сообщение Нейроне" placeholder="Задайте вопрос или опишите задачу…"></textarea>
       <button class="ac-send" id="sendBtn" type="button" title="Отправить сообщение" aria-label="Отправить сообщение"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>
     </div>
@@ -73,7 +79,8 @@
       <div class="cap"><div class="cap-ic">💡</div><b>Идеи и планы</b><span>Предложит идеи, составит план работы или поможет подготовиться к выступлению.</span></div>
       <div class="cap"><div class="cap-ic">⌨️</div><b>Код и формулы</b><span>Объяснит код, поможет с формулой или подскажет, как автоматизировать задачу.</span></div>
       <div class="cap"><div class="cap-ic">🏘</div><b>Отчёты по платформе</b><span>Соберёт отчёт по доступным блокам и муниципалитетам из сохранённых данных с датами источников.</span></div>
-      <div class="cap"><div class="cap-ic">📎</div><b>Файлы и фото</b><span>Разберёт извлечённый текст документов, таблиц, презентаций и изображений.</span></div>
+      <div class="cap"><div class="cap-ic">📎</div><b>Документы и таблицы</b><span>Разберёт текст документов, таблиц и презентаций. Для сканов и аудио приложите текстовую расшифровку.</span></div>
+      <div class="cap"><div class="cap-ic">✦</div><b>Навыки и инструменты</b><span>Включите нужные навыки для своей учётной записи: расчёты, анализ прикреплённых таблиц и другие задачи. Этапы выполнения появятся в ответе.</span></div>
     </div>
     <div class="cap-ex"><b>Попробуйте:</b><div class="cap-chips" id="capChips"></div></div>
     <div class="m-row"><button class="btn prim" id="capsClose" type="button">Понятно</button></div>
@@ -103,17 +110,39 @@
   </section>
 </div>
 
+
+<div class="ovl" id="skillsOvl" hidden>
+  <section class="modal ac-skills-modal" id="skillsPanel" role="dialog" aria-modal="true" aria-labelledby="skillsTitle" aria-describedby="skillsIntro">
+    <div class="ac-skills-heading">
+      <div><span class="ac-skills-eyebrow">Для вашей учётной записи</span><h3 id="skillsTitle">Навыки Нейроны</h3></div>
+      <button class="ac-skills-close" type="button" id="skillsClose" aria-label="Закрыть настройки навыков">×</button>
+    </div>
+    <p class="ac-skills-intro" id="skillsIntro">Включите навыки, которые пригодятся в работе. Нейрона выберет подходящие по вашему запросу и покажет, какие инструменты использовала.</p>
+    <div class="ac-skills-example"><span aria-hidden="true">✦</span><p><strong>Например:</strong> «Посчитай 18% от 245 000» или «Сравни план и факт в прикреплённой таблице».</p></div>
+    <div class="ac-skills-content">
+      <p class="ac-skills-loading" id="skillsLoading" role="status" hidden>Загружаем навыки…</p>
+      <p class="ac-skills-notice" id="skillsIssues" role="status" hidden></p>
+      <p class="ac-skills-error" id="skillsError" role="alert" hidden></p>
+      <button class="btn ghost" id="skillsRetry" type="button" hidden>Попробовать снова</button>
+      <p class="ac-skills-empty" id="skillsEmpty" hidden>Навыки пока не добавлены. Обычный чат и ИИ-команда доступны как прежде.</p>
+      <div class="ac-skills-catalog" id="skillsCatalog"></div>
+    </div>
+    <div class="ac-skills-footer"><strong id="skillsCount">Ваши личные настройки</strong><span id="skillsSaveStatus" role="status">Изменения сохраняются сразу и действуют в следующих сообщениях.</span></div>
+  </section>
+</div>
+
 <script src="{{ url_for('static', path='aichat-message-format.js') }}?v=20261002"></script>
 <script src="{{ url_for('static', path='aichat-teams.js') }}?v=20261007"></script>
+<script src="{{ url_for('static', path='aichat-skills.js') }}?v=20261008"></script>
 <script>
 var $=function(s){return document.querySelector(s)};
 var chatEl=$("#chat"),ta=$("#ta");
 var currentDid=null,pending=[],busy=false,draftVersion=0;
-var teamUI=null;
+var teamUI=null,skillsUI=null;
 var customCmds=[];
 try{customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");if(!Array.isArray(customCmds))customCmds=[];}catch(error){}
 var STD=[{t:"Помоги составить деловое письмо"},{t:"Объясни сложную тему простыми словами"},{t:"Дай краткий отчёт по всем блокам"}];
-var EXAMPLES=["Помоги составить деловое письмо","Объясни, как работает нейросеть","Дай краткий отчёт по всем блокам","Дай отчёт по Власихе в ЕДДС и МинЖКХ"];
+var EXAMPLES=["Помоги составить деловое письмо","Объясни, как работает нейросеть","Дай краткий отчёт по всем блокам","Дай отчёт по Власихе в ЕДДС и МинЖКХ","Посчитай 18% от 245 000","Сравни план и факт в прикреплённой таблице"];
 
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 function fmt(s){return window.NeuronaChatFormat.render(s)}
@@ -128,7 +157,8 @@ function prepareDraft(text){
 function welcomeHTML(){
   return '<div class="welcome" id="welcome"><div class="ac-welcome-mark"><img src="/static/logo.svg" alt=""></div><h2>Нейрона — ваш ИИ-помощник</h2>'+
   '<p>Отвечу на вопросы, помогу с текстом, идеями и файлами. '+
-  'Для отчёта по платформе просто назовите блоки и муниципалитеты — нужные данные добавятся автоматически.</p>'+
+  'Для отчёта по платформе просто назовите блоки и муниципалитеты — нужные данные добавятся автоматически. '+
+  'Навыки помогут с расчётами и разбором прикреплённых данных: их можно включить в меню слева.</p>'+
   '<div class="cap-chips" id="wChips"></div></div>';
 }
 function bindChips(root){
@@ -137,9 +167,9 @@ function bindChips(root){
     b.addEventListener("click",function(){if(!$("#capsOvl").hidden)closeChatModal("#capsOvl");prepareDraft(b.getAttribute("data-ex"))});
   });
 }
-function appendAssist(content,team){
+function appendAssist(content,team,skillRun){
   var w=document.createElement("div");w.className="ac-msg assist";
-  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона '+window.NeuronaTeams.messageBadge(team)+'</div><div class="bubble">'+fmt(content)+"</div></div>";
+  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона '+window.NeuronaTeams.messageBadge(team)+'</div>'+window.NeuronaSkills.traceHTML(skillRun)+'<div class="bubble">'+fmt(content)+"</div></div>";
   chatEl.appendChild(w);scroll();
 }
 function appendUser(text,atts,fromHistory){
@@ -153,13 +183,16 @@ function appendUser(text,atts,fromHistory){
   w.innerHTML='<div class="ac-message-body"><div class="ac-author">'+(fromHistory?"Пользователь":"Вы")+'</div><div class="bubble">'+inner+'</div></div><div class="ava u" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20v-2a7 7 0 0 1 14 0v2"/></svg></div>';
   chatEl.appendChild(w);scroll();
 }
-function showTyping(on){
-  var old=$("#typing");if(old)old.remove();
-  if(!on)return;
-  var w=document.createElement("div");w.className="ac-msg assist typing";w.id="typing";w.setAttribute("aria-label","Нейрона готовит ответ");
-  w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="typing-label">Готовлю ответ</span></div>';
-  chatEl.appendChild(w);scroll();
+function showSkillActivity(run){
+  var w=$("#skillActivity");
+  if(!w){
+    w=document.createElement("div");w.className="ac-msg assist ac-skill-live";w.id="skillActivity";
+    w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона</div><div class="ac-skill-activity-slot"></div></div>';
+    chatEl.appendChild(w);
+  }
+  w.querySelector(".ac-skill-activity-slot").innerHTML=window.NeuronaSkills.activityHTML(run);scroll();
 }
+function clearSkillActivity(){var w=$("#skillActivity");if(w)w.remove();}
 
 async function chatJson(url,options){
   var r=await fetch(url,options);
@@ -202,7 +235,7 @@ async function openDialog(did){
     if(!msgs.length){welcome();return;}
     msgs.forEach(function(m){
       if(m.role==="user")appendUser(m.content,[],true);
-      else appendAssist(m.content,m.team);
+      else appendAssist(m.content,m.team,m.skill_run);
     });
   }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
   finally{setBusy(false);}
@@ -266,10 +299,12 @@ async function send(textOverride){
   ta.value="";ta.style.height="auto";
   var w=$("#welcome");if(w)w.remove();
   appendUser(text,pending.map(function(p){return {url:p.url,name:(p.file?p.file.name:(p.name||'аудио'))}}));
+  var runTrace=window.NeuronaSkills.createTrace();
   try{
   var fd=new FormData();
   fd.append("dialog_id",currentDid||"");
   fd.append("text",text);
+  fd.append("skills_mode","auto");
   if(!currentDid)fd.append("team",JSON.stringify(teamUI.get()));
   for(var pi=0;pi<pending.length;pi++){
     var pp=pending[pi],pf=pp.file;
@@ -280,17 +315,21 @@ async function send(textOverride){
     if(pp.url)URL.revokeObjectURL(pp.url);
   }
   pending=[];renderPending();
-  showTyping(true);
-    var d=await chatJson("/aichat/api/send",{method:"POST",body:fd});
-    showTyping(false);
-    if(d.error){appendAssist("⚠️ "+d.error);return;}
+  showSkillActivity(runTrace.snapshot());
+    var response=await fetch("/aichat/api/send",{method:"POST",headers:{"Accept":"application/x-ndjson"},body:fd});
+    var d=await window.NeuronaSkills.readResponse(response,function(step){runTrace.update(step);showSkillActivity(runTrace.snapshot());});
+    clearSkillActivity();
     if(d.dialog_id&&d.dialog_id!==currentDid){currentDid=d.dialog_id;}
     loadDialogs();
     if(Object.prototype.hasOwnProperty.call(d,"team"))teamUI.restore(d.team);
-    appendAssist(d.answer||"…",d.team);
+    var finalRun=runTrace.finish(d.skill_run,d.ok===false||!!d.error);
+    appendAssist(d.error?"⚠️ "+d.error:d.answer||"…",d.team,finalRun);
     if(d.ok!==false&&d.report_sources&&d.report_sources.length){$("#contextNote").textContent="Источников в отчёте: "+d.report_sources.length+" · Даты и полнота данных указаны в ответе.";$("#contextNote").hidden=false;}
-  }catch(e){appendAssist("Не удалось получить ответ. "+(e instanceof TypeError?"Проверьте соединение с сервером и повторите запрос.":e.message));}
-  finally{showTyping(false);setBusy(false);}
+  }catch(e){
+    clearSkillActivity();
+    appendAssist("Не удалось получить ответ. "+(e instanceof TypeError?"Проверьте соединение с сервером. Перед повторной отправкой обновите историю чата.":e.message),null,runTrace.finish(null,true));
+  }
+  finally{clearSkillActivity();setBusy(false);}
 }
 
 function setBusy(value){
@@ -301,6 +340,7 @@ function setBusy(value){
   $("#plusBtn").disabled=value;
   chatEl.setAttribute("aria-busy",String(value));
   if(teamUI)teamUI.syncBusy();
+  if(skillsUI)skillsUI.syncBusy();
 }
 $("#newBtn").addEventListener("click",newChat);
 $("#sendBtn").addEventListener("click",function(){send()});
@@ -339,8 +379,10 @@ function openChatModal(selector,focusSelector){
 }
 function closeChatModal(selector){
   if(selector==="#teamOvl"&&teamUI&&teamUI.isSaving())return;
+  if(selector==="#skillsOvl"&&skillsUI&&skillsUI.isSaving())return;
   $(selector).hidden=true;
   if(selector==="#teamOvl")$("#teamBtn").setAttribute("aria-expanded","false");
+  if(selector==="#skillsOvl")$("#skillsBtn").setAttribute("aria-expanded","false");
   if(selector==="#capsOvl")localStorage.setItem("neurona-caps-seen","1");
   if(modalReturnFocus&&modalReturnFocus.isConnected)modalReturnFocus.focus();
 }
@@ -349,7 +391,8 @@ document.addEventListener("keydown",function(e){
   if(!overlay)return;
   if(e.key==="Escape"){e.preventDefault();closeChatModal("#"+overlay.id);return;}
   if(e.key!=="Tab")return;
-  var controls=Array.from(overlay.querySelectorAll("button,textarea,[href],input,select,[tabindex='0']")).filter(function(el){return !el.disabled});
+  var controls=Array.from(overlay.querySelectorAll("button,textarea,[href],input,select,[tabindex='0']")).filter(function(el){return !el.disabled&&!el.closest("[hidden]")});
+  if(!controls.length){e.preventDefault();return;}
   var first=controls[0],last=controls[controls.length-1];
   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
   else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
@@ -387,8 +430,15 @@ teamUI=window.NeuronaTeams.create({
   closeModal:closeChatModal,
   showError:function(message){$("#contextNote").textContent=message;$("#contextNote").hidden=false;}
 });
+skillsUI=window.NeuronaSkills.create({
+  request:chatJson,
+  isBusy:function(){return busy;},
+  setBusy:setBusy,
+  openModal:openChatModal,
+  closeModal:closeChatModal
+});
 loadDialogs();renderChips();welcome();
-if(!localStorage.getItem("neurona-caps-seen")){fillCapChips();openChatModal("#capsOvl","#capsClose");}
+if(!localStorage.getItem("neurona-caps-seen")&&!document.querySelector(".aichat-page .ovl:not([hidden])")){fillCapChips();openChatModal("#capsOvl","#capsClose");}
 </script>
 
 {% endblock %}

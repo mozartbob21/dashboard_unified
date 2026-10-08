@@ -122,3 +122,19 @@ tests('real XLSX roundtrip preserves selected data and treats portal formulas as
   assert.equal(sheet.D2.v, 101);
   assert.equal(workbook.Sheets['По ОМСУ'].F2.v, 101);
 });
+
+
+tests('repeat whitespace is normalized consistently in filter, KPI, badges and export', () => {
+  const h = harness(), a = h.api;
+  const source = rows.map(row => row.slice());
+  source[0][4] = ' Да ';
+  source[1][4] = '\tда\u00a0';
+  source[2][4] = 'Нет';
+  a.load(head, source, 'Synthetic');
+  assert.match(h.document.getElementById('kpis').innerHTML, /Повторных<\/div><div class="v">2<\/div>/);
+  assert.equal((h.document.getElementById('list').innerHTML.match(/>Повтор<\/span>/g) || []).length, 2);
+  a.state.rep = true;
+  assert.equal(a.baseFiltered().length, 2);
+  a.exportAll();
+  assert.equal(h.downloads[0][0].sheet.data.length, 3);
+});

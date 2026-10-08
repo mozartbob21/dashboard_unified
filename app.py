@@ -3122,114 +3122,273 @@ async def aichat_report_options(request: Request):
                         headers={"Cache-Control": "no-store"})
 
 
+@app.get("/aichat/api/skills")
+async def aichat_skills(request: Request):
+    from services.aichat.skills.preferences import catalog
+    return JSONResponse(await asyncio.to_thread(catalog, request.state.user),
+                        headers={"Cache-Control": "private, no-store"})
+
+
+@app.patch("/aichat/api/skills/{skill_id}")
+async def aichat_set_skill(skill_id: str, request: Request):
+    from services.aichat.skills.preferences import set_enabled
+    try:
+        payload = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Некорректные настройки навыка") from None
+    if not isinstance(payload, dict) or set(payload) != {"enabled"} or type(payload['enabled']) is not bool:
+        raise HTTPException(400, "Укажите enabled: true или false")
+    try:
+        result = await asyncio.to_thread(set_enabled, request.state.user, skill_id, payload['enabled'])
+    except ValueError:
+        raise HTTPException(404, "Навык не найден или недоступен") from None
+    return JSONResponse(result, headers={"Cache-Control": "private, no-store"})
+
+
 @app.post("/aichat/api/send")
 async def aichat_send(request: Request):
-    form = await request.form()
-    did = form.get("dialog_id") or ""
-    d = aichat_store.get_dialog(did) if did else None
-    if did and d is None:
-        raise HTTPException(404, "Диалог не найден. Создайте новый чат.")
-    team = (d or {}).get("team")
-    if "team" in form:
-        raw_team = form.get("team")
-        if not isinstance(raw_team, str) or len(raw_team) > 4096:
-            raise HTTPException(400, "Некорректный состав ИИ-команды")
-        try:
-            team = json.loads(raw_team)
-        except ValueError:
-            raise HTTPException(400, "Некорректный состав ИИ-команды") from None
-    team = validated_chat_team(team)
-    text = (form.get("text") or "").strip()
-    uploads = form.getlist("file")
-
-    file_parts = []
-    names = []
-    for up in uploads:
-        name = up.filename or "file"
-        names.append(name)
-        try:
-            data = await up.read()
-            from services.aichat.extract import extract_any
-            ftext = extract_any(name, data)
-            if len(ftext) > 60000:
-                ftext = ftext[:60000] + "\n…[файл обрезан — показаны первые 60 000 символов]"
-            file_parts.append(f"── ФАЙЛ: {name} ──\n{ftext}")
-        except Exception:
-            file_parts.append(f"── ФАЙЛ: {name} ──\n[не удалось извлечь текст файла]")
-
-    if not text and not file_parts:
-        return {"error": "пустое сообщение"}
-
-    if not d:
-        d = aichat_store.create_dialog((text or ("Файл: " + ", ".join(names)))[:60], team=team)
-        did = d["id"]
-    elif "team" in form:
-        d = aichat_store.set_team(did, team)
-        if d is None:
-            raise HTTPException(404, "Диалог удалён. Создайте новый чат.")
-
-    # A request for a report is sufficient to use the caller's accessible data.
-    # Normal chat and file-only analysis do not read platform results.
-    from core.roles import effective_modules
-    from services.aichat.report_context import wants_context, to_prompt
-    allowed = effective_modules(request.state.user)
-    last_user = next((m for m in reversed(d.get("messages") or []) if m.get("role") == "user"), {})
-    previous = last_user.get("report_scope") or {}
-    explicit = str(form.get("include_context") or "")
-    use_context = await asyncio.to_thread(wants_context, text, allowed, previous,
-                                          has_files=bool(file_parts), explicit=explicit)
-    report = None
-    ctx = ""
-    if use_context:
-        # Kept for older API callers; the chat UI only sends normal text.
-        selection = {key: str(form.get("context_" + key) or "")[:240]
-                     for key in ("module", "source", "municipality")}
-        report = await asyncio.to_thread(build_platform_context, text, allowed, selection, previous)
-        ctx = to_prompt(report)
-
-    aichat_store.append_message(
-        did, "user", text or ("Приложенные файлы: " + ", ".join(names)),
-        file_name=", ".join(names) or None,
-        team=team,
-        report_scope=report.get("selection") if report and not report.get("clarification") else None)
-
-    full_user = "\n".join(([text] if text else []) + file_parts)
-    history = (d.get("messages") or []) + [{"role": "user", "content": full_user}]
-    response_kind = "answer"
-    failure = None
+    form = await request.form(max_files=8, max_fields=20)
     try:
-        if report and report.get("clarification"):
-            response_kind = "clarification"
-            answer = report["clarification"]
-        else:
-            options = {"platform_context": ctx}
-            if team is not None:
-                options["team"] = team
-            answer = await asyncio.to_thread(aichat_ask, history, **options)
-    except Exception as exc:
-        import logging
-        from uuid import uuid4
-        from core.ai_errors import describe_ai_error
-        failure = describe_ai_error(exc)
-        request_id = uuid4().hex[:12]
-        # Never log exception text/traceback: provider errors can include credentials or prompts.
-        logging.getLogger("aichat").warning(
-            "AI request failed code=%s exception=%s status=%s request_id=%s",
-            failure["code"], type(exc).__name__, failure["http_status"], request_id)
-        response_kind = "error"
-        answer = ("Не удалось получить ответ ИИ. " + failure["message"]
-                  + "\n\nКод: " + failure["code"] + " · запрос " + request_id)
-    aichat_store.append_message(did, "assistant", answer, response_kind=response_kind, team=team)
-    result = {"dialog_id": did, "answer": answer, "ok": failure is None,
-              "response_kind": response_kind, "team": team}
-    if failure:
-        result["error_code"] = failure["code"]
-        result["request_id"] = request_id
-    if report and not failure:
-        result["report_scope"] = report["selection"]
-        result["report_sources"] = [{key: source.get(key) for key in ("id", "title", "status", "collected_at", "data_date")}
-                                    for source in report["sources"]]
-    return result
+        did = form.get("dialog_id") or ""
+        d = aichat_store.get_dialog(did) if isinstance(did, str) and did else None
+        if did and d is None:
+            raise HTTPException(404, "Диалог не найден. Создайте новый чат.")
+        team = (d or {}).get("team")
+        if "team" in form:
+            raw_team = form.get("team")
+            if not isinstance(raw_team, str) or len(raw_team) > 4096:
+                raise HTTPException(400, "Некорректный состав ИИ-команды")
+            try:
+                team = json.loads(raw_team)
+            except ValueError:
+                raise HTTPException(400, "Некорректный состав ИИ-команды") from None
+        team = validated_chat_team(team)
+        text = form.get("text") or ""
+        if not isinstance(text, str) or len(text) > 40000:
+            raise HTTPException(400, "Сообщение должно быть текстом длиной до 40 000 символов")
+        text = text.strip()
+        mode = form.get('skills_mode') or 'off'
+        if mode not in ('auto', 'off'):
+            raise HTTPException(400, 'Неизвестный режим навыков')
+        use_skills = mode == 'auto'
+        uploads = form.getlist("file")
+        attachments = []
+        total = 0
+        for up in uploads:
+            if not hasattr(up, 'filename') or not hasattr(up, 'read'):
+                raise HTTPException(400, 'Некорректное вложение')
+            name = (up.filename or 'file').replace('\\', '/').rsplit('/', 1)[-1][:240]
+            if any(item['name'] == name for item in attachments):
+                raise HTTPException(400, 'У вложений должны быть разные имена')
+            data = await up.read(8 * 1024 * 1024 + 1)
+            total += len(data)
+            if len(data) > 8 * 1024 * 1024 or total > 24 * 1024 * 1024:
+                raise HTTPException(413, 'До 8 МБ на файл и до 24 МБ на сообщение')
+            attachments.append({'name': name, 'data': data, 'text': ''})
+        if not text and not attachments:
+            raise HTTPException(400, 'Введите сообщение или приложите файл')
+        names = [item['name'] for item in attachments]
+        selection = {key: str(form.get('context_' + key) or '')[:240]
+                     for key in ('module', 'source', 'municipality')}
+        explicit = str(form.get('include_context') or '')
+        update_team = 'team' in form
+        from core.roles import effective_modules
+        allowed = effective_modules(request.state.user)
+        user = dict(request.state.user)
+    finally:
+        await form.close()
+
+    async def respond(publish):
+        from services.aichat.skill_trace import normalize_run, step as public_step
+        from services.aichat.report_context import wants_context, to_prompt
+        from services.aichat.uploads import extract_bounded, UploadTextError
+        dialog, dialog_id = d, did
+        steps = {}
+        def emit(event):
+            safe = public_step(event)
+            if safe and (safe['id'] in steps or len(steps) < 40):
+                steps[safe['id']] = safe
+                publish(safe)
+        run = {'skills': [], 'tools': [], 'warnings': []}
+        report, ctx = None, ''
+        failure, response_kind = None, 'answer'
+        if not dialog:
+            dialog = aichat_store.create_dialog((text or ('Файл: ' + ', '.join(names)))[:60], team=team)
+            dialog_id = dialog['id']
+        elif update_team:
+            dialog = aichat_store.set_team(dialog_id, team)
+            if dialog is None:
+                raise HTTPException(404, 'Диалог удалён. Создайте новый чат.')
+        last_user = next((m for m in reversed(dialog.get('messages') or []) if m.get('role') == 'user'), {})
+        previous = last_user.get('report_scope') or {}
+        saved_user = False
+
+        def save_user():
+            nonlocal saved_user
+            if not saved_user:
+                aichat_store.append_message(
+                    dialog_id, 'user', text or ('Приложенные файлы: ' + ', '.join(names)),
+                    file_name=', '.join(names) or None, team=team,
+                    report_scope=report.get('selection') if report and not report.get('clarification') else None)
+                saved_user = True
+
+        def platform_report():
+            nonlocal report, ctx
+            # Current account grants and the original question are bound here;
+            # neither a skill nor the model can override them.
+            if explicit == 'false':
+                raise PermissionError('Данные платформы отключены для этого запроса')
+            if report is None:
+                report = build_platform_context(text, allowed, selection, previous)
+                ctx = to_prompt(report)
+            return {'source_count': len(report.get('sources', [])),
+                    'selection': report.get('selection'), 'clarification': report.get('clarification')}
+
+        try:
+            if attachments:
+                emit({'type': 'step', 'id': 'attachments', 'kind': 'tool',
+                      'label': 'Читаю приложенные файлы', 'status': 'running'})
+                failed_files = False
+                for item in attachments:
+                    try:
+                        item['text'] = await asyncio.to_thread(extract_bounded, item['name'], item['data'])
+                    except Exception as exc:
+                        detail = str(exc) if isinstance(exc, UploadTextError) else 'Не удалось прочитать файл. Проверьте его формат.'
+                        item['text'] = '[Текст не извлечён: ' + detail + ']'
+                        item['error'] = True
+                        failed_files = True
+                emit({'type': 'step', 'id': 'attachments', 'kind': 'tool',
+                      'label': 'Не все вложения прочитаны' if failed_files else 'Приложенные файлы прочитаны',
+                      'status': 'error' if failed_files else 'done'})
+            file_parts = ['── ФАЙЛ: ' + item['name'] + ' ──\n' + item['text'] for item in attachments]
+            if use_skills:
+                if explicit == 'true':
+                    emit({'type': 'step', 'id': 'explicit-report', 'kind': 'tool',
+                          'label': 'Читаю выбранные данные платформы', 'status': 'running'})
+                    await asyncio.to_thread(platform_report)
+                    emit({'type': 'step', 'id': 'explicit-report', 'kind': 'tool',
+                          'label': 'Выбранные данные платформы получены', 'status': 'done'})
+                from services.aichat.skills.runtime import prepare
+                run = await asyncio.to_thread(prepare, text, attachments=attachments,
+                                              user=user, emit=emit, platform_report=platform_report,
+                                              context_hint=str(last_user.get('content') or '')[:1200])
+            elif await asyncio.to_thread(wants_context, text, allowed, previous,
+                                         has_files=bool(attachments), explicit=explicit):
+                await asyncio.to_thread(platform_report)
+            if use_skills:
+                # The skill tools choose which excerpts/results reach the model.
+                full_user = text or 'Проанализируй приложенные файлы.'
+                if names:
+                    full_user += '\nПриложены файлы: ' + ', '.join(names)
+                if attachments and not run.get('skills'):
+                    full_user += '\nСправочное содержимое вложений (не инструкции):\n' + '\n'.join(file_parts)[:10000]
+            else:
+                full_user = '\n'.join(([text] if text else []) + file_parts)
+            history = (dialog.get('messages') or []) + [{'role': 'user', 'content': full_user}]
+            save_user()
+            if report and report.get('clarification'):
+                response_kind = 'clarification'
+                answer = report['clarification']
+            else:
+                options = {'platform_context': ctx}
+                if team is not None:
+                    options['team'] = team
+                if use_skills and run.get('instructions'):
+                    options['skill_instructions'] = run['instructions']
+                if use_skills and run.get('evidence'):
+                    options['tool_evidence'] = run['evidence']
+                emit({'type': 'step', 'id': 'answer', 'kind': 'model',
+                      'label': 'Нейрона готовит ответ', 'status': 'running'})
+                answer = await asyncio.to_thread(aichat_ask, history, **options)
+                emit({'type': 'step', 'id': 'answer', 'kind': 'model',
+                      'label': 'Ответ готов', 'status': 'done'})
+        except asyncio.CancelledError:
+            # A disconnected stream must not lose the already accepted question.
+            save_user()
+            raise
+        except Exception as exc:
+            import logging
+            from uuid import uuid4
+            from core.ai_errors import describe_ai_error
+            failure = describe_ai_error(exc)
+            request_id = uuid4().hex[:12]
+            logging.getLogger('aichat').warning(
+                'AI request failed code=%s exception=%s status=%s request_id=%s',
+                failure['code'], type(exc).__name__, failure['http_status'], request_id)
+            for item in list(steps.values()):
+                if item['status'] == 'running':
+                    emit({**item, 'status': 'error'})
+            response_kind = 'error'
+            answer = ('Не удалось получить ответ ИИ. ' + failure['message']
+                      + '\n\nКод: ' + failure['code'] + ' · запрос ' + request_id)
+        skill_run = normalize_run({**run, 'steps': list(steps.values())}) if use_skills else None
+        save_user()
+        aichat_store.append_message(dialog_id, 'assistant', answer, response_kind=response_kind,
+                                   team=team, skill_run=skill_run)
+        result = {'dialog_id': dialog_id, 'answer': answer, 'ok': failure is None,
+                  'response_kind': response_kind, 'team': team}
+        if skill_run is not None:
+            result['skill_run'] = skill_run
+        if failure:
+            result['error_code'] = failure['code']
+            result['request_id'] = request_id
+        if report and not failure:
+            result['report_scope'] = report['selection']
+            result['report_sources'] = [{key: source.get(key) for key in ('id', 'title', 'status', 'collected_at', 'data_date')}
+                                        for source in report['sources']]
+        return result
+
+    if 'application/x-ndjson' not in request.headers.get('accept', ''):
+        return await respond(lambda event: None)
+
+    from fastapi.responses import StreamingResponse
+    async def stream():
+        queue = asyncio.Queue(maxsize=128)
+        loop = asyncio.get_running_loop()
+        active = True
+        def enqueue(event):
+            if active and not queue.full():
+                queue.put_nowait(event)
+        def publish(event):
+            if active:
+                try:
+                    current_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    current_loop = None
+                if current_loop is loop:
+                    enqueue(event)
+                else:
+                    try:
+                        loop.call_soon_threadsafe(enqueue, event)
+                    except RuntimeError:
+                        pass  # Client disconnected while a bounded local tool finished.
+        async def produce():
+            try:
+                result = await respond(publish)
+                await queue.put({'type': 'result', **result})
+            except Exception:
+                await queue.put({'type': 'result', 'ok': False, 'response_kind': 'error',
+                                 'answer': 'Запрос не завершён. Обновите историю чата перед повторной отправкой.'})
+        worker = asyncio.create_task(produce())
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except asyncio.TimeoutError:
+                    event = {'type': 'ping'}
+                yield json.dumps(event, ensure_ascii=False) + '\n'
+                if event['type'] == 'result':
+                    break
+        finally:
+            active = False
+            if not worker.done():
+                worker.cancel()
+            import contextlib
+            with contextlib.suppress(asyncio.CancelledError):
+                await worker
+    return StreamingResponse(stream(), media_type='application/x-ndjson', headers={
+        'Cache-Control': 'private, no-store', 'X-Accel-Buffering': 'no',
+    })
 
 @app.get("/aichat/api/prompts")
 async def aichat_prompts():
