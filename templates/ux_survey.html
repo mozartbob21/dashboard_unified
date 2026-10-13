@@ -1,0 +1,62 @@
+{% extends "base_module.html" %}
+{% block title %}Оценка удобства и оформления — Нейрона ИИ{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/ux-survey.css?v=20261013">
+<script src="/static/ux-survey.js?v=20261013" defer></script>
+{% endblock %}
+{% block content %}
+<div class="container">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/logo.svg" alt="" class="brand-logo">
+      <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Обратная связь</div></div>
+    </div>
+    <div class="top-actions"><a href="/" class="secondary-button">← К модулям</a></div>
+  </header>
+  <main class="ux-survey ux-survey-page" id="uxSurveyPage" aria-labelledby="uxSurveyTitle">
+    <div class="ux-survey-intro">
+      <div class="ux-survey-kicker">Помогите сделать сервис удобнее</div>
+      <h1 id="uxSurveyTitle">Оценка удобства и визуального оформления сервиса</h1>
+      <p>Ваши ответы помогут нам определить, что улучшить. Результаты доступны только администраторам.</p>
+      <p class="ux-survey-privacy">Участие связано с аккаунтом, чтобы исключить повторные ответы. В результатах не показываются имена и почта.</p>
+    </div>
+    <section class="ux-survey-complete" id="uxSurveyComplete" hidden aria-labelledby="uxSurveyThanks">
+      <div class="ux-survey-complete-icon" aria-hidden="true">✓</div>
+      <h2 id="uxSurveyThanks" tabindex="-1">Спасибо! Ваши ответы помогут нам улучшить сервис</h2>
+      <p>Ответы сохранены. Повторно заполнять опрос не нужно.</p>
+      <a href="/" class="ux-survey-button ux-survey-button-primary">Вернуться к модулям</a>
+    </section>
+    <div class="ux-survey-alert" id="uxSurveyAlert" hidden role="alert">
+      <p id="uxSurveyAlertText"></p>
+      <div class="ux-survey-actions">
+        <button class="ux-survey-button" type="button" id="uxSurveyRetry" hidden>Повторить</button>
+        <button class="ux-survey-button" type="button" id="uxSurveyUseLatest" hidden>Открыть сохранённый черновик</button>
+      </div>
+    </div>
+    <form class="ux-survey-form" id="uxSurveyForm" novalidate>
+      <div class="ux-survey-progress">
+        <strong id="uxSurveyProgress">Оценено 0 из 6</strong>
+        <span class="ux-survey-state" id="uxSurveySaveState" role="status" aria-live="polite">Загружаем черновик…</span>
+      </div>
+      <fieldset id="uxSurveyFields" disabled>
+        <legend class="sr-only">Шесть обязательных оценок и необязательный комментарий</legend>
+        <div id="uxSurveyQuestions"></div>
+        <section class="ux-survey-question ux-survey-comment">
+          <label for="uxSurveyComment">Что можно улучшить? <span class="ux-survey-optional">Необязательно</span></label>
+          <p id="uxSurveyCommentHint">Какая функция, экран или деталь оформления вызывает трудности? Чего вам не хватает? До 2 000 символов.</p>
+          <textarea id="uxSurveyComment" name="comment" rows="5" aria-describedby="uxSurveyCommentHint uxSurveyCommentCount"></textarea>
+          <span id="uxSurveyCommentCount" class="ux-survey-comment-count">0 / 2 000</span>
+        </section>
+        <div class="ux-survey-footer">
+          <div class="ux-survey-actions">
+            <button class="ux-survey-button ux-survey-button-primary" type="submit" id="uxSurveySubmit">Отправить ответы</button>
+            <a href="/" class="ux-survey-button" id="uxSurveyReturn">Вернуться позже</a>
+          </div>
+          <p>Оцените каждый пункт от 0 до 5. Черновик сохраняется автоматически; после отправки ответы изменить нельзя.</p>
+        </div>
+      </fieldset>
+    </form>
+    <noscript><p class="ux-survey-alert">Для заполнения опроса включите JavaScript в браузере. Без него ответы не отправляются.</p></noscript>
+  </main>
+</div>
+{% endblock %}

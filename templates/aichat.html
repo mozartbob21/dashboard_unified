@@ -4,6 +4,7 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', path='aichat.css') }}?v=20261007-teams">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-skills.css') }}?v=20261008">
+<link rel="stylesheet" href="{{ url_for('static', path='aichat-waiting.css') }}?v=20261013">
 {% endblock %}
 {% block content %}
 <div class="container">
@@ -43,6 +44,11 @@
       <div class="ac-team-strip-actions"><button type="button" id="teamEdit">Состав команды</button><button type="button" id="teamReset" aria-label="Переключиться в обычный чат">Обычный чат</button></div>
     </div>
     <div class="ac-chat" id="chat" role="log" aria-label="Сообщения чата" aria-live="polite" aria-relevant="additions"></div>
+    <aside id="waitingFacts" class="ac-waiting-fact" aria-label="Интересные факты во время ожидания" hidden>
+      <div class="ac-waiting-fact-heading"><strong>Пока Нейрона готовит ответ</strong><span data-fact-topic></span></div>
+      <p data-fact-text></p><small>Подготовлено ИИ</small>
+      <button type="button" data-fact-close aria-label="Скрыть факты до следующего запроса" title="Скрыть факты">×</button>
+    </aside>
     <div class="ac-compose">
     <details class="ac-shortcuts"><summary>Быстрые запросы <span aria-hidden="true">⌄</span></summary><div class="ac-quick" id="quickBar"></div></details>
     <div class="ac-pend" id="pendRow" aria-label="Прикреплённые файлы"></div>
@@ -134,11 +140,17 @@
 <script src="{{ url_for('static', path='aichat-message-format.js') }}?v=20261002"></script>
 <script src="{{ url_for('static', path='aichat-teams.js') }}?v=20261007"></script>
 <script src="{{ url_for('static', path='aichat-skills.js') }}?v=20261008"></script>
+<script src="{{ url_for('static', path='aichat-waiting.js') }}?v=20261013"></script>
 <script>
 var $=function(s){return document.querySelector(s)};
 var chatEl=$("#chat"),ta=$("#ta");
 var currentDid=null,pending=[],busy=false,draftVersion=0;
 var teamUI=null,skillsUI=null;
+var waitingFacts={start:function(){},stop:function(){},warm:function(){}};
+try{
+  if(window.NeuronaWaiting)waitingFacts=window.NeuronaWaiting.create(window,$("#waitingFacts"));
+  waitingFacts.warm();
+}catch(error){/* Optional waiting cards must not prevent chat initialization. */}
 var customCmds=[];
 try{customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");if(!Array.isArray(customCmds))customCmds=[];}catch(error){}
 var STD=[{t:"Помоги составить деловое письмо"},{t:"Объясни сложную тему простыми словами"},{t:"Дай краткий отчёт по всем блокам"}];
@@ -316,6 +328,7 @@ async function send(textOverride){
   }
   pending=[];renderPending();
   showSkillActivity(runTrace.snapshot());
+    waitingFacts.start();
     var response=await fetch("/aichat/api/send",{method:"POST",headers:{"Accept":"application/x-ndjson"},body:fd});
     var d=await window.NeuronaSkills.readResponse(response,function(step){runTrace.update(step);showSkillActivity(runTrace.snapshot());});
     clearSkillActivity();
@@ -329,7 +342,7 @@ async function send(textOverride){
     clearSkillActivity();
     appendAssist("Не удалось получить ответ. "+(e instanceof TypeError?"Проверьте соединение с сервером. Перед повторной отправкой обновите историю чата.":e.message),null,runTrace.finish(null,true));
   }
-  finally{clearSkillActivity();setBusy(false);}
+  finally{waitingFacts.stop();clearSkillActivity();setBusy(false);}
 }
 
 function setBusy(value){

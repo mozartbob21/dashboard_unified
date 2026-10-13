@@ -2,11 +2,15 @@
 {% block title %}Пользователи и доступ — Нейрона{% endblock %}
 {% block body_class %}module-users{% endblock %}
 {% block head %}
+<link rel="stylesheet" href="/static/ux-survey.css?v=20261013">
+<script src="/static/ux-survey.js?v=20261013" defer></script>
 <link rel="stylesheet" href="/static/users.css?v=20261007-collective">
   <script src="/static/users.js?v=20261001-activity-dobrodel" defer></script>
+<link rel="stylesheet" href="/static/module-popularity.css?v=20261013">
+<script src="/static/module-popularity.js?v=20261013" defer></script>
 {% endblock %}
 {% block content %}
-  <header><a href="/" class="system-link">← Перейти в систему</a><span>Админ-панель Нейроны</span><a href="/logout">Выйти</a></header>
+  <header><a href="/" class="system-link">← Перейти в систему</a><span>Админ-панель Нейроны</span><a href="/users/feedback">Обратная связь</a><a href="/feedback/survey" data-ux-survey-link>Опрос об удобстве</a><a href="/logout">Выйти</a></header>
   <main>
     <div class="page-heading"><div><p class="eyebrow">УЧЁТНЫЕ ЗАПИСИ</p><h1>Пользователи и права</h1><p>Назначайте каждому пользователю только нужные блоки.</p></div><button id="newUser" type="button">+ Создать пользователя</button></div>
     <p class="common-note">ИИ-чат, автозапуск и история доступны всем вошедшим пользователям. В автозапуске и истории отображаются только назначенные блоки. Расписание каждого блока общее для системы.</p>
@@ -19,6 +23,31 @@
       <button id="readNotifications" type="button" class="secondary">Отметить показанные прочитанными</button>
       <ul id="notificationList"></ul>
     </details>
+    <section class="panel module-popularity" id="modulePopularity" aria-labelledby="modulePopularityTitle">
+      <div class="popularity-heading">
+        <div><p class="eyebrow">ОБЩАЯ АКТИВНОСТЬ</p><h2 id="modulePopularityTitle">Популярность блоков</h2></div>
+        <button id="popularityRefresh" type="button" class="secondary">Обновить сейчас</button>
+      </div>
+      <p class="popularity-intro">Все блоки — от самых посещаемых до блоков без учтённых посещений. Общие показатели всех локальных учётных записей за всё время сбора.</p>
+      <p id="popularityStatus" class="muted" role="status" aria-live="polite">Загрузка статистики…</p>
+      <p id="popularityUpdated" class="muted">Автообновление каждые 10 секунд, пока вкладка открыта.</p>
+      <p id="popularityAccessNotice" class="common-note" hidden>Для просмотра нужно право управления пользователями. <a href="/login" target="_blank" rel="noopener">Войти в новой вкладке</a>, затем нажмите «Обновить сейчас».</p>
+      <div id="popularityContent" hidden>
+        <p id="popularitySince" class="muted"></p>
+        <div class="popularity-table-wrap" role="region" aria-label="Общий рейтинг посещаемости блоков" tabindex="0">
+          <table class="popularity-table">
+            <caption>Рейтинг по числу посещений · все блоки · время московское</caption>
+            <thead><tr><th scope="col">Место</th><th scope="col">Блок</th><th scope="col" aria-sort="descending">Посещения</th><th scope="col">Уникальные пользователи</th><th scope="col">Открытия страниц</th><th scope="col">Действия</th><th scope="col">Последняя активность</th></tr></thead>
+            <tbody id="popularityRows"></tbody>
+          </table>
+        </div>
+        <details class="popularity-help"><summary>Как считается рейтинг</summary>
+          <p>Новое посещение блока начинается после 30 минут без учитываемой активности в этом блоке. Уникальные пользователи — число локальных учётных записей с активностью в блоке. При равном числе посещений сохраняется порядок блоков в системе.</p>
+          <p>Учитываются открытия HTML-страниц и успешные запросы действий (HTTP 2xx), включая ручные операции автозапуска для выбранного блока. Действия — число запросов, а не завершённых задач. Фоновые опросы, скачивания, ошибки и задания по расписанию не учитываются.</p>
+          <p>Включена сохранённая активность отключённых и архивных учётных записей. В рейтинг также входят общие разделы: ИИ-чат, автозапуск, голосовые заметки и управление пользователями. Посещения всей платформы не прибавляются к посещениям блоков. Данные до начала сбора не восстанавливаются; ноль означает отсутствие учтённой активности.</p>
+        </details>
+      </div>
+    </section>
     <div class="workspace">
       <section class="panel" aria-label="Список пользователей">
         <label for="userSearch">Поиск по логину или почте</label><input id="userSearch" type="search" placeholder="Найти пользователя…">

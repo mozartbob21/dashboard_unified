@@ -9,7 +9,7 @@ from services.auth.accounts import require_account_manager, list_accounts, save_
 from services.auth.accounts import list_notifications, read_notifications
 from services.auth.accounts import is_parent_manager
 from services.auth.accounts import archive_account
-from services.auth.activity import account_activity, account_summaries
+from services.auth.activity import account_activity, account_summaries, module_popularity
 
 router = APIRouter(dependencies=[Depends(require_account_manager)])
 
@@ -113,6 +113,11 @@ async def users_list(request: Request):
     users = [{**user, "activity": summaries.get(user["id"])} for user in list_accounts()]
     return {"users": users, "modules": MODULE_NAMES,
             "is_parent_manager": is_parent_manager(request.state.user)}
+
+
+@router.get("/api/users/module-popularity")
+def users_module_popularity():
+    return JSONResponse(module_popularity(), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/api/users/{user_id}/activity")

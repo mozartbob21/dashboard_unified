@@ -1,0 +1,28 @@
+.module-popularity{margin-top:24px}
+.popularity-heading{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.popularity-heading h2{margin:6px 0 0}
+.popularity-heading button{flex-shrink:0}
+.popularity-intro{max-width:920px;color:var(--muted,#677389);margin:16px 0 10px}
+.module-popularity .muted{color:var(--muted,#677389)}
+#popularityStatus[data-state="error"]{color:#b42332}
+.popularity-table-wrap{max-width:100%;overflow:auto;max-height:480px;margin-top:20px;border:1px solid var(--border,#e0e5ef);border-radius:12px}
+.popularity-table-wrap:focus-visible{outline:3px solid #b8aff0;outline-offset:3px}
+.popularity-table{width:100%;border-collapse:collapse;text-align:left;font-size:13px;color:var(--text,#182238)}
+.popularity-table caption{text-align:left;padding:14px 16px;color:var(--muted,#677389);font-size:12px}
+.popularity-table th,.popularity-table td{padding:13px 14px;border-bottom:1px solid var(--border,#e0e5ef);vertical-align:middle}
+.popularity-table thead{background:var(--bg-soft,#f6f7fb)}
+.popularity-table thead th{font-weight:650;font-size:12px;line-height:1.4}
+.popularity-table tbody th{min-width:240px;font-weight:550}
+.popularity-table td{font-variant-numeric:tabular-nums}
+.popularity-table td:nth-child(n+3):not(:last-child),.popularity-table thead th:nth-child(n+3):not(:last-child){text-align:right}
+.popularity-table tbody tr:last-child>*{border-bottom:0}
+.popularity-table .popularity-visits{font-weight:750}
+.popularity-rank{width:64px;color:var(--muted,#677389)}
+.popularity-date{min-width:154px;font-size:12px;white-space:nowrap}
+.popularity-help{margin-top:20px;font-size:13px;color:var(--muted,#677389)}
+.popularity-help summary{cursor:pointer;font-weight:650;color:var(--text,#4a5471)}
+.popularity-help p{max-width:1100px}
+html[data-theme="dark"] #popularityStatus[data-state="error"]{color:#ffadb4}
+@media(max-width:640px){.popularity-heading{align-items:flex-start;flex-direction:column;gap:14px}.popularity-table th,.popularity-table td{padding:11px}.popularity-table tbody th{min-width:210px}}
+
+.popularity-table thead th{position:sticky;top:0;z-index:1;background:var(--bg-soft,#f6f7fb)}

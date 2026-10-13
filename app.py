@@ -135,6 +135,8 @@ from services.auth.accounts import initialize_access_control, is_account_manager
 from routers.users import router as users_router
 initialize_access_control()
 app.include_router(users_router)
+from routers.ux_survey import router as ux_survey_router
+app.include_router(ux_survey_router)
 from routers.edds import router as edds_router
 app.include_router(edds_router)
 from routers.mingkh import router as mingkh_router
@@ -3145,6 +3147,16 @@ async def aichat_set_skill(skill_id: str, request: Request):
     return JSONResponse(result, headers={"Cache-Control": "private, no-store"})
 
 
+@app.get("/aichat/api/waiting-facts")
+async def aichat_waiting_facts(request: Request, warm: bool = True):
+    # The ordinary authentication middleware protects this route as well.
+    from services.aichat.waiting_facts import get_facts
+    from fastapi.responses import JSONResponse
+    if not getattr(request.state, 'user', None):
+        raise HTTPException(401, 'Требуется вход в систему')
+    return JSONResponse(await asyncio.to_thread(get_facts, warm=warm), headers={'Cache-Control': 'private, no-store'})
+
+
 @app.post("/aichat/api/send")
 async def aichat_send(request: Request):
     form = await request.form(max_files=8, max_fields=20)
@@ -3299,7 +3311,16 @@ async def aichat_send(request: Request):
                     options['tool_evidence'] = run['evidence']
                 emit({'type': 'step', 'id': 'answer', 'kind': 'model',
                       'label': 'Нейрона готовит ответ', 'status': 'running'})
-                answer = await asyncio.to_thread(aichat_ask, history, **options)
+                def prioritized_answer():
+                    from services.aichat import waiting_facts
+                    # Keep priority until the actual synchronous call finishes,
+                    # even if the browser disconnects and cancels this coroutine.
+                    waiting_facts.begin_answer()
+                    try:
+                        return aichat_ask(history, **options)
+                    finally:
+                        waiting_facts.end_answer()
+                answer = await asyncio.to_thread(prioritized_answer)
                 emit({'type': 'step', 'id': 'answer', 'kind': 'model',
                       'label': 'Ответ готов', 'status': 'done'})
         except asyncio.CancelledError:

@@ -2,6 +2,8 @@
 <html lang="ru" data-theme="light">
 <head>
     <script src="/static/appearance-menu.js?v=20261001" ></script>
+    <link rel="stylesheet" href="/static/ux-survey.css?v=20261013">
+    <script src="/static/ux-survey.js?v=20261013" defer></script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1019,6 +1021,7 @@
                         <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button"><span>Версия продукта</span><strong>v3 Бета</strong></button>
                         {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
+                        <a href="/feedback/survey" class="profile-menu-item" data-ux-survey-link>Оценить удобство сервиса</a>
                         <div class="profile-menu-divider"></div>
                         <div class="profile-menu-info">Окружение: Локально</div>
                         <div class="profile-menu-divider"></div>

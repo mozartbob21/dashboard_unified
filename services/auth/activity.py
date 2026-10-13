@@ -114,6 +114,38 @@ def account_summaries():
     return {row["user_id"]: {key: row[key] for key in _empty()} for row in rows}
 
 
+def module_popularity():
+    """Rank every tracked block using the existing all-time account counters.
+
+    Historical usage is retained when an account is disabled or archived. Shared
+    sections are included; the platform scope is excluded to avoid double counting.
+    Python's stable sort preserves SECTION_NAMES order for equal visit counts.
+    """
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """SELECT module_id, SUM(visits) AS visits,
+                      COUNT(DISTINCT CASE WHEN visits > 0 OR page_views > 0 OR actions > 0
+                                          THEN user_id END) AS unique_users,
+                      SUM(page_views) AS page_views, SUM(actions) AS actions,
+                      MAX(last_seen_at) AS last_seen_at
+                 FROM user_activity GROUP BY module_id"""
+        ).fetchall()
+        started_at = conn.execute("SELECT started_at FROM user_activity_collection WHERE id=1").fetchone()[0]
+    counts = {row["module_id"]: dict(row) for row in rows}
+    empty = {"visits": 0, "unique_users": 0, "page_views": 0, "actions": 0, "last_seen_at": None}
+    modules = [
+        {**counts.get(module, empty), "module_id": module, "label": label}
+        for module, label in SECTION_NAMES.items()
+    ]
+    modules.sort(key=lambda module: -module["visits"])
+    return {
+        "period": "all_time", "tracking_since": started_at,
+        "visit_gap_minutes": VISIT_GAP_MINUTES,
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "modules": [{"rank": rank, **module} for rank, module in enumerate(modules, 1)],
+    }
+
+
 def account_activity(user_id):
     with get_db_connection() as conn:
         if not conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone():

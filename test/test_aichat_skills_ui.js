@@ -275,13 +275,17 @@ test('controller reverses a native optimistic toggle, locks while saving and res
 });
 
 function sendHarness(response) {
-  const calls = [], assistants = [], activity = [], busyValues = [];
+  const calls = [], assistants = [], activity = [], busyValues = [], waitingEvents = [];
   const fields = new Map();
   const ctx = vm.createContext({
     window: {NeuronaSkills: skills}, busy: false, currentDid: null, pending: [],
+    waitingFacts: {start() {waitingEvents.push('start');}, stop() {waitingEvents.push('stop');}},
     ta: {value: 'Посчитай 18% от 245 000', style: {}}, teamUI: {get: () => null, restore() {}},
     $: selector => selector === '#welcome' ? null : {hidden: true, textContent: ''},
-    setBusy(value) { ctx.busy = value; busyValues.push(value); },
+    setBusy(value) {
+      if (!value) assert.equal(waitingEvents.at(-1), 'stop', 'Facts stop before the composer is unlocked');
+      ctx.busy = value; busyValues.push(value);
+    },
     appendUser() {}, renderPending() {}, loadDialogs() {},
     showSkillActivity(run) { activity.push(plain(run)); }, clearSkillActivity() {},
     appendAssist(answer, team, run) { assistants.push({answer, team, run: plain(run)}); },
@@ -293,7 +297,7 @@ function sendHarness(response) {
   const end = template.indexOf('\nfunction setBusy(', start);
   assert.ok(start !== -1 && end > start);
   vm.runInContext(template.slice(start, end), ctx);
-  return {send: ctx.send, ctx, calls, assistants, activity, busyValues, fields};
+  return {send: ctx.send, ctx, calls, assistants, activity, busyValues, waitingEvents, fields};
 }
 
 test('real template send performs one streaming POST and renders the persisted trace', async () => {
@@ -310,6 +314,7 @@ test('real template send performs one streaming POST and renders the persisted t
   assert.equal(run.assistants[0].run.skills[0].title, 'Точные расчёты');
   assert.equal(run.activity.length, 3);
   assert.deepEqual(run.busyValues, [true, false]);
+  assert.deepEqual(run.waitingEvents, ['start', 'stop']);
 });
 
 test('real template send never resubmits a broken stream and ends its running activity', async () => {
@@ -320,4 +325,5 @@ test('real template send never resubmits a broken stream and ends its running ac
   assert.match(run.assistants[0].answer, /Не удалось получить ответ/);
   assert.equal(run.assistants[0].run.steps[0].status, 'error');
   assert.deepEqual(run.busyValues, [true, false]);
+  assert.deepEqual(run.waitingEvents, ['start', 'stop']);
 });

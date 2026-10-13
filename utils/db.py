@@ -243,6 +243,8 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     """
     conn.executescript(_SCHEMA_SQL)
     conn.commit()
+    migration = Path(__file__).resolve().parents[1] / "migrations" / "20261013_ux_survey.sql"
+    conn.executescript(migration.read_text(encoding="utf-8"))
 
 
 

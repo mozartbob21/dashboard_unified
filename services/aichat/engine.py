@@ -1,5 +1,6 @@
 """Движок AI-чата: Нейрона ИИ (работает на локальном контуре Подмосковья)."""
 from services.summarizer.engine import _qwen_chat
+from services.aichat.config import model_timeout
 
 GREETING = ("Здравствуйте! Я — Нейрона ИИ, ваш помощник. Могу ответить на вопрос, "
             "объяснить сложную тему, написать или отредактировать текст, разобрать файл "
@@ -116,7 +117,7 @@ def ask(history, max_tokens=2500, platform_context="", team=None, skill_instruct
             "<platform_data>\n" + platform_context + "\n</platform_data>"
         )
     messages = [{"role": "system", "content": system}, *conversation]
-    return _qwen_chat(messages, max_tokens=max_tokens)
+    return _qwen_chat(messages, max_tokens=max_tokens, timeout=model_timeout())
 
 
 _VOSK_MODEL = None
