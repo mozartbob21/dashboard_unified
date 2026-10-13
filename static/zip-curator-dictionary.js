@@ -2,10 +2,117 @@
 let categoryTarget = null;
 let categorySaving = false;
 
+let dictionaryRevision = 0;
+let dictionaryReadId = 0;
+let dictionaryImporting = false;
+let dictionaryDownloading = false;
+
+function applyCuratorDictionary(dictionary) {
+  if (!dictionary || typeof dictionary !== 'object' ||
+      !dictionary.dict || typeof dictionary.dict !== 'object' || Array.isArray(dictionary.dict) ||
+      !Array.isArray(dictionary.categories) || !dictionary.groupsByCat ||
+      typeof dictionary.groupsByCat !== 'object' || Array.isArray(dictionary.groupsByCat)) {
+    throw new Error('Сервер вернул неполный справочник. Повторите загрузку.');
+  }
+  Object.assign(D, dictionary);
+  dictionaryRevision++;
+  dictDirty = false;
+  render();
+}
+
+function dictionaryErrorMessage(value, fallback) {
+  return typeof value === 'string' && value.trim() && value.length <= 500 && /[А-Яа-яЁё]/.test(value) && !/https?:\/\//i.test(value)
+    ? value.trim() : fallback;
+}
+
 async function refreshCuratorDictionary() {
-  const response = await fetch('/zip_curator/api/dictionary', {cache: 'no-store'});
-  if (!response.ok) throw new Error('Не удалось загрузить справочник');
-  Object.assign(D, await response.json());
+  const revision = dictionaryRevision, readId = ++dictionaryReadId;
+  try {
+    const response = await fetch('/zip_curator/api/dictionary', {cache: 'no-store'});
+    if (!response.ok) throw new Error('Не удалось загрузить справочник с сервера');
+    const dictionary = await response.json();
+    // An earlier GET must never replace a dictionary saved by a later import.
+    if (revision !== dictionaryRevision || readId !== dictionaryReadId || dictionaryImporting) return false;
+    applyCuratorDictionary(dictionary);
+    return true;
+  } catch (error) {
+    if (revision !== dictionaryRevision || readId !== dictionaryReadId) return false;
+    throw error;
+  }
+}
+
+function setDictionaryTransferBusy(busy) {
+  for (const id of ['btnLoadDict', 'btnSaveDict', 'btnCategories', 'fiDict']) {
+    document.getElementById(id).disabled = busy;
+  }
+}
+
+async function importCuratorDictionary(file) {
+  if (!file || dictionaryImporting) return false;
+  if (dictionaryDownloading || categorySaving) {
+    toast('Дождитесь завершения текущей операции со справочником.', 4000);
+    return false;
+  }
+  const button = document.getElementById('btnLoadDict'), label = button.textContent;
+  dictionaryImporting = true;
+  dictionaryRevision++;
+  setDictionaryTransferBusy(true);
+  button.textContent = 'Сохраняем справочник…';
+  button.setAttribute('aria-busy', 'true');
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await fetch('/zip_curator/api/dictionary/import', {method: 'POST', body: form});
+    let data;
+    try { data = await response.json(); } catch (error) { data = null; }
+    if (!response.ok || !data || data.ok !== true) {
+      throw new Error(dictionaryErrorMessage(data && data.error, 'Не удалось сохранить справочник на сервере. Повторите загрузку.'));
+    }
+    applyCuratorDictionary(data.dictionary);
+    const imported = Number.isSafeInteger(data.imported) && data.imported >= 0 ? data.imported : 0;
+    toast('Справочник сохранён на сервере: ' + imported.toLocaleString('ru-RU') + ' записей.', 5000);
+    return true;
+  } catch (error) {
+    toast(dictionaryErrorMessage(error.message, 'Не удалось подтвердить сохранение справочника. Проверьте соединение и повторите загрузку.'), 6000);
+    return false;
+  } finally {
+    dictionaryImporting = false;
+    setDictionaryTransferBusy(false);
+    button.textContent = label;
+    button.removeAttribute('aria-busy');
+    document.getElementById('fiDict').value = '';
+  }
+}
+
+async function downloadCuratorDictionary() {
+  if (dictionaryDownloading) return false;
+  if (dictionaryImporting || categorySaving) {
+    toast('Дождитесь сохранения справочника на сервере.', 4000);
+    return false;
+  }
+  const button = document.getElementById('btnSaveDict'), label = button.textContent;
+  dictionaryDownloading = true;
+  setDictionaryTransferBusy(true);
+  button.textContent = 'Подготавливаем файл…';
+  button.setAttribute('aria-busy', 'true');
+  try {
+    if (!await refreshCuratorDictionary()) throw new Error('Справочник изменился во время подготовки файла. Повторите скачивание.');
+    const rows = [['Наименование (норм.)', 'Категория', 'Группа', 'Вода']];
+    Object.entries(D.dict).forEach(([name, item]) => rows.push([name, item[0] || '', item[1] || '', item[2] ? 'да' : '']));
+    const sheet = XLSX.utils.aoa_to_sheet(rows), workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Справочник');
+    XLSX.writeFile(workbook, 'справочник.xlsx');
+    toast('Справочник с сервера скачан');
+    return true;
+  } catch (error) {
+    toast(dictionaryErrorMessage(error.message, 'Не удалось скачать справочник. Повторите попытку.'), 6000);
+    return false;
+  } finally {
+    dictionaryDownloading = false;
+    setDictionaryTransferBusy(false);
+    button.textContent = label;
+    button.removeAttribute('aria-busy');
+  }
 }
 
 function categoryOptions() {
@@ -30,7 +137,7 @@ function categoryGroupOptions() {
 }
 
 async function openCategoryEditor(pi = null, ii = null) {
-  if (categorySaving) return;
+  if (categorySaving || dictionaryImporting || dictionaryDownloading) return;
   const dialog = document.getElementById('categoryDialog');
   const item = pi === null ? null : PENDING[pi]?.items[ii];
   categoryTarget = item ? {pi, ii, item} : null;
@@ -64,6 +171,7 @@ document.getElementById('categoryForm').addEventListener('submit', async event =
   event.preventDefault();
   if (categorySaving) return;
   categorySaving = true;
+  dictionaryRevision++;
   const save = document.getElementById('categorySave');
   save.disabled = true;
   document.getElementById('categoryError').textContent = '';
@@ -75,7 +183,7 @@ document.getElementById('categoryForm').addEventListener('submit', async event =
     });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || 'Не удалось сохранить категорию');
-    Object.assign(D, data.dictionary);
+    applyCuratorDictionary(data.dictionary);
     if (categoryTarget) {
       const {pi, ii, item} = categoryTarget;
       if (PENDING[pi]?.items[ii] !== item) throw new Error('Очередь изменилась. Откройте позицию повторно; категория уже сохранена.');
@@ -100,4 +208,4 @@ document.getElementById('categoryForm').addEventListener('submit', async event =
   }
 });
 
-refreshCuratorDictionary().catch(error => toast(error.message, 5000));
+refreshCuratorDictionary().catch(error => toast(dictionaryErrorMessage(error.message, 'Не удалось загрузить справочник с сервера. Повторите попытку.'), 5000));

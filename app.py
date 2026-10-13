@@ -3536,6 +3536,30 @@ async def zc_dictionary():
     return zc.dictionary.load_dictionary()
 
 
+@app.post("/zip_curator/api/dictionary/import")
+async def zc_import_dictionary(request: Request):
+    from fastapi.responses import JSONResponse
+    from starlette.concurrency import run_in_threadpool
+    from starlette.datastructures import UploadFile
+
+    form = await request.form()
+    upload = form.get("file")
+    if not isinstance(upload, UploadFile):
+        return JSONResponse({"ok": False, "error": "Выберите файл справочника XLSX"}, status_code=400)
+    try:
+        data = await upload.read(zc.dictionary.MAX_IMPORT_BYTES + 1)
+        if len(data) > zc.dictionary.MAX_IMPORT_BYTES:
+            return JSONResponse({"ok": False, "error": "Размер справочника не должен превышать 10 МБ"}, status_code=413)
+        result = await run_in_threadpool(zc.dictionary.import_workbook, upload.filename, data)
+        return {"ok": True, **result}
+    except ValueError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+    except OSError:
+        return JSONResponse({"ok": False, "error": "Не удалось сохранить справочник на сервере. Проверьте свободное место и права на папку data/zip_curator."}, status_code=500)
+    finally:
+        await upload.close()
+
+
 @app.post("/zip_curator/api/categories")
 async def zc_add_category(payload: dict = None):
     from fastapi.responses import JSONResponse

@@ -483,18 +483,8 @@ function toggleView(pi){const h=$('#pv'+pi);if(h.dataset.o){h.innerHTML='';h.dat
 }
 
 // ---- справочник (файл) ----
-function saveDict(){
-  const rows=[['Наименование (норм.)','Категория','Группа','Вода']];
-  Object.entries(D.dict).forEach(([nn,v])=>rows.push([nn,v[0]||'',v[1]||'',v[2]?'да':'']));
-  const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Справочник');
-  XLSX.writeFile(wb,'справочник.xlsx'); dictDirty=false; render(); toast('Справочник сохранён');
-}
-async function loadDict(f){const wb=(await readFilesToWB([f]))[0]; if(!wb)return;
-  const a=XLSX.utils.sheet_to_json(wb.wb.Sheets[wb.wb.SheetNames[0]],{header:1,defval:null}); let n=0;
-  for(let i=1;i<a.length;i++){const r=a[i]||[];const nn=String(r[0]||'').trim();if(!nn)continue;
-    D.dict[nn]=[String(r[1]||'').trim()||null,String(r[2]||'').trim()||null,String(r[3]||'').trim()?1:0];n++;}
-  render(); toast('Справочник загружен: '+n+' записей');
-}
+async function saveDict(){return downloadCuratorDictionary();}
+async function loadDict(file){return importCuratorDictionary(file);}
 
 // события
 $('#btnDrive').onclick=fetchFromDrive;
@@ -504,7 +494,7 @@ $('#fiManual').onchange=async e=>{if(e.target.files.length){
   try{const r=await fetch('/zip_curator/api/upload',{method:'POST',body:form}),d=await r.json();if(!r.ok)throw new Error(d.error||('HTTP '+r.status));applyServerState(d.state||{});toast('Загружено реестров: '+(d.added||0));}
   catch(err){toast('Не удалось загрузить файлы: '+err.message,5000);}e.target.value='';}};
 $('#btnLoadDict').onclick=()=>$('#fiDict').click();
-$('#fiDict').onchange=e=>{if(e.target.files[0]){loadDict(e.target.files[0]);e.target.value='';}};
+$('#fiDict').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{await loadDict(file);}finally{e.target.value='';}};
 $('#btnSaveDict').onclick=saveDict;
 $('#btnMunicipalityDict').onclick=()=>{const c=$('#municipalityDictCard');c.style.display=c.style.display==='none'?'block':'none';};
 $('#btnSaveMunicipality').onclick=saveMunicipalityMapping;
@@ -512,6 +502,6 @@ if(!YANDEX_FOLDER_A_URL)$('#cfgWarn').innerHTML='<div class="warn"><b>Кнопк
 render();
 (async()=>{await loadServerState();await loadMunicipalityOverrides();})();
 </script>
-<script src="/static/zip-curator-dictionary.js"></script>
+<script src="/static/zip-curator-dictionary.js?v=20261013-persistent"></script>
 </body>
 </html>
