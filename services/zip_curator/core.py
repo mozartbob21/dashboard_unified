@@ -1,11 +1,13 @@
 """Куратор ЗиП: загрузка исходников, согласование и локальная публикация."""
-import hashlib, io, json, os, re, unicodedata, zipfile
+import hashlib, io, json, os, re, tempfile, unicodedata, zipfile
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import requests
 from services.zip_curator import dictionary
+from services.zip_curator.yandex_disk import DiskClient, DiskSyncError, MAX_FILE_BYTES, validate_workbook
 
 BASE = Path(__file__).resolve().parents[2]
 DATA = BASE / "data" / "zip_curator"
@@ -215,9 +217,7 @@ def parse_reestr(rows, fname):
 
 def _atomic_write_json(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
+    _atomic_write_bytes(path, json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"))
 
 
 def _clean_from_rows(rows):
@@ -332,7 +332,7 @@ def ingest(list_of_parsed):
     save_state(st)
     return added
 
-def scan_folder(scan_dir=None):
+def scan_folder(scan_dir=None, files=None):
     scan_dir = Path(scan_dir or INPUT_DIR)
     scan_dir.mkdir(parents=True, exist_ok=True)
     state = load_state()
@@ -346,7 +346,8 @@ def scan_folder(scan_dir=None):
     if len(state["pending"]) != pending_before:
         save_state(state)
     files = sorted(
-        (p for p in scan_dir.rglob("*") if p.is_file() and re.search(r"\.xlsx?$", p.name, re.I)),
+        (p for p in (scan_dir.rglob("*") if files is None else files)
+         if p.is_file() and re.search(r"\.xlsx?$", p.name, re.I)),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
@@ -381,77 +382,129 @@ def _safe_remote_name(item, used):
     if candidate.casefold() in used:
         stem, suffix = Path(cleaned).stem, Path(cleaned).suffix
         candidate = f"{stem}-{hashlib.sha1(remote_path.encode('utf-8')).hexdigest()[:8]}{suffix}"
+        base = Path(candidate).stem
+        counter = 2
+        while candidate.casefold() in used:
+            candidate = f"{base}-{counter}{suffix}"
+            counter += 1
     used.add(candidate.casefold())
     return candidate
 
 
-def sync_folder_a(public_url, timeout=45):
-    """Download Excel files from public Yandex.Disk folder A to persistent local storage."""
+class FolderSyncBusy(DiskSyncError):
+    pass
+
+
+@contextmanager
+def _folder_sync_lock():
+    """One update across threads/processes, including Windows uvicorn workers."""
+    DATA.mkdir(parents=True, exist_ok=True)
+    with (DATA / "folder_a.lock").open("a+b") as handle:
+        handle.seek(0, os.SEEK_END)
+        if not handle.tell():
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise FolderSyncBusy("Папка А уже обновляется. Дождитесь окончания текущего обновления.") from None
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _atomic_write_bytes(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".zip-sync-", suffix=".part", delete=False) as handle:
+            tmp = Path(handle.name)
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+
+
+def _cached_workbook(path, metadata):
+    if not metadata or not path.is_file() or path.is_symlink():
+        return False
+    try:
+        if path.stat().st_size > MAX_FILE_BYTES:
+            return False
+        validate_workbook(path.read_bytes(), metadata, read_xlsx_rows)
+        return True
+    except (OSError, DiskSyncError):
+        return False
+
+
+def _sync_folder_a(public_url, timeout=45):
     public_url = str(public_url or "").strip()
     if not public_url:
-        raise ValueError("Не указана ссылка на папку А")
-
-    api_url = "https://cloud-api.yandex.net/v1/disk/public/resources"
-    files = []
-    offset = 0
+        raise DiskSyncError("Не указана ссылка на папку А.")
     with requests.Session() as session:
-        while offset <= 2000:
-            response = session.get(
-                api_url,
-                params={"public_key": public_url, "limit": 200, "offset": offset},
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            items = ((payload.get("_embedded") or {}).get("items") or [])
-            files.extend(
-                item for item in items
-                if item.get("type") == "file" and re.search(r"\.xlsx?$", str(item.get("name") or ""), re.I)
-            )
-            if len(items) < 200:
-                break
-            offset += 200
-
+        client = DiskClient(session, public_url, timeout)
+        files = [item for item in client.list_files()
+                 if item["type"] == "file" and re.search(r"\.xlsx?$", item["name"], re.I)]
+        files.sort(key=lambda item: item["path"])
         FOLDER_A_DIR.mkdir(parents=True, exist_ok=True)
         previous = {}
-        if FOLDER_A_MANIFEST_FILE.exists():
-            try:
-                previous = {
-                    str(item.get("remote_path")): item
-                    for item in json.loads(FOLDER_A_MANIFEST_FILE.read_text(encoding="utf-8")).get("files", [])
-                }
-            except (OSError, json.JSONDecodeError, AttributeError):
-                previous = {}
+        try:
+            saved = json.loads(FOLDER_A_MANIFEST_FILE.read_text(encoding="utf-8"))
+            if saved.get("source") == public_url:
+                previous = {item["remote_path"]: item for item in saved["files"]
+                            if isinstance(item, dict) and item.get("remote_path")}
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            pass
 
-        used, manifest, downloaded, reused = set(), [], 0, 0
-        for item in sorted(files, key=lambda value: str(value.get("path") or value.get("name") or "")):
-            local_name = _safe_remote_name(item, used)
+        # Reserve known names first so a new file cannot overwrite another file's cache.
+        used, names = set(), {}
+        for item in files:
+            name = (previous.get(item["path"]) or {}).get("local_name")
+            if (isinstance(name, str) and name not in {"", ".", ".."}
+                    and "/" not in name and "\\" not in name and name.casefold() not in used):
+                names[item["path"]] = name
+                used.add(name.casefold())
+        for item in files:
+            if item["path"] not in names:
+                names[item["path"]] = _safe_remote_name(item, used)
+
+        manifest, errors, ready_files, downloaded, reused = [], [], [], 0, 0
+        for item in files:
+            remote_path = item["path"]
+            local_name = names[remote_path]
             local_path = FOLDER_A_DIR / local_name
-            remote_path = str(item.get("path") or item.get("name") or local_name)
-            checksum = str(item.get("md5") or "")
             old = previous.get(remote_path) or {}
-            unchanged = local_path.exists() and checksum and checksum == str(old.get("md5") or "")
-            if unchanged:
-                reused += 1
-            else:
-                href = item.get("file")
-                if not href:
-                    link_response = session.get(
-                        api_url + "/download",
-                        params={"public_key": public_url, "path": remote_path},
-                        timeout=timeout,
-                    )
-                    link_response.raise_for_status()
-                    href = link_response.json().get("href")
-                if not href:
-                    raise RuntimeError(f"Нет ссылки для скачивания файла {item.get('name')}")
-                file_response = session.get(href, timeout=timeout)
-                file_response.raise_for_status()
-                tmp_path = local_path.with_suffix(local_path.suffix + ".part")
-                tmp_path.write_bytes(file_response.content)
-                os.replace(tmp_path, local_path)
-                downloaded += 1
-
+            cached = _cached_workbook(local_path, old)
+            checksum = str(item.get("md5") or "").lower()
+            unchanged = cached and checksum and checksum == str(old.get("md5") or "").lower()
+            try:
+                if unchanged:
+                    reused += 1
+                else:
+                    data = client.download(item, read_xlsx_rows)
+                    _atomic_write_bytes(local_path, data)
+                    downloaded += 1
+            except (DiskSyncError, OSError) as exc:
+                message = str(exc) if isinstance(exc, DiskSyncError) else "Не удалось сохранить файл на сервере. Проверьте свободное место и права на папку данных."
+                errors.append({"name": item["name"], "message": message, "retained": bool(cached)})
+                if cached:
+                    # Keep the OLD checksum and timestamp: the next run must retry this file.
+                    manifest.append(old)
+                continue
             modified = item.get("modified") or item.get("created")
             if modified:
                 try:
@@ -459,34 +512,53 @@ def sync_folder_a(public_url, timeout=45):
                     os.utime(local_path, (timestamp, timestamp))
                 except (OSError, ValueError):
                     pass
-            manifest.append({
-                "name": item.get("name"),
-                "local_name": local_name,
-                "remote_path": remote_path,
-                "md5": checksum,
-                "modified": modified,
-                "size": item.get("size"),
-            })
+            manifest.append({"name": item["name"], "local_name": local_name,
+                             "remote_path": remote_path, "md5": checksum,
+                             "modified": modified, "size": item.get("size")})
+            ready_files.append(local_path)
 
+    if errors:
+        # Retain ownership of caches absent from this listing until a complete run.
+        listed_paths = {item["path"] for item in files}
+        manifest.extend(old for remote_path, old in previous.items() if remote_path not in listed_paths)
+
+    _atomic_write_json(FOLDER_A_MANIFEST_FILE, {
+        "source": public_url, "synced_at": datetime.now().isoformat(timespec="seconds"),
+        "partial": bool(errors), "errors": errors, "files": manifest,
+    })
+    # A partial/invalid listing must never act as a request to delete the cache.
     active_names = {item["local_name"] for item in manifest}
     removed = 0
-    for path in FOLDER_A_DIR.iterdir():
-        if path.is_file() and re.search(r"\.xlsx?$", path.name, re.I) and path.name not in active_names:
-            path.unlink()
-            removed += 1
-    _atomic_write_json(FOLDER_A_MANIFEST_FILE, {
-        "source": public_url,
-        "synced_at": datetime.now().isoformat(timespec="seconds"),
-        "files": manifest,
-    })
-    return {"files": len(manifest), "downloaded": downloaded, "reused": reused, "removed": removed}
+    if not errors:
+        for old in previous.values():
+            name = old.get("local_name")
+            if isinstance(name, str) and Path(name).name == name and "\\" not in name and name not in active_names:
+                path = FOLDER_A_DIR / name
+                if path.is_file() and not path.is_symlink():
+                    try:
+                        path.unlink()
+                        removed += 1
+                    except OSError:
+                        pass  # An unused cache file must not invalidate a completed update.
+    result = {"ok": True, "partial": bool(errors), "files": len(files), "downloaded": downloaded,
+              "reused": reused, "removed": removed, "failed": len(errors), "errors": errors}
+    # A failed source must not re-import an old workbook over the curator's edits.
+    return result, ready_files
+
+
+def sync_folder_a(public_url, timeout=45):
+    """Update the cache; leave publication and the review queue untouched."""
+    with _folder_sync_lock():
+        result, _ = _sync_folder_a(public_url, timeout)
+        return result
 
 
 def sync_and_scan_folder_a(public_url):
-    result = sync_folder_a(public_url)
-    added, skipped = scan_folder(FOLDER_A_DIR)
-    result.update({"added": added, "skipped": skipped, "state": load_state()})
-    return result
+    with _folder_sync_lock():
+        result, files = _sync_folder_a(public_url)
+        added, skipped = scan_folder(FOLDER_A_DIR, files=files)
+        result.update({"added": added, "skipped": skipped, "state": load_state()})
+        return result
 
 def approve(idx):
     st = load_state()

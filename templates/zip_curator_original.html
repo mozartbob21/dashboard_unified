@@ -26,6 +26,21 @@
   .btn.green{background:var(--green);border-color:var(--green);color:#fff}.btn.green:hover{background:var(--green-d)}
   .btn.danger{background:#fff;border-color:#fecaca;color:var(--rose)}.btn.danger:hover{background:#fff1f2;border-color:var(--rose);color:#b91c1c}
   .btn.sm{padding:5px 10px;font-size:12px}.btn.ghost{background:transparent}
+  .btn:disabled{cursor:wait;opacity:.68}
+  .sync-result{margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:9px;background:var(--bg);font-size:13px;min-width:0}
+  .sync-result[hidden]{display:none}
+  .sync-result[data-kind="success"]{border-left-color:var(--green)}
+  .sync-result[data-kind="partial"],.sync-result[data-kind="error"]{border-left-color:var(--amber)}
+  .sync-result-title{font-weight:650;color:var(--ink)}
+  .sync-result-message{margin-top:4px;color:var(--ink2);overflow-wrap:anywhere}
+  .sync-result-counts{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:7px;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .sync-result details{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+  .sync-result summary{cursor:pointer;font-weight:600;color:var(--ink)}
+  .sync-result ul{margin:9px 0 0;padding-left:20px}
+  .sync-result li{padding:5px 0;overflow-wrap:anywhere;color:var(--ink2)}
+  .sync-file-name{display:block;color:var(--ink);font-weight:600}
+  .sync-file-note{display:block;margin-top:2px}
+  html[data-theme="dark"] .sync-result[data-kind="partial"],html[data-theme="dark"] .sync-result[data-kind="error"]{border-left-color:#efb55a}
   .sep{width:1px;height:26px;background:var(--line);margin:0 4px}
   .status{color:var(--ink3);font-size:12.5px;margin-top:8px}
   .warn{background:#fff5e9;border:1px solid #f4d9b4;border-radius:8px;padding:11px 14px;margin-bottom:12px;font-size:13px;color:#7c3a06}
@@ -39,7 +54,7 @@
   select,input[type=text]{font-family:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff}
   .rhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
   .empty{padding:24px;text-align:center;color:var(--ink3)}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:#0f2a44;color:#fff;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;transition:.25s;z-index:100;pointer-events:none}
+  .toast{max-width:calc(100vw - 32px);overflow-wrap:anywhere;position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:#0f2a44;color:#fff;padding:10px 18px;border-radius:9px;font-weight:600;font-size:13px;transition:.25s;z-index:100;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .mini{color:var(--ink3);font-size:12px}
   input[type=file]{display:none}
@@ -57,6 +72,7 @@ html[data-theme="dark"] { color-scheme:dark; --ink:#e7edf6; --ink2:#bfccdc; --in
 html[data-theme="kreml"] { color-scheme:light; --ink:#3a201c; --ink2:#704f47; --ink3:#92736a; --line:#dcc5a6; --bg:#e6d2b5; --panel:#f3e4ca; --blue:#a0473f; --blue-d:#7e2f2c; --violet-soft:#eed7bd; --info-soft:#eed7bd; }
 html[data-theme="dark"] .btn:not(.primary):not(.green), html[data-theme="dark"] input, html[data-theme="dark"] select, html[data-theme="dark"] .back-link { color:var(--ink); background:var(--panel); border-color:var(--line); }
 html[data-theme="dark"] td { border-color:var(--line); }
+html[data-theme="dark"] #btnDrive { color:#132a45; }
 html[data-glass="on"] .card { background:color-mix(in srgb,var(--panel) 80%,transparent); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); }
 .top { flex-wrap:wrap; position:relative; z-index:40; }
 .top-actions { display:flex; margin-left:auto; }
@@ -83,6 +99,7 @@ html[data-glass="on"] .card { background:color-mix(in srgb,var(--panel) 80%,tran
       <button class="btn" id="btnCategories">Категории и группы</button>
       <button class="btn" id="btnMunicipalityDict">Муниципалитеты организаций</button>
     </div>
+    <div id="driveSyncResult" class="sync-result" role="status" aria-live="polite" aria-atomic="true" hidden></div>
     <div class="status" id="status"></div>
     <input type="file" id="fiManual" accept=".xlsx,.xls" multiple>
     <input type="file" id="fiDict" accept=".xlsx">
@@ -252,16 +269,71 @@ function md5cacheSet(c){try{localStorage.setItem(MD5CACHE_KEY,JSON.stringify(c))
 
 const MAX_DOWNLOADS=200;  // страховка: свежие идут первыми, актуальные версии всегда в начале
 
+let driveSyncRunning=false;
+function safeScanError(value, fallback){
+  if(typeof value!=='string')return fallback;
+  const message=value.trim();
+  // Transport exceptions can contain temporary download URLs and credentials.
+  // Only the server's short, user-facing diagnostics belong in the interface.
+  if(!message||message.length>500||/https?:\/\/|(?:token|password|authorization|signature)=/i.test(message))return fallback;
+  return message;
+}
+function renderDriveSync({kind,title,message='',result=null}){
+  const panel=$('#driveSyncResult');
+  panel.replaceChildren();panel.hidden=false;panel.dataset.kind=kind;
+  panel.setAttribute('aria-busy',kind==='running'?'true':'false');
+  const heading=document.createElement('div');heading.className='sync-result-title';heading.textContent=title;panel.append(heading);
+  if(message){const text=document.createElement('div');text.className='sync-result-message';text.textContent=message;panel.append(text);}
+  if(!result)return;
+  const count=key=>Number.isFinite(Number(result[key]))?Math.max(0,Math.trunc(Number(result[key]))):0;
+  const counts=document.createElement('div');counts.className='sync-result-counts';
+  for(const [key,label] of [['files','Файлов в папке'],['downloaded','Скачано'],['reused','Без изменений'],['added','Новых реестров'],['skipped','Пропущено'],['removed','Убрано старых файлов'],['failed','С ошибкой']]){
+    const item=document.createElement('span');item.textContent=`${label}: ${count(key)}`;counts.append(item);
+  }
+  panel.append(counts);
+  const errors=Array.isArray(result.errors)?result.errors:[];
+  if(errors.length){
+    const details=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('ul');
+    summary.textContent=`Файлы, которые не удалось обновить (${errors.length})`;details.append(summary);
+    for(const error of errors){
+      if(!error||typeof error!=='object')continue;
+      const item=document.createElement('li'),name=document.createElement('span'),reason=document.createElement('span'),retained=document.createElement('span');
+      name.className='sync-file-name';name.textContent=String(error.name||'Файл без названия');
+      reason.className='sync-file-note';reason.textContent=safeScanError(error.message,'Не удалось получить или обработать файл. Повторите обновление позже.');
+      retained.className='sync-file-note';retained.textContent=error.retained?'Сохранена предыдущая локальная версия; она не является новым обновлением.':'Новая версия не загружена; прежние согласованные данные сохранены.';
+      item.append(name,reason,retained);list.append(item);
+    }
+    details.append(list);panel.append(details);
+  }
+}
 async function fetchFromDrive(){
+  if(driveSyncRunning)return;
   if(!YANDEX_FOLDER_A_URL){toast('Укажите ссылку на папку A в начале файла');return;}
-  toast('Синхронизирую папку А и сохраняю файлы…',12000);
+  const button=$('#btnDrive'),label=button.textContent;
+  driveSyncRunning=true;button.disabled=true;button.textContent='⟳ Обновляем папку А…';button.setAttribute('aria-busy','true');
+  renderDriveSync({kind:'running',title:'Обновляем данные из папки А',message:'Проверяем и скачиваем файлы. При временном сбое сервер повторит загрузку. Дождитесь результата.'});
   try{
     const r=await fetch('/zip_curator/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({public_url:YANDEX_FOLDER_A_URL})});
-    const d=await r.json();
-    if(!r.ok||d.ok===false)throw new Error(d.error||('HTTP '+r.status));
-    applyServerState(d.state||{});
-    toast(`Папка А обновлена: файлов ${d.files||0}, скачано ${d.downloaded||0}, новых реестров ${d.added||0}${d.skipped?`, пропущено ${d.skipped}`:''}`,5000);
-  }catch(e){toast('Не удалось обновить папку А: '+e.message,6000);}
+    let d;
+    try{d=await r.json();}catch(e){d=null;}
+    const fallback=r.status===409?'Обновление папки А уже выполняется. Дождитесь его завершения и повторите проверку.':r.status===401||r.status===403?'Сессия завершилась или нет доступа. Войдите в систему и повторите обновление.':'Сервер не смог завершить обновление папки А. Ранее сохранённые данные не заменены.';
+    if(!r.ok||!d||typeof d!=='object'||d.ok!==true){
+      const message=safeScanError(d&&d.error,fallback);
+      renderDriveSync({kind:'error',title:'Обновление не завершено',message});toast(message,6000);return;
+    }
+    if(d.state&&Array.isArray(d.state.pending)&&d.state.clean&&typeof d.state.clean==='object'&&!Array.isArray(d.state.clean))applyServerState(d.state);
+    const partial=d.partial===true||Number(d.failed)>0;
+    const allFailed=partial&&Number(d.files)>0&&Number(d.failed)>=Number(d.files);
+    const title=allFailed?'Не удалось обновить файлы папки А':partial?'Обновление завершено частично':'Папка А обновлена';
+    const message=partial?'Доступные файлы обработаны. Для файлов с ошибками сохранены прежние данные; повторите обновление позже.':'Файлы проверены. Новые реестры доступны в очереди на согласование.';
+    renderDriveSync({kind:partial?'partial':'success',title,message,result:d});
+    toast(title,5000);
+  }catch(e){
+    const message='Связь с сервером прервалась. Результат обновления пока не подтверждён. Повторите проверку позже.';
+    renderDriveSync({kind:'error',title:'Не удалось получить результат обновления',message});toast(message,6000);
+  }finally{
+    driveSyncRunning=false;button.disabled=false;button.textContent=label;button.removeAttribute('aria-busy');
+  }
 }
 // сравнение дат вида дд.мм.гггг: >0 если a новее b
 function cmpDate(a,b){

@@ -3472,10 +3472,15 @@ async def zc_scan(payload: dict = None):
         if folder_url:
             return await run_in_threadpool(zc.sync_and_scan_folder_a, folder_url)
         added, skipped = await run_in_threadpool(zc.scan_folder)
-        return {"added": added, "skipped": skipped, "files": 0, "downloaded": 0, "state": zc.load_state()}
-    except Exception as error:
+        return {"ok": True, "partial": False, "failed": 0, "errors": [], "added": added,
+                "skipped": skipped, "files": 0, "downloaded": 0, "state": zc.load_state()}
+    except zc.FolderSyncBusy as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=409)
+    except zc.DiskSyncError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=502)
+    except Exception:
         return JSONResponse(
-            {"ok": False, "error": f"Не удалось обновить папку А: {error}"},
+            {"ok": False, "error": "Не удалось завершить обновление папки А. Проверьте свободное место и права на папку данных сервера, затем повторите обновление."},
             status_code=502,
         )
 
