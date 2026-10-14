@@ -19,7 +19,10 @@ FOLDER_A_MANIFEST_FILE = DATA / "folder_a_manifest.json"
 MUNICIPALITY_OVERRIDES_FILE = DATA / "municipality_overrides.json"
 DICT_JSON = Path(__file__).with_name("zip_dict.json")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-SOURCE_FIELDS = ("loaded_at", "uploaded", "fname", "local_file")
+SOURCE_DATE_FIELDS = ("source_created_at", "source_modified_at")
+SOURCE_INFO_FIELDS = (*SOURCE_DATE_FIELDS, "source_provider", "source_identity", "source_path",
+                      "source_md5", "source_etag", "source_size")
+SOURCE_FIELDS = ("loaded_at", "uploaded", "fname", "local_file", *SOURCE_INFO_FIELDS)
 
 D = json.loads(DICT_JSON.read_text(encoding="utf-8"))
 
@@ -289,6 +292,137 @@ def _clean_from_published():
     return clean
 
 
+def _source_timestamp(value):
+    """Accept source-provided ISO datetimes only; local file timestamps are not evidence."""
+    if not isinstance(value, str) or not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?", value):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.isoformat(timespec="seconds")
+
+
+def _source_identity(provider, source, account=None, folder_path=None):
+    # Different accounts can expose identical URLs/paths; never share their cache.
+    # Persist only this digest, never the login or password.
+    owner = str((account or {}).get("username") or "") if provider == "mosreg" else ""
+    scope = [provider, str(source), owner, str(folder_path or "")]
+    return hashlib.sha256(json.dumps(scope, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _manifest_source_metadata():
+    """Index only unambiguous cache paths explicitly recorded by the source manifest."""
+    try:
+        saved = json.loads(FOLDER_A_MANIFEST_FILE.read_text(encoding="utf-8"))
+        if not isinstance(saved, dict) or not isinstance(saved.get("files"), list) or not saved.get("source"):
+            return {}
+        provider = saved.get("provider") or "yandex"
+        identity = saved.get("source_identity")
+        if not identity:
+            if provider != "yandex":
+                return {}  # An authenticated source cannot be inferred without its account scope.
+            identity = _source_identity(provider, saved["source"])
+        indexed, duplicates = {}, set()
+        for item in saved["files"]:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("local_name")
+            if (not isinstance(name, str) or name in {"", ".", ".."}
+                    or "/" in name or "\\" in name or not item.get("remote_path")):
+                continue
+            try:
+                local_file = (FOLDER_A_DIR / name).relative_to(INPUT_DIR).as_posix()
+            except ValueError:
+                continue
+            info = {"source_provider": provider, "source_identity": identity,
+                    "source_path": item["remote_path"]}
+            for field, origin in [("source_created_at", "created"), ("source_modified_at", "modified")]:
+                value = _source_timestamp(item.get(origin))
+                if value:
+                    info[field] = value
+            if item.get("md5"):
+                info["source_md5"] = str(item["md5"]).lower()
+            if item.get("etag"):
+                info["source_etag"] = str(item["etag"])
+            if type(item.get("size")) is int and item["size"] >= 0:
+                info["source_size"] = item["size"]
+            if local_file in indexed:
+                duplicates.add(local_file)
+            indexed[local_file] = info
+        return {key: value for key, value in indexed.items() if key not in duplicates}
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return {}
+
+
+def _same_source_version(first, second):
+    if not first.get("local_file") or first.get("local_file") != second.get("local_file"):
+        return False
+    if first.get("source_identity") or second.get("source_identity"):
+        if (not first.get("source_identity") or first.get("source_identity") != second.get("source_identity")
+                or first.get("source_path") != second.get("source_path")):
+            return False
+        if first.get("source_md5") and second.get("source_md5"):
+            return first["source_md5"] == second["source_md5"]
+        return bool(first.get("source_etag") and first.get("source_etag") == second.get("source_etag")
+                    and type(first.get("source_size")) is int
+                    and first.get("source_size") == second.get("source_size"))
+    return bool(first.get("uploaded") and first.get("uploaded") == second.get("uploaded"))
+
+
+def _backfill_source_metadata(state):
+    metadata = _manifest_source_metadata()
+    changed = False
+    for entry in [*state.get("pending", []), *state.get("clean", {}).values()]:
+        info = metadata.get(entry.get("local_file"))
+        if not info:
+            continue
+        # Existing source/version evidence must agree. A newer cache must never
+        # change the dates attached to an older approved workbook.
+        if any(entry.get(field) and entry.get(field) != info.get(field)
+               for field in ("source_identity", "source_path", "source_md5", "source_etag", "source_size")):
+            continue
+        if not entry.get("source_identity") and entry.get("uploaded"):
+            known = info.get("source_modified_at") or info.get("source_created_at")
+            if known:
+                try:
+                    if abs(float(entry["uploaded"]) - datetime.fromisoformat(known).timestamp() * 1000) > 1:
+                        continue
+                except (ValueError, TypeError, OverflowError):
+                    continue
+        for field, value in info.items():
+            existing = entry.get(field)
+            if not existing or (field in SOURCE_DATE_FIELDS and not _source_timestamp(existing)):
+                entry[field] = value
+                changed = True
+    return changed
+
+
+def _persist_published_source_metadata(state):
+    """Backfill metadata without republishing rows or changing the publication time."""
+    try:
+        payload = json.loads(PUBLISHED_FILE.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return
+        published_keys = set(_clean_from_rows(payload.get("rows") or []))
+        metadata = payload.setdefault("rso_metadata", {})
+        if not isinstance(metadata, dict):
+            return
+        changed = False
+        for key, entry in state.get("clean", {}).items():
+            if key not in published_keys:
+                continue
+            fields = {field: entry[field] for field in SOURCE_FIELDS if field in entry}
+            if metadata.get(key) != fields:
+                metadata[key] = fields
+                changed = True
+        if changed:
+            _atomic_write_json(PUBLISHED_FILE, payload)
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+
+
 def load_state():
     if STATE_FILE.exists():
         try:
@@ -297,13 +431,20 @@ def load_state():
                 state.setdefault("pending", [])
                 state.setdefault("clean", {})
                 state.setdefault("excluded_rso", {})
-                if _restore_pending_units(state):
+                units_changed = _restore_pending_units(state)
+                metadata_changed = _backfill_source_metadata(state)
+                if units_changed or metadata_changed:
                     save_state(state)
+                if metadata_changed:
+                    _persist_published_source_metadata(state)
                 return state
         except Exception: pass
     state = {"pending": [], "clean": _clean_from_published(), "excluded_rso": {}}
+    metadata_changed = _backfill_source_metadata(state)
     if state["clean"]:
         save_state(state)
+    if metadata_changed:
+        _persist_published_source_metadata(state)
     return state
 
 def save_state(st):
@@ -322,11 +463,12 @@ def ingest(list_of_parsed):
         if not p["items"]: continue
         _enrich(p)
         previous = next((x for x in st["pending"] if norm(x["rso"]) == norm(p["rso"])), {})
-        # Re-scanning an unchanged Folder A file is not a new upload.
-        unchanged = (p.get("local_file") and p.get("uploaded")
-                     and p.get("local_file") == previous.get("local_file")
-                     and p.get("uploaded") == previous.get("uploaded"))
-        p["loaded_at"] = (previous.get("loaded_at") if unchanged else None) or datetime.now().astimezone().isoformat(timespec="seconds")
+        # Metadata-only updates must not re-import unchanged files over curator edits.
+        unchanged = _same_source_version(p, previous)
+        if unchanged:
+            previous.update({field: p[field] for field in SOURCE_INFO_FIELDS if field in p})
+            continue
+        p["loaded_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         st["pending"] = [x for x in st["pending"] if norm(x["rso"]) != norm(p["rso"])]
         st["pending"].append(p); added += 1
     save_state(st)
@@ -352,6 +494,7 @@ def scan_folder(scan_dir=None, files=None):
         reverse=True,
     )
     taken, skipped = {}, 0
+    source_metadata = _manifest_source_metadata()
     for f in files:
         try: rows = read_xlsx_rows(f.read_bytes())
         except Exception: continue
@@ -370,6 +513,7 @@ def scan_folder(scan_dir=None, files=None):
             p["local_file"] = f.relative_to(INPUT_DIR).as_posix()
         except ValueError:
             p["local_file"] = f.name
+        p.update(source_metadata.get(p["local_file"], {}))
         taken[key] = p
     return ingest(list(taken.values())), skipped
 
@@ -451,20 +595,35 @@ def _cached_workbook(path, metadata):
         return False
 
 
-def _sync_folder_a(public_url, timeout=45):
+def _sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", folder_path=None):
     public_url = str(public_url or "").strip()
     if not public_url:
         raise DiskSyncError("Не указана ссылка на папку А.")
+    if provider not in {"yandex", "mosreg"}:
+        raise DiskSyncError("Неизвестный источник папки А.")
+    if provider == "mosreg" and (not isinstance(account, dict) or not account.get("username") or not account.get("password")):
+        raise DiskSyncError("Для Облака МО не настроены логин и пароль.")
+    identity = _source_identity(provider, public_url, account, folder_path)
     with requests.Session() as session:
-        client = DiskClient(session, public_url, timeout)
+        if provider == "mosreg":
+            from services.zip_curator.mosreg_cloud import CloudClient
+            client = CloudClient(session, public_url, timeout, username=account["username"],
+                                 password=account["password"], folder_path=folder_path)
+        else:
+            client = DiskClient(session, public_url, timeout)
         files = [item for item in client.list_files()
                  if item["type"] == "file" and re.search(r"\.xlsx?$", item["name"], re.I)]
         files.sort(key=lambda item: item["path"])
         FOLDER_A_DIR.mkdir(parents=True, exist_ok=True)
+        # Attach OLD manifest dates before a newer file version replaces that manifest.
+        load_state()
         previous = {}
         try:
             saved = json.loads(FOLDER_A_MANIFEST_FILE.read_text(encoding="utf-8"))
-            if saved.get("source") == public_url:
+            same_source = (saved.get("source_identity") == identity or
+                           (provider == "yandex" and not saved.get("source_identity")
+                            and saved.get("provider", "yandex") == "yandex" and saved.get("source") == public_url))
+            if same_source:
                 previous = {item["remote_path"]: item for item in saved["files"]
                             if isinstance(item, dict) and item.get("remote_path")}
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
@@ -478,6 +637,9 @@ def _sync_folder_a(public_url, timeout=45):
                     and "/" not in name and "\\" not in name and name.casefold() not in used):
                 names[item["path"]] = name
                 used.add(name.casefold())
+        # Changing source/account must not overwrite another source's cached originals.
+        owned_names = {item.get("local_name") for item in previous.values()}
+        used.update(path.name.casefold() for path in FOLDER_A_DIR.iterdir() if path.name not in owned_names)
         for item in files:
             if item["path"] not in names:
                 names[item["path"]] = _safe_remote_name(item, used)
@@ -490,7 +652,12 @@ def _sync_folder_a(public_url, timeout=45):
             old = previous.get(remote_path) or {}
             cached = _cached_workbook(local_path, old)
             checksum = str(item.get("md5") or "").lower()
-            unchanged = cached and checksum and checksum == str(old.get("md5") or "").lower()
+            etag = str(item.get("etag") or "")
+            same_checksum = (checksum and checksum == str(old.get("md5") or "").lower()
+                             and (item.get("size") is None or item["size"] == old.get("size")))
+            same_etag = (provider == "mosreg" and etag and etag == str(old.get("etag") or "")
+                         and type(item.get("size")) is int and item["size"] == old.get("size"))
+            unchanged = cached and (same_checksum if checksum else same_etag)
             try:
                 if unchanged:
                     reused += 1
@@ -505,16 +672,18 @@ def _sync_folder_a(public_url, timeout=45):
                     # Keep the OLD checksum and timestamp: the next run must retry this file.
                     manifest.append(old)
                 continue
-            modified = item.get("modified") or item.get("created")
-            if modified:
+            created = _source_timestamp(item.get("created"))
+            modified = _source_timestamp(item.get("modified"))
+            sorting_date = modified or created
+            if sorting_date:
                 try:
-                    timestamp = datetime.fromisoformat(str(modified).replace("Z", "+00:00")).timestamp()
+                    timestamp = datetime.fromisoformat(sorting_date).timestamp()
                     os.utime(local_path, (timestamp, timestamp))
                 except (OSError, ValueError):
                     pass
             manifest.append({"name": item["name"], "local_name": local_name,
-                             "remote_path": remote_path, "md5": checksum,
-                             "modified": modified, "size": item.get("size")})
+                             "remote_path": remote_path, "md5": checksum, "etag": etag,
+                             "created": created, "modified": modified, "size": item.get("size")})
             ready_files.append(local_path)
 
     if errors:
@@ -523,7 +692,8 @@ def _sync_folder_a(public_url, timeout=45):
         manifest.extend(old for remote_path, old in previous.items() if remote_path not in listed_paths)
 
     _atomic_write_json(FOLDER_A_MANIFEST_FILE, {
-        "source": public_url, "synced_at": datetime.now().isoformat(timespec="seconds"),
+        "source": public_url, "provider": provider, "source_identity": identity,
+        "synced_at": datetime.now().isoformat(timespec="seconds"),
         "partial": bool(errors), "errors": errors, "files": manifest,
     })
     # A partial/invalid listing must never act as a request to delete the cache.
@@ -546,16 +716,16 @@ def _sync_folder_a(public_url, timeout=45):
     return result, ready_files
 
 
-def sync_folder_a(public_url, timeout=45):
+def sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", folder_path=None):
     """Update the cache; leave publication and the review queue untouched."""
     with _folder_sync_lock():
-        result, _ = _sync_folder_a(public_url, timeout)
+        result, _ = _sync_folder_a(public_url, timeout, account=account, provider=provider, folder_path=folder_path)
         return result
 
 
-def sync_and_scan_folder_a(public_url):
+def sync_and_scan_folder_a(public_url, *, account=None, provider="yandex", folder_path=None):
     with _folder_sync_lock():
-        result, files = _sync_folder_a(public_url)
+        result, files = _sync_folder_a(public_url, account=account, provider=provider, folder_path=folder_path)
         added, skipped = scan_folder(FOLDER_A_DIR, files=files)
         result.update({"added": added, "skipped": skipped, "state": load_state()})
         return result

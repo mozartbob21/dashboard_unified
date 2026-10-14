@@ -841,24 +841,56 @@ function wire(){
 }
 const clearQuick = () => document.querySelectorAll('#quick .per-opt').forEach(b => b.classList.remove('on'));
 
+let datasetReady = false, datasetLoading = false, loadedDatasetVersion = null;
 async function start() {
+  if (datasetLoading) return false;
+  datasetLoading = true;
   try {
     const response = await fetch('/mingkh/api/water-map', {cache:'no-store'});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || data.detail || 'Не удалось загрузить карту.');
-    if (!loadData(data)) throw new Error('В архиве нет данных карты.');
+    const selectedQuick = document.querySelector('#quick .per-opt.on');
+    const quickPeriod = selectedQuick && selectedQuick.dataset.q;
+    if (!loadData(data)) throw new Error('В наборе нет данных карты.');
+    loadedDatasetVersion = response.headers.get('X-Water-Map-Version') || loadedDatasetVersion;
+    document.getElementById('load-error').hidden = true;
     document.querySelectorAll('[data-dataset-ui]').forEach(el => el.hidden = false);
-    msBuild('omsu'); msBuild('fact'); msBuild('org'); buildGroups(); wire(); quick('30'); applyFilters();
-    document.querySelectorAll('[data-kind]').forEach(el => el.onchange = () => { F.kinds[Number(el.dataset.kind)] = el.checked; applyFilters(); });
-    document.getElementById('fit-map').onclick = () => renderMap(true);
-    document.getElementById('kpis').addEventListener('keydown', e => {
-      if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button]')) { e.preventDefault(); groupClick(e); }
-    });
-    await initMap();
+    for (const key of ['omsu', 'fact', 'org']) {
+      msBuild(key);
+      msBox(key).querySelectorAll('.ms-opt').forEach(el => {
+        el.querySelector('input').checked = !MS[key].sel || MS[key].sel.has(el.dataset.o);
+      });
+    }
+    buildGroups();
+    if (!datasetReady) {
+      wire(); quick('30');
+      document.querySelectorAll('[data-kind]').forEach(el => el.onchange = () => { F.kinds[Number(el.dataset.kind)] = el.checked; applyFilters(); });
+      document.getElementById('fit-map').onclick = () => renderMap(true);
+      document.getElementById('kpis').addEventListener('keydown', e => {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button]')) { e.preventDefault(); groupClick(e); }
+      });
+      datasetReady = true;
+      applyFilters();
+      await initMap();
+    } else {
+      // Preserve manual dates, selected categories/executors and the drawn map area.
+      // Relative quick periods follow the newest available day.
+      if (quickPeriod) quick(quickPeriod);
+      applyFilters();
+    }
+    return true;
   } catch (error) {
-    document.getElementById('meta').textContent = 'Данные карты недоступны';
-    const box = document.getElementById('load-error');
-    box.hidden = false; box.textContent = error.message;
+    if (!datasetReady) {
+      document.getElementById('meta').textContent = 'Данные карты пока недоступны';
+      const box = document.getElementById('load-error');
+      box.hidden = false;
+      box.textContent = importForm ? error.message : 'Не удалось загрузить данные карты. Их доступность будет проверена автоматически.';
+    } else {
+      setUpdateStatus('Новые данные пока не загрузились. Показаны сохранённые данные.', 'warning');
+    }
+    return false;
+  } finally {
+    datasetLoading = false;
   }
 }
 const importForm = document.getElementById('import-form');
@@ -897,21 +929,55 @@ if (importForm) importForm.onsubmit = async event => {
   } catch (error) { status.textContent = error.message; archiveUploading = false; syncArchiveControls(); }
 };
 const refreshButton = document.getElementById('live-refresh');
-let refreshTimer = null, followingRefresh = false;
+const updateStatus = document.getElementById('dataset-update-status');
+let refreshTimer = null, statusLoading = false, observedDatasetVersion = null;
+function setUpdateStatus(text, state = 'idle') {
+  updateStatus.textContent = text;
+  updateStatus.dataset.state = state;
+}
+function updateScheduleText(state) {
+  if (state.automatic_enabled === false) return 'Автоматическое обновление приостановлено.';
+  if (state.automatic_enabled !== true) return 'Статус обновления данных проверяется автоматически.';
+  const minutes = Number(state.interval_minutes);
+  let text = 'Автоматическое обновление';
+  if (Number.isFinite(minutes) && minutes > 0) text += ' · каждые ' + (minutes % 60 === 0 ? minutes / 60 + ' ч' : minutes + ' мин');
+  const next = state.next_run_at && new Date(state.next_run_at);
+  if (next && !Number.isNaN(next.getTime())) text += ' · следующая проверка ' + next.toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+  return text;
+}
+function scheduleStatus(delay) {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(refreshStatus, delay);
+}
 async function refreshStatus() {
-  if (!refreshButton) return;
+  if (statusLoading) return;
+  clearTimeout(refreshTimer);
+  if (document.hidden) { scheduleStatus(60000); return; }
+  statusLoading = true;
   try {
     const response = await fetch('/mingkh/api/water-map/status', {cache:'no-store'});
-    if (!response.ok) throw new Error('Не удалось проверить обновление. Перезагрузите страницу.');
+    if (!response.ok) throw new Error('Не удалось проверить обновление данных.');
     const state = await response.json();
     const output = document.getElementById('live-status');
-    output.textContent = state.error || state.message || '';
-    archiveRefreshing = state.busy; syncArchiveControls();
-    if (state.busy) { followingRefresh = true; refreshTimer = setTimeout(refreshStatus, 3000); }
-    else if (followingRefresh && state.completed_at && !state.error) window.location.reload();
+    if (output) output.textContent = state.error || state.message || '';
+    archiveRefreshing = !!state.busy; syncArchiveControls();
+    if (state.busy) setUpdateStatus('Обновляем данные ДоброДела. Картой можно пользоваться.', 'busy');
+    else if (state.error || state.last_status === 'error' || state.last_status === 'failed') {
+      setUpdateStatus('Последнее обновление не завершено.' + (datasetReady ? ' Показаны сохранённые данные.' : ''), 'warning');
+    } else setUpdateStatus(updateScheduleText(state));
+    const version = state.dataset_version == null ? null : String(state.dataset_version);
+    const previous = loadedDatasetVersion || observedDatasetVersion;
+    if (!state.busy && version && (!datasetReady || (previous && version !== previous))) {
+      if (await start()) observedDatasetVersion = version;
+    } else if (!observedDatasetVersion) observedDatasetVersion = version;
   } catch (error) {
-    document.getElementById('live-status').textContent = error.message;
+    setUpdateStatus('Не удалось проверить обновление.' + (datasetReady ? ' Картой можно пользоваться.' : ''), 'warning');
+    const output = document.getElementById('live-status');
+    if (output) output.textContent = error.message;
     archiveRefreshing = false; syncArchiveControls();
+  } finally {
+    statusLoading = false;
+    scheduleStatus(archiveRefreshing ? 3000 : 60000);
   }
 }
 if (refreshButton) {
@@ -922,15 +988,18 @@ if (refreshButton) {
       const response = await fetch('/mingkh/api/water-map/refresh', {method:'POST'});
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || result.detail || 'Не удалось запустить обновление.');
-      followingRefresh = true; await refreshStatus();
+      await refreshStatus();
     } catch (error) {
       document.getElementById('live-status').textContent = error.message;
       archiveRefreshing = false; syncArchiveControls();
+      scheduleStatus(60000);
     }
   };
-  refreshStatus();
 }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStatus(); });
+window.addEventListener('pagehide', () => clearTimeout(refreshTimer));
 start();
+refreshStatus();
 
 
 })();

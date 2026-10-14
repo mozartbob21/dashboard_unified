@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 import zipfile
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
@@ -34,6 +35,35 @@ RE_COORDS = re.compile(r'var\s+coords\s*=\s*\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\
 
 class StoreBusy(ValueError):
     pass
+
+
+@contextmanager
+def _process_lock():
+    """Keep manual imports and timed refreshes exclusive across server workers."""
+    DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with DATA_FILE.with_name('.water-map.lock').open('a+b') as handle:
+        handle.seek(0, os.SEEK_END)
+        if not handle.tell():
+            handle.write(b'0')
+            handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            raise StoreBusy('Карта уже обновляется. Дождитесь завершения.') from None
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == 'nt':
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _text(value, limit=1000):
@@ -177,7 +207,7 @@ SEED_VERSION = '2026-10-01-all'
 _seed_checked = None
 
 
-def ensure_seed():
+def _ensure_seed():
     """Merge the new reviewed archive once, keeping newer live server values."""
     global _seed_checked
     if not SEED_FILE.exists():
@@ -185,7 +215,7 @@ def ensure_seed():
     signature = (str(DATA_FILE), DATA_FILE.stat().st_mtime_ns if DATA_FILE.exists() else None)
     if _seed_checked == signature:
         return False
-    with LOCK:
+    with LOCK, _process_lock():
         current = None
         if DATA_FILE.exists():
             with gzip.open(DATA_FILE, 'rt', encoding='utf-8') as stream:
@@ -219,8 +249,17 @@ def ensure_seed():
     return True
 
 
-def load():
-    ensure_seed()
+def ensure_seed():
+    try:
+        return _ensure_seed()
+    except StoreBusy:
+        # Readers keep using the last atomic snapshot during another process's update.
+        return False
+
+
+def load(*, prepare=True):
+    if prepare:
+        ensure_seed()
     try:
         with gzip.open(DATA_FILE, 'rt', encoding='utf-8') as stream:
             return json.load(stream)
@@ -232,10 +271,11 @@ def import_upload(content):
     if not LOCK.acquire(blocking=False):
         raise StoreBusy('Карта уже обновляется. Дождитесь завершения.')
     try:
-        dataset = parse_upload(content)
-        dataset['meta']['seed_version'] = SEED_VERSION
-        save(dataset)
-        return dataset['meta']
+        with _process_lock():
+            dataset = parse_upload(content)
+            dataset['meta']['seed_version'] = SEED_VERSION
+            save(dataset)
+            return dataset['meta']
     finally:
         LOCK.release()
 
@@ -270,17 +310,24 @@ def _state(**values):
 
 def status():
     with STATE_LOCK:
-        return dict(STATE)
+        value = dict(STATE)
+    if not value['busy'] and DATA_FILE.with_name('.water-map.lock').exists():
+        try:
+            with _process_lock():
+                pass
+        except StoreBusy:
+            value.update(busy=True, message='Карта обновляется в другом процессе.', error=None)
+    return value
 
 
-def refresh(client, today=None):
+def refresh(client, today=None, *, prepared=False):
     """Fetch seven-day overlap and missing tail; preserve older archive and coordinates."""
     started = time.monotonic()
     client.deadline = min(getattr(client, 'deadline', None) or float('inf'), started + MAX_REFRESH_SECONDS)
     def check_deadline():
         if time.monotonic() - started > MAX_REFRESH_SECONDS:
             raise ValueError('Обновление превысило 20 минут. Прежний архив сохранён; повторите позже или загрузите свежий архив.')
-    dataset = load()
+    dataset = load(prepare=not prepared)
     points = _expand(dataset)
     today = today or datetime.now(MOSCOW).date()
     meta = dataset['meta']
@@ -348,34 +395,69 @@ def refresh(client, today=None):
     return result['meta']
 
 
-def start_refresh(credentials):
+def _prepare_refresh():
     ensure_seed()
     if not DATA_FILE.exists():
         raise ValueError('Сначала загрузите архив карты.')
     if not LOCK.acquire(blocking=False):
         raise StoreBusy('Карта уже обновляется. Дождитесь завершения.')
-    _state(busy=True, message='Вхожу в ДоброДел…', error=None, completed_at=None)
-
-    def worker():
-        try:
-            from services.edds.dobrodel import DobrodelClient, DobrodelError
-            with DobrodelClient(**credentials) as client:
-                client.deadline = time.monotonic() + MAX_REFRESH_SECONDS
-                client.login()
-                result = refresh(client)
-            _state(message=f"Обновлено: {result['count']} жалоб.", completed_at=result['updated'])
-        except (ValueError, DobrodelError) as exc:
-            _state(error=str(exc), message='Обновление не завершено. Прежний архив сохранён.')
-        except Exception:
-            _state(error='Не удалось обновить карту. Проверьте соединение и настройки ДоброДела.', message='Прежний архив сохранён.')
-        finally:
-            _state(busy=False)
-            LOCK.release()
-
+    process_lock = _process_lock()
     try:
-        threading.Thread(target=worker, name='mingkh-water-map', daemon=True).start()
+        process_lock.__enter__()
+    except Exception:
+        LOCK.release()
+        raise
+    _state(busy=True, message='Вхожу в ДоброДел…', error=None, completed_at=None)
+    return process_lock
+
+
+def _refresh_worker(credentials, user, process_lock):
+    run_id, ok, error = None, False, ''
+    expected_errors = (ValueError,)
+    try:
+        from services.edds.dobrodel import DobrodelClient, DobrodelError
+        from services.run_history import record_start, record_finish
+        expected_errors = (ValueError, DobrodelError)
+        run_id = record_start('mingkh-water-map', user=user)
+        with DobrodelClient(**credentials) as client:
+            client.deadline = time.monotonic() + MAX_REFRESH_SECONDS
+            client.login()
+            result = refresh(client, prepared=True)
+        _state(message=f"Обновлено: {result['count']} жалоб.", completed_at=result['updated'])
+        ok = True
+    except expected_errors as exc:
+        error = str(exc)
+        _state(error=error, message='Обновление не завершено. Прежние данные сохранены.')
+    except Exception:
+        error = 'Не удалось обновить карту. Проверьте соединение и настройки ДоброДела.'
+        _state(error=error, message='Прежние данные сохранены.')
+    finally:
+        _state(busy=False)
+        try:
+            process_lock.__exit__(None, None, None)
+        finally:
+            LOCK.release()
+        if run_id:
+            record_finish(run_id, status='success' if ok else 'error', error_message=error)
+    return ok
+
+
+def run_refresh(credentials, *, user='Автозапуск'):
+    """Synchronous scheduled collection shares the manual-update/import lock."""
+    process_lock = _prepare_refresh()
+    return _refresh_worker(credentials, user, process_lock)
+
+
+def start_refresh(credentials, *, user='Администратор'):
+    process_lock = _prepare_refresh()
+    try:
+        threading.Thread(target=_refresh_worker, args=(credentials, user, process_lock),
+                         name='mingkh-water-map', daemon=True).start()
     except Exception:
         _state(busy=False)
-        LOCK.release()
+        try:
+            process_lock.__exit__(None, None, None)
+        finally:
+            LOCK.release()
         raise
     return status()

@@ -31,6 +31,7 @@ TICK_INTERVAL = 30  # секунд между проверками распис�
 # module_id → команда запуска (аналогично app.py)
 MODULE_COMMANDS: dict[str, list[str]] = {
     "edds":                 [sys.executable, "-m", "services.edds.runner"],
+    "mingkh-water-map":     [sys.executable, "-m", "services.mingkh.water_map_runner"],
     "edo":                  [sys.executable, "-m", "services.edo.runner"],
     "overdue":              [sys.executable, "-m", "services.overdue.runner"],
     "watercontrol":         [sys.executable, "-m", "services.watercontrol.runner"],
@@ -43,6 +44,7 @@ MODULE_COMMANDS: dict[str, list[str]] = {
 # Интервалы по умолчанию (минуты) для первичного заполнения
 DEFAULT_INTERVALS: dict[str, int] = {
     "edds": 360,
+    "mingkh-water-map": 120,
     "edo": 120,
     "overdue": 120,
     "watercontrol": 120,
@@ -51,6 +53,8 @@ DEFAULT_INTERVALS: dict[str, int] = {
     "camera_prescriptions": 360,
     "cds": 1440,
 }
+
+DEFAULT_ENABLED = {"mingkh-water-map"}
 
 # ─── Инициализация таблицы (seed) ───────────────────────────────────
 
@@ -61,7 +65,7 @@ _SEED_LOCK = threading.Lock()
 def _seed_jobs() -> None:
     """
     При первом запуске заполняет scheduler_jobs записями
-    для всех известных модулей (enabled=0 — выключены).
+    для всех известных модулей; карта МИНЖКХ включена по умолчанию.
     Существующие записи НЕ перезаписываются.
     """
     global _SEEDED
@@ -94,17 +98,20 @@ def _seed_jobs() -> None:
 
                 conn.execute(
                     """
-                    INSERT INTO scheduler_jobs
+                    INSERT OR IGNORE INTO scheduler_jobs
                         (module_id, module_label, module_icon,
-                         command, enabled, interval_minutes)
-                    VALUES (?, ?, ?, ?, 0, ?)
+                         command, enabled, interval_minutes, next_run_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         module_id,
                         label,
                         icon,
                         " ".join(command),
+                        int(module_id in DEFAULT_ENABLED),
                         DEFAULT_INTERVALS.get(module_id, 120),
+                        (_now() + timedelta(minutes=DEFAULT_INTERVALS.get(module_id, 120))).isoformat()
+                        if module_id in DEFAULT_ENABLED else None,
                     ),
                 )
 
@@ -298,6 +305,9 @@ def _get_run_status_dict() -> dict:
 
 def _is_module_running(module_id: str) -> bool:
     """Проверяет, не запущен ли модуль уже (через run_status в app.py)."""
+    if module_id == 'mingkh-water-map':
+        from services.mingkh.water_map import status
+        return status()['busy']
     if module_id == 'edds':
         from services.edds.runner import status
         return status()['running']
@@ -320,6 +330,21 @@ def _launch_module(module_id: str) -> None:
     print(f"[scheduler] Launching {module_id}: {' '.join(command)}")
 
     mark_run_started(module_id)
+
+    if module_id == 'mingkh-water-map':
+        # Run in this process so scheduled/manual imports share the map lock.
+        def collect_map():
+            from services.mingkh.water_map_runner import run
+            try:
+                result = run()
+                mark_run_finished(module_id, result['status'], result.get('error', ''))
+            except Exception:
+                mark_run_finished(module_id, 'error', 'Не удалось запустить обновление карты МИНЖКХ.')
+        try:
+            threading.Thread(target=collect_map, name='mingkh-map-scheduler', daemon=True).start()
+        except Exception:
+            mark_run_finished(module_id, 'error', 'Не удалось запустить обновление карты МИНЖКХ.')
+        return
 
     if module_id == 'edds':
         def collect_edds():
@@ -426,12 +451,22 @@ def is_running() -> bool:
 
 # ─── FastAPI Router ─────────────────────────────────────────────────
 
+def _can_access_job(user, module_id):
+    if not check_module_access(user, module_id):
+        return False
+    if module_id == 'mingkh-water-map':
+        # Map maintenance is manager-only, including alternate scheduler routes.
+        from services.auth.accounts import is_account_manager
+        return is_account_manager(user)
+    return True
+
+
 def require_job_access(request: Request):
     user = getattr(request.state, "user", None) or get_user_from_token(request.cookies.get("access_token"))
     if not user:
         raise HTTPException(401, "Требуется авторизация")
     module_id = request.path_params.get("module_id")
-    if module_id and not check_module_access(user, module_id):
+    if module_id and not _can_access_job(user, module_id):
         raise HTTPException(403, "Нет доступа к этому блоку")
     request.state.user = user
     return user
@@ -446,7 +481,7 @@ async def api_get_jobs(request: Request):
     return {
         "ok": True,
         "scheduler_running": is_running(),
-        "jobs": [j for j in get_all_jobs() if check_module_access(request.state.user, j["module_id"])],
+        "jobs": [j for j in get_all_jobs() if _can_access_job(request.state.user, j["module_id"])],
     }
 
 
@@ -516,6 +551,6 @@ async def api_scheduler_status(request: Request):
         "ok": True,
         "running": is_running(),
         "tick_interval": TICK_INTERVAL,
-        "total_jobs": sum(check_module_access(request.state.user, m) for m in MODULE_COMMANDS),
-        "enabled_jobs": sum(1 for j in get_all_jobs() if j["enabled"] and check_module_access(request.state.user, j["module_id"])),
+        "total_jobs": sum(_can_access_job(request.state.user, m) for m in MODULE_COMMANDS),
+        "enabled_jobs": sum(1 for j in get_all_jobs() if j["enabled"] and _can_access_job(request.state.user, j["module_id"])),
     }

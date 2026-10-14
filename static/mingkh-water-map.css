@@ -255,3 +255,16 @@ html[data-theme="dark"] .water-map {--crit:#ff9da6;--serious:#ffc68b;--hvs:#5598
 .water-map .share b{max-width:calc(100% - 50px);flex-shrink:1}
 .water-map .ot th:nth-child(2){width:36%}
 .water-map .ot th:nth-child(3){width:18%}
+
+/* Passive update status is shared; maintenance controls are server-rendered for editors only. */
+.water-map .dataset-update-status {display:flex;align-items:baseline;gap:8px;margin:10px 0;color:var(--ink-2);font-size:13px;line-height:1.5;overflow-wrap:anywhere;}
+.water-map .dataset-update-status::before {content:"";width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--ink-3);}
+.water-map .dataset-update-status[data-state="busy"]::before {background:var(--accent);}
+.water-map .dataset-update-status[data-state="warning"]::before {background:var(--serious);}
+.water-map .map-maintenance {margin:12px 0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);}
+.water-map .map-maintenance > summary {padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600;line-height:1.5;}
+.water-map .map-maintenance > summary span {margin-left:8px;color:var(--ink-3);font-size:12px;font-weight:400;}
+.water-map .map-maintenance > summary:focus-visible {outline:2px solid var(--accent);outline-offset:3px;border-radius:var(--r);}
+.water-map .maintenance-body {padding:0 14px 14px;border-top:1px solid var(--line-soft);}
+.water-map .maintenance-body > .dataset-note:first-child {margin-top:12px;}
+@media(max-width:600px){.water-map .map-maintenance > summary span{display:block;margin-left:16px;}}

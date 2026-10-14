@@ -202,7 +202,7 @@ class AccessControlTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/users/integrations/edds').status_code,403)
         self.assertEqual(self.client.put('/api/users/integrations/edds',json={'username':'u','password':'secret'}).status_code,403)
         self.manager_login()
-        for service in ['edds','edds_arm','mingkh']:
+        for service in ['edds','edds_arm','mingkh','zip_cloud']:
             url='/api/users/integrations/'+service
             self.assertEqual(self.client.put(url,json={'username':'testlogin','password':'secret-test-only'}).status_code,200)
             data=self.client.get(url).json()
@@ -213,6 +213,23 @@ class AccessControlTests(unittest.TestCase):
         with self.db.get_db_connection() as conn:
             for row in conn.execute('SELECT encrypted_value FROM integration_credentials'):
                 self.assertNotIn('secret-test-only',row[0]);self.assertNotIn('testlogin',row[0])
+
+    def test_cloud_probe_requires_manager_and_origin_without_false_save_notice(self):
+        from services.zip_curator.yandex_disk import DiskSyncError
+        with patch('services.zip_curator.source.check_cloud_access', side_effect=DiskSyncError('Облако временно недоступно.')) as probe:
+            self.assertEqual(self.client.post('/api/users/integrations/zip_cloud/check').status_code, 401)
+            self.login()
+            self.assertEqual(self.client.post('/api/users/integrations/zip_cloud/check').status_code, 403)
+            self.manager_login()
+            self.assertEqual(self.client.post('/api/users/integrations/zip_cloud/check',
+                headers={'Origin':'https://other.invalid'}).status_code, 403)
+            probe.assert_not_called()
+            with patch('services.auth.accounts.notify_manager') as notify:
+                response = self.client.post('/api/users/integrations/zip_cloud/check')
+                self.assertEqual(response.status_code, 502)
+                self.assertEqual(response.json()['message'], 'Облако временно недоступно.')
+                notify.assert_not_called()
+            probe.assert_called_once_with()
 
     def test_dobrodel_login_check_is_manager_only_and_checks_origin(self):
         with patch('services.auth.integrations.credentials') as saved, \

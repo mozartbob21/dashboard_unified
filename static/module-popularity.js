@@ -30,6 +30,12 @@
     const node = id => document.getElementById(id);
     let started = false, stopped = false, interval = null, request = null, timeout = null;
     let inFlight = false, lastSuccess = null, fingerprint = null;
+    function sectionActive() {
+      const section = document.body?.dataset?.adminSection;
+      const panel = node('modulePopularity')?.closest?.('[data-admin-panel]');
+      // The standalone statistics page has no shared admin navigation.
+      return !section || !panel || (section === 'statistics' && !panel.hidden);
+    }
     function cell(tag, text, className) {
       const result = document.createElement(tag);
       result.textContent = String(text);
@@ -52,6 +58,14 @@
         });
         node('popularityRows').replaceChildren(...rows);
         node('popularitySince').textContent = `За всё время · сбор с ${dateTime(data.tracking_since)} (МСК). Блоков в рейтинге: ${number(data.modules.length)}.`;
+        const overview = {
+          popularityTotalVisits:data.modules.reduce((total, item) => total + BigInt(item.visits), 0n),
+          popularityTrackedModules:data.modules.length,
+          popularityUnusedModules:data.modules.filter(item => item.visits === 0).length
+        };
+        for (const [id, value] of Object.entries(overview)) {
+          if (node(id)) node(id).textContent = number(value);
+        }
         fingerprint = nextFingerprint;
       }
       node('popularityContent').hidden = false;
@@ -65,11 +79,14 @@
       node('popularityRows').replaceChildren();
       node('popularitySince').textContent = '';
       node('popularityUpdated').textContent = 'Статистика скрыта до подтверждения прав доступа.';
+      for (const id of ['popularityTotalVisits','popularityTrackedModules','popularityUnusedModules']) {
+        if (node(id)) node(id).textContent = '—';
+      }
       fingerprint = null;
       lastSuccess = null;
     }
     async function refresh() {
-      if (inFlight || stopped || document.hidden) return;
+      if (inFlight || stopped || document.hidden || !sectionActive()) return;
       inFlight = true;
       node('popularityRefresh').disabled = true;
       node('popularityRefresh').setAttribute('aria-busy', 'true');
@@ -95,7 +112,7 @@
         lastSuccess = data.updated_at;
         node('popularityAccessNotice').hidden = true;
         status('Рейтинг обновляется автоматически.', 'success');
-        node('popularityUpdated').textContent = `Последнее обновление: ${dateTime(lastSuccess)} (МСК). Проверка каждые 10 секунд, пока вкладка видна.`;
+        node('popularityUpdated').textContent = `Последнее обновление: ${dateTime(lastSuccess)} (МСК). Проверка каждые 10 секунд, пока раздел открыт и вкладка видна.`;
       } catch (_) {
         if (!stopped) status(lastSuccess
           ? 'Связь с сервером прервалась. Показаны последние полученные данные; повторим запрос автоматически.'
@@ -113,6 +130,7 @@
       started = true;
       node('popularityRefresh').addEventListener('click', refresh);
       document.addEventListener('visibilitychange', resume);
+      document.addEventListener('admin:sectionchange', resume);
       env.addEventListener('online', resume);
       interval = env.setInterval(refresh, POLL_MS);
       return refresh();
@@ -122,6 +140,7 @@
       env.clearInterval(interval);env.clearTimeout(timeout);request?.abort();
       node('popularityRefresh').removeEventListener('click', refresh);
       document.removeEventListener('visibilitychange', resume);
+      document.removeEventListener('admin:sectionchange', resume);
       env.removeEventListener('online', resume);
     }
     return {start, stop, refresh};

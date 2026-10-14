@@ -1,7 +1,7 @@
 {% extends "base_module.html" %}
 {% block title %}Жалобы МинЖКХ — МИНЖКХ — Нейрона ИИ{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="/static/mingkh-water-map.css?v=20261001-all">
+<link rel="stylesheet" href="/static/mingkh-water-map.css?v=20261014-auto">
 <link rel="stylesheet" href="/static/map-basemap.css?v=20261005-yandex">
 {% endblock %}
 {% block content %}
@@ -17,9 +17,14 @@
     <button class="btn" id="xls" disabled title="Скачать в Excel жалобы, которые сейчас выбраны фильтрами и областью">⬇ Скачать Excel</button>
   </div>
 
-  <p class="dataset-note">Карта ДоброДела: архив и дозаписанные жалобы. Период и время обновления указаны выше. Кнопки периода отсчитываются от последнего дня данных.</p>
+  <p class="dataset-note">Жалобы ДоброДела по направлениям МинЖКХ. Кнопки периода отсчитываются от последнего дня данных.</p>
+  <div id="dataset-update-status" class="dataset-update-status" role="status" aria-live="polite" aria-atomic="true">Проверяем обновление данных…</div>
   <div id="load-error" role="alert" hidden></div>
   {% if can_import %}
+  <details id="map-maintenance" class="map-maintenance">
+    <summary>Обслуживание данных <span>Для администратора</span></summary>
+    <div class="maintenance-body">
+      <p class="dataset-note">Ручное обновление и загрузка исходного архива.</p>
   <form id="import-form" class="import-actions">
     <span id="archive-hint" class="archive-hint">Обновить архив (ZIP или water_points.json)</span>
     <div class="archive-picker">
@@ -34,9 +39,11 @@
     <button type="submit" class="btn ghost" id="import-submit">Загрузить архив</button>
     <span class="import-result" id="import-result" role="status"></span>
   </form>
-  <div class="import-actions"><button type="button" class="btn ghost" id="live-refresh">Дозаписать из ДоброДела</button>
+  <div class="import-actions"><button type="button" class="btn ghost" id="live-refresh">Обновить из ДоброДела</button>
     <span class="import-result" id="live-status" role="status"></span></div>
-  <p class="dataset-note">Дозапись использует сохранённый доступ «Добродел»: добавляет новые даты и перепроверяет последние 7 дней архива. Ранняя история остаётся по данным архива.</p>
+  <p class="dataset-note">Обновление использует сохранённый доступ «Добродел»: добавляет новые даты и перепроверяет последние 7 дней. Ранняя история сохраняется.</p>
+    </div>
+  </details>
   {% endif %}
   <div class="card water-filters-card" data-dataset-ui hidden>
     <div class="filters">
@@ -123,5 +130,5 @@
 </div></div>
 <script type="application/json" id="neurona-map-config">{{ map_config | default({}) | tojson }}</script>
 <script src="/static/map-basemap.js?v=20261005-yandex" defer></script>
-<script src="/static/mingkh-water-map.js?v=20261005-osm" defer></script>
+<script src="/static/mingkh-water-map.js?v=20261014-auto" defer></script>
 {% endblock %}

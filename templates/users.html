@@ -1,60 +1,52 @@
 {% extends "base_module.html" %}
-{% block title %}Пользователи и доступ — Нейрона{% endblock %}
-{% block body_class %}module-users{% endblock %}
+{% block title %}Админ-панель — Нейрона{% endblock %}
+{% block body_class %}module-users admin-console{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/ux-survey.css?v=20261013">
 <script src="/static/ux-survey.js?v=20261013" defer></script>
-<link rel="stylesheet" href="/static/users.css?v=20261007-collective">
-  <script src="/static/users.js?v=20261001-activity-dobrodel" defer></script>
 <link rel="stylesheet" href="/static/module-popularity.css?v=20261013">
-<script src="/static/module-popularity.js?v=20261013" defer></script>
+<link rel="stylesheet" href="/static/users.css?v=20261014-admin">
+<link rel="stylesheet" href="/static/admin-feedback.css?v=20261014-admin">
+<script src="/static/admin-navigation.js?v=20261014-admin" defer></script>
+<script src="/static/users.js?v=20261014-admin" defer></script>
+<script src="/static/module-popularity.js?v=20261014-admin" defer></script>
+<script src="/static/ux-survey-admin.js?v=20261014-admin" defer></script>
 {% endblock %}
 {% block content %}
-  <header><a href="/" class="system-link">← Перейти в систему</a><span>Админ-панель Нейроны</span><a href="/users/feedback">Обратная связь</a><a href="/feedback/survey" data-ux-survey-link>Опрос об удобстве</a><a href="/logout">Выйти</a></header>
-  <main>
-    <div class="page-heading"><div><p class="eyebrow">УЧЁТНЫЕ ЗАПИСИ</p><h1>Пользователи и права</h1><p>Назначайте каждому пользователю только нужные блоки.</p></div><button id="newUser" type="button">+ Создать пользователя</button></div>
-    <p class="common-note">ИИ-чат, автозапуск и история доступны всем вошедшим пользователям. В автозапуске и истории отображаются только назначенные блоки. Расписание каждого блока общее для системы.</p>
-    <div id="message" role="status" aria-live="polite"></div>
-    <p id="sessionNotice" class="common-note" hidden>Данные формы оставлены на этой странице. <a href="/login" target="_blank" rel="noopener">Войти учётной записью с правом управления в новой вкладке</a>, затем вернитесь и повторите сохранение. Не обновляйте эту страницу до сохранения.</p>
-    <details class="panel" id="notificationsPanel">
-      <summary id="notificationCount">Уведомления управляющего</summary>
-      <p>Новые учётные записи, изменения доступа и ошибки сохранения. Последние 100 событий.</p>
-      <button id="refreshNotifications" type="button" class="secondary">Обновить</button>
-      <button id="readNotifications" type="button" class="secondary">Отметить показанные прочитанными</button>
-      <ul id="notificationList"></ul>
-    </details>
-    <section class="panel module-popularity" id="modulePopularity" aria-labelledby="modulePopularityTitle">
-      <div class="popularity-heading">
-        <div><p class="eyebrow">ОБЩАЯ АКТИВНОСТЬ</p><h2 id="modulePopularityTitle">Популярность блоков</h2></div>
-        <button id="popularityRefresh" type="button" class="secondary">Обновить сейчас</button>
+  <a href="#adminMain" class="admin-skip-link">К содержимому</a>
+  <header class="topbar admin-topbar">
+    <div class="brand"><a href="/" class="brand-link"><img class="brand-logo" src="/static/logo.svg" alt=""><span class="system-shell-brand-copy"><strong class="brand-title">Нейрона ИИ</strong><span class="brand-subtitle">Администрирование сервиса</span></span></a></div>
+    <div class="system-shell-actions"><a href="/" class="system-link">← К модулям</a><a href="/logout">Выйти</a></div>
+  </header>
+  <div class="admin-layout" id="adminConsole" data-initial-section="{{ initial_admin_section|default('users') }}">
+    <aside class="admin-sidebar">
+      <p class="admin-nav-caption">ПАНЕЛЬ УПРАВЛЕНИЯ</p>
+      <nav class="admin-navigation" aria-label="Разделы админ-панели">
+        <a href="#users" data-admin-link="users" {% if initial_admin_section|default('users') == 'users' %}aria-current="page"{% endif %}><span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v2"/></svg></span><span><strong>Пользователи и права</strong><small>Учётные записи и активность</small></span></a>
+        <a href="#statistics" data-admin-link="statistics" {% if initial_admin_section|default('users') == 'statistics' %}aria-current="page"{% endif %}><span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16M8 16v-4m5 4V7m5 9v-6"/></svg></span><span><strong>Статистика</strong><small>Посещаемость всех блоков</small></span></a>
+        <a href="#feedback" data-admin-link="feedback" {% if initial_admin_section|default('users') == 'feedback' %}aria-current="page"{% endif %}><span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0Z"/><path d="M7 10h10M7 14h6"/></svg></span><span><strong>Обратная связь</strong><small>Результаты опроса</small></span></a>
+        <a href="#integrations" data-admin-link="integrations" {% if initial_admin_section|default('users') == 'integrations' %}aria-current="page"{% endif %}><span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></svg></span><span><strong>Логины и пароли</strong><small>Подключение источников</small></span></a>
+      </nav>
+      <div class="admin-sidebar-note"><span class="admin-status-dot" aria-hidden="true"></span><p>Рабочее пространство<br><strong>администратора</strong></p></div>
+    </aside>
+    <main class="admin-main" id="adminMain" tabindex="-1">
+      <div class="admin-page-heading">
+        <div><p class="eyebrow">АДМИНИСТРИРОВАНИЕ</p><h1 id="adminTitle" tabindex="-1">Пользователи и права</h1><p id="adminDescription">Управляйте доступом к сервису и смотрите активность каждого пользователя.</p></div>
       </div>
-      <p class="popularity-intro">Все блоки — от самых посещаемых до блоков без учтённых посещений. Общие показатели всех локальных учётных записей за всё время сбора.</p>
-      <p id="popularityStatus" class="muted" role="status" aria-live="polite">Загрузка статистики…</p>
-      <p id="popularityUpdated" class="muted">Автообновление каждые 10 секунд, пока вкладка открыта.</p>
-      <p id="popularityAccessNotice" class="common-note" hidden>Для просмотра нужно право управления пользователями. <a href="/login" target="_blank" rel="noopener">Войти в новой вкладке</a>, затем нажмите «Обновить сейчас».</p>
-      <div id="popularityContent" hidden>
-        <p id="popularitySince" class="muted"></p>
-        <div class="popularity-table-wrap" role="region" aria-label="Общий рейтинг посещаемости блоков" tabindex="0">
-          <table class="popularity-table">
-            <caption>Рейтинг по числу посещений · все блоки · время московское</caption>
-            <thead><tr><th scope="col">Место</th><th scope="col">Блок</th><th scope="col" aria-sort="descending">Посещения</th><th scope="col">Уникальные пользователи</th><th scope="col">Открытия страниц</th><th scope="col">Действия</th><th scope="col">Последняя активность</th></tr></thead>
-            <tbody id="popularityRows"></tbody>
-          </table>
-        </div>
-        <details class="popularity-help"><summary>Как считается рейтинг</summary>
-          <p>Новое посещение блока начинается после 30 минут без учитываемой активности в этом блоке. Уникальные пользователи — число локальных учётных записей с активностью в блоке. При равном числе посещений сохраняется порядок блоков в системе.</p>
-          <p>Учитываются открытия HTML-страниц и успешные запросы действий (HTTP 2xx), включая ручные операции автозапуска для выбранного блока. Действия — число запросов, а не завершённых задач. Фоновые опросы, скачивания, ошибки и задания по расписанию не учитываются.</p>
-          <p>Включена сохранённая активность отключённых и архивных учётных записей. В рейтинг также входят общие разделы: ИИ-чат, автозапуск, голосовые заметки и управление пользователями. Посещения всей платформы не прибавляются к посещениям блоков. Данные до начала сбора не восстанавливаются; ноль означает отсутствие учтённой активности.</p>
-        </details>
-      </div>
-    </section>
+      <div id="sessionNotice" class="common-note" hidden>Данные формы оставлены на этой странице. <a href="/login" target="_blank" rel="noopener">Войти учётной записью с правом управления в новой вкладке</a>, затем вернитесь и повторите сохранение. Не обновляйте эту страницу до сохранения.</div>
+      <noscript><p class="common-note">Для работы с учётными записями и аналитикой включите JavaScript.</p></noscript>
+      <section data-admin-panel="users" aria-label="Пользователи и права" {% if initial_admin_section|default('users') != 'users' %}hidden{% endif %}>
+        <div class="section-toolbar"><p>Доступы и посещения — в карточке выбранного пользователя.</p><button id="newUser" type="button"><span aria-hidden="true">＋</span> Создать пользователя</button></div>
+        <div id="message" role="status" aria-live="polite"></div>
     <div class="workspace">
-      <section class="panel" aria-label="Список пользователей">
+      <section class="panel user-directory" aria-label="Список пользователей">
+        <div class="panel-heading"><h2>Учётные записи</h2><span class="admin-tag" id="directoryTotal">—</span></div>
         <label for="userSearch">Поиск по логину или почте</label><input id="userSearch" type="search" placeholder="Найти пользователя…">
         <label for="userArchiveFilter">Показать</label><select id="userArchiveFilter"><option value="current">Текущие пользователи</option><option value="archived">Архив</option><option value="all">Все пользователи</option></select>
         <p id="userCount" class="muted"></p><div id="userList"></div>
       </section>
       <section class="panel editor" aria-labelledby="editorTitle">
+        <div id="editorEmpty" class="editor-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M18 8v6m-3-3h6"/></svg></div>
         <h2 id="editorTitle">Выберите пользователя</h2>
         <p id="editorHint" class="muted">Откройте учётную запись слева или создайте новую.</p>
         <form id="userForm" hidden>
@@ -67,20 +59,22 @@
           <label class="check" id="delegationOption" hidden><input name="can_manage_users" type="checkbox"> Управление пользователями — разрешить назначать рабочие блоки и редактировать обычные учётные записи</label>
           <p id="protectedNote" class="common-note" hidden>Только родительская учётная запись может редактировать управляющих и выдавать или отзывать право управления.</p>
           <fieldset id="moduleChoices"><legend>Доступные блоки</legend>
+            <details class="permissions-disclosure" id="permissionsDetails"><summary>Настроить доступ <span id="moduleSelectionCount"></span></summary>
             <div class="selection-actions"><button id="selectAll" type="button" class="secondary">Выбрать все</button><button id="clearAll" type="button" class="secondary">Снять все</button></div>
             <div class="modules">
             {% for module_id, label in module_names.items() %}
               <label class="check module"><input type="checkbox" name="modules" value="{{ module_id }}">{{ label }}</label>
             {% endfor %}
             </div>
+            </details>
           </fieldset>
           <p id="managerNote" class="common-note" hidden>Родительская учётная запись. Её нельзя отключить или лишить права управления. Только она выдаёт и отзывает права других управляющих.</p>
-          <button id="saveUser" type="submit">Сохранить изменения</button>
-          <button id="archiveUser" type="button" class="secondary" hidden>В архив</button>
+          <div class="form-actions"><button id="saveUser" type="submit">Сохранить изменения</button>
+          <button id="archiveUser" type="button" class="secondary danger-action" hidden>В архив</button></div>
           <p id="archiveNote" class="common-note" hidden>Пользователь в архиве. Вход запрещён; данные и права сохранены. После восстановления включите учётную запись отдельно.</p>
         </form>
         <section id="userActivity" class="user-activity" aria-labelledby="activityTitle" hidden>
-          <div class="activity-heading"><h3 id="activityTitle">Активность пользователя</h3><button id="refreshActivity" type="button" class="secondary">Обновить</button></div>
+          <div class="activity-heading"><div><p class="section-kicker">ПОСЕЩЕНИЯ И ДЕЙСТВИЯ</p><h3 id="activityTitle">Активность пользователя</h3></div><button id="refreshActivity" type="button" class="secondary">Обновить</button></div>
           <p id="activityStatus" role="status" class="muted"></p>
           <div id="activityContent" hidden>
             <dl class="activity-summary">
@@ -107,21 +101,88 @@
         </section>
       </section>
     </div>
-    <section class="panel" style="margin-top:24px" aria-labelledby="integrationsTitle">
-      <h2 id="integrationsTitle">Логины и пароли</h2>
+
+        <details class="access-explanation"><summary>Как устроен доступ к сервису</summary><p>ИИ-чат, автозапуск и история доступны всем вошедшим пользователям. В автозапуске и истории отображаются только назначенные блоки. Расписание каждого блока общее для системы.</p></details>
+    <details class="panel" id="notificationsPanel">
+      <summary id="notificationCount">Уведомления управляющего</summary>
+      <p>Новые учётные записи, изменения доступа и ошибки сохранения. Последние 100 событий.</p>
+      <button id="refreshNotifications" type="button" class="secondary">Обновить</button>
+      <button id="readNotifications" type="button" class="secondary">Отметить показанные прочитанными</button>
+      <ul id="notificationList"></ul>
+    </details>
+
+      </section>
+      <section data-admin-panel="statistics" aria-label="Статистика посещений" {% if initial_admin_section|default('users') != 'statistics' %}hidden{% endif %}>
+    <section class="panel module-popularity" id="modulePopularity" aria-labelledby="modulePopularityTitle">
+      <div class="popularity-heading">
+        <div><h2 id="modulePopularityTitle">Рейтинг посещаемости</h2></div>
+        <button id="popularityRefresh" type="button" class="secondary">Обновить сейчас</button>
+      </div>
+      <p class="popularity-intro">От самых посещаемых блоков до тех, которыми ещё не пользовались. Учитываются все локальные аккаунты за всё время сбора.</p>
+      <p id="popularityStatus" class="muted" role="status" aria-live="polite">Загрузка статистики…</p>
+      <p id="popularityUpdated" class="muted">Автообновление каждые 10 секунд, пока вкладка открыта.</p>
+      <p id="popularityAccessNotice" class="common-note" hidden>Для просмотра нужно право управления пользователями. <a href="/login" target="_blank" rel="noopener">Войти в новой вкладке</a>, затем нажмите «Обновить сейчас».</p>
+      <div id="popularityContent" hidden>
+        <dl class="admin-metrics statistics-metrics" aria-label="Общая активность блоков">
+          <div><dt>Посещений блоков</dt><dd id="popularityTotalVisits">—</dd><dd class="metric-hint">Сумма по всем блокам</dd></div>
+          <div><dt>Блоков в рейтинге</dt><dd id="popularityTrackedModules">—</dd><dd class="metric-hint">Включая общие разделы</dd></div>
+          <div><dt>Без посещений</dt><dd id="popularityUnusedModules">—</dd><dd class="metric-hint">За время сбора статистики</dd></div>
+        </dl>
+        <p id="popularitySince" class="muted"></p>
+        <div class="popularity-table-wrap" role="region" aria-label="Общий рейтинг посещаемости блоков" tabindex="0">
+          <table class="popularity-table">
+            <caption>Рейтинг по числу посещений · все блоки · время московское</caption>
+            <thead><tr><th scope="col">Место</th><th scope="col">Блок</th><th scope="col" aria-sort="descending">Посещения</th><th scope="col">Уникальные пользователи</th><th scope="col">Открытия страниц</th><th scope="col">Действия</th><th scope="col">Последняя активность</th></tr></thead>
+            <tbody id="popularityRows"></tbody>
+          </table>
+        </div>
+        <details class="popularity-help"><summary>Как считается рейтинг</summary>
+          <p>Новое посещение блока начинается после 30 минут без учитываемой активности в этом блоке. Уникальные пользователи — число локальных учётных записей с активностью в блоке. При равном числе посещений сохраняется порядок блоков в системе.</p>
+          <p>Учитываются открытия HTML-страниц и успешные запросы действий (HTTP 2xx), включая ручные операции автозапуска для выбранного блока. Действия — число запросов, а не завершённых задач. Фоновые опросы, скачивания, ошибки и задания по расписанию не учитываются.</p>
+          <p>Включена сохранённая активность отключённых и архивных учётных записей. В рейтинг также входят общие разделы: ИИ-чат, автозапуск, голосовые заметки и управление пользователями. Посещения всей платформы не прибавляются к посещениям блоков. Данные до начала сбора не восстанавливаются; ноль означает отсутствие учтённой активности.</p>
+        </details>
+      </div>
+    </section>
+
+      </section>
+      <section data-admin-panel="feedback" aria-label="Обратная связь" {% if initial_admin_section|default('users') != 'feedback' %}hidden{% endif %}>
+        {% include 'partials/admin_feedback.html' %}
+      </section>
+      <section data-admin-panel="integrations" aria-label="Логины и пароли" {% if initial_admin_section|default('users') != 'integrations' %}hidden{% endif %}>
+    <div class="credentials-grid"><section class="panel credentials-panel" aria-labelledby="integrationsTitle">
+      <div class="panel-heading"><h2 id="integrationsTitle">Подключение к системе</h2><span class="admin-tag">Доступ на сервере</span></div>
       <p>Доступ к внешним системам. Сохранённые пароли не отображаются. Пустое поле оставляет прежний пароль.</p>
       <form id="integrationForm">
-        <label>Система<select name="service"><option value="edds">ЕДДС · сбор жалоб Добродела</option><option value="edds_arm">АРМ ЕДДС</option><option value="mingkh">МИНЖКХ и коллективные жалобы · cur.bi.mosreg.ru</option></select></label>
+        <label>Система<select name="service"><option value="edds">ЕДДС · сбор жалоб Добродела</option><option value="edds_arm">АРМ ЕДДС</option><option value="mingkh">МИНЖКХ и коллективные жалобы · cur.bi.mosreg.ru</option><option value="zip_cloud">Облако МО — ЗиП · cloud.mosreg.ru</option></select></label>
         <label>Логин<input name="username" required maxlength="254" autocomplete="off"></label>
         <label>Пароль<input name="password" type="password" maxlength="1024" autocomplete="new-password"></label>
+        <div id="cloudSourceSettings" hidden>
+          <label>Ссылка на папку ЗиП<input name="source_url" type="url" maxlength="2048" autocomplete="off" placeholder="https://cloud.mosreg.ru/apps/files/?dir=/&amp;fileid=10968596"></label>
+          <p class="muted">После сохранения Облако МО станет источником кнопки «Обновить данные» в ЗиП. Согласованные остатки сохранятся.</p>
+          <details><summary>Если папка не определяется по ссылке</summary>
+            <label>Путь к папке внутри облака (необязательно)<input name="folder_path" maxlength="1024" autocomplete="off" placeholder="/Общая папка/ЗиП"></label>
+            <p class="muted">Укажите точный путь из вашего облака. Сервер проверит, что он соответствует папке из ссылки.</p>
+          </details>
+        </div>
         <p id="integrationStatus" role="status"></p>
-        <button type="submit">Сохранить доступ</button>
-        <button id="checkEddsLogin" type="button" class="secondary" hidden disabled>Проверить вход и выгрузку</button>
+        <div class="form-actions"><button type="submit">Сохранить доступ</button>
+        <button id="checkEddsLogin" type="button" class="secondary" hidden disabled>Проверить вход и выгрузку</button></div>
         <p id="checkEddsHint" class="muted" hidden>Проверяет вход и получение одной записи отчёта Добродела с компьютера-сервера. Проверка может занять до двух минут.</p>
       </form>
+    </section>
+      <aside class="credentials-guide" aria-label="Подсказки по подключению">
+        <section class="panel"><p class="section-kicker">ПОРЯДОК ПОДКЛЮЧЕНИЯ</p><h2>Три простых шага</h2>
+          <ol class="setup-steps"><li><strong>Выберите систему</strong><span>У каждого источника свои настройки доступа.</span></li><li><strong>Сохраните логин и пароль</strong><span>Чтобы оставить прежний пароль, не заполняйте поле.</span></li><li><strong>Проверьте подключение</strong><span>Если для системы доступна проверка, её кнопка появится после сохранения.</span></li></ol>
+        </section>
+        <details class="panel connection-help"><summary>Какая система для какого блока?</summary>
       <p class="muted">Для загрузки заявок сохраните доступ к «АРМ ЕДДС», затем откройте блок ЕДДС и выберите период. Доступ к Доброделу настраивается отдельно и используется только для сбора жалоб.</p>
       <h3>Коллективные жалобы</h3>
       <p class="muted">В доступных блоках пользователя отметьте «Коллективные жалобы — МинЖКХ МО». Для подключения выберите выше «МИНЖКХ и коллективные жалобы · cur.bi.mosreg.ru» и сохраните логин и пароль портала. Одна учётная запись используется обоими дашбордами; сотрудники работают без повторного ввода пароля. Если доступ к МИНЖКХ уже сохранён, вводить его заново не нужно.</p>
-    </section>
-  </main>
+        </details>
+      </aside>
+    </div>
+
+      </section>
+    </main>
+  </div>
 {% endblock %}

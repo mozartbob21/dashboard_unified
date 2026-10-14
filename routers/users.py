@@ -30,19 +30,36 @@ class ReadNotificationsPayload(BaseModel):
 class IntegrationPayload(BaseModel):
     username: StrictStr = Field(min_length=1,max_length=254)
     password: StrictStr = Field(default='',max_length=1024)
+    source_url: StrictStr | None = Field(default=None, max_length=2048)
+    folder_path: StrictStr | None = Field(default=None, max_length=1024)
 
 
 @router.get('/api/users/integrations/{service}')
-async def integration_status(service: Literal['edds','edds_arm','mingkh']):
+async def integration_status(service: Literal['edds','edds_arm','mingkh','zip_cloud']):
     from services.auth.integrations import credential_status
     return credential_status(service)
 
 
 @router.put('/api/users/integrations/{service}')
-async def integration_save(payload: IntegrationPayload, service: Literal['edds','edds_arm','mingkh']):
+async def integration_save(payload: IntegrationPayload, service: Literal['edds','edds_arm','mingkh','zip_cloud']):
     from services.auth.integrations import save_credentials
-    save_credentials(payload.username,payload.password,service)
+    save_credentials(payload.username,payload.password,service,
+                     source_url=payload.source_url,folder_path=payload.folder_path)
     return {'ok':True}
+
+
+@router.post('/api/users/integrations/zip_cloud/check')
+def integration_zip_cloud_check():
+    from services.zip_curator.source import check_cloud_access
+    from services.zip_curator.yandex_disk import DiskSyncError
+    try:
+        return check_cloud_access()
+    except HTTPException:
+        raise
+    except DiskSyncError as exc:
+        return JSONResponse({'ok': False, 'message': str(exc)}, status_code=502)
+    except Exception:
+        return JSONResponse({'ok': False, 'message': 'Не удалось проверить папку Облака МО. Проверьте подключение сервера и повторите попытку.'}, status_code=502)
 
 
 @router.post('/api/users/integrations/edds/check')
@@ -104,7 +121,8 @@ async def notifications_read(payload: ReadNotificationsPayload):
 
 @router.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request):
-    return templates.TemplateResponse(request, "users.html", {"request": request, "module_names": MODULE_NAMES})
+    return templates.TemplateResponse(request, "users.html", {"request": request, "module_names": MODULE_NAMES,
+                                     "initial_admin_section": "users"}, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/api/users")

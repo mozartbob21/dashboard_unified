@@ -1,0 +1,37 @@
+<section class="feedback-admin admin-feedback" id="feedbackAdmin" aria-label="Результаты опроса пользователей">
+  <div class="feedback-intro">
+    <p class="feedback-lead">Оценки пользователей помогают выбрать, что улучшить в первую очередь.</p>
+    <a class="feedback-link" href="/feedback/survey">Пройти опрос</a>
+  </div>
+  <p class="feedback-privacy">Результаты доступны только администраторам. Здесь нет имён и почты участников. Участие связано с аккаунтом, чтобы исключить повторные ответы; черновики в расчёты не входят.</p>
+  <div class="feedback-refresh">
+    <div><p id="feedbackConnection" role="status" aria-live="polite">Загрузка результатов…</p><p class="feedback-refresh-time" id="feedbackUpdated">Обновление каждые 10 секунд, пока страница открыта.</p></div>
+    <button class="feedback-button" id="feedbackRefresh" type="button">Обновить сейчас</button>
+  </div>
+  <p id="feedbackAccessNotice" class="feedback-notice" hidden>Чтобы продолжить, <a href="/login" target="_blank" rel="noopener">войдите как администратор в новой вкладке</a> и вернитесь сюда.</p>
+  <noscript><p class="feedback-notice">Для просмотра и автоматического обновления результатов включите JavaScript.</p></noscript>
+  <div id="feedbackResults" hidden>
+    <dl class="feedback-summary" aria-label="Участие в опросе">
+      <div class="feedback-panel"><dt>Завершённых опросов</dt><dd id="feedbackCompleted">—</dd><dd class="feedback-summary-hint">Один ответ от аккаунта</dd></div>
+      <div class="feedback-panel"><dt>Увидели приглашение</dt><dd id="feedbackInvited">—</dd><dd class="feedback-summary-hint">Уникальные аккаунты</dd></div>
+      <div class="feedback-panel"><dt>Завершили после приглашения</dt><dd id="feedbackConversion">—</dd><dd class="feedback-summary-hint">Доля среди увидевших приглашение</dd></div>
+    </dl>
+    <section aria-labelledby="feedbackRatingsTitle">
+      <div class="feedback-section-heading"><h2 id="feedbackRatingsTitle">Оценки по вопросам</h2><p>Шкала от 0 до 5 · ноль учитывается в среднем</p></div>
+      <p class="feedback-empty feedback-panel" id="feedbackRatingsEmpty" hidden>Пока нет ответов</p>
+      <div class="feedback-questions" id="feedbackQuestions"></div>
+    </section>
+    <div class="feedback-detail-grid">
+      <section class="feedback-panel" aria-labelledby="feedbackDailyTitle">
+        <h2 id="feedbackDailyTitle">Ответы по дням</h2><p class="feedback-caption">Количество отправленных анкет. Даты — по московскому времени.</p>
+        <p class="feedback-empty" id="feedbackDailyEmpty" hidden>Пока нет ответов</p>
+        <div class="feedback-daily" id="feedbackDaily"></div>
+      </section>
+      <section class="feedback-panel" aria-labelledby="feedbackCommentsTitle">
+        <h2 id="feedbackCommentsTitle">Что можно улучшить?</h2><p class="feedback-caption" id="feedbackCommentsCaption">Непустые ответы, от новых к старым.</p>
+        <p class="feedback-empty" id="feedbackCommentsEmpty" hidden>Пока нет ответов</p>
+        <ol class="feedback-comments" id="feedbackComments"></ol>
+      </section>
+    </div>
+  </div>
+</section>

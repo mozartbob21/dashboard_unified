@@ -1149,7 +1149,8 @@ async def auth_middleware(request: Request, call_next):
     response = await call_next(request)
     from services.auth.activity import track_response
     await asyncio.to_thread(track_response, request, response, PATH_MODULE_MAP)
-    if (path == "/api/users" or path.startswith("/api/users/")) and "/notifications" not in path and not path.endswith("/integrations/edds/check") and request.method in {"PUT", "POST"} and response.status_code >= 400 and is_account_manager(user):
+    integration_check = path in {"/api/users/integrations/edds/check", "/api/users/integrations/zip_cloud/check"}
+    if (path == "/api/users" or path.startswith("/api/users/")) and "/notifications" not in path and not integration_check and request.method in {"PUT", "POST"} and response.status_code >= 400 and is_account_manager(user):
         from services.auth.accounts import notify_manager
         import logging
         logging.getLogger("auth").warning("users_api: save rejected path=%s status=%s", path, response.status_code)
@@ -3464,6 +3465,16 @@ from services.zip_curator import contacts as zc_contacts
 async def zc_state():
     return zc.load_state()
 
+@app.get("/zip_curator/api/source")
+async def zc_source():
+    from services.zip_curator.source import public_status
+    from fastapi.responses import JSONResponse
+    try:
+        return JSONResponse(await asyncio.to_thread(public_status), headers={'Cache-Control': 'private, no-store'})
+    except (HTTPException, zc.DiskSyncError):
+        return JSONResponse({'configured': False, 'label': 'Источник не настроен',
+                             'error': 'Администратору нужно проверить настройки источника ЗиП.'}, status_code=503)
+
 @app.get("/zip_curator/api/municipalities")
 async def zc_municipalities():
     return {"items": list(zc.load_municipality_overrides().values())}
@@ -3484,17 +3495,19 @@ async def zc_delete_municipality(payload: dict = None):
 
 @app.post("/zip_curator/api/scan")
 async def zc_scan(payload: dict = None):
-    import os
+    from services.zip_curator.source import resolve_source
     from fastapi.responses import JSONResponse
     from starlette.concurrency import run_in_threadpool
 
-    folder_url = str((payload or {}).get("public_url") or os.getenv("ZIP_FOLDER_A_URL") or "").strip()
     try:
-        if folder_url:
-            return await run_in_threadpool(zc.sync_and_scan_folder_a, folder_url)
-        added, skipped = await run_in_threadpool(zc.scan_folder)
-        return {"ok": True, "partial": False, "failed": 0, "errors": [], "added": added,
-                "skipped": skipped, "files": 0, "downloaded": 0, "state": zc.load_state()}
+        selected = await run_in_threadpool(resolve_source, (payload or {}).get('public_url'))
+        if selected['provider'] == 'mosreg':
+            return await run_in_threadpool(zc.sync_and_scan_folder_a, selected['url'],
+                                           provider='mosreg', account=selected['account'],
+                                           folder_path=selected.get('folder_path'))
+        return await run_in_threadpool(zc.sync_and_scan_folder_a, selected['url'])
+    except HTTPException as error:
+        return JSONResponse({'ok': False, 'error': error.detail}, status_code=error.status_code)
     except zc.FolderSyncBusy as error:
         return JSONResponse({"ok": False, "error": str(error)}, status_code=409)
     except zc.DiskSyncError as error:

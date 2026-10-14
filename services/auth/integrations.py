@@ -32,20 +32,43 @@ def credentials(service='edds'):
 
 def credential_status(service='edds'):
     value=credentials(service)
-    return {'username':value['username'] if value else '', 'configured':bool(value)}
+    result = {'username':value['username'] if value else '', 'configured':bool(value)}
+    if service == 'zip_cloud':
+        from services.zip_curator.source import DEFAULT_CLOUD_URL
+        result.update(source_url=(value or {}).get('source_url') or DEFAULT_CLOUD_URL,
+                      folder_path=(value or {}).get('folder_path') or '')
+    return result
 
 
-def save_credentials(username, password, service='edds'):
+def save_credentials(username, password, service='edds', *, source_url=None, folder_path=None):
     username=username.strip()
-    if service not in {'edds','edds_arm','mingkh'}: raise HTTPException(400,'Неизвестная интеграция')
+    if service not in {'edds','edds_arm','mingkh','zip_cloud'}: raise HTTPException(400,'Неизвестная интеграция')
     if not username: raise HTTPException(400,'Укажите логин системы')
+    old = None
     if not password:
-        old=credentials(service)
+        old = credentials(service)
+    elif service == 'zip_cloud':
+        try:
+            old = credentials(service)
+        except HTTPException:
+            pass  # Explicit new credentials can recover a lost encryption key.
+    if not password:
         if not old or old['username']!=username:
             raise HTTPException(400,'При первом сохранении или смене логина нужен пароль')
         password=old['password']
-    encrypted=cipher(create=True).encrypt(json.dumps({'username':username,'password':password}).encode()).decode()
+    value = {'username': username, 'password': password}
+    if service == 'zip_cloud':
+        from services.zip_curator.source import DEFAULT_CLOUD_URL
+        from services.zip_curator.mosreg_cloud import normalize_source_url, normalize_folder_path, CloudSyncError
+        try:
+            value['source_url'] = normalize_source_url(source_url if source_url is not None else (old or {}).get('source_url') or DEFAULT_CLOUD_URL)
+            value['folder_path'] = normalize_folder_path(folder_path if folder_path is not None else (old or {}).get('folder_path') or '')
+        except CloudSyncError as exc:
+            raise HTTPException(400, str(exc)) from None
+    elif source_url is not None or folder_path is not None:
+        raise HTTPException(400, 'Папка источника настраивается только для Облака МО.')
+    encrypted=cipher(create=True).encrypt(json.dumps(value).encode()).decode()
     with get_db_connection() as conn:
         conn.execute("INSERT INTO integration_credentials(service,encrypted_value) VALUES(?,?) ON CONFLICT(service) DO UPDATE SET encrypted_value=excluded.encrypted_value,updated_at=CURRENT_TIMESTAMP",(service,encrypted))
-        label={'edds':'Добродел','edds_arm':'АРМ ЕДДС','mingkh':'МИНЖКХ'}[service]
+        label={'edds':'Добродел','edds_arm':'АРМ ЕДДС','mingkh':'МИНЖКХ','zip_cloud':'Облако МО — ЗиП'}[service]
         conn.execute("INSERT INTO account_notifications(message) VALUES (?)",(f'Обновлены настройки доступа: {label}.',))

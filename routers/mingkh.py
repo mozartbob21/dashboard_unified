@@ -56,7 +56,8 @@ async def water_map_page(request: Request):
     from services.auth.accounts import is_account_manager
     return templates.TemplateResponse(request, 'mingkh-water-map.html', {
         'request': request, 'map_config': browser_config(),
-        'can_import': is_account_manager(getattr(request.state, 'user', None))})
+        'can_import': is_account_manager(getattr(request.state, 'user', None))},
+        headers={'Cache-Control': 'private, no-store'})
 
 
 @router.get('/api/water-map')
@@ -66,8 +67,9 @@ async def water_map_dataset(request: Request):
     from services.mingkh import water_map
     await asyncio.to_thread(water_map.ensure_seed)
     if not water_map.DATA_FILE.exists():
-        return JSONResponse({'error': 'Архив карты ещё не загружен. Администратор может загрузить ZIP или water_points.json на этой странице.'}, status_code=404)
-    headers = {'Cache-Control': 'private, no-store', 'Vary': 'Accept-Encoding'}
+        return JSONResponse({'error': 'Данные карты пока недоступны. Они появятся после обновления.'}, status_code=404)
+    headers = {'Cache-Control': 'private, no-store', 'Vary': 'Accept-Encoding',
+               'X-Water-Map-Version': str(water_map.DATA_FILE.stat().st_mtime_ns)}
     # The private file is stored and transferred compressed; browsers decompress JSON.
     encodings = request.headers.get('accept-encoding', '').lower()
     if any(item.strip().split(';')[0] == 'gzip' and 'q=0' not in item for item in encodings.split(',')):
@@ -101,13 +103,13 @@ async def water_map_import(request: Request):
 
 
 @router.post('/api/water-map/refresh', dependencies=[Depends(require_water_map_editor)])
-async def water_map_refresh():
+async def water_map_refresh(request: Request):
     from services.mingkh import water_map
     value = credentials('edds')
     if not value:
         raise HTTPException(503, 'Администратору нужно сохранить доступ «Добродел» в разделе «Пользователи → Логины и пароли».')
     try:
-        return JSONResponse(water_map.start_refresh(value), status_code=202)
+        return JSONResponse(water_map.start_refresh(value, user=(request.state.user or {}).get('username') or 'Администратор'), status_code=202)
     except water_map.StoreBusy as exc:
         return JSONResponse({'error': str(exc)}, status_code=409)
     except ValueError as exc:
@@ -115,6 +117,24 @@ async def water_map_refresh():
 
 
 @router.get('/api/water-map/status')
-async def water_map_status():
+async def water_map_status(request: Request):
     from services.mingkh import water_map
-    return JSONResponse(water_map.status(), headers={'Cache-Control': 'no-store'})
+    from services.scheduler import get_job
+    from services.auth.accounts import is_account_manager
+    job = await asyncio.to_thread(get_job, 'mingkh-water-map')
+    value = water_map.status()
+    try:
+        version = str(water_map.DATA_FILE.stat().st_mtime_ns)
+    except FileNotFoundError:
+        version = None
+    value.update({'automatic_enabled': bool(job and job['enabled']),
+                  'interval_minutes': job['interval_minutes'] if job else 120,
+                  'next_run_at': job['next_run_at'] if job else None,
+                  'last_status': job['last_status'] if job else None,
+                  'dataset_version': version})
+    if not value['busy'] and not value['error'] and not value['completed_at'] and job and job['last_status'] == 'error':
+        value['error'] = job['last_error']
+    if not is_account_manager(getattr(request.state, 'user', None)):
+        value['error'] = 'Обновление временно недоступно. Показаны последние сохранённые данные.' if value['error'] else None
+        value['message'] = 'Данные обновляются…' if value['busy'] else ''
+    return JSONResponse(value, headers={'Cache-Control': 'private, no-store'})

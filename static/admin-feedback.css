@@ -1,0 +1,96 @@
+/* Embedded survey results: all rules stay inside the feedback section. */
+.admin-feedback {
+  width:100%;max-width:none;min-width:0;margin:0;padding:0;
+  color:var(--text,#102033);font:inherit;overflow-wrap:anywhere;
+  container-name:admin-feedback;container-type:inline-size;
+}
+.admin-feedback * {box-sizing:border-box;}
+.admin-feedback h2,.admin-feedback h3,.admin-feedback p {margin:0;}
+.admin-feedback h2 {font-size:18px;font-weight:650;line-height:1.4;letter-spacing:-.02em;}
+.admin-feedback h3 {min-width:0;font-size:15px;font-weight:600;line-height:1.5;letter-spacing:0;}
+.admin-feedback .feedback-intro {display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.admin-feedback .feedback-lead {max-width:640px;color:var(--muted,#637083);font-size:14px;line-height:1.65;}
+.admin-feedback .feedback-link,.admin-feedback .feedback-button {
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;min-height:42px;
+  padding:10px 14px;border:1px solid var(--border-strong,var(--border));border-radius:9px;
+  background:var(--card-strong,var(--card));color:var(--text);font:inherit;font-size:13px;
+  font-weight:600;line-height:1.4;text-decoration:none;cursor:pointer;
+}
+.admin-feedback .feedback-link:hover,.admin-feedback .feedback-button:hover {background:var(--bg-soft);border-color:var(--primary);}
+.admin-feedback .feedback-button:disabled {opacity:.6;cursor:wait;}
+.admin-feedback a:focus-visible,.admin-feedback button:focus-visible {outline:2px solid var(--primary);outline-offset:3px;}
+.admin-feedback .feedback-privacy {
+  margin:16px 0 20px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;
+  background:var(--bg-soft);color:var(--muted);font-size:12px;line-height:1.65;
+}
+.admin-feedback .feedback-refresh {display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}
+.admin-feedback .feedback-refresh > div {min-width:0;}
+.admin-feedback .feedback-refresh p {font-size:13px;line-height:1.6;}
+.admin-feedback #feedbackConnection[data-state="error"] {padding-left:10px;border-left:3px solid var(--danger);color:var(--text);}
+.admin-feedback .feedback-refresh-time {margin-top:3px;color:var(--muted);font-size:12px;}
+.admin-feedback .feedback-notice {
+  margin:0 0 20px;padding:13px 14px;border:1px solid var(--border);border-radius:10px;
+  background:var(--warning-bg,var(--bg-soft));color:var(--text);font-size:13px;line-height:1.65;
+}
+.admin-feedback .feedback-notice a {color:var(--primary);text-decoration:underline;text-underline-offset:2px;}
+.admin-feedback .feedback-summary {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 28px;padding:0;}
+.admin-feedback .feedback-panel {min-width:0;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--card-strong,var(--card));box-shadow:none;}
+.admin-feedback .feedback-summary dt {font-size:13px;line-height:1.5;color:var(--muted);}
+.admin-feedback .feedback-summary dd:not(.feedback-summary-hint) {margin:10px 0 5px;font-size:34px;line-height:1.2;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums;}
+.admin-feedback .feedback-summary .feedback-summary-hint {margin:0;color:var(--muted);font-size:12px;line-height:1.5;}
+.admin-feedback .feedback-section-heading {display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px;}
+.admin-feedback .feedback-section-heading p,.admin-feedback .feedback-caption {color:var(--muted);font-size:12px;line-height:1.6;}
+.admin-feedback .feedback-caption {margin-top:5px;}
+.admin-feedback .feedback-questions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch;}
+.admin-feedback .feedback-question-heading {display:flex;gap:10px;align-items:flex-start;min-height:46px;}
+.admin-feedback .feedback-question-number {display:grid;place-items:center;flex:0 0 26px;width:26px;height:26px;margin-top:1px;border-radius:7px;background:var(--bg-soft);color:var(--muted);font-size:12px;font-weight:650;}
+.admin-feedback .feedback-question-score {display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:16px 0 18px;}
+.admin-feedback .feedback-average {font-size:30px;font-weight:700;letter-spacing:-.035em;line-height:1.2;font-variant-numeric:tabular-nums;}
+.admin-feedback .feedback-average small {font-size:13px;color:var(--muted);font-weight:400;letter-spacing:0;}
+.admin-feedback .feedback-question-count {color:var(--muted);font-size:12px;line-height:1.5;text-align:right;}
+.admin-feedback .feedback-distribution {display:grid;gap:9px;margin:0;}
+.admin-feedback .feedback-distribution-row {display:grid;grid-template-columns:16px minmax(0,1fr) 76px;align-items:center;gap:10px;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;}
+.admin-feedback .feedback-distribution-row dt {font-weight:600;color:var(--text);}
+.admin-feedback .feedback-distribution-row dd {margin:0;}
+.admin-feedback .feedback-bar {display:block;width:100%;height:6px;border-radius:3px;background:var(--info-soft,var(--bg-soft));overflow:hidden;}
+.admin-feedback .feedback-bar span {display:block;height:100%;min-width:0;border-radius:3px;background:var(--primary);}
+.admin-feedback .feedback-bar-value {color:var(--muted);text-align:right;white-space:nowrap;}
+.admin-feedback .feedback-detail-grid {display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:14px;margin-top:22px;align-items:start;}
+.admin-feedback .feedback-daily {margin-top:16px;min-width:0;}
+/* The base stylesheet sets responsive table widths and cell padding with !important. */
+.admin-feedback .feedback-daily table {width:100%;min-width:0!important;table-layout:fixed;border-collapse:collapse;font-size:13px!important;}
+.admin-feedback .feedback-daily caption {text-align:left;font-size:12px;color:var(--muted);line-height:1.5;padding-bottom:10px;}
+.admin-feedback .feedback-daily th,.admin-feedback .feedback-daily td {padding:10px 0!important;border-bottom:1px solid var(--border);font-size:12px!important;line-height:1.5;vertical-align:middle;word-break:normal;}
+.admin-feedback .feedback-daily th {background:transparent;color:var(--muted);font-weight:500;text-align:left;}
+.admin-feedback .feedback-daily tbody th {color:var(--text);white-space:nowrap;}
+.admin-feedback .feedback-daily th:last-child,.admin-feedback .feedback-daily td:last-child {width:60px;text-align:right;font-variant-numeric:tabular-nums;}
+.admin-feedback .feedback-daily .feedback-daily-bar {padding-left:10px!important;padding-right:10px!important;}
+.admin-feedback .feedback-comments {list-style:none;padding:0;margin:16px 0 0;}
+.admin-feedback .feedback-comment {padding:15px 0;border-bottom:1px solid var(--border);}
+.admin-feedback .feedback-comment:first-child {padding-top:0;}
+.admin-feedback .feedback-comment:last-child {padding-bottom:0;border-bottom:0;}
+.admin-feedback .feedback-comment time {display:block;margin-bottom:7px;color:var(--muted);font-size:12px;line-height:1.5;}
+.admin-feedback .feedback-comment p {font-size:13px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;}
+.admin-feedback .feedback-empty {padding-top:20px;padding-bottom:20px;color:var(--muted);font-size:13px;line-height:1.6;}
+.admin-feedback [hidden] {display:none!important;}
+@container admin-feedback (max-width:760px) {
+  .admin-feedback .feedback-detail-grid {grid-template-columns:1fr;}
+  .admin-feedback .feedback-section-heading {align-items:flex-start;flex-direction:column;gap:5px;}
+}
+@container admin-feedback (max-width:640px) {
+  .admin-feedback .feedback-intro,.admin-feedback .feedback-refresh {align-items:flex-start;flex-direction:column;gap:12px;}
+  .admin-feedback .feedback-summary,.admin-feedback .feedback-questions {grid-template-columns:1fr;}
+  .admin-feedback .feedback-summary .feedback-panel {display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:center;}
+  .admin-feedback .feedback-summary dd:not(.feedback-summary-hint) {grid-column:2;grid-row:1 / 3;margin:0;font-size:30px;}
+  .admin-feedback .feedback-summary .feedback-summary-hint {margin-top:4px;}
+  .admin-feedback .feedback-question-heading {min-height:0;}
+}
+@media(max-width:720px) {
+  .admin-feedback .feedback-intro,.admin-feedback .feedback-refresh,.admin-feedback .feedback-section-heading {align-items:flex-start;flex-direction:column;gap:10px;}
+  .admin-feedback .feedback-summary,.admin-feedback .feedback-questions,.admin-feedback .feedback-detail-grid {grid-template-columns:1fr;}
+  .admin-feedback .feedback-panel {padding:16px;}
+  .admin-feedback .feedback-question-heading {min-height:0;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .admin-feedback * {scroll-behavior:auto!important;transition:none!important;}
+}

@@ -126,4 +126,7 @@ def survey_page(request: Request):
 
 @router.get("/users/feedback", dependencies=[Depends(require_account_manager)])
 def admin_page(request: Request):
-    return templates.TemplateResponse(request=request, name="ux_survey_admin.html", context={}, headers={"Cache-Control": "no-store"})
+    from core.roles import MODULE_NAMES
+    return templates.TemplateResponse(request=request, name="users.html",
+        context={"module_names": MODULE_NAMES, "initial_admin_section": "feedback"},
+        headers={"Cache-Control": "no-store"})

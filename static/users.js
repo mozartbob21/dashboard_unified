@@ -58,10 +58,17 @@
     const mode=document.getElementById('userArchiveFilter').value;
     const shown=users.filter(u=>(mode==='all'||(mode==='archived'?!!u.archived_at:!u.archived_at))&&[u.username,u.email||''].some(s=>s.toLowerCase().includes(query)));
     document.getElementById('userCount').textContent=`Показано ${shown.length} из ${users.length}`;
+    document.getElementById('directoryTotal').textContent=users.length;
     list.replaceChildren();
+    if(!shown.length) {
+      const empty=document.createElement('p'); empty.className='user-list-empty';
+      empty.textContent=query?'Пользователи не найдены. Попробуйте изменить запрос.':'В этом списке пока нет пользователей.';
+      list.append(empty);
+    }
     for (const user of shown) {
       const button=document.createElement('button');
       button.type='button'; button.className='user-item'; button.classList.toggle('selected',selected?.id===user.id);
+      button.setAttribute('aria-pressed',String(selected?.id===user.id));
       const name=document.createElement('strong'); name.textContent=user.username;
       const details=document.createElement('small');
       details.textContent=user.is_manager ? 'Родительская учётная запись' : `${user.is_active?'Активен':'Отключён'} · блоков: ${user.modules.length}${user.can_manage_users?' · Управляющий':''}`;
@@ -75,6 +82,8 @@
   function openUser(user=null) {
     if (!form.hidden && form.dataset.dirty==='true' && !confirm('Перейти без сохранения изменений?')) return;
     selected=user; clearErrors(); form.reset(); form.hidden=false; form.dataset.dirty='false';
+    document.getElementById('editorEmpty').hidden=true;
+    document.getElementById('permissionsDetails').open=!user;
     const protectedUser=!!user?.can_manage_users&&!isParentManager;
     form.querySelectorAll('input,button,fieldset').forEach(el=>el.disabled=protectedUser);
     document.getElementById('editorTitle').textContent=user ? user.username : 'Новый пользователь';
@@ -94,8 +103,12 @@
     document.getElementById('archiveNote').hidden=!user?.archived_at;
     document.getElementById('managerNote').hidden=!user?.is_manager;
     form.querySelectorAll('[name=modules]').forEach(input=>input.checked=!!user?.modules.includes(input.value));
+    updateModuleSelection();
     renderList();
     loadActivity(user);
+  }
+  function updateModuleSelection(){
+    document.getElementById('moduleSelectionCount').textContent=`· выбрано ${form.querySelectorAll('[name=modules]:checked').length}`;
   }
   async function loadUsers() { const data=await api('/api/users'); users=data.users; isParentManager=data.is_parent_manager; renderList(); }
   const activityPanel=document.getElementById('userActivity');
@@ -162,13 +175,13 @@
     }catch(e){notify(e.message,true);}
   });
   document.getElementById('newUser').addEventListener('click',()=>openUser());
-  form.addEventListener('input',()=>form.dataset.dirty='true');
+  form.addEventListener('input',()=>{form.dataset.dirty='true';updateModuleSelection();});
   form.addEventListener('invalid',event=>{
     event.target.setAttribute('aria-invalid','true');
     notify(`${names[event.target.name]||'Поле'}: ${event.target.validationMessage}`,true);
   },true);
   for (const [id,checked] of [['selectAll',true],['clearAll',false]]) {
-    document.getElementById(id).addEventListener('click',()=>{form.querySelectorAll('[name=modules]').forEach(input=>input.checked=checked);form.dataset.dirty='true';});
+    document.getElementById(id).addEventListener('click',()=>{form.querySelectorAll('[name=modules]').forEach(input=>input.checked=checked);form.dataset.dirty='true';updateModuleSelection();});
   }
   form.addEventListener('submit',async event=>{
     event.preventDefault(); const button=document.getElementById('saveUser'); button.disabled=true;
@@ -218,7 +231,10 @@
     catch(e) {notify(e.message,true);}
   });
   loadNotifications().catch(e=>notify(e.message,true));
-  setInterval(()=>{if(!document.hidden&&!sessionExpired) loadNotifications().catch(()=>{});},30000);
+  setInterval(()=>{if(!document.hidden&&!sessionExpired&&document.body.dataset.adminSection==='users') loadNotifications().catch(()=>{});},30000);
+  document.addEventListener('admin:sectionchange',event=>{
+    if(event.detail?.section==='users'&&!document.hidden&&!sessionExpired) loadNotifications().catch(()=>{});
+  });
   const integrationForm=document.getElementById('integrationForm');
   const integrationStatus=document.getElementById('integrationStatus');
   const checkEddsLogin=document.getElementById('checkEddsLogin');
@@ -226,7 +242,14 @@
   let integrationVersion=0, integrationSaved=false, integrationBusy=false;
   function updateIntegrationCheck(){
     const isEdds=integrationForm.elements.service.value==='edds';
-    checkEddsLogin.hidden=!isEdds; checkEddsHint.hidden=!isEdds;
+    const isCloud=integrationForm.elements.service.value==='zip_cloud';
+    document.getElementById('cloudSourceSettings').hidden=!isCloud;
+    integrationForm.elements.source_url.required=isCloud;
+    checkEddsLogin.hidden=!(isEdds||isCloud); checkEddsHint.hidden=!(isEdds||isCloud);
+    checkEddsLogin.textContent=isCloud?'Проверить доступ к папке':'Проверить вход и выгрузку';
+    checkEddsHint.textContent=isCloud
+      ?'Проверяет сохранённый доступ и список Excel-файлов в указанной папке. При двухфакторной защите может понадобиться пароль приложения из настроек облака.'
+      :'Проверяет вход и получение одной записи отчёта Добродела с компьютера-сервера. Проверка может занять до двух минут.';
     checkEddsLogin.disabled=integrationBusy||!integrationSaved;
   }
   function setIntegrationBusy(busy){
@@ -237,19 +260,24 @@
   async function loadIntegration(){
     const version=++integrationVersion;
     integrationSaved=false; setIntegrationBusy(true);
+    integrationForm.dataset.dirty='false';
     integrationForm.elements.username.value=''; integrationForm.elements.password.value='';
+    integrationForm.elements.source_url.value=''; integrationForm.elements.folder_path.value='';
     try{
       const data=await api('/api/users/integrations/'+integrationForm.elements.service.value);
       if(version!==integrationVersion)return;
       integrationForm.elements.username.value=data.username;
+      integrationForm.elements.source_url.value=data.source_url||'';
+      integrationForm.elements.folder_path.value=data.folder_path||'';
       integrationSaved=!!data.configured;
       integrationStatus.textContent=data.configured?'Доступ сохранён. Пароль скрыт.':'Доступ ещё не настроен.';
     }catch(e){if(version===integrationVersion)integrationStatus.textContent=e.message;}
     finally{if(version===integrationVersion)setIntegrationBusy(false);}
   }
   integrationForm.elements.service.addEventListener('change',loadIntegration);
-  for(const name of ['username','password']){
+  for(const name of ['username','password','source_url','folder_path']){
     integrationForm.elements[name].addEventListener('input',()=>{
+      integrationForm.dataset.dirty='true';
       integrationSaved=false; updateIntegrationCheck();
       integrationStatus.textContent='Сначала сохраните изменения доступа.';
     });
@@ -258,18 +286,25 @@
     event.preventDefault();if(integrationBusy)return;
     integrationSaved=false;setIntegrationBusy(true);
     try{
-      await api('/api/users/integrations/'+integrationForm.elements.service.value,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:integrationForm.elements.username.value,password:integrationForm.elements.password.value})});
+      const payload={username:integrationForm.elements.username.value,password:integrationForm.elements.password.value};
+      if(integrationForm.elements.service.value==='zip_cloud'){
+        payload.source_url=integrationForm.elements.source_url.value;
+        payload.folder_path=integrationForm.elements.folder_path.value;
+      }
+      await api('/api/users/integrations/'+integrationForm.elements.service.value,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       integrationSaved=true;
+      integrationForm.dataset.dirty='false';
       integrationForm.elements.password.value='';integrationStatus.textContent='Настройки доступа сохранены.';
       loadNotifications().catch(()=>{});
     }catch(e){integrationStatus.textContent=e.message;}
     finally{setIntegrationBusy(false);}
   });
   checkEddsLogin.addEventListener('click',async()=>{
-    if(integrationBusy||!integrationSaved||integrationForm.elements.service.value!=='edds')return;
-    setIntegrationBusy(true);integrationStatus.textContent='Проверяем вход и получение данных Добродела…';
+    const service=integrationForm.elements.service.value;
+    if(integrationBusy||!integrationSaved||!['edds','zip_cloud'].includes(service))return;
+    setIntegrationBusy(true);integrationStatus.textContent=service==='zip_cloud'?'Проверяем доступ к папке Облака МО…':'Проверяем вход и получение данных Добродела…';
     try{
-      const data=await api('/api/users/integrations/edds/check',{method:'POST'});
+      const data=await api('/api/users/integrations/'+service+'/check',{method:'POST'});
       integrationStatus.textContent=data.message;
     }catch(e){integrationStatus.textContent=e instanceof TypeError?'Не удалось связаться с сервером. Повторите проверку.':e.message;}
     finally{setIntegrationBusy(false);}

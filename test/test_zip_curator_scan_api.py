@@ -4,9 +4,16 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from services.zip_curator import core
+from services.zip_curator import source
+
+
+@pytest.fixture(autouse=True)
+def no_real_credentials(monkeypatch):
+    monkeypatch.setattr(source, 'credentials', lambda service: None)
+    monkeypatch.delenv('ZIP_FOLDER_A_URL', raising=False)
 
 
 def client_with(sync):
@@ -17,7 +24,7 @@ def client_with(sync):
     zc = SimpleNamespace(sync_and_scan_folder_a=sync, scan_folder=lambda: (1, 0),
                          load_state=lambda: {'pending': [], 'clean': {}},
                          FolderSyncBusy=core.FolderSyncBusy, DiskSyncError=core.DiskSyncError)
-    exec(compile(handlers, 'app.py', 'exec'), {'app': app, 'zc': zc})
+    exec(compile(handlers, 'app.py', 'exec'), {'app': app, 'zc': zc, 'HTTPException': HTTPException})
     return TestClient(app)
 
 
@@ -47,9 +54,29 @@ def test_partial_success_returns_good_state():
     assert response.json() == expected
 
 
-def test_local_scan_success_has_uniform_contract(monkeypatch):
-    monkeypatch.delenv('ZIP_FOLDER_A_URL', raising=False)
-    response = client_with(lambda url: pytest.fail('network not expected')).post('/zip_curator/api/scan', json={})
+def test_empty_request_uses_server_source(monkeypatch):
+    calls = []
+    monkeypatch.setenv('ZIP_FOLDER_A_URL', 'configured-yandex-folder')
+    def sync(url):
+        calls.append(url)
+        return {'ok': True, 'partial': False}
+    response = client_with(sync).post('/zip_curator/api/scan', json={})
     assert response.status_code == 200
     assert response.json()['ok'] is True
     assert response.json()['partial'] is False
+    assert calls == ['configured-yandex-folder']
+
+
+def test_saved_cloud_overrides_stale_frontend_yandex_url(monkeypatch):
+    monkeypatch.setattr(source, 'credentials', lambda service: {
+        'username': 'office-user', 'password': 'PRIVATE', 'source_url': source.DEFAULT_CLOUD_URL,
+        'folder_path': '/shared/stock'})
+    calls = []
+    def sync(url, **kwargs):
+        calls.append((url, kwargs))
+        return {'ok': True, 'partial': False}
+    response = client_with(sync).post('/zip_curator/api/scan', json={'public_url': source.DEFAULT_YANDEX_URL})
+    assert response.status_code == 200
+    assert calls == [(source.DEFAULT_CLOUD_URL, {'provider': 'mosreg',
+        'account': {'username': 'office-user', 'password': 'PRIVATE'}, 'folder_path': '/shared/stock'})]
+    assert 'PRIVATE' not in response.text

@@ -9,6 +9,8 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from services.mingkh import water_map as maps
+from utils import db
+from services import scheduler
 from routers.mingkh import router
 
 def point(cid=7, **overrides):
@@ -43,6 +45,9 @@ class WaterMapTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.tmp_path = Path(temp.name)
+        self.setattr(db, 'DB_FILE', self.tmp_path / 'test.sqlite')
+        self.setattr(db, '_SCHEMA_READY', False)
+        self.setattr(scheduler, '_SEEDED', False)
         self.setattr(maps, 'SEED_FILE', self.tmp_path / 'no-seed.json.gz')
 
     def setattr(self, owner, name, value):

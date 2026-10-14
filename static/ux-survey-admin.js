@@ -36,6 +36,12 @@
     const node = id => document.getElementById(id);
     let started = false, stopped = false, interval = null, request = null, timeout = null;
     let inFlight = false, lastSuccess = null, fingerprint = null;
+    function sectionActive() {
+      const section = document.body?.dataset?.adminSection;
+      const panel = node('feedbackAdmin')?.closest?.('[data-admin-panel]');
+      // The standalone survey page keeps its original polling behaviour.
+      return !section || !panel || (section === 'feedback' && !panel.hidden);
+    }
     function element(tag, className, text) {
       const result = document.createElement(tag);
       if (className) result.className = className;
@@ -138,7 +144,7 @@
       node('feedbackUpdated').textContent = 'Результаты скрыты до подтверждения прав доступа.';
     }
     async function refresh() {
-      if (inFlight || stopped || document.hidden) return;
+      if (inFlight || stopped || document.hidden || !sectionActive()) return;
       inFlight = true;
       node('feedbackRefresh').disabled = true;
       node('feedbackRefresh').setAttribute('aria-busy','true');
@@ -162,7 +168,7 @@
         lastSuccess = new Date();
         node('feedbackAccessNotice').hidden = true;
         status('Результаты обновляются автоматически.', 'success');
-        node('feedbackUpdated').textContent = `Последнее обновление: ${dateTime(lastSuccess)} (МСК). Проверка каждые 10 секунд.`;
+        node('feedbackUpdated').textContent = `Последнее обновление: ${dateTime(lastSuccess)} (МСК). Проверка каждые 10 секунд, пока раздел открыт и вкладка видна.`;
       } catch (_) {
         if (!stopped) status(lastSuccess ? 'Связь с сервером прервалась. Показаны последние полученные данные; повторим запрос автоматически.' : 'Не удалось загрузить результаты. Повторим запрос автоматически; можно нажать «Обновить сейчас».', 'error');
       } finally {
@@ -171,12 +177,13 @@
         node('feedbackRefresh').removeAttribute('aria-busy');
       }
     }
-    function resume() { if (!document.hidden) refresh(); }
+    function resume() { if (!document.hidden) return refresh(); }
     function start() {
       if (started) return;
       started = true;stopped = false;
       node('feedbackRefresh').addEventListener('click', refresh);
       document.addEventListener('visibilitychange', resume);
+      document.addEventListener('admin:sectionchange', resume);
       env.addEventListener('online', resume);
       interval = env.setInterval(refresh, POLL_MS);
       return refresh();
@@ -186,6 +193,7 @@
       env.clearInterval(interval);env.clearTimeout(timeout);request?.abort();
       node('feedbackRefresh').removeEventListener('click', refresh);
       document.removeEventListener('visibilitychange', resume);
+      document.removeEventListener('admin:sectionchange', resume);
       env.removeEventListener('online', resume);
     }
     return {start,stop,refresh};

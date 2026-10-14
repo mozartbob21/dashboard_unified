@@ -16,6 +16,7 @@ class Element {
   removeAttribute(name) {delete this.attributes[name];}
   addEventListener(name,callback) {this.handlers.set(name,callback);}
   removeEventListener(name,callback) {if(this.handlers.get(name)===callback)this.handlers.delete(name);}
+  closest(selector) {return selector==='[data-admin-panel]' ? this.panel || null : null;}
 }
 function payload(visits=2) {
   return {period:'all_time', tracking_since:'2026-10-01T07:05:38Z', updated_at:'2026-10-13T10:00:00Z', visit_gap_minutes:30,
@@ -26,11 +27,14 @@ function payload(visits=2) {
 }
 function pending() {let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 function response(body,status=200,options={}) {return {ok:status>=200&&status<300,status,json:async()=>body,...options};}
-function fixture() {
+function fixture({section,withPanel=false,missing=[]}={}) {
   const nodes=new Map(),requests=[],intervals=new Map(),timeouts=new Map(),events=new Map(),documentEvents=new Map();let token=0;
-  const document={hidden:false,getElementById(id){if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);},createElement:tag=>new Element(tag),addEventListener:(name,cb)=>documentEvents.set(name,cb),removeEventListener:name=>documentEvents.delete(name)};
+  const document={body:new Element('body'),hidden:false,getElementById(id){if(missing.includes(id))return null;if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);},createElement:tag=>new Element(tag),addEventListener:(name,cb)=>documentEvents.set(name,cb),removeEventListener:name=>documentEvents.delete(name)};
+  if(section!==undefined)document.body.dataset.adminSection=section;
+  const panel=withPanel?new Element():null;
+  if(panel){panel.dataset.adminPanel='statistics';panel.hidden=section!=='statistics';document.getElementById('modulePopularity').panel=panel;}
   const env={document,AbortController,fetch:(url,options)=>{const request=pending();requests.push({url,options,...request});return request.promise;},setInterval:(callback,ms)=>{const id=++token;intervals.set(id,{callback,ms});return id;},clearInterval:id=>intervals.delete(id),setTimeout:(callback,ms)=>{const id=++token;timeouts.set(id,{callback,ms});return id;},clearTimeout:id=>timeouts.delete(id),addEventListener:(name,cb)=>events.set(name,cb),removeEventListener:name=>events.delete(name)};
-  return {controller:createController(env),requests,intervals,timeouts,events,documentEvents,document,node:id=>document.getElementById(id)};
+  return {controller:createController(env),requests,intervals,timeouts,events,documentEvents,document,panel,node:id=>document.getElementById(id),select(section){document.body.dataset.adminSection=section;if(panel)panel.hidden=section!=='statistics';return documentEvents.get('admin:sectionchange')?.({detail:{section}});}};
 }
 async function initial(f,data=payload()) {const done=f.controller.start();f.requests[0].resolve(response(data));await done;}
 
@@ -110,4 +114,87 @@ test('malformed responses keep prior totals instead of fabricating an empty rank
     data=>data.modules[1].visits=100,data=>data.modules[1]=null,data=>data.updated_at='invalid']){
     const data=payload();change(data);assert.ok(!validPayload(data));
   }
+});
+
+test('statistics overview derives exact visit totals, tracked modules and unused modules from every row',async()=>{
+  const f=fixture(),data=payload(7);
+  data.modules[1].visits=3;
+  data.modules.push({...data.modules[1],rank:3,module_id:'third',label:'Третий блок',visits:0});
+  await initial(f,data);
+  assert.equal(f.node('popularityTotalVisits').textContent,'10');
+  assert.equal(f.node('popularityTrackedModules').textContent,'3');
+  assert.equal(f.node('popularityUnusedModules').textContent,'1');
+  const refresh=f.controller.refresh();
+  data.modules.forEach(item=>item.visits=0);
+  f.requests[1].resolve(response(data));await refresh;
+  assert.equal(f.node('popularityTotalVisits').textContent,'0');
+  assert.equal(f.node('popularityTrackedModules').textContent,'3');
+  assert.equal(f.node('popularityUnusedModules').textContent,'3');
+});
+
+test('optional overview cards do not break standalone rendering, and totals do not lose integer precision',async()=>{
+  const missing=['popularityTotalVisits','popularityTrackedModules','popularityUnusedModules'];
+  const standalone=fixture({missing});await initial(standalone);
+  assert.equal(standalone.node('popularityRows').children.length,2);
+  const f=fixture(),data=payload(Number.MAX_SAFE_INTEGER);
+  data.modules[1].visits=Number.MAX_SAFE_INTEGER;
+  await initial(f,data);
+  assert.equal(f.node('popularityTotalVisits').textContent,new Intl.NumberFormat('ru-RU').format(18014398509481982n));
+});
+
+test('statistics waits for its admin section and refreshes immediately on entry without clearing prior DOM',async()=>{
+  const f=fixture({section:'users',withPanel:true});await f.controller.start();
+  await [...f.intervals.values()][0].callback();await f.events.get('online')();
+  assert.equal(f.requests.length,0);
+  const entering=f.select('statistics');assert.equal(f.requests.length,1);
+  f.requests[0].resolve(response(payload()));await entering;
+  const row=f.node('popularityRows').children[0],stamp=f.node('popularityUpdated').textContent;
+  await f.select('feedback');await [...f.intervals.values()][0].callback();await f.events.get('online')();
+  assert.equal(f.requests.length,1);assert.equal(f.node('popularityRows').children[0],row);
+  assert.equal(f.node('popularityUpdated').textContent,stamp);
+  const returning=f.select('statistics');assert.equal(f.requests.length,2);
+  assert.equal(f.node('popularityRows').children[0],row);
+  f.requests[1].resolve(response(payload(5)));await returning;
+  assert.equal(f.node('popularityTotalVisits').textContent,'5');
+  assert.equal(f.requests[1].url,'/api/users/module-popularity');
+  assert.equal(f.requests[1].options.credentials,'same-origin');
+});
+
+test('a hidden browser tab or hidden statistics panel pauses reads even when the section is selected',async()=>{
+  const f=fixture({section:'users',withPanel:true});await f.controller.start();
+  f.document.hidden=true;await f.select('statistics');assert.equal(f.requests.length,0);
+  f.document.hidden=false;f.panel.hidden=true;
+  await f.documentEvents.get('visibilitychange')();assert.equal(f.requests.length,0);
+  f.panel.hidden=false;const resume=f.documentEvents.get('visibilitychange')();
+  f.requests[0].resolve(response(payload()));await resume;
+  assert.equal(f.requests.length,1);
+  f.controller.stop();assert.equal(f.documentEvents.size,0);assert.equal(f.intervals.size,0);
+});
+
+test('standalone statistics polls when either admin marker is absent',async()=>{
+  for(const options of [{section:'users'},{withPanel:true}]){
+    const f=fixture(options);await initial(f);assert.equal(f.requests.length,1);
+  }
+});
+
+test('a response denying access clears overview and table even after leaving the section',async()=>{
+  for(const status of [401,403]){
+    const f=fixture({section:'statistics',withPanel:true});await initial(f);
+    const load=f.controller.refresh();await f.select('integrations');
+    assert.equal(f.requests[1].options.signal.aborted,false);
+    f.requests[1].resolve(response({},status));await load;
+    assert.equal(f.node('popularityRows').children.length,0);
+    for(const id of ['popularityTotalVisits','popularityTrackedModules','popularityUnusedModules'])assert.equal(f.node(id).textContent,'—');
+    assert.equal(f.node('popularityAccessNotice').hidden,false);
+  }
+});
+
+test('section changes do not overlap pending statistics requests and failed refreshes retain overview',async()=>{
+  const f=fixture({section:'statistics',withPanel:true});await initial(f);
+  const load=f.controller.refresh();await f.select('users');await f.select('statistics');
+  assert.equal(f.requests.length,2);
+  f.requests[1].reject(new Error('offline'));await load;
+  assert.equal(f.node('popularityTotalVisits').textContent,'2');
+  assert.equal(f.node('popularityTrackedModules').textContent,'2');
+  assert.equal(f.node('popularityUnusedModules').textContent,'1');
 });
