@@ -92,13 +92,49 @@ def test_probe_safe_errors_and_success(api, monkeypatch):
     assert 'secret-for-test' not in response.text and '/private' not in response.text
 
 
-def test_public_status_exposes_only_provider(isolated_db):
+def test_public_status_keeps_both_sources_without_credentials(isolated_db):
     integrations.save_credentials('office-user','secret-for-test','zip_cloud',source_url=source.DEFAULT_CLOUD_URL)
-    assert source.public_status() == {'provider':'mosreg','configured':True,'label':'Облако МО'}
-    assert source.resolve_source(source.DEFAULT_YANDEX_URL)['provider'] == 'mosreg'
+    status = source.public_status()
+    assert status['provider'] == 'combined' and status['configured']
+    assert [item['provider'] for item in status['sources']] == ['yandex', 'mosreg']
+    assert all(item['configured'] for item in status['sources'])
+    assert 'secret-for-test' not in str(status) and 'office-user' not in str(status)
+    selected = source.resolve_sources(source.DEFAULT_YANDEX_URL)
+    assert [item['provider'] for item in selected] == ['yandex', 'mosreg']
+    assert selected[0]['url'] == source.DEFAULT_YANDEX_URL
+    assert selected[1]['account']['username'] == 'office-user'
+    assert source.resolve_source()['provider'] == 'yandex'
 
 
 def test_unconfigured_cloud_url_is_not_sent_to_yandex(isolated_db, monkeypatch):
     monkeypatch.setenv('ZIP_FOLDER_A_URL', source.DEFAULT_CLOUD_URL)
-    with pytest.raises(source.DiskSyncError, match='Сохраните доступ'):
-        source.resolve_source()
+    selected = source.resolve_sources()
+    assert selected[0]['provider'] == 'yandex'
+    assert selected[0]['url'] == source.DEFAULT_YANDEX_URL
+    assert selected[1]['provider'] == 'mosreg' and 'Сохраните доступ' in selected[1]['error']
+
+
+def test_unreadable_cloud_does_not_block_yandex(isolated_db, monkeypatch):
+    from fastapi import HTTPException
+    def broken(service):
+        raise HTTPException(503, 'sensitive config detail')
+    monkeypatch.setattr(source, 'credentials', broken)
+    monkeypatch.setenv('ZIP_FOLDER_A_URL', 'existing-yandex-link')
+    selected = source.resolve_sources()
+    assert selected[0]['url'] == 'existing-yandex-link'
+    assert selected[1]['provider'] == 'mosreg' and selected[1]['error']
+    assert 'sensitive' not in str(source.public_status())
+    assert source.public_status()['configured'] is True
+
+
+def test_cloud_probe_does_not_probe_yandex(api, monkeypatch):
+    assert save(api).status_code == 200
+    from services.zip_curator import mosreg_cloud
+    calls = []
+    class FakeCloud:
+        def __init__(self, session, url, **kwargs): calls.append(url)
+        def list_files(self): return [{'name':'test.xlsx'}]
+    monkeypatch.setattr(mosreg_cloud, 'CloudClient', FakeCloud)
+    result = source.check_cloud_access()
+    assert result['ok'] and result['files'] == 1
+    assert calls == [source.DEFAULT_CLOUD_URL]

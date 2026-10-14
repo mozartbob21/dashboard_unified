@@ -3495,17 +3495,15 @@ async def zc_delete_municipality(payload: dict = None):
 
 @app.post("/zip_curator/api/scan")
 async def zc_scan(payload: dict = None):
-    from services.zip_curator.source import resolve_source
+    from services.zip_curator.source import resolve_sources
     from fastapi.responses import JSONResponse
     from starlette.concurrency import run_in_threadpool
 
     try:
-        selected = await run_in_threadpool(resolve_source, (payload or {}).get('public_url'))
-        if selected['provider'] == 'mosreg':
-            return await run_in_threadpool(zc.sync_and_scan_folder_a, selected['url'],
-                                           provider='mosreg', account=selected['account'],
-                                           folder_path=selected.get('folder_path'))
-        return await run_in_threadpool(zc.sync_and_scan_folder_a, selected['url'])
+        selected = await run_in_threadpool(resolve_sources, (payload or {}).get('public_url'))
+        result = await run_in_threadpool(zc.sync_and_scan_sources, selected)
+        return JSONResponse(result, status_code=200 if result.get('ok') else 502,
+                            headers={'Cache-Control': 'private, no-store'})
     except HTTPException as error:
         return JSONResponse({'ok': False, 'error': error.detail}, status_code=error.status_code)
     except zc.FolderSyncBusy as error:

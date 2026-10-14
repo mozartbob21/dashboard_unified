@@ -34,6 +34,13 @@
   .sync-result-title{font-weight:650;color:var(--ink)}
   .sync-result-message{margin-top:4px;color:var(--ink2);overflow-wrap:anywhere}
   .sync-result-counts{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:7px;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .sync-sources{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px;margin-top:10px}
+  .sync-source{min-width:0;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--panel);overflow-wrap:anywhere}
+  .sync-source-title{display:block;font-weight:650;color:var(--ink)}
+  .sync-source-status{display:block;margin-top:3px;color:var(--ink2)}
+  .sync-source[data-kind="error"] .sync-source-title,.sync-source[data-kind="partial"] .sync-source-title{color:var(--amber)}
+  html[data-theme="dark"] .sync-source[data-kind="error"] .sync-source-title,html[data-theme="dark"] .sync-source[data-kind="partial"] .sync-source-title{color:#efb55a}
+  #sourceBadge{white-space:normal;overflow-wrap:anywhere;max-width:100%;color:var(--ink2);background:var(--bg);padding:6px 9px}
   .sync-result details{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
   .sync-result summary{cursor:pointer;font-weight:600;color:var(--ink)}
   .sync-result ul{margin:9px 0 0;padding-left:20px}
@@ -91,8 +98,8 @@ html[data-glass="on"] .card { background:color-mix(in srgb,var(--panel) 80%,tran
   <div id="cfgWarn"></div>
   <div class="card">
     <div class="bar">
-      <button class="btn primary" id="btnDrive">⟳ Обновить данные (из папки A)</button>
-      <span class="badge" id="sourceBadge" role="status">Проверяем источник…</span>
+      <button class="btn primary" id="btnDrive">⟳ Обновить данные</button>
+      <span class="badge" id="sourceBadge" role="status">Яндекс Диск · проверяем дополнительные источники…</span>
       <button class="btn" id="btnManual">📁 Загрузить файлы вручную</button>
       <div class="sep"></div>
       <button class="btn" id="btnLoadDict">Загрузить справочник</button>
@@ -187,16 +194,18 @@ async function loadSource(){
   try{
     const response=await fetch('/zip_curator/api/source',{cache:'no-store'}),source=await response.json();
     if(!response.ok||!source||source.configured!==true){
-      badge.textContent='Источник не настроен';
-      warning.textContent='Источник папки А пока недоступен. Можно загрузить файлы вручную.';
+      badge.textContent='Источники не настроены';
+      warning.textContent='Не удалось проверить источники. Можно повторить обновление или загрузить файлы вручную.';
       return;
     }
-    const label=source.provider==='mosreg'?'Облако МО':source.provider==='yandex'?'Яндекс Диск':source.label||'Папка А';
-    badge.textContent='Источник: '+label;
-    warning.textContent='';
+    const connected=Array.isArray(source.sources)?source.sources.filter(item=>item&&item.configured===true&&['yandex','mosreg'].includes(item.provider)):[];
+    const labels=[...new Set(connected.map(item=>zipSourceLabel(item.provider)))];
+    const label=labels.length?labels.join(' + '):zipSourceLabel(source.provider);
+    badge.textContent=(labels.length>1?'Источники: ':'Источник: ')+label;
+    warning.textContent=source.warning?safeScanError(source.warning,'Один из источников требует проверки настроек. Остальные продолжат обновляться.'):'';
   }catch(error){
-    badge.textContent='Источник временно недоступен';
-    warning.textContent='Не удалось проверить источник папки А. Ручная загрузка файлов доступна.';
+    badge.textContent='Источники: проверка временно недоступна';
+    warning.textContent='Не удалось проверить настройки источников. Обновление и ручная загрузка файлов доступны.';
   }
 }
 const fmt=n=>n==null||isNaN(n)?'—':(Math.round(n*100)/100).toLocaleString('ru-RU');
@@ -296,6 +305,9 @@ function md5cacheSet(c){try{localStorage.setItem(MD5CACHE_KEY,JSON.stringify(c))
 const MAX_DOWNLOADS=200;  // страховка: свежие идут первыми, актуальные версии всегда в начале
 
 let driveSyncRunning=false;
+function zipSourceLabel(provider){
+  return provider==='yandex'?'Яндекс Диск':provider==='mosreg'?'Облако МО':provider==='combined'?'Яндекс Диск + Облако МО':'Подключённые источники';
+}
 function safeScanError(value, fallback){
   if(typeof value!=='string')return fallback;
   const message=value.trim();
@@ -313,18 +325,34 @@ function renderDriveSync({kind,title,message='',result=null}){
   if(!result)return;
   const count=key=>Number.isFinite(Number(result[key]))?Math.max(0,Math.trunc(Number(result[key]))):0;
   const counts=document.createElement('div');counts.className='sync-result-counts';
-  for(const [key,label] of [['files','Файлов в папке'],['downloaded','Скачано'],['reused','Без изменений'],['added','Новых реестров'],['skipped','Пропущено'],['removed','Убрано старых файлов'],['failed','С ошибкой']]){
+  for(const [key,label] of [['files','Файлов в источниках'],['downloaded','Скачано'],['reused','Без изменений'],['duplicates','Повторов исключено'],['added','Новых реестров'],['skipped','Пропущено'],['removed','Убрано старых файлов'],['failed','С ошибкой']]){
     const item=document.createElement('span');item.textContent=`${label}: ${count(key)}`;counts.append(item);
   }
-  panel.append(counts);
+  if(['files','downloaded','reused','duplicates'].some(key=>Object.prototype.hasOwnProperty.call(result,key)))panel.append(counts);
+  const sources=Array.isArray(result.sources)?result.sources:[];
+  if(sources.length){
+    const list=document.createElement('div');list.className='sync-sources';list.setAttribute('role','list');list.setAttribute('aria-label','Результаты обновления по источникам');
+    for(const source of sources){
+      if(!source||!['yandex','mosreg'].includes(source.provider))continue;
+      const item=document.createElement('div'),name=document.createElement('span'),status=document.createElement('span');
+      const failed=Number(source.failed)>0,ok=source.ok===true;
+      item.className='sync-source';item.setAttribute('role','listitem');item.dataset.kind=ok?(failed?'partial':'success'):'error';
+      name.className='sync-source-title';name.textContent=zipSourceLabel(source.provider);
+      status.className='sync-source-status';
+      const total=Number.isFinite(Number(source.files))?Math.max(0,Math.trunc(Number(source.files))):0;
+      status.textContent=ok?(failed?'Проверен частично. ':'Проверен. ')+`Файлов: ${total}.`:'Не обновлён. '+safeScanError(source.error,'Источник временно недоступен. Повторите обновление позже.');
+      item.append(name,status);list.append(item);
+    }
+    panel.append(list);
+  }
   const errors=Array.isArray(result.errors)?result.errors:[];
   if(errors.length){
     const details=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('ul');
-    summary.textContent=`Файлы, которые не удалось обновить (${errors.length})`;details.append(summary);
+    summary.textContent=`Ошибки обновления (${errors.length})`;details.append(summary);
     for(const error of errors){
       if(!error||typeof error!=='object')continue;
       const item=document.createElement('li'),name=document.createElement('span'),reason=document.createElement('span'),retained=document.createElement('span');
-      name.className='sync-file-name';name.textContent=String(error.name||'Файл без названия');
+      name.className='sync-file-name';const fileName=String(error.name||'Файл без названия');name.textContent=['yandex','mosreg'].includes(error.provider)&&fileName!==zipSourceLabel(error.provider)?zipSourceLabel(error.provider)+': '+fileName:fileName;
       reason.className='sync-file-note';reason.textContent=safeScanError(error.message,'Не удалось получить или обработать файл. Повторите обновление позже.');
       retained.className='sync-file-note';retained.textContent=error.retained?'Сохранена предыдущая локальная версия; она не является новым обновлением.':'Новая версия не загружена; прежние согласованные данные сохранены.';
       item.append(name,reason,retained);list.append(item);
@@ -335,22 +363,23 @@ function renderDriveSync({kind,title,message='',result=null}){
 async function fetchFromDrive(){
   if(driveSyncRunning)return;
   const button=$('#btnDrive'),label=button.textContent;
-  driveSyncRunning=true;button.disabled=true;button.textContent='⟳ Обновляем папку А…';button.setAttribute('aria-busy','true');
-  renderDriveSync({kind:'running',title:'Обновляем данные из папки А',message:'Проверяем и скачиваем файлы. При временном сбое сервер повторит загрузку. Дождитесь результата.'});
+  driveSyncRunning=true;button.disabled=true;button.textContent='⟳ Обновляем источники…';button.setAttribute('aria-busy','true');
+  renderDriveSync({kind:'running',title:'Обновляем данные из подключённых источников',message:'Проверяем Яндекс Диск и подключённое Облако МО. Одинаковые файлы учитываются один раз. Дождитесь результата.'});
   try{
     const r=await fetch('/zip_curator/api/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
     let d;
     try{d=await r.json();}catch(e){d=null;}
-    const fallback=r.status===409?'Обновление папки А уже выполняется. Дождитесь его завершения и повторите проверку.':r.status===401||r.status===403?'Сессия завершилась или нет доступа. Войдите в систему и повторите обновление.':'Сервер не смог завершить обновление папки А. Ранее сохранённые данные не заменены.';
+    const fallback=r.status===409?'Обновление источников уже выполняется. Дождитесь его завершения и повторите проверку.':r.status===401||r.status===403?'Сессия завершилась или нет доступа. Войдите в систему и повторите обновление.':'Сервер не смог завершить обновление источников. Ранее сохранённые данные не заменены.';
     if(!r.ok||!d||typeof d!=='object'||d.ok!==true){
       const message=safeScanError(d&&d.error,fallback);
-      renderDriveSync({kind:'error',title:'Обновление не завершено',message});toast(message,6000);return;
+      renderDriveSync({kind:'error',title:'Обновление не завершено',message,result:d&&typeof d==='object'?d:null});toast(message,6000);return;
     }
     if(d.state&&Array.isArray(d.state.pending)&&d.state.clean&&typeof d.state.clean==='object'&&!Array.isArray(d.state.clean))applyServerState(d.state);
-    const partial=d.partial===true||Number(d.failed)>0;
+    const sourceFailure=Array.isArray(d.sources)&&d.sources.some(source=>source&&source.ok===false);
+    const partial=d.partial===true||Number(d.failed)>0||sourceFailure;
     const allFailed=partial&&Number(d.files)>0&&Number(d.failed)>=Number(d.files);
-    const title=allFailed?'Не удалось обновить файлы папки А':partial?'Обновление завершено частично':'Папка А обновлена';
-    const message=partial?'Доступные файлы обработаны. Для файлов с ошибками сохранены прежние данные; повторите обновление позже.':'Файлы проверены. Новые реестры доступны в очереди на согласование.';
+    const title=allFailed?'Не удалось обновить файлы источников':partial?'Обновление завершено частично':'Источники обновлены';
+    const message=partial?'Доступные файлы обработаны. Данные недоступных источников и файлов сохранены; повторите обновление позже.':'Файлы из подключённых источников проверены, повторы исключены. Новые реестры доступны в очереди на согласование.';
     renderDriveSync({kind:partial?'partial':'success',title,message,result:d});
     toast(title,5000);
   }catch(e){

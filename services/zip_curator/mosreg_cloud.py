@@ -1,8 +1,9 @@
 """Read-only ownCloud client for the configured Mosreg ZIP stock folder.
 
 ownCloud's Meta API resolves the UI fileid to the logged-in user's path. A
-Depth:0 PROPFIND verifies that identity before any recursive listing. There is
-no account-root fallback, redirect following, or download-URL delegation.
+Depth:0 PROPFIND verifies that identity before any recursive listing. The root
+folder is supported only when it is the folder identified by that exact fileid;
+there is no account-root fallback, redirect following, or download-URL delegation.
 The caller owns the supplied requests.Session and closes it after the sync.
 """
 import json
@@ -90,12 +91,16 @@ def _segments(value):
 
 
 def normalize_folder_path(value):
-    """Optional decoded path inside the account, never an account-root fallback."""
+    """Optional decoded path; even an explicit root must later match fileid."""
     if value in (None, ''):
         return ''
     if (not isinstance(value, str) or len(value) > 2048 or value.startswith('//')
             or '://' in value):
         raise CloudSyncError('Укажите путь к конкретной папке внутри облака, без адреса сайта.')
+    # ownCloud may identify the account's root folder by fileid. '/' is a
+    # candidate path, never permission to skip the Depth:0 identity check.
+    if value == '/':
+        return value
     try:
         parts = _segments(value)
     except CloudSyncError:
@@ -286,10 +291,10 @@ class CloudClient:
     def _dav_parts(self, relative):
         return ('remote.php', 'dav', 'files', self._user, *relative)
 
-    def _entry(self, response):
+    def _entry(self, response, *, allow_root=False):
         parts = _href_parts(response.findtext(DAV + 'href'))
         prefix = self._dav_parts(())
-        if parts[:len(prefix)] != prefix or len(parts) <= len(prefix):
+        if parts[:len(prefix)] != prefix or (len(parts) == len(prefix) and not allow_root):
             raise CloudSyncError('Облако вернуло файл за пределами выбранной учётной записи.')
         relative = parts[len(prefix):]
         props = _properties(response)
@@ -306,7 +311,7 @@ class CloudClient:
         etag = _text(props, DAV + 'getetag')
         if len(etag) > 256 or _CONTROL.search(etag):
             raise CloudSyncError('Облако вернуло некорректную версию файла.')
-        item = {'type': kind, 'name': relative[-1], 'path': '/' + '/'.join(relative),
+        item = {'type': kind, 'name': relative[-1] if relative else '/', 'path': '/' + '/'.join(relative),
                 'size': size, 'etag': etag, 'created': _date(_text(props, DAV + 'creationdate')),
                 'modified': _date(_text(props, DAV + 'getlastmodified')),
                 'fileid': _text(props, OC + 'fileid')}
@@ -321,7 +326,7 @@ class CloudClient:
     def _folder_entries(self, relative, depth):
         raw = self._request('PROPFIND', _encoded_path(self._dav_parts(relative)) + '/',
                             body=_propfind_body(), headers={'Depth': str(depth)})
-        result = [self._entry(response) for response in _xml(raw)]
+        result = [self._entry(response, allow_root=not relative) for response in _xml(raw)]
         seen = set()
         for path, _ in result:
             if path in seen or (path != relative and (depth == 0 or path[:-1] != relative)):
@@ -336,7 +341,7 @@ class CloudClient:
         self._current_user()
         relative = None
         if self.folder_path:
-            relative = _segments(self.folder_path)
+            relative = () if self.folder_path == '/' else _segments(self.folder_path)
         else:
             meta_path = '/remote.php/dav/meta/' + self.fileid
             try:
@@ -351,7 +356,11 @@ class CloudClient:
             path = _text(_properties(responses[0]), OC + 'meta-path-for-user')
             if not path:
                 raise CloudSyncError('Облако не вернуло путь папки. Укажите точный путь в настройках облака.')
-            relative = _segments(normalize_folder_path(path))
+            try:
+                normalized = normalize_folder_path(path)
+            except CloudSyncError:
+                raise CloudSyncError('Облако вернуло некорректный путь выбранной папки. Укажите её точный путь в настройках облака.') from None
+            relative = () if normalized == '/' else _segments(normalized)
         properties = self._folder_entries(relative, 0)[0][1]
         if properties['fileid'] != self.fileid:
             raise CloudSyncError('Указанный путь не соответствует fileid выбранной папки. Проверьте настройки облака.')

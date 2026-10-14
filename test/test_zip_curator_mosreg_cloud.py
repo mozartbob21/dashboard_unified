@@ -159,6 +159,7 @@ def test_resolves_real_owncloud_fileid_then_recursively_lists_and_downloads(sess
 def test_canonical_urls_and_optional_plain_folder_paths_are_network_free():
     assert cloud.normalize_source_url('https://cloud.mosreg.ru/index.php/apps/files/?fileid=10968596&dir=%2Fother') == SOURCE
     assert cloud.normalize_folder_path(None) == ''
+    assert cloud.normalize_folder_path('/') == '/'
     assert cloud.normalize_folder_path('Общие документы/Запасы/') == '/Общие документы/Запасы'
 
 
@@ -180,9 +181,9 @@ def test_source_url_rejects_foreign_hosts_ambiguous_identity_and_credentials(url
     assert url not in str(caught.value) and 'password' not in str(caught.value)
 
 
-@pytest.mark.parametrize('path', ['/', '..', '/a/../b', '/a//b', '//evil.test/path',
+@pytest.mark.parametrize('path', ['..', '/a/../b', '/a//b', '//evil.test/path', '//', '///',
                                   'https://evil.test/path', '/a\\b', '/%2e%2e/a', '/a\x00b'])
-def test_explicit_folder_rejects_root_traversal_and_encoded_ambiguity(path):
+def test_explicit_folder_rejects_traversal_and_encoded_ambiguity(path):
     with pytest.raises(cloud.CloudSyncError):
         cloud.normalize_folder_path(path)
 
@@ -200,6 +201,62 @@ def test_explicit_folder_cannot_replace_requested_fileid_with_another_folder(ses
     assert len(session.calls) == 2
 
 
+@pytest.mark.parametrize('folder_path', [None, '/'])
+def test_exact_fileid_can_identify_root_folder_and_download_nested_workbook(session, folder_path):
+    data = workbook()
+    folder = '/ЗиП'
+    path = folder + '/Остатки.xlsx'
+    session.add('PROPFIND', META, [Response(meta_xml('/'))], depth='0')
+    session.add('PROPFIND', dav('/'), [Response(response_xml([{'path': '/', 'dir': True}]))], depth='0')
+    session.add('PROPFIND', dav('/'), [Response(response_xml([
+        {'path': '/', 'dir': True}, {'path': folder, 'dir': True, 'id': '2'},
+    ]))], depth='1')
+    session.add('PROPFIND', dav(folder) + '/', [Response(response_xml([
+        {'path': folder, 'dir': True, 'id': '2'}, {'path': path, 'size': len(data), 'id': '3'},
+    ]))], depth='1')
+    session.add('GET', dav(path), [Response(data, status=200)])
+    api = client(session, folder_path=folder_path)
+    item, = api.list_files()
+    assert item['path'] == path
+    assert api.download(item, lambda payload: None) == data
+    root_calls = [kwargs for _, url, kwargs in session.calls if url == cloud.ORIGIN + dav('/')]
+    assert [call['headers']['Depth'] for call in root_calls] == ['0', '1']
+    meta_calls = [url for _, url, _ in session.calls if url == cloud.ORIGIN + META]
+    assert len(meta_calls) == (1 if folder_path is None else 0)
+
+
+@pytest.mark.parametrize('folder_path', [None, '/'])
+def test_root_cannot_be_listed_when_fileid_does_not_match(session, folder_path):
+    session.add('PROPFIND', META, [Response(meta_xml('/'))], depth='0')
+    session.add('PROPFIND', dav('/'), [Response(response_xml([
+        {'path': '/', 'dir': True, 'id': '999'},
+    ]))], depth='0')
+    api = client(session, folder_path=folder_path)
+    with pytest.raises(cloud.CloudSyncError, match='не соответствует fileid'):
+        api.list_files()
+    assert api._root is None and api._listed == {}
+    assert not any(kwargs['headers'].get('Depth') == '1' for _, _, kwargs in session.calls)
+
+
+def test_root_identity_is_rechecked_during_recursive_listing(session):
+    session.add('PROPFIND', dav('/'), [Response(response_xml([{'path': '/', 'dir': True}]))], depth='0')
+    session.add('PROPFIND', dav('/'), [Response(response_xml([
+        {'path': '/', 'dir': True, 'id': '999'}, {'path': '/a.xlsx', 'id': '2'},
+    ]))], depth='1')
+    api = client(session, folder_path='/')
+    with pytest.raises(cloud.CloudSyncError, match='изменилась'):
+        api.list_files()
+    assert api._listed == {}
+
+
+def test_account_root_self_entry_is_not_accepted_inside_specific_folder(session):
+    session.add('PROPFIND', dav(ROOT) + '/', [Response(response_xml([
+        {'path': ROOT, 'dir': True}, {'path': '/', 'dir': True},
+    ]))], depth='1')
+    with pytest.raises(cloud.CloudSyncError, match='за пределами'):
+        client(session).list_files()
+
+
 @pytest.mark.parametrize('status', [404, 405, 501])
 def test_unsupported_meta_api_never_falls_back_to_account_root(session, status):
     session.add('PROPFIND', META, [Response(b'PRIVATE_BACKEND_RESPONSE', status=status)], depth='0')
@@ -208,7 +265,7 @@ def test_unsupported_meta_api_never_falls_back_to_account_root(session, status):
     assert len(session.calls) == 2
 
 
-@pytest.mark.parametrize('path', ['/', '/a/../b', '//evil.test/a', '/%2e%2e/secret'])
+@pytest.mark.parametrize('path', ['', '/a/../b', '//evil.test/a', '/%2e%2e/secret'])
 def test_untrusted_meta_paths_do_not_select_another_root(session, path):
     session.add('PROPFIND', META, [Response(meta_xml(path))], depth='0')
     with pytest.raises(cloud.CloudSyncError):

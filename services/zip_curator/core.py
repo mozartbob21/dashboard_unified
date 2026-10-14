@@ -22,7 +22,8 @@ NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 SOURCE_DATE_FIELDS = ("source_created_at", "source_modified_at")
 SOURCE_INFO_FIELDS = (*SOURCE_DATE_FIELDS, "source_provider", "source_identity", "source_path",
                       "source_md5", "source_etag", "source_size")
-SOURCE_FIELDS = ("loaded_at", "uploaded", "fname", "local_file", *SOURCE_INFO_FIELDS)
+FINGERPRINT_FIELDS = ("source_sha256", "source_record_hash")
+SOURCE_FIELDS = ("loaded_at", "uploaded", "fname", "local_file", "rso_explicit", *FINGERPRINT_FIELDS, *SOURCE_INFO_FIELDS)
 
 D = json.loads(DICT_JSON.read_text(encoding="utf-8"))
 
@@ -192,7 +193,7 @@ def parse_reestr(rows, fname):
         low = [str(x or "").lower() for x in (r or [])]
         if any("наимен" in c for c in low) and any("кол" in c for c in low): hi = i; break
     rso, date = "", ""
-    for i in range(0, hi if hi > 0 else 3):
+    for i in range(0, hi if hi >= 0 else 3):
         r = rows[i] if i < len(rows) else []
         cell = r[0] if r else None
         if cell is None: continue
@@ -203,6 +204,7 @@ def parse_reestr(rows, fname):
             a,b,c = dm.groups()
             date = f"{c}.{b}.{a}" if "-" in dm.group(0) else dm.group(0)
         elif not rso: rso = s
+    rso_explicit = bool(rso)
     if not rso: rso = re.sub(r"\.(xlsx|xls)$", "", fname or "РСО", flags=re.I)
     if hi < 0: hi = 0
     items = []
@@ -216,7 +218,7 @@ def parse_reestr(rows, fname):
             try: q = float(q.replace(",", "."))
             except Exception: q = None
         items.append({"name": name, "unitRaw": str(r[1] or "").strip() if len(r) > 1 else "", "qty": q})
-    return {"rso": rso, "date": date, "items": items}
+    return {"rso": rso, "rso_explicit": rso_explicit, "date": date, "items": items}
 
 def _atomic_write_json(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -312,31 +314,52 @@ def _source_identity(provider, source, account=None, folder_path=None):
     return hashlib.sha256(json.dumps(scope, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
-def _manifest_source_metadata():
-    """Index only unambiguous cache paths explicitly recorded by the source manifest."""
+def _manifest_sources():
+    """Read legacy single-source manifests and the source-scoped registry together."""
     try:
         saved = json.loads(FOLDER_A_MANIFEST_FILE.read_text(encoding="utf-8"))
-        if not isinstance(saved, dict) or not isinstance(saved.get("files"), list) or not saved.get("source"):
-            return {}
-        provider = saved.get("provider") or "yandex"
-        identity = saved.get("source_identity")
+    except (OSError, ValueError, TypeError):
+        return {}
+    if not isinstance(saved, dict):
+        return {}
+    candidates = list((saved.get("sources") or {}).values()) if isinstance(saved.get("sources"), dict) else []
+    # The top-level copy stays compatible with legacy tools and upgrades. It wins
+    # over the same registry entry if a previous release updated just this copy.
+    candidates.append(saved)
+    sources = {}
+    for entry in candidates:
+        if not isinstance(entry, dict) or not entry.get("source") or not isinstance(entry.get("files"), list):
+            continue
+        provider = entry.get("provider") or "yandex"
+        identity = entry.get("source_identity")
         if not identity:
             if provider != "yandex":
-                return {}  # An authenticated source cannot be inferred without its account scope.
-            identity = _source_identity(provider, saved["source"])
-        indexed, duplicates = {}, set()
+                continue
+            identity = _source_identity(provider, entry["source"])
+        sources[identity] = {key: value for key, value in entry.items() if key not in {"sources", "version"}}
+        sources[identity].update(provider=provider, source_identity=identity)
+    return sources
+
+
+def _valid_cache_name(name):
+    return isinstance(name, str) and name not in {"", ".", ".."} and "/" not in name and "\\" not in name
+
+
+def _manifest_source_metadata():
+    """Index unambiguous cache ownership across every source, including legacy data."""
+    indexed, duplicates = {}, set()
+    for identity, saved in _manifest_sources().items():
         for item in saved["files"]:
             if not isinstance(item, dict):
                 continue
             name = item.get("local_name")
-            if (not isinstance(name, str) or name in {"", ".", ".."}
-                    or "/" in name or "\\" in name or not item.get("remote_path")):
+            if not _valid_cache_name(name) or not item.get("remote_path"):
                 continue
             try:
                 local_file = (FOLDER_A_DIR / name).relative_to(INPUT_DIR).as_posix()
             except ValueError:
                 continue
-            info = {"source_provider": provider, "source_identity": identity,
+            info = {"source_provider": saved["provider"], "source_identity": identity,
                     "source_path": item["remote_path"]}
             for field, origin in [("source_created_at", "created"), ("source_modified_at", "modified")]:
                 value = _source_timestamp(item.get(origin))
@@ -344,16 +367,58 @@ def _manifest_source_metadata():
                     info[field] = value
             if item.get("md5"):
                 info["source_md5"] = str(item["md5"]).lower()
+            if item.get("sha256"):
+                info["source_sha256"] = str(item["sha256"])
             if item.get("etag"):
                 info["source_etag"] = str(item["etag"])
             if type(item.get("size")) is int and item["size"] >= 0:
                 info["source_size"] = item["size"]
-            if local_file in indexed:
+            if local_file in indexed and indexed[local_file] != info:
                 duplicates.add(local_file)
             indexed[local_file] = info
-        return {key: value for key, value in indexed.items() if key not in duplicates}
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
-        return {}
+    return {key: value for key, value in indexed.items() if key not in duplicates}
+
+
+def _record_fingerprint(record):
+    """Original rows only: never hash classifications or curator corrections."""
+    # Without an explicit organization, identical inventory rows may belong to
+    # unrelated organizations. Only byte-identical workbooks are safe to merge.
+    if not record.get("rso_explicit"):
+        return None
+    rows = [[re.sub(r"\s+", " ", unicodedata.normalize("NFKC", str(item.get("name") or "")).casefold()).strip(),
+             _unit_key(item.get("unitRaw") or ""), item.get("qty")]
+            for item in record.get("items", [])]
+    rows.sort(key=lambda row: json.dumps(row, ensure_ascii=False, sort_keys=True))
+    payload = [norm(record.get("rso")), rows]
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _matching_fingerprint(first, second):
+    return any(first.get(field) and first.get(field) == second.get(field) for field in FINGERPRINT_FIELDS)
+
+
+def _source_date_value(record):
+    for field in ("source_modified_at", "source_created_at"):
+        value = _source_timestamp(record.get(field))
+        if value:
+            try:
+                return datetime.fromisoformat(value).timestamp()
+            except (ValueError, OverflowError):
+                pass
+    return None
+
+
+def _older_source(candidate, existing):
+    """A healthy old source cannot roll back a newer source that is unavailable."""
+    if not candidate.get("source_identity") or not existing.get("source_identity"):
+        return False
+    incoming, previous = _source_date_value(candidate), _source_date_value(existing)
+    same_origin = (candidate.get("source_identity") == existing.get("source_identity")
+                   and candidate.get("source_path") == existing.get("source_path"))
+    if previous is not None and incoming is not None:
+        return incoming < previous or (incoming == previous and not same_origin)
+    # Unknown dates are not evidence of a newer version from a different source.
+    return not same_origin and incoming is None
 
 
 def _same_source_version(first, second):
@@ -371,6 +436,34 @@ def _same_source_version(first, second):
     return bool(first.get("uploaded") and first.get("uploaded") == second.get("uploaded"))
 
 
+def _verified_cached_original(entry, info):
+    """Verify an old cache version before deriving immutable migration fingerprints."""
+    relative = entry.get("local_file")
+    if not isinstance(relative, str):
+        return None
+    path = INPUT_DIR / relative
+    try:
+        if path.is_symlink() or not path.resolve().is_relative_to(INPUT_DIR.resolve()):
+            return None
+        if path.stat().st_size > MAX_FILE_BYTES:
+            return None
+        data = path.read_bytes()
+        expected_hash = info.get("source_sha256")
+        if expected_hash and hashlib.sha256(data).hexdigest() != expected_hash:
+            return None
+        if not expected_hash and not info.get("source_md5"):
+            # Old cloud manifests use opaque ETags. Require the same trusted
+            # ETag/size pairing already used by the cache reader, plus XLSX validation.
+            if not (info.get("source_etag") and type(info.get("source_size")) is int
+                    and entry.get("source_etag") == info["source_etag"]
+                    and entry.get("source_size") == info["source_size"]):
+                return None
+        validate_workbook(data, {"md5": info.get("source_md5"), "size": info.get("source_size")}, read_xlsx_rows)
+        return data
+    except Exception:
+        return None
+
+
 def _backfill_source_metadata(state):
     metadata = _manifest_source_metadata()
     changed = False
@@ -381,7 +474,7 @@ def _backfill_source_metadata(state):
         # Existing source/version evidence must agree. A newer cache must never
         # change the dates attached to an older approved workbook.
         if any(entry.get(field) and entry.get(field) != info.get(field)
-               for field in ("source_identity", "source_path", "source_md5", "source_etag", "source_size")):
+               for field in ("source_identity", "source_path", "source_md5", "source_etag", "source_size", "source_sha256")):
             continue
         if not entry.get("source_identity") and entry.get("uploaded"):
             known = info.get("source_modified_at") or info.get("source_created_at")
@@ -391,8 +484,24 @@ def _backfill_source_metadata(state):
                         continue
                 except (ValueError, TypeError, OverflowError):
                     continue
+        if not entry.get("source_sha256") or ("source_record_hash" not in entry and entry.get("rso_explicit") is not False):
+            original = _verified_cached_original(entry, info)
+            if original is not None:
+                try:
+                    parsed = parse_reestr(read_xlsx_rows(original), entry.get("fname") or "registry.xlsx")
+                    # A curator may have corrected names/quantities in state. Only
+                    # the verified original workbook supplies this baseline.
+                    info = {**info, "source_sha256": hashlib.sha256(original).hexdigest(),
+                            "rso_explicit": parsed.get("rso_explicit", False)}
+                    fingerprint = _record_fingerprint(parsed)
+                    if fingerprint:
+                        info["source_record_hash"] = fingerprint
+                except Exception:
+                    pass
         for field, value in info.items():
             existing = entry.get(field)
+            if existing == value:
+                continue
             if not existing or (field in SOURCE_DATE_FIELDS and not _source_timestamp(existing)):
                 entry[field] = value
                 changed = True
@@ -463,10 +572,30 @@ def ingest(list_of_parsed):
         if not p["items"]: continue
         _enrich(p)
         previous = next((x for x in st["pending"] if norm(x["rso"]) == norm(p["rso"])), {})
-        # Metadata-only updates must not re-import unchanged files over curator edits.
+        # Match renamed copies by the immutable source fingerprints, not the
+        # mutable item rows that a curator may already have corrected.
+        identical = next((x for x in st["pending"] if _matching_fingerprint(p, x)), None)
+        if identical is not None:
+            incoming_date, previous_date = _source_date_value(p), _source_date_value(identical)
+            same_origin = (p.get("source_identity") and p.get("source_identity") == identical.get("source_identity")
+                           and p.get("source_path") == identical.get("source_path"))
+            newer = (incoming_date is not None and (previous_date is None or incoming_date > previous_date)
+                     or (same_origin and incoming_date is None and previous_date is None))
+            if _same_source_version(p, identical):
+                identical.update({field: p[field] for field in (*SOURCE_INFO_FIELDS, *FINGERPRINT_FIELDS) if field in p})
+            elif newer:
+                # Equivalent inventory may arrive with a newer report date or
+                # provenance. Advance freshness without losing curator edits.
+                for field in (*SOURCE_INFO_FIELDS, *FINGERPRINT_FIELDS):
+                    identical.pop(field, None)
+                identical.update({field: p[field] for field in SOURCE_FIELDS if field in p and field != "loaded_at"})
+                identical["date"] = p.get("date") or ""
+            continue
         unchanged = _same_source_version(p, previous)
         if unchanged:
-            previous.update({field: p[field] for field in SOURCE_INFO_FIELDS if field in p})
+            previous.update({field: p[field] for field in (*SOURCE_INFO_FIELDS, *FINGERPRINT_FIELDS) if field in p})
+            continue
+        if previous and _older_source(p, previous):
             continue
         p["loaded_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         st["pending"] = [x for x in st["pending"] if norm(x["rso"]) != norm(p["rso"])]
@@ -474,12 +603,14 @@ def ingest(list_of_parsed):
     save_state(st)
     return added
 
-def scan_folder(scan_dir=None, files=None):
+
+def scan_folder(scan_dir=None, files=None, *, with_summary=False):
     scan_dir = Path(scan_dir or INPUT_DIR)
     scan_dir.mkdir(parents=True, exist_ok=True)
     state = load_state()
     approved = set(state.get("clean", {}))
     excluded = set(state.get("excluded_rso", {}))
+    protected = [*state.get("clean", {}).values(), *state.get("excluded_rso", {}).values()]
     pending_before = len(state.get("pending", []))
     state["pending"] = [
         item for item in state.get("pending", [])
@@ -487,35 +618,66 @@ def scan_folder(scan_dir=None, files=None):
     ]
     if len(state["pending"]) != pending_before:
         save_state(state)
-    files = sorted(
-        (p for p in (scan_dir.rglob("*") if files is None else files)
-         if p.is_file() and re.search(r"\.xlsx?$", p.name, re.I)),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    taken, skipped = {}, 0
+    files = [Path(p) for p in (scan_dir.rglob("*") if files is None else files)
+             if Path(p).is_file() and not Path(p).is_symlink() and re.search(r"\.xlsx?$", Path(p).name, re.I)]
     source_metadata = _manifest_source_metadata()
+
+    def local_name(path):
+        try:
+            return path.relative_to(INPUT_DIR).as_posix()
+        except ValueError:
+            return path.name
+
+    def priority(path):
+        info = source_metadata.get(local_name(path), {})
+        date = _source_date_value(info)
+        # Download time is never a ranking signal for remote workbooks.
+        return (date is not None, date if date is not None else
+                (0 if info.get("source_identity") else path.stat().st_mtime), local_name(path))
+
+    files.sort(key=priority, reverse=True)
+    taken, skipped, duplicates = {}, 0, 0
+    byte_hashes, record_hashes = set(), set()
     for f in files:
-        try: rows = read_xlsx_rows(f.read_bytes())
-        except Exception: continue
-        p = parse_reestr(rows, f.name)
+        try:
+            data = f.read_bytes()
+            digest = hashlib.sha256(data).hexdigest()
+            if digest in byte_hashes:
+                skipped += 1; duplicates += 1
+                continue
+            byte_hashes.add(digest)
+            rows = read_xlsx_rows(data)
+        except Exception:
+            continue
+        try:
+            p = parse_reestr(rows, f.name)
+        except Exception:
+            continue
         if not p["items"]: continue
+        p["source_sha256"] = digest
+        fingerprint = _record_fingerprint(p)
+        if fingerprint:
+            p["source_record_hash"] = fingerprint
+            if fingerprint in record_hashes:
+                skipped += 1; duplicates += 1
+                continue
+            record_hashes.add(fingerprint)
         key = norm(p["rso"])
-        # Согласованные РСО не возвращаем в очередь при каждом обновлении папки А.
-        # Удалённые куратором РСО также не восстанавливаем из лежащего в папке файла.
-        if key in approved or key in excluded:
+        # Approved/excluded data remains protected even when a byte-identical
+        # workbook gets a different filename in the second source.
+        if key in approved or key in excluded or any(_matching_fingerprint(p, row) for row in protected):
             skipped += 1
             continue
-        if key in taken: skipped += 1; continue
+        if key in taken:
+            skipped += 1; duplicates += 1
+            continue
         p["fname"] = f.name
         p["uploaded"] = int(f.stat().st_mtime * 1000)
-        try:
-            p["local_file"] = f.relative_to(INPUT_DIR).as_posix()
-        except ValueError:
-            p["local_file"] = f.name
+        p["local_file"] = local_name(f)
         p.update(source_metadata.get(p["local_file"], {}))
         taken[key] = p
-    return ingest(list(taken.values())), skipped
+    added = ingest(list(taken.values()))
+    return (added, skipped, duplicates) if with_summary else (added, skipped)
 
 
 def _safe_remote_name(item, used):
@@ -617,17 +779,10 @@ def _sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", f
         FOLDER_A_DIR.mkdir(parents=True, exist_ok=True)
         # Attach OLD manifest dates before a newer file version replaces that manifest.
         load_state()
-        previous = {}
-        try:
-            saved = json.loads(FOLDER_A_MANIFEST_FILE.read_text(encoding="utf-8"))
-            same_source = (saved.get("source_identity") == identity or
-                           (provider == "yandex" and not saved.get("source_identity")
-                            and saved.get("provider", "yandex") == "yandex" and saved.get("source") == public_url))
-            if same_source:
-                previous = {item["remote_path"]: item for item in saved["files"]
-                            if isinstance(item, dict) and item.get("remote_path")}
-        except (OSError, ValueError, TypeError, KeyError, AttributeError):
-            pass
+        sources = _manifest_sources()
+        saved = sources.get(identity) or {}
+        previous = {item["remote_path"]: item for item in saved.get("files", [])
+                    if isinstance(item, dict) and item.get("remote_path")}
 
         # Reserve known names first so a new file cannot overwrite another file's cache.
         used, names = set(), {}
@@ -666,7 +821,7 @@ def _sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", f
                     _atomic_write_bytes(local_path, data)
                     downloaded += 1
             except (DiskSyncError, OSError) as exc:
-                message = str(exc) if isinstance(exc, DiskSyncError) else "Не удалось сохранить файл на сервере. Проверьте свободное место и права на папку данных."
+                message = _safe_sync_error(exc, account)
                 errors.append({"name": item["name"], "message": message, "retained": bool(cached)})
                 if cached:
                     # Keep the OLD checksum and timestamp: the next run must retry this file.
@@ -683,6 +838,7 @@ def _sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", f
                     pass
             manifest.append({"name": item["name"], "local_name": local_name,
                              "remote_path": remote_path, "md5": checksum, "etag": etag,
+                             "sha256": hashlib.sha256(local_path.read_bytes()).hexdigest(),
                              "created": created, "modified": modified, "size": item.get("size")})
             ready_files.append(local_path)
 
@@ -691,13 +847,16 @@ def _sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", f
         listed_paths = {item["path"] for item in files}
         manifest.extend(old for remote_path, old in previous.items() if remote_path not in listed_paths)
 
-    _atomic_write_json(FOLDER_A_MANIFEST_FILE, {
+    current = {
         "source": public_url, "provider": provider, "source_identity": identity,
         "synced_at": datetime.now().isoformat(timespec="seconds"),
         "partial": bool(errors), "errors": errors, "files": manifest,
-    })
+    }
+    sources[identity] = current
+    _atomic_write_json(FOLDER_A_MANIFEST_FILE, {**current, "version": 2, "sources": sources})
     # A partial/invalid listing must never act as a request to delete the cache.
-    active_names = {item["local_name"] for item in manifest}
+    active_names = {item.get("local_name") for source in sources.values() for item in source.get("files", [])
+                    if isinstance(item, dict)}
     removed = 0
     if not errors:
         for old in previous.values():
@@ -728,6 +887,80 @@ def sync_and_scan_folder_a(public_url, *, account=None, provider="yandex", folde
         result, files = _sync_folder_a(public_url, account=account, provider=provider, folder_path=folder_path)
         added, skipped = scan_folder(FOLDER_A_DIR, files=files)
         result.update({"added": added, "skipped": skipped, "state": load_state()})
+        return result
+
+
+_SOURCE_LABELS = {"yandex": "Яндекс Диск", "mosreg": "Облако МО"}
+
+
+def _safe_sync_error(error, account=None):
+    if isinstance(error, DiskSyncError):
+        message = str(error)
+    elif isinstance(error, OSError) and not isinstance(error, requests.RequestException):
+        message = "Не удалось сохранить файл на сервере. Проверьте свободное место и права на папку данных."
+    else:
+        message = "Не удалось обновить источник. Проверьте доступ и настройки подключения."
+    # Exception strings must not expose signed download URLs or credentials.
+    message = re.sub(r"https?://[^\s]+", "[адрес источника]", message)
+    for field in ("username", "password"):
+        secret = str((account or {}).get(field) or "")
+        if secret:
+            message = message.replace(secret, "[скрыто]")
+    return message[:700]
+
+
+def sync_and_scan_sources(sources):
+    """Refresh independent sources under one lock, then ingest their fresh union."""
+    with _folder_sync_lock():
+        result = {"ok": False, "partial": False, "files": 0, "downloaded": 0,
+                  "reused": 0, "removed": 0, "failed": 0, "errors": [], "sources": [],
+                  "duplicates": 0, "added": 0, "skipped": 0, "failed_sources": 0}
+        ready_files = []
+        any_success = False
+        for source in sources:
+            provider = source.get("provider")
+            label = _SOURCE_LABELS.get(provider, "Источник")
+            summary = {"provider": provider, "label": label, "ok": False, "partial": False,
+                       "files": 0, "downloaded": 0, "reused": 0, "failed": 0}
+            try:
+                if source.get("error"):
+                    raise DiskSyncError(str(source["error"]))
+                synced, files = _sync_folder_a(source.get("url"), provider=provider,
+                    account=source.get("account"), folder_path=source.get("folder_path"))
+                usable = bool(files) or not synced["failed"]
+                summary.update({key: synced[key] for key in ("partial", "files", "downloaded", "reused", "failed")})
+                summary["ok"] = usable
+                if not usable:
+                    summary["error"] = "Ни один файл источника не удалось обновить. Сохранённые данные оставлены."
+                any_success = any_success or usable
+                ready_files.extend(files)
+                for field in ("files", "downloaded", "reused", "removed", "failed"):
+                    result[field] += synced[field]
+                result["partial"] = result["partial"] or synced["partial"]
+                result["errors"].extend({**error, "provider": provider, "source": label} for error in synced["errors"])
+            except Exception as exc:
+                message = _safe_sync_error(exc, source.get("account"))
+                summary.update(error=message, failed=1)
+                result["failed_sources"] += 1
+                result["partial"] = True
+                result["errors"].append({"name": label, "provider": provider, "source": label,
+                                         "message": message, "retained": True})
+            result["sources"].append(summary)
+        result["ok"] = any_success
+        if any_success:
+            added, skipped, duplicates = scan_folder(FOLDER_A_DIR, files=ready_files, with_summary=True)
+            result.update(added=added, skipped=skipped, duplicates=duplicates)
+        if not any_success:
+            result["error"] = "Не удалось обновить ни один источник. Ранее загруженные данные сохранены."
+            # Do not mutate legacy state during an unsuccessful refresh, even
+            # through a metadata migration in load_state().
+            try:
+                state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+                result["state"] = state if isinstance(state, dict) else {"pending": [], "clean": {}, "excluded_rso": {}}
+            except (OSError, ValueError, TypeError):
+                result["state"] = {"pending": [], "clean": _clean_from_published(), "excluded_rso": {}}
+        else:
+            result["state"] = load_state()
         return result
 
 def approve(idx):
@@ -765,12 +998,15 @@ def delete_rso(rso):
 
     st = load_state()
     pending_before = len(st["pending"])
+    deleted_source = next((item for item in st["pending"] if norm(item.get("rso")) == key), {})
     st["pending"] = [item for item in st["pending"] if norm(item.get("rso")) != key]
     pending_removed = pending_before - len(st["pending"])
     clean_item = st["clean"].pop(key, None)
     display_name = str((clean_item or {}).get("rso") or rso).strip()
     st.setdefault("excluded_rso", {})[key] = {
         "rso": display_name,
+        **{field: (clean_item or deleted_source)[field] for field in FINGERPRINT_FIELDS
+           if field in (clean_item or deleted_source)},
         "deleted_at": datetime.now().isoformat(timespec="seconds"),
     }
 
