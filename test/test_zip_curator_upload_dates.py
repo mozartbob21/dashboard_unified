@@ -13,13 +13,14 @@ class UploadDateTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         root = Path(temp.name)
-        for name, path in {'STATE_FILE': root / 'state.json', 'PUBLISHED_FILE': root / 'published.json',
+        for name, path in {'DATA': root, 'STATE_FILE': root / 'state.json', 'PUBLISHED_FILE': root / 'published.json',
                            'MUNICIPALITY_OVERRIDES_FILE': root / 'municipalities.json'}.items():
             mocked = patch.object(core, name, path)
             mocked.start()
             self.addCleanup(mocked.stop)
 
     def registry(self, name='РСО А'):
+        core.save_municipality_override(name, "Тестовый округ")
         return {'rso': name, 'date': '01.09.2026', 'fname': 'source.xlsx',
                 'items': [{'name': 'Труба', 'qty': 3, 'unitRaw': 'шт'}]}
 

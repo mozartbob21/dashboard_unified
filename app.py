@@ -137,6 +137,8 @@ initialize_access_control()
 app.include_router(users_router)
 from routers.ux_survey import router as ux_survey_router
 app.include_router(ux_survey_router)
+from routers.release_notes import router as release_notes_router
+app.include_router(release_notes_router)
 from routers.edds import router as edds_router
 app.include_router(edds_router)
 from routers.mingkh import router as mingkh_router
@@ -3461,6 +3463,11 @@ from services.zip_curator import core as zc
 from services.zip_curator import contacts as zc_contacts
 
 
+@app.exception_handler(zc.CuratorConflictError)
+async def zc_conflict_response(request: Request, error: zc.CuratorConflictError):
+    return JSONResponse({"ok": False, "error": str(error)}, status_code=409)
+
+
 @app.get("/zip_curator/api/state")
 async def zc_state():
     return zc.load_state()
@@ -3485,8 +3492,9 @@ async def zc_save_municipality(payload: dict = None):
     try:
         item = zc.save_municipality_override(p.get("organization"), p.get("municipality"))
         return {"ok": True, "item": item}
+    except zc.CuratorConflictError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=409)
     except ValueError as e:
-        from fastapi.responses import JSONResponse
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 @app.delete("/zip_curator/api/municipalities")
@@ -3532,7 +3540,19 @@ async def zc_upload(request: Request):
 
 @app.post("/zip_curator/api/approve")
 async def zc_approve(payload: dict = None):
-    ok = zc.approve(int((payload or {}).get("idx", -1)))
+    p = payload or {}
+    try:
+        if type(p.get("idx")) is not int:
+            raise ValueError("Не указан реестр для согласования")
+        ok = zc.approve(p["idx"], expected_revision=p.get("revision"))
+    except zc.ApprovalValidationError as error:
+        return JSONResponse({"ok": False, "error": str(error), "issues": error.issues, "state": zc.load_state()}, status_code=422)
+    except zc.CuratorConflictError as error:
+        return JSONResponse({"ok": False, "error": str(error), "state": zc.load_state()}, status_code=409)
+    except (ValueError, TypeError) as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+    if not ok:
+        return JSONResponse({"ok": False, "error": "Реестр не найден. Обновите страницу.", "state": zc.load_state()}, status_code=404)
     published = zc.PUBLISHED_FILE.exists()
     return {"ok": ok, "published": published, "state": zc.load_state()}
 
@@ -3549,6 +3569,8 @@ async def zc_delete_rso(payload: dict = None):
     try:
         result = zc.delete_rso((payload or {}).get("rso"))
         return {"ok": True, **result, "state": zc.load_state()}
+    except zc.CuratorConflictError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=409)
     except ValueError as error:
         return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
 
@@ -3557,9 +3579,16 @@ async def zc_edit(payload: dict = None):
     from fastapi.responses import JSONResponse
     p = payload or {}
     try:
-        ok = zc.edit_item(int(p.get("pi", -1)), int(p.get("ii", -1)), p.get("cat"), p.get("grp"))
-    except ValueError as error:
+        if type(p.get("pi")) is not int or type(p.get("ii")) is not int:
+            raise ValueError("Не указана позиция для исправления")
+        edits = {key: p[key] for key in ("unit", "qty") if key in p}
+        ok = zc.edit_item(p["pi"], p["ii"], p.get("cat"), p.get("grp"), expected_revision=p.get("revision"), **edits)
+    except zc.CuratorConflictError as error:
+        return JSONResponse({"ok": False, "error": str(error), "state": zc.load_state()}, status_code=409)
+    except (ValueError, TypeError) as error:
         return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
+    if not ok:
+        return JSONResponse({"ok": False, "error": "Позиция не найдена. Обновите страницу.", "state": zc.load_state()}, status_code=404)
     return {"ok": ok, "state": zc.load_state()}
 
 
@@ -3684,6 +3713,10 @@ async def zc_publish(request: Request):
             "updated_rso": result["updated_rso"],
             "total_rso": result["total_rso"],
         }
+    except zc.ApprovalValidationError as error:
+        return JSONResponse({"ok": False, "error": str(error), "issues": error.issues}, status_code=422)
+    except zc.CuratorConflictError as error:
+        return JSONResponse({"ok": False, "error": str(error)}, status_code=409)
     except ValueError as error:
         return JSONResponse({"ok": False, "error": str(error)}, status_code=400)
 

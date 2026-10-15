@@ -1,5 +1,5 @@
 """Куратор ЗиП: загрузка исходников, согласование и локальная публикация."""
-import hashlib, io, json, os, re, tempfile, unicodedata, zipfile
+import hashlib, io, json, math, os, re, tempfile, threading, unicodedata, zipfile
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +26,31 @@ FINGERPRINT_FIELDS = ("source_sha256", "source_record_hash")
 SOURCE_FIELDS = ("loaded_at", "uploaded", "fname", "local_file", "rso_explicit", *FINGERPRINT_FIELDS, *SOURCE_INFO_FIELDS)
 
 D = json.loads(DICT_JSON.read_text(encoding="utf-8"))
+
+_MUTATION_CONTEXT = threading.local()
+
+
+@contextmanager
+def _owned_curator_mutation():
+    previous = getattr(_MUTATION_CONTEXT, "active", False)
+    _MUTATION_CONTEXT.active = True
+    try:
+        yield
+    finally:
+        _MUTATION_CONTEXT.active = previous
+
+
+@contextmanager
+def _curator_mutation_lock():
+    if getattr(_MUTATION_CONTEXT, "active", False):
+        yield
+        return
+    try:
+        with _folder_sync_lock(), _owned_curator_mutation():
+            yield
+    except FolderSyncBusy:
+        raise CuratorConflictError("Данные ЗиП сейчас обновляются. Дождитесь завершения и повторите действие.") from None
+
 
 def _col(s):
     n = 0
@@ -87,6 +112,7 @@ def resolve_municipality(organization):
             return municipality
     return ""
 
+@_curator_mutation_lock()
 def save_municipality_override(organization, municipality):
     organization = str(organization or "").strip()
     municipality = str(municipality or "").strip()
@@ -107,6 +133,7 @@ def save_municipality_override(organization, municipality):
     _apply_municipality_to_state(key, municipality)
     return entry
 
+@_curator_mutation_lock()
 def delete_municipality_override(organization):
     key = norm(organization)
     entries = load_municipality_overrides()
@@ -133,7 +160,10 @@ def _apply_municipality_to_state(organization_key, municipality):
             item["okrug"] = municipality
             changed = True
     if changed:
-        save_state(st)
+        if any(norm(item.get("rso")) == organization_key and item.get("items") for item in st.get("clean", {}).values()):
+            publish_clean(st)
+        else:
+            save_state(st)
 
 def _unit_key(value):
     # Excel exports use dots, non-breaking spaces and both м3 / м³.
@@ -169,6 +199,123 @@ def norm_unit(u):
         return None, True
     canonical = UNIT_LOOKUP.get(_unit_key(u))
     return canonical, canonical is None
+
+
+_UNSET = object()
+
+
+class ApprovalValidationError(ValueError):
+    """Incomplete registries remain in the queue; callers can display each issue."""
+    def __init__(self, issues):
+        self.issues = issues
+        messages = [issue["message"] for issue in issues]
+        summary = " ".join(messages[:6])
+        if len(messages) > 6:
+            summary += f" Ещё замечаний: {len(messages) - 6}."
+        super().__init__("Нельзя согласовать реестр. " + summary)
+
+
+class CuratorConflictError(ValueError):
+    pass
+
+
+def _missing_label(value):
+    return not isinstance(value, str) or norm(value) in {
+        "", "-", "—", "–", "не указано", "не указан", "не определен", "не определён",
+        "муниципалитет не определён", "муниципалитет не определен",
+    }
+
+
+def _quantity(value):
+    if value is None or isinstance(value, str) and not value.strip():
+        return None
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        raise ValueError("Количество должно быть числом не меньше нуля")
+    try:
+        number = float(re.sub(r"\s+", "", value).replace(",", ".")) if isinstance(value, str) else float(value)
+    except (ValueError, OverflowError):
+        raise ValueError("Количество должно быть числом не меньше нуля") from None
+    if not math.isfinite(number) or number < 0:
+        raise ValueError("Количество должно быть конечным числом не меньше нуля")
+    return number
+
+
+def approval_issues(record, classification=None):
+    """Authoritative completeness checks, with zero-based row references for UI."""
+    current = classification if classification is not None else dictionary.load_dictionary()
+    issues = []
+    def add(field, message, index=None):
+        issue = {"field": field, "message": message}
+        if index is not None:
+            issue["item_index"] = index
+        issues.append(issue)
+
+    if _missing_label(record.get("rso")):
+        add("rso", "Не указано название РСО.")
+    municipality = record.get("okrug")
+    if _missing_label(municipality):
+        municipality = resolve_municipality(record.get("rso"))
+    if _missing_label(municipality):
+        add("okrug", "Не указан ОМСУ: нажмите «Указать» рядом с названием РСО.")
+    items = record.get("items")
+    if not isinstance(items, list) or not items:
+        add("items", "В реестре нет позиций остатков.")
+        return issues
+    for index, item in enumerate(items):
+        prefix = f"Позиция {index + 1}: "
+        if not isinstance(item, dict):
+            add("item", prefix + "данные позиции повреждены.", index)
+            continue
+        if _missing_label(item.get("name")):
+            add("name", prefix + "не указано наименование.", index)
+        category, group = item.get("cat"), item.get("grp")
+        if _missing_label(category):
+            add("cat", prefix + "не выбрана категория.", index)
+        elif category not in current["categories"]:
+            add("cat", prefix + "категория отсутствует в справочнике.", index)
+        else:
+            groups = current["groupsByCat"].get(category, [])
+            if groups and _missing_label(group):
+                add("grp", prefix + "не выбрана группа.", index)
+            elif group and group not in groups:
+                add("grp", prefix + "группа не принадлежит выбранной категории.", index)
+        _, unknown = norm_unit(item.get("unit"))
+        if unknown or item.get("unitUnknown"):
+            add("unit", prefix + "не указана или не распознана единица измерения.", index)
+        try:
+            quantity = _quantity(item.get("qty"))
+            if quantity is None:
+                add("qty", prefix + "не указано количество.", index)
+        except ValueError:
+            add("qty", prefix + "количество должно быть конечным числом не меньше нуля.", index)
+    return issues
+
+
+def _record_revision(record):
+    data = {key: value for key, value in record.items() if key not in {"revision", "approval_issues"}}
+    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+
+
+def _with_approval_status(state):
+    current = dictionary.load_dictionary()
+    for record in state.get("pending", []):
+        if not isinstance(record, dict):
+            continue
+        record["approval_issues"] = approval_issues(record, current)
+        record["revision"] = _record_revision(record)
+    return state
+
+
+def _pending_record(state, index, expected_revision=None):
+    pending = state.get("pending", [])
+    if not isinstance(index, int) or isinstance(index, bool) or index < 0 or index >= len(pending):
+        if expected_revision is not None:
+            raise CuratorConflictError("Очередь изменилась. Проверьте актуальные данные и повторите действие.")
+        return None
+    record = pending[index]
+    if expected_revision is not None and expected_revision != _record_revision(record):
+        raise CuratorConflictError("Реестр уже изменён в другой вкладке или при обновлении. Проверьте актуальные данные и повторите действие.")
+    return record
 
 
 def _restore_pending_units(state):
@@ -546,18 +693,27 @@ def load_state():
                     save_state(state)
                 if metadata_changed:
                     _persist_published_source_metadata(state)
-                return state
-        except Exception: pass
+        except Exception:
+            pass
+        else:
+            if isinstance(state, dict):
+                return _with_approval_status(state)
     state = {"pending": [], "clean": _clean_from_published(), "excluded_rso": {}}
     metadata_changed = _backfill_source_metadata(state)
     if state["clean"]:
         save_state(state)
     if metadata_changed:
         _persist_published_source_metadata(state)
-    return state
+    return _with_approval_status(state)
 
 def save_state(st):
-    _atomic_write_json(STATE_FILE, st)
+    # Derived validation and revision are always recalculated, never trusted from disk.
+    payload = {**st, "pending": [
+        {key: value for key, value in record.items() if key not in {"revision", "approval_issues"}}
+        for record in st.get("pending", [])
+    ]}
+    _atomic_write_json(STATE_FILE, payload)
+    _with_approval_status(st)
 
 def _enrich(p):
     for it in p["items"]:
@@ -565,6 +721,7 @@ def _enrich(p):
         it.update(nn=norm(it["name"]), cat=c["cat"], grp=c["grp"], water=c["water"], via=c["via"], unit=u, unitUnknown=unk)
     p["okrug"] = resolve_municipality(p["rso"])
 
+@_curator_mutation_lock()
 def ingest(list_of_parsed):
     st = load_state()
     added = 0
@@ -604,6 +761,7 @@ def ingest(list_of_parsed):
     return added
 
 
+@_curator_mutation_lock()
 def scan_folder(scan_dir=None, files=None, *, with_summary=False):
     scan_dir = Path(scan_dir or INPUT_DIR)
     scan_dir.mkdir(parents=True, exist_ok=True)
@@ -704,8 +862,8 @@ class FolderSyncBusy(DiskSyncError):
 @contextmanager
 def _folder_sync_lock():
     """One update across threads/processes, including Windows uvicorn workers."""
-    DATA.mkdir(parents=True, exist_ok=True)
-    with (DATA / "folder_a.lock").open("a+b") as handle:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with (STATE_FILE.parent / "folder_a.lock").open("a+b") as handle:
         handle.seek(0, os.SEEK_END)
         if not handle.tell():
             handle.write(b"0")
@@ -877,13 +1035,13 @@ def _sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", f
 
 def sync_folder_a(public_url, timeout=45, *, account=None, provider="yandex", folder_path=None):
     """Update the cache; leave publication and the review queue untouched."""
-    with _folder_sync_lock():
+    with _folder_sync_lock(), _owned_curator_mutation():
         result, _ = _sync_folder_a(public_url, timeout, account=account, provider=provider, folder_path=folder_path)
         return result
 
 
 def sync_and_scan_folder_a(public_url, *, account=None, provider="yandex", folder_path=None):
-    with _folder_sync_lock():
+    with _folder_sync_lock(), _owned_curator_mutation():
         result, files = _sync_folder_a(public_url, account=account, provider=provider, folder_path=folder_path)
         added, skipped = scan_folder(FOLDER_A_DIR, files=files)
         result.update({"added": added, "skipped": skipped, "state": load_state()})
@@ -911,7 +1069,7 @@ def _safe_sync_error(error, account=None):
 
 def sync_and_scan_sources(sources):
     """Refresh independent sources under one lock, then ingest their fresh union."""
-    with _folder_sync_lock():
+    with _folder_sync_lock(), _owned_curator_mutation():
         result = {"ok": False, "partial": False, "files": 0, "downloaded": 0,
                   "reused": 0, "removed": 0, "failed": 0, "errors": [], "sources": [],
                   "duplicates": 0, "added": 0, "skipped": 0, "failed_sources": 0}
@@ -963,32 +1121,47 @@ def sync_and_scan_sources(sources):
             result["state"] = load_state()
         return result
 
-def approve(idx):
-    st = load_state()
-    if idx < 0 or idx >= len(st["pending"]): return False
-    p = st["pending"].pop(idx)
-    g = {}
-    for it in p["items"]: g.setdefault(it["nn"], []).append(it)
-    merged = []
-    for arr in g.values():
-        b = arr[0]
-        if len(arr) > 1: b["qty"] = sum(x.get("qty") or 0 for x in arr)
-        merged.append(b)
-    key = norm(p["rso"])
-    st["clean"][key] = {"rso": p["rso"], "okrug": p.get("okrug") or resolve_municipality(p["rso"]), "date": p.get("date"), "items": merged}
-    st["clean"][key].update({field: p[field] for field in SOURCE_FIELDS if field in p})
-    # Ручная повторная загрузка и согласование явно возвращают ранее удалённое РСО.
-    st.setdefault("excluded_rso", {}).pop(key, None)
-    save_state(st)
-    publish_clean(st)
-    return True
+def approve(idx, *, expected_revision=None):
+    with _curator_mutation_lock():
+        st = load_state()
+        p = _pending_record(st, idx, expected_revision)
+        if p is None:
+            return False
+        issues = approval_issues(p)
+        if issues:
+            raise ApprovalValidationError(issues)
+        # Do not combine different units/classifications under the same name.
+        grouped = {}
+        for item in p["items"]:
+            canonical_unit, _ = norm_unit(item["unit"])
+            key = (norm(item["name"]), item["cat"], item.get("grp"), canonical_unit, bool(item.get("water")))
+            if key not in grouped:
+                grouped[key] = {**item, "nn": key[0], "qty": _quantity(item["qty"]),
+                                "unit": canonical_unit, "unitUnknown": False}
+            else:
+                grouped[key]["qty"] += _quantity(item["qty"])
+                if not math.isfinite(grouped[key]["qty"]):
+                    raise ApprovalValidationError([{"field": "qty", "message": "Сумма количества одинаковых позиций слишком велика."}])
+        key = norm(p["rso"])
+        municipality = p.get("okrug")
+        if _missing_label(municipality):
+            municipality = resolve_municipality(p["rso"])
+        st["clean"][key] = {"rso": p["rso"], "okrug": municipality, "date": p.get("date"), "items": list(grouped.values())}
+        st["clean"][key].update({field: p[field] for field in SOURCE_FIELDS if field in p})
+        st["pending"].pop(idx)
+        st.setdefault("excluded_rso", {}).pop(key, None)
+        # Publish first: a failed publication must leave the pending registry available.
+        publish_clean(st)
+        return True
 
+@_curator_mutation_lock()
 def reject(idx):
     st = load_state()
     if idx < 0 or idx >= len(st["pending"]): return False
     st["pending"].pop(idx); save_state(st); return True
 
 
+@_curator_mutation_lock()
 def delete_rso(rso):
     """Delete one RSO everywhere and keep its Folder A file from restoring it."""
     rso = str(rso or "").strip()
@@ -1027,21 +1200,35 @@ def delete_rso(rso):
         "rso": display_name,
     }
 
-def edit_item(pi, ii, cat, grp):
-    st = load_state()
-    if pi < 0 or ii < 0:
-        return False
-    try:
-        it = st["pending"][pi]["items"][ii]
-    except (IndexError, KeyError):
-        return False
-    if cat:
-        cat, grp = dictionary.remember(norm(it["name"]), cat, grp, it.get("water"))
-    elif grp:
-        raise ValueError("Выберите категорию для группы")
-    it["cat"] = cat or None; it["grp"] = grp or None; it["via"] = "override" if cat else None
-    save_state(st)
-    return True
+def edit_item(pi, ii, cat, grp, *, unit=_UNSET, qty=_UNSET, expected_revision=None):
+    with _curator_mutation_lock():
+        st = load_state()
+        record = _pending_record(st, pi, expected_revision)
+        if record is None or not isinstance(ii, int) or isinstance(ii, bool) or ii < 0:
+            return False
+        try:
+            it = record["items"][ii]
+        except (IndexError, KeyError):
+            return False
+        updates = {}
+        # Validate every requested value before writing either state or dictionary.
+        if unit is not _UNSET:
+            if unit is not None and not isinstance(unit, str):
+                raise ValueError("Единица измерения должна быть текстом")
+            canonical, unknown = norm_unit(unit)
+            if unit and str(unit).strip() and unknown:
+                raise ValueError("Выберите единицу измерения из списка, например «пог. м»")
+            updates.update(unit=canonical, unitRaw=canonical or "", unitUnknown=unknown)
+        if qty is not _UNSET:
+            updates["qty"] = _quantity(qty)
+        if cat:
+            cat, grp = dictionary.remember(norm(it["name"]), cat, grp, it.get("water"))
+        elif grp:
+            raise ValueError("Выберите категорию для группы")
+        it.update(updates)
+        it.update(cat=cat or None, grp=grp or None, via="override" if cat else None)
+        save_state(st)
+        return True
 
 def export_rows():
     return export_rows_from_state(load_state())
@@ -1098,7 +1285,30 @@ def _source_metadata(clean):
             for key, entry in clean.items()}
 
 
-def publish_rows(rows, st=None):
+@_curator_mutation_lock()
+def publish_rows(rows, st=None, *, validate=True):
+    if validate:
+        if not isinstance(rows, list) or len(rows) < 2 or not isinstance(rows[0], list):
+            raise ValueError("Нет строк для публикации")
+        incoming = _clean_from_rows(rows)
+        parsed_count = sum(len(record["items"]) for record in incoming.values())
+        if parsed_count != len(rows) - 1:
+            raise ApprovalValidationError([{"field": "items", "message": "В каждой публикуемой позиции нужны название РСО и наименование."}])
+        previous = _clean_from_published()
+        issues = []
+        classification = dictionary.load_dictionary()
+        for key, record in incoming.items():
+            old = previous.get(key, {})
+            old_rows = export_rows_from_state({"clean": {key: old}}) if old else []
+            new_rows = export_rows_from_state({"clean": {key: record}})
+            # Do not invalidate untouched legacy data while updating another RSO.
+            if old_rows != new_rows:
+                issues.extend(approval_issues(record, classification))
+            if _missing_label(record.get("okrug")):
+                record["okrug"] = resolve_municipality(record["rso"])
+        if issues:
+            raise ApprovalValidationError(issues)
+        rows = export_rows_from_state({"clean": incoming})
     merged_rows, incoming_rso = merge_rows_by_rso(_published_rows(), rows)
     state = st if st is not None else load_state()
     metadata = _source_metadata(state["clean"])
@@ -1120,7 +1330,7 @@ def publish_rows(rows, st=None):
 
 def publish_clean(st=None):
     state = st or load_state()
-    return publish_rows(export_rows_from_state(state), state)
+    return publish_rows(export_rows_from_state(state), state, validate=False)
 
 
 def resolve_source_file(file_path):

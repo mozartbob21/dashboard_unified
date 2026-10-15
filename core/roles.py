@@ -34,7 +34,7 @@ MODULE_NAMES = {
     "summarizer": "Сумматор", "zips": "Остатки ЗиП РСО и куратор",
 }
 
-MODULE_ALIASES = {"camera_prescriptions": "cameras", "mgkh-rm": "mgkh_rm", "mingkh-water-map": "mingkh"}
+MODULE_ALIASES = {"camera_prescriptions": "cameras", "mgkh-rm": "mgkh_rm", "mingkh-water-map": "mingkh", "water_dashboard": "water-dashboard"}
 
 def allowed_history_modules(user):
     modules = effective_modules(user)

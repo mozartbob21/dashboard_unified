@@ -27,8 +27,6 @@ MAX_RECORDS = 500  # в БД можно хранить больше, чем в J
 
 # ─── Человекочитаемые названия модулей для UI ──────────────────────
 
-# ─── Человекочитаемые названия модулей для UI ──────────────────────
-
 MODULE_LABELS = {
     "mingkh-water-map": "МИНЖКХ — карта жалоб",
     "edds": "ЕДДС — контроль заявок",
@@ -39,15 +37,23 @@ MODULE_LABELS = {
     "cameras":              "Проверка камер",
     "camera_prescriptions": "Предписания по камерам",
     "cds":                  "Обращения 1С",
-    "mgkh_rm":              "ЖКХ Redmine",
+    "mgkh_rm":              "Задачи МИНЖКХ",
     "water_rm":             "Проверка задач по воде",
     "ecur":                 "ЕЦУР — жалобы",
     "appeals":              "Эмпатичные ответы",
     "municipality-report":  "Отчёт по округу",
     "water-dashboard":      "Качество водоснабжения",
+    "mingkh":               "МИНЖКХ — дашборд обращений",
+    "collective":           "Коллективные жалобы",
+    "tools":                "Полезные инструменты",
+    "summarizer":           "Сумматор",
+    "zips":                 "Остатки ЗиП РСО",
+    "telegram":             "Телеграм — выбранные чаты",
+    "aichat":               "ИИ-чат",
 }
 
 MODULE_ICONS = {
+    "edds":                 "🚨",
     "mingkh-water-map": "🗺️",
     "edo":                  "📋",
     "overdue":              "⏱️",
@@ -62,7 +68,30 @@ MODULE_ICONS = {
     "appeals":              "✍️",
     "municipality-report":  "📊",
     "water-dashboard":      "🌊",
+    "mingkh":               "📊",
+    "collective":           "👥",
+    "tools":                "🧰",
+    "summarizer":           "📝",
+    "zips":                 "📦",
+    "telegram":             "💬",
+    "aichat":               "🤖",
 }
+
+# Старые и служебные имена остаются в записи для фильтрации прав;
+# подпись всегда берётся из текущего русскоязычного каталога.
+_HISTORY_LABEL_ALIASES = {
+    "mgkh-rm": "mgkh_rm",
+    "water_dashboard": "water-dashboard",
+}
+DEFAULT_MODULE_LABEL = "Модуль платформы"
+
+
+def _module_presentation(module_id: str) -> tuple[str, str]:
+    canonical_id = _HISTORY_LABEL_ALIASES.get(module_id, module_id)
+    return (
+        MODULE_LABELS.get(canonical_id, DEFAULT_MODULE_LABEL),
+        MODULE_ICONS.get(canonical_id, "⚙️"),
+    )
 
 # ─── Миграция JSON → SQLite (один раз) ─────────────────────────────
 
@@ -137,6 +166,7 @@ def record_start(module_id: str, user: str = "—") -> str:
     """Записывает старт запуска. Возвращает run_id."""
     run_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
+    module_label, module_icon = _module_presentation(module_id)
 
     with get_db_connection() as conn:
         conn.execute(
@@ -149,8 +179,8 @@ def record_start(module_id: str, user: str = "—") -> str:
             (
                 run_id,
                 module_id,
-                MODULE_LABELS.get(module_id, module_id),
-                MODULE_ICONS.get(module_id, "⚙️"),
+                module_label,
+                module_icon,
                 user or "—",
                 now,
             ),
@@ -243,6 +273,7 @@ def _row_to_dict(row) -> dict:
 def _enrich(rec: dict) -> dict:
     """Добавляет человекочитаемые поля для UI."""
     out = dict(rec)
+    out["module_label"], out["module_icon"] = _module_presentation(rec.get("module_id", ""))
     out["started_at_human"] = _format_relative(rec.get("started_at"))
     out["duration_human"] = _format_duration(rec.get("duration_seconds"))
     return out

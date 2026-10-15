@@ -49,6 +49,7 @@ function setDictionaryTransferBusy(busy) {
 
 async function importCuratorDictionary(file) {
   if (!file || dictionaryImporting) return false;
+  if (typeof flushReviewEdits === 'function' && !await flushReviewEdits()) return false;
   if (dictionaryDownloading || categorySaving) {
     toast('Дождитесь завершения текущей операции со справочником.', 4000);
     return false;
@@ -69,6 +70,7 @@ async function importCuratorDictionary(file) {
       throw new Error(dictionaryErrorMessage(data && data.error, 'Не удалось сохранить справочник на сервере. Повторите загрузку.'));
     }
     applyCuratorDictionary(data.dictionary);
+    if (typeof loadServerState === 'function') await loadServerState();
     const imported = Number.isSafeInteger(data.imported) && data.imported >= 0 ? data.imported : 0;
     toast('Справочник сохранён на сервере: ' + imported.toLocaleString('ru-RU') + ' записей.', 5000);
     return true;
@@ -195,7 +197,8 @@ document.getElementById('categoryForm').addEventListener('submit', async event =
         throw new Error('Категория сохранена, но назначение позиции не удалось. Повторите сохранение.');
       }
       render();
-      toggleView(pi);
+      zipReviewView(PENDING[pi]).open = true;
+      renderPendingPage(pi);
     }
     document.getElementById('categoryDialog').close();
     toast(categoryTarget ? 'Категория назначена. Позиция сохранена в справочнике.' :

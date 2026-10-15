@@ -64,6 +64,7 @@ def test_cloud_dates_are_separate_and_survive_approval_publication_restore(monke
     assert fake.calls[0]['folder_path'] == '/FolderA'
     serialized = json.dumps({'result': result, 'manifest': manifest})
     assert ACCOUNT['username'] not in serialized and ACCOUNT['password'] not in serialized
+    core.save_municipality_override("Тестовое РСО", "Тестовый округ")
     assert core.approve(0)
     core.publish_clean()
     key = core.norm(pending['rso'])
@@ -127,6 +128,7 @@ def test_switching_cloud_account_never_reuses_or_overwrites_old_original(monkeyp
     contents = {item['path']: old}
     fake = cloud(monkeypatch, [item], contents)
     first = sync_cloud()['state']['pending'][0]
+    core.save_municipality_override("Тестовое РСО", "Тестовый округ")
     assert core.approve(0)
     approved = copy.deepcopy(core.load_state()['clean'])
     original = core.INPUT_DIR / first['local_file']

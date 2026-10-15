@@ -1,6 +1,8 @@
 ﻿<!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
+    <link rel="stylesheet" href="/static/release-notes.css?v=20261015">
+    <script src="/static/release-notes.js?v=20261015" defer></script>
     <script src="/static/appearance-menu.js?v=20261001" ></script>
     <link rel="stylesheet" href="/static/ux-survey.css?v=20261013">
     <script src="/static/ux-survey.js?v=20261013" defer></script>
@@ -675,199 +677,6 @@
                 padding: 24px;
             }
         }
-                /* ===== КОЛОКОЛЬЧИК УВЕДОМЛЕНИЙ ===== */
-        .notifications-bell {
-            position: relative;
-            display: inline-block;
-        }
-        .bell-trigger {
-            position: relative;
-            background: var(--bg-neutral-100, rgba(0,0,0,0.03));
-            border: 1px solid var(--border-color, #cbd5e1);
-            color: var(--text-color, #475569);
-            border-radius: 10px;
-            padding: 7px 11px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1;
-        }
-        .bell-trigger:hover {
-            background: rgba(139, 92, 246, 0.08);
-            border-color: #8b5cf6;
-            transform: translateY(-1px);
-        }
-        [data-theme="dark"] .bell-trigger {
-            background: rgba(255,255,255,0.05);
-            border-color: rgba(255,255,255,0.15);
-            color: #e2e8f0;
-        }
-        [data-theme="dark"] .bell-trigger:hover {
-            background: rgba(139, 92, 246, 0.2);
-            border-color: #8b5cf6;
-        }
-        .bell-icon {
-            display: inline-block;
-            transition: transform 0.3s ease;
-        }
-        .bell-trigger:hover .bell-icon {
-            animation: bell-ring 0.5s ease;
-        }
-        @keyframes bell-ring {
-            0%, 100% { transform: rotate(0); }
-            20%, 60% { transform: rotate(-15deg); }
-            40%, 80% { transform: rotate(15deg); }
-        }
-        .bell-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            min-width: 18px;
-            height: 18px;
-            padding: 0 5px;
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-            color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            border-radius: 9px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
-            line-height: 1;
-        }
-        .bell-badge[hidden] { display: none; }
-
-        .notifications-dropdown {
-            position: absolute;
-            top: calc(100% + 10px);
-            right: 0;
-            width: 360px;
-            max-width: 90vw;
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
-            z-index: 1000;
-            overflow: hidden;
-            animation: notif-pop 0.18s ease;
-        }
-        [data-theme="dark"] .notifications-dropdown {
-            background: #1e293b;
-            border-color: rgba(255,255,255,0.1);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        }
-        .notifications-dropdown[hidden] { display: none; }
-        @keyframes notif-pop {
-            from { opacity: 0; transform: translateY(-6px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        .notifications-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            padding: 14px 16px;
-            border-bottom: 1px solid #f0f0f3;
-        }
-        [data-theme="dark"] .notifications-head { border-color: rgba(255,255,255,0.08); }
-        .notifications-title {
-            font-weight: 700;
-            font-size: 14px;
-            color: #1e293b;
-        }
-        [data-theme="dark"] .notifications-title { color: #e2e8f0; }
-        .notifications-mark-all {
-            background: none;
-            border: none;
-            color: #8b5cf6;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 6px;
-            transition: background 0.2s;
-        }
-        .notifications-mark-all:hover { background: rgba(139, 92, 246, 0.08); }
-        .notifications-list {
-            max-height: 380px;
-            overflow-y: auto;
-            padding: 6px;
-        }
-        .notifications-empty {
-            text-align: center;
-            padding: 28px 16px;
-            color: #94a3b8;
-            font-size: 13px;
-        }
-        .notif-item {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .notif-item:hover { background: rgba(0,0,0,0.03); }
-        [data-theme="dark"] .notif-item:hover { background: rgba(255,255,255,0.05); }
-        .notif-item.unread { background: rgba(139, 92, 246, 0.06); }
-        [data-theme="dark"] .notif-item.unread { background: rgba(139, 92, 246, 0.15); }
-        .notif-icon {
-            font-size: 16px;
-            width: 20px;
-            text-align: center;
-            flex-shrink: 0;
-            padding-top: 2px;
-        }
-        .notif-body { min-width: 0; }
-        .notif-title {
-            font-weight: 600;
-            font-size: 13px;
-            color: #1e293b;
-            margin: 0 0 2px;
-            line-height: 1.3;
-        }
-        [data-theme="dark"] .notif-title { color: #e2e8f0; }
-        .notif-text {
-            font-size: 12px;
-            color: #64748b;
-            margin: 0;
-            line-height: 1.4;
-        }
-        [data-theme="dark"] .notif-text { color: #94a3b8; }
-        .notif-time {
-            font-size: 10.5px;
-            color: #94a3b8;
-            margin-top: 3px;
-        }
-        .notif-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #8b5cf6;
-            flex-shrink: 0;
-            margin-top: 6px;
-        }
-        .notif-item:not(.unread) .notif-dot { visibility: hidden; }
-        .notifications-foot {
-            padding: 10px 16px;
-            border-top: 1px solid #f0f0f3;
-            text-align: center;
-        }
-        [data-theme="dark"] .notifications-foot { border-color: rgba(255,255,255,0.08); }
-        .notifications-open-all {
-            color: #8b5cf6;
-            font-size: 13px;
-            font-weight: 600;
-            text-decoration: none;
-        }
-        .notifications-open-all:hover { text-decoration: underline; }
-        /* ===== /КОЛОКОЛЬЧИК УВЕДОМЛЕНИЙ ===== */
  /* ===== ПРЕМИУМ-КАРТОЧКИ: 2 В РЯД ===== */
 .modules-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
@@ -980,30 +789,6 @@
                 </a>
                 {% endif %}
 
-                                       <div class="notifications-bell" id="notificationsBell">
-    <button id="notificationsBellBtn" class="bell-trigger" type="button"
-            aria-haspopup="true" aria-expanded="false" aria-label="Системные уведомления"
-            title="Системные уведомления">
-        <span class="bell-icon">🔔</span>
-        <span id="notificationsBadge" class="bell-badge" hidden>0</span>
-    </button>
-    <div id="notificationsDropdown" class="notifications-dropdown" hidden>
-        <div class="notifications-head">
-            <div class="notifications-title">Системные уведомления</div>
-            <button id="notificationsMarkAllBtn" class="notifications-mark-all" type="button">
-                ✓ Прочитать все
-            </button>
-        </div>
-        <div id="notificationsList" class="notifications-list">
-            <div class="notifications-empty">Пока нет уведомлений</div>
-        </div>
-        <div class="notifications-foot">
-        
-        
-    </div>
-</div>
-</div>
-
                 {% if true %}
                 <div class="profile-menu">
                     <button id="profileMenuButton" class="profile-menu-trigger professional-profile" type="button"
@@ -1018,7 +803,7 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button"><span>Версия продукта</span><strong>v3 Бета</strong></button>
+                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button" data-release-notes-open><span>Что нового</span><strong>Версия 3</strong></button>
                         {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <a href="/feedback/survey" class="profile-menu-item" data-ux-survey-link>Оценить удобство сервиса</a>
@@ -1637,236 +1422,13 @@
     
     </div>
 
-    <!-- Модальное окно "Что нового" -->
-    <!-- Модальное окно "Что нового" -->
-<div id="whatsNewModal" class="whats-new-modal" aria-hidden="true">
-    <div class="whats-new-backdrop" data-whats-new-close></div>
-
-    <section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whatsNewTitle">
-        <button class="whats-new-close" type="button" aria-label="Закрыть окно" data-whats-new-close>
-            ×
-        </button>
-
-        <div class="whats-new-kicker">Нейрона </div>
-
-        <!-- ===== Что уже есть в 2.5 (Apple-style) ===== -->
-        <div class="whats-new-kicker" style="margin-top: 28px;">Что есть в 2.5 </div>
-        <h2 class="whats-new-title" style="font-size: 22px; margin: 8px 0 6px;">
-            Чище. Удобнее. Всё так же просто.
-        </h2>
-        <p class="whats-new-lead" style="margin-bottom: 4px;">
-            В 2.5 отшлифовали интерфейс и добавили блоки, которыми хочется пользоваться.
-            Больше воздуха в дизайне, больше пользы на каждом экране.
-        </p>
-
-        <div class="whats-new-list">
-            <article class="whats-new-item">
-                <div class="whats-new-icon">🎨</div>
-                <div>
-                    <h3>Дизайн. Отшлифован.</h3>
-                    <p>
-                        Главный экран стал компактнее, карточки — чище, тексты — читабельнее.
-                        Описания больше не шумят на лицевой стороне: они открываются по кнопке (i),
-                        ровно тогда, когда нужны. Единые названия и иконки модулей на всех экранах.
-                    </p>
-                </div>
-            </article>
-
-            <article class="whats-new-item">
-                <div class="whats-new-icon">🧩</div>
-                <div>
-                    <h3>Новые блоки. Уже на местах.</h3>
-                    <p>
-                        История запусков с живым статусом, настраиваемая панель быстрого доступа
-                        и планировщик «Авто-запуск». Всё важное видно с одного взгляда
-                        и управляется одним движением.
-                    </p>
-                </div>
-            </article>
-
-            <article class="whats-new-item">
-                <div class="whats-new-icon">✨</div>
-                <div>
-                    <h3>Детали. Продуманы.</h3>
-                    <p>
-                        Тема «Подмосковное солнце», светлое и тёмное оформление, плавные анимации
-                        карточек и оверлеев. Интерфейс подстраивается под время суток
-                        и остаётся приятным глазу.
-                    </p>
-                </div>
-            </article>
-        </div>
-        <!-- ===== /Что уже есть в 2.5 ===== -->
-
-        <div class="whats-new-footer">
-            <button class="module-link whats-new-done" type="button" data-whats-new-close>
-                Отлично
-            </button>
-        </div>
-    </section>
-</div>
-
-
-<script>
-(function () {
-    const bellBtn = document.getElementById("notificationsBellBtn");
-    const dropdown = document.getElementById("notificationsDropdown");
-    const badge = document.getElementById("notificationsBadge");
-    const list = document.getElementById("notificationsList");
-    const markAllBtn = document.getElementById("notificationsMarkAllBtn");
-    if (!bellBtn || !dropdown || !list) return;
-
-    const READ_KEY = "neurona-notifications-read";
-
-    function getReadIds() {
-        try { return new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]")); }
-        catch { return new Set(); }
-    }
-    function saveReadIds(set) {
-        try { localStorage.setItem(READ_KEY, JSON.stringify([...set])); } catch {}
-    }
-
-    function escapeHtml(s) {
-        return String(s || "").replace(/[&<>"']/g, c =>
-            ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    }
-
-    function formatTime(unixTs) {
-        if (!unixTs) return "";
-        const sec = Math.max(0, Math.floor(Date.now() / 1000 - unixTs));
-        if (sec < 60) return "только что";
-        const min = Math.floor(sec / 60);
-        if (min < 60) return min + " мин назад";
-        const hr = Math.floor(min / 60);
-        if (hr < 24) return hr + " ч назад";
-        const d = Math.floor(hr / 24);
-        if (d < 7) return d + " дн назад";
-        return new Date(unixTs * 1000).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
-    }
-
-    let items = [];
-
-    function renderBadge() {
-        const readIds = getReadIds();
-        const unread = items.filter(n => !readIds.has(n.id)).length;
-        if (unread > 0) {
-            badge.hidden = false;
-            const label = unread > 99 ? "99+" : String(unread);
-            if (badge.textContent !== label) badge.textContent = label;
-        } else {
-            badge.hidden = true;
-        }
-    }
-
-    function renderList() {
-        const readIds = getReadIds();
-        if (!items.length) {
-            list.innerHTML = `<div class="notifications-empty">Пока нет уведомлений</div>`;
-            return;
-        }
-        list.innerHTML = items.slice(0, 20).map(n => {
-            const unread = !readIds.has(n.id);
-            return `
-                <div class="notif-item ${unread ? 'unread' : ''}" data-id="${n.id}">
-                    <span class="notif-icon">${escapeHtml(n.icon || '🔔')}</span>
-                    <div class="notif-body">
-                        <div class="notif-title">${escapeHtml(n.title)}</div>
-                        <div class="notif-text">${escapeHtml(n.text)}</div>
-                        <div class="notif-time">${formatTime(n.time)}${n.author ? ' · ' + escapeHtml(n.author) : ''}</div>
-                    </div>
-                    <span class="notif-dot" aria-hidden="true"></span>
-                </div>
-            `;
-        }).join("");
-
-        list.querySelectorAll(".notif-item").forEach(el => {
-            el.addEventListener("click", () => {
-                const id = Number(el.getAttribute("data-id"));
-                const readIds = getReadIds();
-                readIds.add(id);
-                saveReadIds(readIds);
-                renderBadge();
-                renderList();
-            });
-        });
-    }
-
-    async function reload() {
-        if (document.hidden) return;
-        try {
-            const r = await fetch("/api/notifications");
-            if (!r.ok) throw new Error("HTTP " + r.status);
-            items = await r.json();
-        } catch (e) {
-            console.warn("[notifications]", e);
-            items = [];
-        }
-        renderBadge();
-        if (!dropdown.hidden) renderList();
-    }
-
-    function openMenu() {
-        dropdown.hidden = false;
-        bellBtn.setAttribute("aria-expanded", "true");
-        reload();
-    }
-    function closeMenu() {
-        dropdown.hidden = true;
-        bellBtn.setAttribute("aria-expanded", "false");
-    }
-
-    bellBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (dropdown.hidden) openMenu(); else closeMenu();
-    });
-
-    if (markAllBtn) {
-        markAllBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            const readIds = getReadIds();
-            items.forEach(n => readIds.add(n.id));
-            saveReadIds(readIds);
-            renderBadge();
-            renderList();
-        });
-    }
-
-    document.addEventListener("click", (e) => {
-        if (!dropdown.hidden && !e.target.closest(".notifications-bell")) closeMenu();
-    });
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !dropdown.hidden) closeMenu();
-    });
-    setInterval(reload, 60000);
-
-    reload();
-})();
-</script>
-
-
-
-    {% if true %}
+{% if true %}
     <script>
     (function () {
         const listEl = document.getElementById("historyList");
         const refreshBtn = document.getElementById("historyRefreshBtn");
         if (!listEl) return;
 
-        const MODULE_META = {
-            "edo":                  { name: "Заполненность данных",  icon: "📋" },
-            "cameras":              { name: "Проверка камер",         icon: "📹" },
-            "overdue":              { name: "Просроченные задачи",    icon: "⏱️" },
-            "utnkr":                { name: "Технадзор УТНКР",        icon: "🛡️" },
-            "watercontrol":         { name: "Контроль воды",          icon: "💧" },
-            "appeals":              { name: "Эмпатичные ответы",      icon: "✍️" },
-            "municipality-report":  { name: "Отчёт по округу",        icon: "📊" },
-            "cds":                  { name: "Обращения ЖКХ",          icon: "🏠" },
-            "mgkh_rm":              { name: "МГКХ Redmine",           icon: "📅" },
-            "water_rm":             { name: "Проверка задач по воде", icon: "💧" },
-            "water_dashboard":      { name: "Качество водоснабжения",   icon: "🌊" },
-            "tools":              { name: "Полезные инструменты", icon: "🧰" },
-            "ecur":                 { name: "ЕЦУР — жалобы",          icon: "📮" }
-        };
         const STATUS_LABELS = {
             "running": "Выполняется", "success": "Успешно",
             "error":   "Ошибка",      "unknown": "—"
@@ -1901,9 +1463,12 @@
         }
          function renderItem(entry) {
             const moduleId = entry.module_id || entry.module || "unknown";
-            const meta = MODULE_META[moduleId] || { name: moduleId, icon: "📦" };
-            const status = entry.status || "unknown";
-            const statusLabel = STATUS_LABELS[status] || status;
+            const meta = {
+                name: entry.module_label || "Модуль платформы",
+                icon: entry.module_icon || "⚙️"
+            };
+            const status = Object.hasOwn(STATUS_LABELS, entry.status) ? entry.status : "unknown";
+            const statusLabel = STATUS_LABELS[status];
             const username = entry.username || entry.user || "—";
             const startedAt = entry.started_at || entry.timestamp || entry.created_at;
             const duration = entry.duration_seconds ?? entry.duration ?? null;
@@ -1919,7 +1484,7 @@
                     <span class="history-status-dot status-${status}" aria-hidden="true"></span>
                     <div class="history-info">
                         <div class="history-module-name">
-                            <span class="history-module-icon">${meta.icon}</span>
+                            <span class="history-module-icon">${escapeHtml(meta.icon)}</span>
                             <span>${escapeHtml(meta.name)}</span>
                         </div>
                         <div class="history-meta">

@@ -238,6 +238,7 @@ def test_approved_and_excluded_workbooks_are_not_requeued_by_duplicate_filename(
     add_source(sources, 'yandex', 'nameless.xlsx', data)
     first = core.sync_and_scan_sources(SOURCES)
     assert first['state']['pending'][0]['rso'] == 'nameless'
+    core.save_municipality_override("nameless", "Тестовый округ")
     assert core.approve(0)
     add_source(sources, 'mosreg', 'other-name.xlsx', data, modified='2026-10-16T12:00:00Z')
     assert core.sync_and_scan_sources(SOURCES)['state']['pending'] == []
