@@ -106,12 +106,15 @@ def test_idless_rows_do_not_share_manual_fields_and_mutable_status_keeps_key():
     assert second['workflows'][first['keys'][1]]['theme'] is None
 
 
-def test_ambiguous_identity_aborts_snapshot_atomically():
+def test_known_primary_survives_source_number_change_without_merging_other_complaint():
     original = snapshot([record('A', 'A1'), record('B', 'B1')])
-    with pytest.raises(store.ValidationError, match='противоречащие'):
-        snapshot([record('A', 'B1')])
-    assert store.get_snapshot(START, END)['rows'] == original['rows']
-    assert store.get_snapshot(START, END)['snapshot']['version'] == 1
+    first, second = original['keys']
+    store.update_workflow(first, 0, {'report': 'Доклад А'})
+    store.update_workflow(second, 0, {'report': 'Доклад Б'})
+    changed = snapshot([record('A', 'B1'), record('B', 'B1')])
+    assert changed['keys'] == original['keys']
+    assert changed['workflows'][first]['report'] == 'Доклад А'
+    assert changed['workflows'][second]['report'] == 'Доклад Б'
 
 
 @pytest.mark.parametrize('status,received,eligible', [('', '01.01.2020', True), ('В работе', '01.01.2020', True),

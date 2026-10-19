@@ -59,13 +59,17 @@ def reset_comparisons():
     _same.cache_clear()
 
 
-def _daily(data, municipality):
+def _daily(data, municipality, requested_period=None):
     result = _base('edds-complaints', 'edds', 'ЕДДС: жалобы Добродела по воде', data.get('updated'),
                    'Это свод жалоб, а не число технологических инцидентов АРМ ЕДДС.')
     days = data.get('days')
     if not isinstance(days, dict):
         result.update(status='missing', warning='Свод жалоб Добродела ещё не сохранён. Откройте ЕДДС и обновите жалобы.')
         return result
+    if requested_period:
+        # Keep only explicitly saved days. Gaps never become invented zeros.
+        days = {day: cities for day, cities in days.items()
+                if isinstance(day, str) and requested_period['from'] <= day <= requested_period['to']}
     sums = [0, 0, 0]
     known_days, represented_days, invalid = [], [], 0
     for day, cities in days.items():
@@ -95,6 +99,15 @@ def _daily(data, municipality):
         result['warning'] += ' Для выбранного муниципалитета нет отдельных записей; число жалоб не определено.'
     if invalid:
         result['warning'] += ' Есть некорректные строки; суммы не определены.'
+    if requested_period:
+        expected_days = (date.fromisoformat(requested_period['to']) - date.fromisoformat(requested_period['from'])).days + 1
+        complete = len(known_days) == expected_days and (not municipality or len(represented_days) == expected_days)
+        result['period_selection'] = 'exact' if complete else 'unavailable'
+        if complete:
+            result['period'].update({'from': requested_period['from'], 'to': requested_period['to']})
+        else:
+            result['metrics'] = []
+            result['warning'] += ' Не все дни запрошенного периода подтверждены сохранёнными данными.'
     return result
 
 
@@ -267,12 +280,12 @@ def _arm(data, municipality):
     return result
 
 
-def reports_for_module(module, data_dir, municipality=''):
+def reports_for_module(module, data_dir, municipality='', requested_period=None):
     data_dir = Path(data_dir)
     if module == 'zips':
         return _zips(data_dir, municipality)
     if module == 'edds':
-        return [_daily(_load(data_dir / 'edds/water_daily.json'), municipality),
+        return [_daily(_load(data_dir / 'edds/water_daily.json'), municipality, requested_period),
                 _arm(_load(data_dir / 'edds/arm-summary.json'), municipality)]
     return [_mingkh_summary(_load(data_dir / 'mingkh/report-summary.json'), municipality),
             _map(_load(data_dir / 'mingkh/water-map.json.gz'), municipality)]

@@ -3222,6 +3222,7 @@ async def aichat_send(request: Request):
         from services.aichat.skill_trace import normalize_run, step as public_step
         from services.aichat.report_context import wants_context, to_prompt
         from services.aichat.uploads import extract_bounded, UploadTextError
+        from services.aichat import platform_guide
         dialog, dialog_id = d, did
         steps = {}
         def emit(event):
@@ -3230,7 +3231,8 @@ async def aichat_send(request: Request):
                 steps[safe['id']] = safe
                 publish(safe)
         run = {'skills': [], 'tools': [], 'warnings': []}
-        report, ctx = None, ''
+        report, ctx, guide = None, '', ''
+        help_request = platform_guide.help_only(text)
         failure, response_kind = None, 'answer'
         if not dialog:
             dialog = aichat_store.create_dialog((text or ('Файл: ' + ', '.join(names)))[:60], team=team)
@@ -3258,6 +3260,8 @@ async def aichat_send(request: Request):
             # neither a skill nor the model can override them.
             if explicit == 'false':
                 raise PermissionError('Данные платформы отключены для этого запроса')
+            if help_request and explicit != 'true':
+                return {'purpose': 'interface_help', 'note': 'Ответьте по серверной справке интерфейса; показатели не запрашивались.'}
             if report is None:
                 report = build_platform_context(text, allowed, selection, previous)
                 ctx = to_prompt(report)
@@ -3281,20 +3285,34 @@ async def aichat_send(request: Request):
                       'label': 'Не все вложения прочитаны' if failed_files else 'Приложенные файлы прочитаны',
                       'status': 'error' if failed_files else 'done'})
             file_parts = ['── ФАЙЛ: ' + item['name'] + ' ──\n' + item['text'] for item in attachments]
+            if platform_guide.is_help_request(text):
+                from services.auth.accounts import is_account_manager
+                manager = await asyncio.to_thread(is_account_manager, user)
+                guide = platform_guide.build(text, allowed, is_manager=manager)
+            needs_report = explicit == 'true' or (not help_request and await asyncio.to_thread(
+                wants_context, text, allowed, previous, has_files=bool(attachments), explicit=explicit))
+            if needs_report and use_skills and explicit != 'true':
+                # An enabled reporting skill must not depend on the model remembering
+                # to call it. Respect per-account switches and explicit context-off.
+                from services.aichat.skills.preferences import enabled_skills
+                try:
+                    enabled = await asyncio.to_thread(enabled_skills, user)
+                    needs_report = any(item['id'] == 'platform-report' for item in enabled)
+                except Exception:
+                    # Runtime emits its safe warning and keeps ordinary chat usable.
+                    # Do not read platform data without confirmed preference state.
+                    needs_report = False
+            if needs_report:
+                emit({'type': 'step', 'id': 'platform-report', 'kind': 'tool',
+                      'label': 'Читаю сохранённые данные платформы', 'status': 'running'})
+                await asyncio.to_thread(platform_report)
+                emit({'type': 'step', 'id': 'platform-report', 'kind': 'tool',
+                      'label': 'Данные платформы проверены', 'status': 'done'})
             if use_skills:
-                if explicit == 'true':
-                    emit({'type': 'step', 'id': 'explicit-report', 'kind': 'tool',
-                          'label': 'Читаю выбранные данные платформы', 'status': 'running'})
-                    await asyncio.to_thread(platform_report)
-                    emit({'type': 'step', 'id': 'explicit-report', 'kind': 'tool',
-                          'label': 'Выбранные данные платформы получены', 'status': 'done'})
                 from services.aichat.skills.runtime import prepare
                 run = await asyncio.to_thread(prepare, text, attachments=attachments,
                                               user=user, emit=emit, platform_report=platform_report,
                                               context_hint=str(last_user.get('content') or '')[:1200])
-            elif await asyncio.to_thread(wants_context, text, allowed, previous,
-                                         has_files=bool(attachments), explicit=explicit):
-                await asyncio.to_thread(platform_report)
             if use_skills:
                 # The skill tools choose which excerpts/results reach the model.
                 full_user = text or 'Проанализируй приложенные файлы.'
@@ -3311,6 +3329,8 @@ async def aichat_send(request: Request):
                 answer = report['clarification']
             else:
                 options = {'platform_context': ctx}
+                if guide:
+                    options['platform_help'] = guide
                 if team is not None:
                     options['team'] = team
                 if use_skills and run.get('instructions'):

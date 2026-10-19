@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from services import water_ai_context as water
+from services.aichat import report_periods
 from services.report_municipalities import key as municipality_key, display as municipality_display, is_municipality
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -18,7 +19,8 @@ MAX_CONTEXT_CHARS = 32_000
 MAX_RESULT_BYTES = 20 * 1024 * 1024
 MODULES = {
     'edds': ('ЕДДС — заявки и жалобы по воде', None),
-    'mingkh': ('МИНЖКХ — обращения', None),
+    'mingkh': ('Дашборд по жалобам МинЖКХ', None),
+    'collective': ('Коллективные жалобы — МинЖКХ МО', None),
     'zips': ('Остатки ЗиП РСО', None),
     'cds': ('Обращения 1С', 'cds/result.json'),
     'ecur': ('ЕЦУР — жалобы', None),
@@ -53,7 +55,9 @@ SOURCE_ALIASES = {
     'meetings': (r'дисциплин', r'\bявк', r'совещани'),
     'sys_kr': (r'капремонт', r'капитальн\w* ремонт'),
 }
+UNSUPPORTED_ALIASES = {'mingkh-sms': (r'\bсмс\b', r'\bsms\b')}
 MODULE_ALIASES = {
+    'collective': (r'коллективн\w*\s+(?:жалоб|обращен)\w*(?:\s*(?:[—–-]\s*)?(?:мин\s*жкх)(?:\s*мо)?)?', r'коллективк\w*'),
     'edds': (r'\bеддс\b', r'добродел'), 'mingkh': (r'минжкх', r'мин\s*жкх'), 'cds': (r'\b1с\b', r'\bцдс\b'), 'zips': (r'\bзип\b', r'остатк\w* (?:материал|рсо)'),
     'water-dashboard': (r'сводн\w* дашборд', r'качеств\w* водоснабжен'),
     'ecur': (r'\bецур\b',),
@@ -147,14 +151,17 @@ def _variants(name):
     return values
 
 
-def catalog(allowed_modules):
+def catalog(allowed_modules, requested_period=None):
     allowed = set(allowed_modules or [])
     modules = [{'id': key, 'title': title} for key, (title, _) in MODULES.items() if key in allowed]
     names = set()
     if 'water-dashboard' in allowed:
         names.update(water.municipality_names(water.load_snapshot()))
     for module in MODULES:
-        if module in {'edds', 'mingkh', 'zips'} and module in allowed:
+        if module == 'collective' and module in allowed:
+            from services.aichat.collective_source import names_for_module
+            names.update(names_for_module(DATA_DIR, requested_period))
+        elif module in {'edds', 'mingkh', 'zips'} and module in allowed:
             from services.aichat.local_sources import names_for_module
             names.update(names_for_module(module, DATA_DIR))
         elif module in {'ecur', 'water_rm'} and module in allowed:
@@ -183,7 +190,15 @@ def _detected_blocks(q):
             sources.append(sid)
             spans.extend(m.span() for m in matches)
     modules = ['water-dashboard'] if sources else []
-    for module, patterns in MODULE_ALIASES.items():
+    # Specific submodules win over the generic МинЖКХ mention in their title.
+    for module in ('collective',):
+        matches = [m for p in MODULE_ALIASES[module] for m in re.finditer(p, q)]
+        if matches:
+            modules.append(module)
+            spans.extend(m.span() for m in matches)
+    for module, patterns in {**MODULE_ALIASES, **UNSUPPORTED_ALIASES}.items():
+        if module == 'collective':
+            continue
         matches = [m for p in patterns for m in re.finditer(p, q)]
         if any(not any(a <= m.start() and m.end() <= b for a, b in spans) for m in matches):
             if module not in modules:
@@ -191,9 +206,9 @@ def _detected_blocks(q):
     return modules, sources
 
 
-def _known_names(allowed_modules):
+def _known_names(allowed_modules, requested_period=None):
     # Municipality names are public taxonomy, not private operational records.
-    names = set(catalog(allowed_modules)['municipalities'])
+    names = set(catalog(allowed_modules, requested_period)['municipalities'])
     try:
         registry = DATA_DIR / 'municipality_registry.json'
         if registry.stat().st_size < 2_000_000:
@@ -224,16 +239,24 @@ def wants_context(question, allowed_modules, previous=None, *, has_files=False, 
     report = bool(re.search(r'\b(?:отчет\w*|сводк\w*|сводн\w*|показател\w*|статистик\w*|информаци\w*)\b', q))
     ask = bool(re.search(r'\b(?:дай|дайте|покажи|покажите|подготовь|сформируй|составь|сделай|кто|сколько|какие|что|сравни|проанализируй)\b', q))
     platform = bool(re.search(r'\b(?:нашей|этой)\s+платформ|\bданн\w*\s+(?:платформ|нейрон)|\bоб этом блоке|\bпо этому блоку', q))
+    direct_report = bool(re.search(r'\b(?:покажи(?:те)?|дай(?:те)?|подготовь|сформируй|составь|сделай)\s+(?:(?:кратк\w*|подробн\w*|актуальн\w*|общ\w*|последн\w*|сохраненн\w*)\s+)*(?:отчет\w*|сводк\w*|показател\w*|статистик\w*|цифр\w*)\b', q))
+    compare = bool(re.search(r'\b(?:сравни|сверь|сопоставь)\b', q))
+    if has_files and re.search(r'файл|документ|вложени|текст|таблиц', q) and not broad and not platform and not (compare and modules):
+        return False
+    # A mixed request may ask for real statistics AND usage instructions.
+    if direct_report and (modules or broad or platform):
+        return True
     # A module name inside a general explanation/file request is not a request
     # to inspect working data (e.g. "что такое контроль воды").
-    educational = re.search(r'\b(?:что такое|что значит|что означает|объясни|объясните)\b|\bкак\s+(?:написать|составить|сделать|работает|устроен\w*|выбрать|настроить)\b', q)
+    educational = re.search(r'\b(?:что такое|что значит|что означает|объясни|объясните)\b|\bкак\s+(?:написать|составить|сделать|работает|устроен\w*|выбрать|настроить|отправить|открыть|найти|пользоваться|загрузить)\b', q)
     creative = re.search(r'\b(?:сказк\w*|стих\w*|анекдот\w*|переведи|переведите|шаблон отчета|пример отчета)\b', q)
     shopping = re.search(r'\b(?:купить|покупк\w*|выбрать)\b', q)
     if (educational or creative or shopping) and not platform and not (broad and report):
         return False
-    compare = bool(re.search(r'\b(?:сравни|сверь|сопоставь)\b', q))
-    if has_files and re.search(r'файл|документ|вложени|текст|таблиц', q) and not broad and not platform and not (compare and modules):
-        return False
+    if previous and re.match(r'^(?:а\s+)?(?:теперь\s+)?(?:за\s+|на\s+|с\s+|сегодня\b|вчера\b|последн\w*\s+(?:сохраненн\w*\s+)?срез)', q):
+        period_request, period_error = report_periods.extract(question)
+        if period_request or period_error or 'срез' in q:
+            return True
     if broad and (report or ask):
         return True
     if modules and (report or ask or len(q.split()) <= 3):
@@ -249,7 +272,13 @@ def wants_context(question, allowed_modules, previous=None, *, has_files=False, 
     # General conversation about a place remains a normal AI question.
     operational = bool(re.search(r'ситуаци|обстановк|нарушени|просроч|критичн', q))
     if report or conversational or modules or (ask and operational):
-        if _named_municipalities(q, _known_names(allowed_modules)):
+        name_period, _ = report_periods.extract(question)
+        if name_period is None and conversational and previous.get('requested_period'):
+            try:
+                name_period = report_periods.normalize(previous['requested_period'])
+            except ValueError:
+                pass
+        if _named_municipalities(q, _known_names(allowed_modules, name_period)):
             return True
         if report and re.search(r'\b(?:муниципалитет|округ)\w*\s+', q):
             return True  # prepare() asks to clarify an unknown municipality.
@@ -269,7 +298,22 @@ def resolve_scope(question, allowed_modules, requested=None, previous=None):
     requested, previous = requested or {}, previous or {}
     q = water.normalized(question)
     detected_modules, detected_sources = _detected_blocks(q)
-    names = _known_names(allowed)
+    requested_period, period_error = report_periods.extract(question)
+    if period_error:
+        return {'error': period_error}
+    if 'mingkh-sms' in detected_modules:
+        return {'error': 'СМС МинЖКХ пока не подключены к отчётам ИИ-чата. Откройте раздел СМС в дашборде по жалобам МинЖКХ или приложите выгрузку; данные других блоков не подставлены.'}
+    clear_period = bool(re.search(r'последн\w*\s+(?:сохраненн\w*\s+)?(?:срез|данн|свод|результат)|без\s+(?:ограничения\s+)?период', q))
+    inherited_period = None
+    if previous.get('requested_period') and not clear_period:
+        try:
+            inherited_period = report_periods.normalize(previous['requested_period'])
+        except ValueError:
+            pass
+    names_period = requested_period
+    if names_period is None and inherited_period and re.match(r'^(?:а\s+)?(?:теперь\s+)?по\s+', q):
+        names_period = inherited_period
+    names = _known_names(allowed, names_period)
     named = _named_municipalities(q, names)
     region = bool(re.search(r'вся область|всю область|всей области|по области|по всей области|в целом', q))
     broad = _all_modules(q) or bool(region and not detected_modules and re.search(r'общ\w* отчет', q))
@@ -312,9 +356,17 @@ def resolve_scope(question, allowed_modules, requested=None, previous=None):
     if re.search(r'об этом блоке|по этому блоку', q) and not selected:
         return {'error': 'Назовите блок в сообщении: например, «Дай отчёт по ЕДДС».'}
     group_by = 'municipality' if each_muni else (previous.get('group_by', '') if inherit and not region and not named else '')
+    clear_period = bool(re.search(r'последн\w*\s+(?:сохраненн\w*\s+)?(?:срез|данн|свод|результат)|без\s+(?:ограничения\s+)?период', q))
+    if requested_period is None and inherit and not clear_period and previous.get('requested_period'):
+        try:
+            requested_period = report_periods.normalize(previous['requested_period'])
+        except ValueError:
+            return {'error': 'Сохранённый период не распознан. Укажите даты отчёта ещё раз.'}
     result = {'module': selected[0] if len(selected) == 1 else '', 'source': sources[0] if len(sources) == 1 else '',
               'municipality': canonical[0] if len(canonical) == 1 else '', 'modules': selected, 'sources': sources,
               'municipalities': canonical, 'group_by': group_by}
+    if requested_period:
+        result['requested_period'] = requested_period
     if denied:
         result['unavailable_modules'] = denied
     return result
@@ -326,15 +378,25 @@ def _module_report(module, municipality, loaded=None):
     recognized = isinstance(data, list) or (isinstance(data, dict) and (isinstance(data.get('buckets'), dict) or any(isinstance(data.get(key), list) for key in ('rows', 'items', 'violators', 'cameras', 'results', 'data', 'records'))))
     if data is not None and not recognized:
         data, error = None, 'В результате нет распознаваемой таблицы. Показатели не определены.'
+    failed = info.get('ok') is False or info.get('success') is False or str(info.get('status', '')).casefold() in {'error', 'failed'}
+    failed = failed or bool(re.search(r'проверка\s+не\s+завершена', str(info.get('summary_message') or ''), re.I))
+    if module == 'overdue' and not _rows(data) and info.get('extraction_note'):
+        failed = True
+    if failed and not _rows(data):
+        data, error = None, 'Последняя проверка не завершена. Пустой результат не означает отсутствие нарушений; выполните успешное обновление блока.'
     rows = _rows(data)
     matching = [r for r in rows if not municipality or municipality_key(_municipality(r)) == municipality_key(municipality)]
     report = {'id': module, 'module': module, 'title': MODULES[module][0], 'source_url': '/' + module.replace('_', '-'),
               'collected_at': water.text(info.get('updated_at') or info.get('created_at') or info.get('checked_at') or info.get('timestamp'), 80),
-              'status': 'missing' if data is None else ('stale' if (info.get('ok') is False or info.get('success') is False) else 'saved'),
+              'status': 'missing' if data is None else ('stale' if failed else 'saved'),
               'warning': error or ('Обновление модуля завершилось ошибкой; доступен сохранённый результат.' if (info.get('ok') is False or info.get('success') is False) else ''),
               'scope': 'municipality' if municipality else 'module', 'metrics': [],
-              'matching_rows': len(matching), 'omitted_rows': max(0, len(matching) - 15),
+              'matching_rows': len(matching) if data is not None else None, 'omitted_rows': max(0, len(matching) - 15),
               'rows': [_safe_row(r) for r in matching[:15]]}
+    if module == 'cds' and info.get('date_from') and info.get('date_to'):
+        report['period'] = {'from': water.text(info['date_from'], 30), 'to': water.text(info['date_to'], 30)}
+    if failed and data is not None:
+        report['warning'] = 'Последняя проверка завершилась не полностью; сохранённые строки не подтверждают полный охват.'
     if data is not None:
         # Counts describe the saved dataset, never claim unclassified rows are OK.
         report['metrics'].append({'label': 'Записей в сохранённом результате', 'value': len(matching), 'unit': ''})
@@ -348,17 +410,23 @@ def _module_report(module, municipality, loaded=None):
     return report
 
 
-def _render_module(module, source_ids=(), municipality='', snapshot=None, loaded=None):
+def _render_module(module, source_ids=(), municipality='', snapshot=None, loaded=None, requested_period=None):
     if module == 'water-dashboard':
         reports = water.source_reports(snapshot if snapshot is not None else water.load_snapshot(), municipality=municipality)
-        return [r for r in reports if not source_ids or r['id'] in source_ids]
-    if module in {'edds', 'mingkh', 'zips'}:
+        reports = [r for r in reports if not source_ids or r['id'] in source_ids]
+    elif module == 'collective':
+        from services.aichat.collective_source import reports_for_module
+        reports = (reports_for_module(DATA_DIR, municipality, requested_period, snapshot=loaded[0])
+                   if isinstance(loaded, tuple) else reports_for_module(DATA_DIR, municipality, requested_period))
+    elif module in {'edds', 'mingkh', 'zips'}:
         from services.aichat.local_sources import reports_for_module
-        return reports_for_module(module, DATA_DIR, municipality)
-    if module in {'ecur', 'water_rm'}:
+        reports = reports_for_module(module, DATA_DIR, municipality, requested_period=requested_period)
+    elif module in {'ecur', 'water_rm'}:
         from services.aichat.remaining_sources import reports_for_module
-        return reports_for_module(module, DATA_DIR, municipality)
-    return [_module_report(module, municipality, loaded)]
+        reports = reports_for_module(module, DATA_DIR, municipality)
+    else:
+        reports = [_module_report(module, municipality, loaded)]
+    return [report_periods.restrict(report, requested_period) for report in reports]
 
 
 def _municipality_rows(report, municipality):
@@ -413,7 +481,8 @@ def prepare(question, allowed_modules, requested=None, previous=None):
         bundle['clarification'] = scope['error']
         return bundle
     selected = scope['modules'] or [m for m in MODULES if m in allowed]
-    municipal = scope['municipalities'] or (_known_names(allowed) if scope['group_by'] == 'municipality' else [])
+    requested_period = scope.get('requested_period')
+    municipal = scope['municipalities'] or (_known_names(allowed, requested_period) if scope['group_by'] == 'municipality' else [])
     # An explicit list is retained; a very large all-municipalities request has
     # a stated bound rather than silently changing into a regional summary.
     shown_municipal = municipal[:80]
@@ -427,16 +496,19 @@ def prepare(question, allowed_modules, requested=None, previous=None):
         bundle['limitations'].append('Недоступные блоки не читались: ' + ', '.join(scope['unavailable_modules']) + '.')
     snapshot = water.load_snapshot() if 'water-dashboard' in selected else None
     loaded_results = {m: _load_result(m) for m in selected if MODULES[m][1] is not None}
+    if 'collective' in selected:
+        from services.aichat.collective_source import _saved
+        loaded_results['collective'] = (_saved(DATA_DIR, requested_period), '')
     for module in selected:
         loaded = loaded_results.get(module)
         if len(shown_municipal) == 1:
-            bundle['sources'].extend(_render_module(module, scope['sources'], shown_municipal[0], snapshot, loaded))
+            bundle['sources'].extend(_render_module(module, scope['sources'], shown_municipal[0], snapshot, loaded, requested_period))
         elif shown_municipal:
-            reports = _render_module(module, scope['sources'], snapshot=snapshot, loaded=loaded)
+            reports = _render_module(module, scope['sources'], snapshot=snapshot, loaded=loaded, requested_period=requested_period)
             grouped = {r['id']: [] for r in reports}
             regional_warnings = {r['id']: r.get('warning', '') for r in reports}
             for name in shown_municipal:
-                for r in _render_module(module, scope['sources'], name, snapshot, loaded):
+                for r in _render_module(module, scope['sources'], name, snapshot, loaded, requested_period):
                     city_rows = _municipality_rows(r, name)
                     if r.get('warning') and r['warning'] != regional_warnings[r['id']]:
                         for row in city_rows:
@@ -453,8 +525,15 @@ def prepare(question, allowed_modules, requested=None, previous=None):
                 report['municipality_table'] = _matrix(grouped[report['id']])
             bundle['sources'].extend(reports)
         else:
-            bundle['sources'].extend(_render_module(module, scope['sources'], snapshot=snapshot, loaded=loaded))
-    if not bundle['sources']:
+            bundle['sources'].extend(_render_module(module, scope['sources'], snapshot=snapshot, loaded=loaded, requested_period=requested_period))
+    if requested_period:
+        unavailable = [source for source in bundle['sources'] if source.get('period_selection') != 'exact']
+        if unavailable:
+            bundle['limitations'].append('Не подтверждён запрошенный период ' + requested_period['label'] + ': ' + ', '.join(source['title'] for source in unavailable) + '. Числа за другой период исключены.')
+        if unavailable and len(unavailable) == len(bundle['sources']):
+            bundle['clarification'] = ('Нет подтверждённых данных за ' + requested_period['label'] + ' в выбранных источниках. Обновите нужный период в соответствующем блоке или запросите последний сохранённый срез; итоги за другой период не подставлены.')
+            bundle['sources'] = []
+    if not bundle['sources'] and not bundle.get('clarification'):
         bundle['clarification'] = 'Для вашей учётной записи пока нет доступных источников отчёта. Можно приложить файл или получить доступ к нужному модулю.'
     return _bounded(bundle)
 

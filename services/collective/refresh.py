@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 import os
+import logging
 import re
 import threading
 import time
@@ -16,6 +17,7 @@ MIGRATION = Path(__file__).resolve().parents[2] / 'migrations/20261019_collectiv
 _thread = None
 _mutex = threading.Lock()
 _wake = threading.Event()
+_logger = logging.getLogger(__name__)
 
 
 class BusyError(ValueError):
@@ -159,8 +161,17 @@ def _drain():
                     store.save_snapshot(row['start'], row['end'], kurators, rows)
                 except PortalError as exc:
                     error = str(exc)[:500]
-                except Exception:
+                    _logger.warning('Collective refresh failed type=%s code=COLLECTIVE_SOURCE', type(exc).__name__)
+                except store.ValidationError as exc:
+                    # ValidationError messages are fixed, reviewed user-facing text;
+                    # neither source rows nor manual reports are embedded in them.
+                    error = str(exc)[:500]
+                    _logger.warning('Collective refresh failed type=%s code=COLLECTIVE_VALIDATION', type(exc).__name__)
+                except Exception as exc:
                     error = 'Не удалось сохранить обновление. Прежние данные и доклады сохранены. Повторите попытку или обратитесь к администратору.'
+                    # Never log exception messages/tracebacks: upstream failures can
+                    # contain portal content, connection parameters or credentials.
+                    _logger.warning('Collective refresh failed type=%s code=COLLECTIVE_UNEXPECTED', type(exc).__name__)
                 with db.get_db_connection() as conn:
                     conn.execute('UPDATE collective_refresh_jobs SET status=?,error=?,updated_at=? WHERE id=?',
                                  ('error' if error else 'success', error, time.time(), row['id']))

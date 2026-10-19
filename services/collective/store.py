@@ -20,6 +20,8 @@ from utils.db import get_db_connection
 from .client import HEADERS, period
 
 MIGRATION = Path(__file__).resolve().parents[2] / 'migrations/20261019_collective_workspace.sql'
+SECONDARY_MIGRATION = Path(__file__).resolve().parents[2] / 'migrations/20261019_collective_secondary_index.sql'
+SECONDARY_MIGRATION_ID = '20261019_collective_secondary_index'
 MAX_REPORT = 20_000
 MAX_NAME = 120
 MAX_PEOPLE = 200
@@ -72,9 +74,50 @@ def initialize():
         ready = has_migrations and conn.execute("SELECT 1 FROM app_schema_migrations WHERE name='20261019_collective_workspace'").fetchone()
         if not ready:
             conn.executescript(MIGRATION.read_text(encoding='utf-8'))
+        _repair_secondary_index(conn)
         if not conn.execute('SELECT 1 FROM collective_settings WHERE id=1').fetchone():
             conn.execute('INSERT OR IGNORE INTO collective_settings(id,since,created_at) VALUES(1,?,?)',
                          (today().isoformat(), _stamp()))
+
+
+def _secondary_index_entries(conn):
+    """Rebuild only derived hints, including earlier numbers retained as aliases."""
+    for row in conn.execute('SELECT key,source_json FROM collective_complaints'):
+        source = json.loads(row['source_json'])
+        if isinstance(source, list) and len(source) > 6:
+            secondary = _norm(source[6])
+            if secondary:
+                yield secondary, row['key']
+    for row in conn.execute("SELECT alias,complaint_key FROM collective_identity_aliases WHERE "
+                            "alias LIKE 'secondary:%' OR alias LIKE 'pair:%' OR alias LIKE 'legacy-secondary:%'"):
+        alias = row['alias']
+        if alias.startswith('legacy-secondary:'):
+            secondary = alias[len('legacy-secondary:'):]
+        else:
+            value = json.loads(alias.split(':', 1)[1])
+            secondary = value[1] if isinstance(value, list) and len(value) == 2 else ''
+        secondary = _norm(secondary)
+        if secondary:
+            yield secondary, row['complaint_key']
+
+
+def _repair_secondary_index(conn):
+    def complete():
+        table = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='collective_secondary_ids'").fetchone()
+        marker = conn.execute('SELECT 1 FROM app_schema_migrations WHERE name=?', (SECONDARY_MIGRATION_ID,)).fetchone()
+        return bool(table and marker)
+
+    if complete():
+        return
+    # Recheck under the database write lock for concurrent application workers.
+    # execute (not executescript) keeps DDL, backfill and marker atomic.
+    conn.execute('BEGIN IMMEDIATE')
+    if complete():
+        return
+    conn.execute(SECONDARY_MIGRATION.read_text(encoding='utf-8'))
+    conn.executemany('INSERT OR IGNORE INTO collective_secondary_ids(secondary_id,complaint_key) VALUES(?,?)',
+                     _secondary_index_entries(conn))
+    conn.execute('INSERT OR IGNORE INTO app_schema_migrations(name) VALUES(?)', (SECONDARY_MIGRATION_ID,))
 
 
 @contextmanager
@@ -248,40 +291,81 @@ def _aliases(row):
     return aliases
 
 
-def _resolve(conn, row, stamp, *, legacy=False):
-    aliases = _aliases(row)
-    extra = ['legacy-secondary:' + _norm(row[6])] if row[6] else []
+def _known_primary(conn, key):
+    return {found[0][8:] for found in conn.execute(
+        "SELECT alias FROM collective_identity_aliases WHERE complaint_key=? AND alias LIKE 'primary:%'", (key,))}
+
+
+def _secondary_matches(conn, row, aliases):
+    """A source number is a hint, not a globally unique complaint identity."""
+    secondary, source = _norm(row[6]), _norm(row[0])
+    if not secondary:
+        return set()
+    candidates = {found[0] for found in conn.execute(
+        'SELECT complaint_key FROM collective_secondary_ids WHERE secondary_id=?', (secondary,))}
+    # Retain aliases written by earlier versions and legacy imports. Their single
+    # target is never preferred over the full, potentially ambiguous, index.
+    for alias in [a for a in aliases if a.startswith('secondary:')] + ['legacy-secondary:' + secondary]:
+        found = conn.execute('SELECT complaint_key FROM collective_identity_aliases WHERE alias=?', (alias,)).fetchone()
+        if found:
+            candidates.add(found[0])
     matches = set()
+    for key in candidates:
+        previous = json.loads(conn.execute('SELECT source_json FROM collective_complaints WHERE key=?', (key,)).fetchone()[0])
+        if not source or not previous[0] or source == _norm(previous[0]):
+            matches.add(key)
+    return matches
+
+
+def _ambiguous_identity():
+    return ValidationError('Не удалось однозначно сопоставить номера обращений: источник вернул '
+                           'противоречащие друг другу записи без уникального основного номера. '
+                           'Прежние данные и доклады сохранены. Проверьте номера в источнике.')
+
+
+def _resolve(conn, row, stamp, *, legacy=False, period_ids=None):
+    aliases = _aliases(row)
+    primary, secondary = _norm(row[5]), _norm(row[6])
+    matches = set()
+    # A known primary/exact pair determines the complaint. Shared secondary IDs
+    # must not merge distinct primary IDs or reject a larger reporting period.
     for alias in aliases:
+        if alias.startswith('secondary:'):
+            continue
         found = conn.execute('SELECT complaint_key FROM collective_identity_aliases WHERE alias=?', (alias,)).fetchone()
         if found:
             matches.add(found[0])
-    for alias in extra:
-        found = conn.execute('SELECT complaint_key FROM collective_identity_aliases WHERE alias=?', (alias,)).fetchone()
-        if found:
-            previous = json.loads(conn.execute('SELECT source_json FROM collective_complaints WHERE key=?', (found[0],)).fetchone()[0])
-            known_primary = {r[0][8:] for r in conn.execute("SELECT alias FROM collective_identity_aliases WHERE complaint_key=? AND alias LIKE 'primary:%'", (found[0],))}
-            incompatible = ((row[5] and known_primary and _norm(row[5]) not in known_primary)
-                            or (row[0] and previous[0] and _norm(row[0]) != _norm(previous[0])))
-            if not incompatible:
-                matches.add(found[0])
-    if legacy and row[6] and not row[5]:
-        matches.update(found[0] for found in conn.execute(
-            'SELECT complaint_key FROM collective_secondary_ids WHERE secondary_id=?', (_norm(row[6]),)))
+    if not matches:
+        candidates = _secondary_matches(conn, row, aliases)
+        if primary:
+            compatible = set()
+            for candidate in candidates:
+                known = _known_primary(conn, candidate)
+                if known and primary not in known:
+                    continue
+                if not known and period_ids:
+                    previous = json.loads(conn.execute(
+                        'SELECT source_json FROM collective_complaints WHERE key=?', (candidate,)).fetchone()[0])
+                    source = _norm(previous[0])
+                    choices = {number for origin, number in period_ids.get(secondary, ())
+                               if not source or not origin or source == origin}
+                    if len(choices) > 1:
+                        # A previously unnumbered/legacy report cannot be assigned
+                        # to whichever of several monthly rows happens to come first.
+                        raise _ambiguous_identity()
+                compatible.add(candidate)
+            candidates = compatible
+        matches = candidates
     if len(matches) > 1:
-        raise ValidationError('Источник вернул противоречащие друг другу номера обращений. Предыдущие данные сохранены.')
-    if matches and row[5]:
-        known_primary = {r[0][8:] for r in conn.execute(
-            "SELECT alias FROM collective_identity_aliases WHERE complaint_key=? AND alias LIKE 'primary:%'", (next(iter(matches)),))}
-        if known_primary and _norm(row[5]) not in known_primary:
-            raise ValidationError('Источник вернул противоречащие друг другу номера обращений. Предыдущие данные сохранены.')
+        raise _ambiguous_identity()
     key = next(iter(matches)) if matches else 'c_' + hashlib.sha256(aliases[0].encode()).hexdigest()
     conn.execute('INSERT OR IGNORE INTO collective_complaints(key,source_json,first_seen_at,last_seen_at) VALUES(?,?,?,?)',
                  (key, _json(row), stamp, stamp))
-    for alias in aliases + (extra if legacy and not row[5] else []):
+    extra = ['legacy-secondary:' + secondary] if legacy and secondary and not primary else []
+    for alias in aliases + extra:
         conn.execute('INSERT OR IGNORE INTO collective_identity_aliases(alias,complaint_key) VALUES(?,?)', (alias, key))
-    if row[6]:
-        conn.execute('INSERT OR IGNORE INTO collective_secondary_ids(secondary_id,complaint_key) VALUES(?,?)', (_norm(row[6]), key))
+    if secondary:
+        conn.execute('INSERT OR IGNORE INTO collective_secondary_ids(secondary_id,complaint_key) VALUES(?,?)', (secondary, key))
     conn.execute('INSERT OR IGNORE INTO collective_workflows(complaint_key) VALUES(?)', (key,))
     if not legacy:
         conn.execute('UPDATE collective_complaints SET source_json=?,last_seen_at=? WHERE key=?', (_json(row), stamp, key))
@@ -426,8 +510,13 @@ def save_snapshot(start, end, kurators, rows):
         raise ValidationError('Источник вернул слишком большой список ведомств.')
     meta = f'МинЖКХ МО и объединения ({len(kurators)}) · {first:%d.%m.%Y}–{last:%d.%m.%Y}'
     stamp = _stamp()
+    period_ids = {}
+    for row in rows:
+        primary, secondary = _norm(row[5]), _norm(row[6])
+        if primary and secondary:
+            period_ids.setdefault(secondary, set()).add((_norm(row[0]), primary))
     with _db(True) as conn:
-        keys = [_resolve(conn, row, stamp) for row in rows]
+        keys = [_resolve(conn, row, stamp, period_ids=period_ids) for row in rows]
         conn.execute('''INSERT INTO collective_snapshots(start,end,rows_json,keys_json,kurators_json,meta,fetched_at)
             VALUES(?,?,?,?,?,?,?) ON CONFLICT(start,end) DO UPDATE SET rows_json=excluded.rows_json,keys_json=excluded.keys_json,
             kurators_json=excluded.kurators_json,meta=excluded.meta,fetched_at=excluded.fetched_at,version=collective_snapshots.version+1''',

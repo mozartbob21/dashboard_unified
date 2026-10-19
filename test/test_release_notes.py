@@ -75,7 +75,10 @@ def test_deployed_v3_catalog_has_shared_news_and_filters_module_details(app, mon
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     payload = response.json()
-    assert payload["pending_count"] == 2
+    assert payload["pending_count"] == 3
+    new_note = next(item for item in payload['releases'] if item['id'] == '2026-10-19-collective-period-and-chat')
+    assert [entry['id'] for entry in new_note['entries']] == ['chat-platform-guidance']
+    assert 'коллективн' not in str(new_note).lower()
     note = next(item for item in payload["releases"] if item["id"] == RELEASE_ID)
     assert note["id"] == RELEASE_ID and note["read_at"] is None
     assert note["version"] == "3" and note["title"] == "Нейрона ИИ — версия 3"
@@ -268,3 +271,14 @@ def test_catalog_rejects_unknown_module_instead_of_broadening_audience(isolated,
     monkeypatch.setattr(releases, "RELEASES", broken)
     with pytest.raises(ValueError, match="module"):
         releases.pending(isolated["1"])
+
+
+def test_collective_update_details_require_collective_grant(app, monkeypatch):
+    monkeypatch.setattr(releases, 'RELEASES', DEPLOYED_RELEASES)
+    with db.get_db_connection() as conn:
+        conn.execute("UPDATE users SET modules='[\"collective\"]' WHERE id=1")
+    with api(app) as client:
+        notes = client.get('/api/releases/pending').json()['releases']
+    note = next(item for item in notes if item['id'] == '2026-10-19-collective-period-and-chat')
+    assert {entry['id'] for entry in note['entries']} == {
+        'chat-platform-guidance', 'collective-layout-and-period', 'collective-ai-context'}

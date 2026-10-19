@@ -5,7 +5,7 @@ import os
 import tempfile
 from functools import wraps
 from threading import RLock
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -119,6 +119,16 @@ def append_message(did, role, content, file_name=None, report_scope=None, respon
             for key in ("modules", "sources", "municipalities"):
                 if isinstance(report_scope.get(key), list):
                     scope[key] = [str(value)[:240] for value in report_scope[key][:80] if isinstance(value, str)]
+            period = report_scope.get("requested_period")
+            if isinstance(period, dict):
+                try:
+                    first, last = date.fromisoformat(period['from']), date.fromisoformat(period['to'])
+                    if first <= last:
+                        scope['requested_period'] = {'from': first.isoformat(), 'to': last.isoformat(),
+                                                     'label': str(period.get('label') or '')[:80],
+                                                     'timezone': 'Europe/Moscow'}
+                except (KeyError, TypeError, ValueError):
+                    pass
             if report_scope.get("group_by") == "municipality":
                 scope["group_by"] = "municipality"
         d["updated_at"] = now_iso()
