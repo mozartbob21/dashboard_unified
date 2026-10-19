@@ -1,0 +1,20 @@
+{% extends "mingkh-sms-base.html" %}
+{% block sms_content %}
+<div class="wrap">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><div class="step" style="margin:0">Блоки и периоды</div><button type="button" class="mini" id="lastWeek">Прошлая неделя · чт—ср</button></div>
+    <div id="blocks"></div>
+    <p class="note">Для обращений и системных адресов выберите конечную дату, для резонансных и решений — начало и конец периода. Тематики и другие настройки берутся с вкладки каждого раздела.</p>
+    <p class="note">Начальная дата системных адресов учитывает доступность предыдущего реестра. Пересчёт сохраняет реестр для следующей недели. Подготовка текста не отправляет сообщения.</p>
+    <div class="row" style="margin-top:16px"><button type="button" class="btn" id="go">Собрать СМС</button></div>
+    <div class="status" id="msg" role="status" aria-live="polite"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><div class="step" style="margin:0">Итоговая СМС</div><button type="button" class="mini" id="copy">Копировать</button></div>
+    <textarea id="out" aria-label="Текст сводной СМС" spellcheck="false" placeholder="Выберите блоки и нажмите «Собрать СМС». Здесь появится готовый текст." style="min-height:520px"></textarea>
+    <p class="note">Проверьте текст перед использованием. Его можно отредактировать прямо здесь.</p>
+  </div>
+</div>
+<div id="frames" aria-hidden="true"></div>
+{% endblock %}
+{% block sms_script %}<script src="/static/mingkh-sms/overview.js?v=20261019"></script>{% endblock %}

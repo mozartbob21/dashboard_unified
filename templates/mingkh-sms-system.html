@@ -1,0 +1,71 @@
+{% extends "mingkh-sms-base.html" %}
+{% block sms_content %}
+<div class="wrap">
+  <div>
+    <div class="card">
+      <div class="step">Дата отсчёта</div>
+      <input type="date" id="date" aria-label="Дата отсчёта">
+      <div class="note">Последние 30 дней считаются до этой даты включительно. Начальная дата учитывает доступный реестр: для пересчёта нужен реестр, сохранённый раньше выбранной даты.</div>
+    </div>
+
+    <div class="card">
+      <div class="step">Реестр прошлой недели</div>
+      <div class="note" style="margin-top:0" id="regInfo">…</div>
+    </div>
+
+    <div class="card">
+      <div class="row"><button type="button" class="btn" id="go">Пересчитать системные</button></div>
+      <div class="status" id="msg" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div class="step" style="margin:0">Текст СМС — блок 3</div>
+        <button type="button" class="mini" id="copy">Копировать</button>
+      </div>
+      <textarea id="out" aria-label="Текст СМС" spellcheck="false" placeholder="Здесь появится текст" style="margin-top:8px"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="full hidden" id="res">
+  <div class="card">
+    <div class="step">Итог пересчёта</div>
+    <div id="pills"></div>
+    <div class="note" id="warn"></div>
+  </div>
+  <details class="card">
+    <summary><span class="step">Новые системные улицы</span><span class="sel" id="tNewN"></span></summary>
+    <div class="body"><div class="twrap"><table id="tNew"></table></div></div>
+  </details>
+  <details class="card">
+    <summary><span class="step">Вернули на доработку «системный»</span><span class="sel" id="tBackN"></span></summary>
+    <div class="body"><div class="twrap"><table id="tBack"></table></div></div>
+  </details>
+  <details class="card">
+    <summary><span class="step">Перешли в «нет жалоб за 30 дней»</span><span class="sel" id="tNetN"></span></summary>
+    <div class="body"><div class="twrap"><table id="tNet"></table></div></div>
+  </details>
+  <div class="card">
+    <div class="step">Задачи РМ для новых системных</div>
+    <div class="grid3">
+      <div><label>Контролёр</label><input type="text" id="ctrl" aria-label="Контролёр" placeholder="ФИО"></div>
+      <div><label>Начало</label><input type="text" id="start" aria-label="Дата начала" placeholder="ДД.ММ.ГГГГ"></div>
+      <div><label>Завершение</label><input type="text" id="end" aria-label="Дата завершения" placeholder="ДД.ММ.ГГГГ"></div>
+    </div>
+    <div class="step" style="margin-top:16px">Файлы для импорта</div>
+    <div class="files">
+      <button type="button" class="btn" data-file="registry">⬇ Реестр — в Google-таблицу (системные_обновлено)</button>
+      <button type="button" class="btn" id="rmCsv" >⬇ CSV новых системных — для импорта в РМ</button>
+      <button type="button" class="btn" data-file="extra" >⬇ Вернувшиеся и новые (xlsx)</button>
+    </div>
+    <div class="status" id="msg2" role="status" aria-live="polite"></div>
+    <div class="step" style="margin-top:14px">Номера задач вернувшихся улиц</div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="mini" id="copyTasks">Копировать</button></div>
+    <textarea id="tasks" aria-label="Номера задач" readonly style="margin-top:6px"></textarea>
+  </div>
+</div>
+{% endblock %}
+{% block sms_script %}<script src="/static/mingkh-sms/system.js?v=20261019"></script>{% endblock %}

@@ -43,10 +43,12 @@ def effective_fonts(text_frame):
 class CollectivePresentationQualityTests(unittest.TestCase):
     def test_real_export_route_builds_filtered_editable_presentation(self):
         from test.test_collective import api
-        with api({'modules': ['collective'], 'username': 'synthetic'}) as client:
+        source = appeal('101', **{'ОМСУ': 'Проверочный округ'})
+        snapshot = {'keys':['test-key'], 'rows':[[source[h] for h in HEADERS]], 'workflows':{'test-key':{'theme':'ii','report':'','assignee_name':''}}}
+        with patch('routers.collective.store.get_snapshot', return_value=snapshot), api({'modules': ['collective'], 'username': 'synthetic'}) as client:
             response = client.post('/mingkh/collective/api/pptx', json={
                 'start': '2026-01-01', 'end': '2026-01-02',
-                'rows': [appeal('101', **{'ОМСУ': 'Проверочный округ'})],
+                'rows': [{'_key':'test-key','_theme':'ii'}],
             })
         self.assertEqual(response.status_code, 200, response.text[:100] if response.status_code != 200 else '')
         self.assertEqual(response.headers['cache-control'], 'private, no-store')

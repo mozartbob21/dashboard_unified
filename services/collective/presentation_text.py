@@ -183,4 +183,13 @@ def status_blocks(row) -> list[tuple[str, bool]]:
     result = [(status, True)]
     if answer:
         result.append((answer, False))
+    # These fields come from Neurona's shared store, not portal HTML. Keep
+    # angle brackets, entities and all report content as ordinary text.
+    assignee = row.get('_assignee') or ''
+    report = row.get('_report') or ''
+    if assignee:
+        result.append(('Ответственный: ' + assignee, True))
+    if report:
+        result.append(('Доклад', True))
+        result.append((report, False))
     return result

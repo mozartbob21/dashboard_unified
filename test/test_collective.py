@@ -39,6 +39,11 @@ def api(user):
 
 
 class CollectiveTests(unittest.TestCase):
+    def setUp(self):
+        manager = patch.object(collective, 'is_account_manager', return_value=False)
+        manager.start()
+        self.addCleanup(manager.stop)
+
     def test_protocol_basic_auth_verified_tls_and_repeated_filters(self):
         seen = []
         original = httpx.Client
@@ -116,26 +121,25 @@ class CollectiveTests(unittest.TestCase):
             self.assertEqual(c.post('/mingkh/collective/api/pptx', json={}).status_code, 403)
         c = api({'modules': ['collective'], 'username': 'synthetic'})
         self.assertEqual(c.get('/mingkh/collective').status_code, 200)
-        with patch.object(collective, 'credentials', return_value=None):
+        with patch.object(collective.store, 'get_snapshot', return_value=None):
             response = c.get('/mingkh/collective/api/data?start=2026-01-01&end=2026-01-02')
-            self.assertEqual(response.status_code, 503)
-            self.assertIn('Администратору', response.json()['error'])
-        with patch.object(collective, 'credentials', return_value={'username': 'u', 'password': 'p'}) as credentials, \
-             patch.object(collective.CollectivePortal, 'fetch', return_value=([('17', 'Куратор')], [[''] * 16])):
+            self.assertEqual(response.status_code, 404)
+        with patch.object(collective.store, 'get_snapshot', return_value={
+            'head': client.HEADERS, 'rows': [[''] * 16], 'start':'2026-01-01', 'end':'2026-01-02',
+        }) as saved:
             response = c.get('/mingkh/collective/api/data?start=2026-01-01&end=2026-01-02')
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()['start'], '2026-01-01')
             self.assertEqual(response.json()['head'], client.HEADERS)
             self.assertEqual(response.headers['cache-control'], 'private, no-store')
-            credentials.assert_called_once_with('mingkh')
+            saved.assert_called_once_with('2026-01-01', '2026-01-02')
 
         with patch.object(collective.presentation, 'build', return_value=b'synthetic-presentation') as build:
             response = c.post('/mingkh/collective/api/pptx', json={
                 'start': '2026-01-01', 'end': '2026-01-02', 'rows': [record('pr')],
             })
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content, b'synthetic-presentation')
-        self.assertEqual(build.call_args.args[0][0]['_theme'], 'pr')
+        self.assertEqual(response.status_code, 400)
+        build.assert_not_called()  # Legacy exports without stable server keys are refused.
 
     def test_local_and_keycloak_collective_grants_are_independent(self):
         from core.roles import check_module_access

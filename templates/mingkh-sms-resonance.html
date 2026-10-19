@@ -1,0 +1,122 @@
+{% extends "mingkh-sms-base.html" %}
+{% block sms_content %}
+<div class="wrap">
+  <div>
+    <div class="card">
+      <div class="step">Набор тематик</div>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="card">
+      <div class="step">Период</div>
+      <div class="row">
+        <input type="date" id="from" aria-label="Начало периода"> — <input type="date" id="to" aria-label="Конец периода">
+        <button type="button" class="mini" id="lastWeek">прошлая неделя чт—ср</button>
+      </div>
+      <div class="note" id="prevNote"></div>
+    </div>
+
+    <details class="card" id="subsBox">
+      <summary><span class="step">Тематики</span><span class="sel" id="subsSel"></span></summary>
+      <div class="body">
+        <div class="row">
+          <button type="button" class="mini" data-subs="all">Все</button>
+          <button type="button" class="mini" data-subs="none">Снять</button>
+        </div>
+        <div class="checks" id="subs"></div>
+      </div>
+    </details>
+
+    <details class="card" id="srcsBox">
+      <summary><span class="step">Источники</span><span class="sel" id="srcsSel"></span></summary>
+      <div class="body">
+        <div class="row">
+          <button type="button" class="mini" data-src="all">Все</button>
+          <button type="button" class="mini" data-src="none">Снять</button>
+        </div>
+        <div class="checks" id="srcs"></div>
+      </div>
+    </details>
+
+    <div class="card">
+      <div class="step">ОМСУ</div>
+      <select id="omsu" aria-label="Муниципалитет"></select>
+      <div class="badge" id="deptBadge" hidden>Исполнитель — ФКР (пресет «Жалобы по ФКР»)
+        <button type="button" class="mini" id="deptOff" title="Убрать фильтр по исполнителю">✕</button></div>
+      <div class="step" style="margin-top:14px">Порог балла</div>
+      <select id="thr" aria-label="Порог резонансности">
+        <option value="5">5 — широкий охват</option>
+        <option value="7" selected>7 — рабочий (рекомендуется)</option>
+        <option value="9">9 — только острые</option>
+        <option value="11">11 — критические</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <button type="button" class="btn" id="go">Найти резонансные</button>
+      </div>
+      <div class="status" id="msg" role="status" aria-live="polite"></div>
+      <div class="note" id="foundInfo"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="step" style="margin:0">Текст СМС — блок 2</div>
+      <button type="button" class="mini" id="copy">Копировать</button>
+    </div>
+    <label style="font-size:13px;display:block;margin:8px 0"><input type="checkbox" id="withFoci"> добавить блок «Очаги»</label>
+    <textarea id="out" aria-label="Текст СМС" spellcheck="false" placeholder="Здесь появится текст"></textarea>
+    <div class="note">В число резонансных идут <b>новые</b> кейсы, отмеченные галочкой в таблице ниже
+      (по умолчанию — все новые выше порога). Сравнение — с предыдущим периодом той же длины, той же методикой.</div>
+  </div>
+</div>
+
+<div class="full hidden" id="res">
+  <div class="card">
+    <div class="step">Резонансные кейсы</div>
+    <div id="pills"></div>
+    <div class="ctrls">
+      <label><input type="checkbox" id="showRep"> показывать повторные (уже находили раньше)</label>
+      <button type="button" class="mini" id="allOn">✓ отметить новые выше порога</button>
+      <button type="button" class="mini" id="allOff">✕ снять все</button>
+      <span class="note" style="margin:0">клик по строке — раскрыть обращения</span>
+    </div>
+    <details class="fold"><summary>Таблица кейсов <span class="cnt" id="tblN"></span></summary>
+      <div class="twrap"><table id="tbl"></table></div>
+    </details>
+    <div class="note" id="vague"></div>
+    <div class="step" style="margin-top:16px">Файл для загрузки в РМ</div>
+    <div class="grid3">
+      <div><label>Контролёр</label><input type="text" id="ctrl" aria-label="Контролёр" placeholder="ФИО"></div>
+      <div><label>Начало (ДД.ММ.ГГГГ)</label><input type="text" id="ds" aria-label="Дата начала"></div>
+      <div><label>Завершение (ДД.ММ.ГГГГ)</label><input type="text" id="de" aria-label="Дата завершения"></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button type="button" class="btn small dl" id="dlCsv">⬇ CSV для загрузки в РМ</button>
+      <button type="button" class="btn small dl2" id="dlXls">⬇ Excel-реестр резонансных</button>
+    </div>
+    <div class="status" id="msg2" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="card">
+    <div class="step">Очаги — адреса с 2+ жалобами за период и ранее найденные, где жалобы продолжаются (только точные адреса)</div>
+    <div id="fociPills"></div>
+    <div class="row" style="margin-top:10px"><button type="button" class="btn small dl2" id="dlFoci">⬇ Excel очагов (с номерами жалоб)</button></div>
+    <details class="fold"><summary>Таблица очагов <span class="cnt" id="fociN"></span></summary>
+      <div class="note" style="margin-top:0">клик по строке — раскрыть обращения</div>
+      <div class="twrap"><table id="foci"></table></div>
+    </details>
+  </div>
+
+  <div class="card">
+    <div class="step">Частые заявители за период</div>
+    <div class="note" style="margin-top:0">Служебные адреса исключены: <b>konus.group</b>, <b>mosreg.ru</b>. Жалобы без почты не учитываются.</div>
+    <details class="fold"><summary>Таблица заявителей <span class="cnt" id="usersN"></span></summary>
+      <div class="twrap"><table id="users"></table></div>
+    </details>
+  </div>
+</div>
+{% endblock %}
+{% block sms_script %}<script src="/static/mingkh-sms/resonance.js?v=20261019"></script>{% endblock %}

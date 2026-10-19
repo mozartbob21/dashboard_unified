@@ -1,0 +1,47 @@
+{% extends "mingkh-sms-base.html" %}
+{% block sms_content %}
+<div class="wrap">
+  <div>
+    <div class="card">
+      <div class="step">Период</div>
+      <div class="row">
+        <input type="date" id="from" aria-label="Начало периода"> — <input type="date" id="to" aria-label="Конец периода">
+        <button type="button" class="mini" id="lastWeek">прошлая неделя чт—ср</button>
+      </div>
+      <div class="note">Мероприятие попадает в период по своей дате в поле задачи РМ.</div>
+    </div>
+
+    <div class="card">
+      <div class="row"><button type="button" class="btn" id="go">Загрузить из РМ</button></div>
+      <div class="status" id="msg" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="card">
+      <div class="step">ОМСУ</div>
+      <select id="omsu" aria-label="Муниципалитет"><option value="">Все ОМСУ</option></select>
+      <div class="note">Фильтр применяется к уже загруженным мероприятиям.</div>
+    </div>
+
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="step" style="margin:0">Текст СМС — блок 4</div>
+      <button type="button" class="mini" id="copy">Копировать</button>
+    </div>
+    <textarea id="out" aria-label="Текст СМС" spellcheck="false" placeholder="Здесь появится текст" style="margin-top:8px"></textarea>
+  </div>
+</div>
+
+<div class="full hidden" id="res">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="step" style="margin:0">Мероприятия</div>
+      <button type="button" class="btn small" id="xls" style="padding:8px 14px;font-size:13.5px">⬇ Выгрузить в Excel</button>
+    </div>
+    <div id="pills"></div>
+    <div class="twrap"><table id="tbl"></table></div>
+  </div>
+</div>
+{% endblock %}
+{% block sms_script %}<script src="/static/mingkh-sms/solutions.js?v=20261019"></script>{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "mingkh-sms-embed.html" if embed else "base_module.html" %}
+{% set sms_labels = {'overview':'Сводная СМС','summary':'Свод по обращениям','resonance':'Резонансные обращения','system':'Системные адреса','solutions':'Решения РМ'} %}
+{% set sms_descriptions = {'overview':'Соберите единый текст из нужных разделов. Выберите блоки и период — итог можно проверить и скопировать.','summary':'Свод обращений с начала года, сравнение с прошлым годом и ежедневный доклад.','resonance':'Новые резонансные адреса, повторные обращения и очаги. Проверьте отбор и выгрузите реестр.','system':'Изменения в реестре системных адресов: новые улицы, возвращённые задачи и адреса без жалоб.','solutions':'Быстрые и системные решения по мероприятиям РМ. Сводный текст и детализация в Excel.'} %}
+{% block title %}{{ sms_labels.get(sms_page, 'СМС и доклады') }} — Нейрона ИИ{% endblock %}
+{% block body_class %}module-mingkh-sms{% if embed %} sms-embedded{% endif %}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/mingkh-sms/sms.css?v=20261019">{% endblock %}
+{% block content %}
+<div class="container sms-shell">
+{% if not embed %}
+<header class="topbar"><div class="brand"><a class="brand-link" href="/"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Дашборд по жалобам МинЖКХ</div></div></a></div><div class="top-actions"><a href="/mingkh" class="secondary-button">← К дашборду</a><a href="/" class="secondary-button">← К модулям</a></div></header>
+<section class="sms-hero"><div><p class="sms-eyebrow">Аналитика обращений</p><h1>СМС и доклады</h1><p>Готовьте сводные сообщения на основе жалоб и принятых решений.</p></div><span class="sms-hero-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 5h18a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H14l-7 5v-5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"/><path d="M10 11h12M10 16h8"/></svg></span></section>
+<nav class="sms-tabs" aria-label="Разделы СМС и докладов">{% for key, path, label in [('overview','/mingkh/sms','Сводная СМС'),('summary','/mingkh/sms/summary','Обращения'),('resonance','/mingkh/sms/resonance','Резонансные'),('system','/mingkh/sms/system','Системные'),('solutions','/mingkh/sms/solutions','Решения РМ')] %}<a href="{{ path }}"{% if sms_page == key %} class="on" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}</nav>
+{% endif %}
+<main class="sms-workspace">
+{% if not embed %}<div class="sms-section-heading"><h2>{{ sms_labels.get(sms_page, 'СМС и доклады') }}</h2><p>{{ sms_descriptions.get(sms_page, '') }}</p></div>{% endif %}
+<div id="smsOptionsWarning" class="sms-connection" role="status" hidden></div>
+<div id="smsConnection" class="sms-connection" role="status" aria-live="polite" hidden></div>
+{% block sms_content %}{% endblock %}
+{% if can_manage_import and not embed %}
+<details class="sms-import"><summary><span>Перенос сохранённых реестров</span><span class="sms-admin-label">Администратор</span></summary><p>Для продолжения работы перенесите сохранённые реестры из архива. Настройки подключения задаются в разделе «Логины и пароли».</p><form id="smsImport"><div class="sms-file-row"><label class="sms-file-picker"><input id="smsArchive" type="file" accept=".zip,application/zip"><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7h7l2 2h9v11H3Z"/><path d="M3 7V4h6l2 3"/></svg><span>Выбрать архив</span></label><span id="smsArchiveName" class="sms-file-name">Архив не выбран</span><button class="mini" id="smsImportSubmit" type="submit" disabled>Перенести данные</button></div><div class="status" id="smsImportStatus" role="status" aria-live="polite"></div></form></details>
+{% endif %}
+</main>
+</div>
+{% if sms_page in ['resonance','solutions'] %}<script src="/static/vendor/xlsx.full.min.js"></script>{% endif %}
+{% if sms_page in ['resonance','system','solutions'] %}<script src="/static/mingkh-sms/rez_core.js?v=20261019"></script>{% endif %}
+{% if sms_page == 'resonance' %}<script src="/static/mingkh-sms/rez_addr.js?v=20261019"></script>{% endif %}
+<script src="/static/mingkh-sms/common.js?v=20261019"></script>
+{% block sms_script %}{% endblock %}
+{% endblock %}

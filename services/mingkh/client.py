@@ -12,9 +12,10 @@ QUERIES = {'q_download_detalization','q_map','q_last_updated'}
 
 
 class PortalError(RuntimeError):
-    def __init__(self, message, *, retryable=False):
+    def __init__(self, message, *, retryable=False, status=None):
         super().__init__(message)
         self.retryable = retryable
+        self.status = status
 
 
 def year_ago(days, today=None):
@@ -38,12 +39,14 @@ def periods(cs,ce,ps,pe):
 
 
 class Pentaho:
+    QUERIES = frozenset(QUERIES)
+
     def __init__(self,username,password):
         self.username=username
         self.password=password
 
     def query(self,query,params=None,*,timeout=180):
-        if query not in QUERIES:
+        if query not in self.QUERIES:
             raise PortalError('Неизвестный запрос к порталу.')
         request={'path':CDA_PATH,'dataAccessId':query,'outputType':'json'}
         request.update({'param'+k:v for k,v in (params or {}).items()})
@@ -57,7 +60,7 @@ class Pentaho:
                         raise PortalError('Портал не принял логин и пароль. Администратору нужно проверить доступ МИНЖКХ.')
                     if response.status_code!=200:
                         raise PortalError(f'Портал временно недоступен (HTTP {response.status_code}).',
-                                          retryable=response.status_code == 429 or response.status_code >= 500)
+                                          retryable=response.status_code == 429 or response.status_code >= 500, status=response.status_code)
                     payload=bytearray()
                     for part in response.iter_bytes():
                         payload.extend(part)

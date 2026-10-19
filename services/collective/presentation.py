@@ -21,6 +21,8 @@ TEMPLATE = Path(__file__).parent / 'assets' / 'template.pptx'
 THEMES = {'ii': 'Инженерная инфраструктура', 'kr': 'Капитальный ремонт МКД', 'pr': 'Прочее'}
 MAX_ROWS = 2000
 MAX_CELL = 100000
+MAX_REPORT = 20000
+MAX_ASSIGNEE = 120
 MAX_SLIDES = 500
 DARK = '172033'
 
@@ -52,6 +54,18 @@ def validate_rows(rows):
             if isinstance(value, (list, dict, bool)) or len(str(value)) > MAX_CELL:
                 raise ValueError('Некорректные поля обращения.')
             item[key] = str(value)
+        for key, limit in (('_assignee', MAX_ASSIGNEE), ('_report', MAX_REPORT)):
+            value = row.get(key)
+            if value is None:
+                value = ''
+            if not isinstance(value, str) or len(value) > limit:
+                raise ValueError('Некорректный ответственный или доклад обращения.')
+            # Manual reports are literal text. Do not parse HTML or entities.
+            if any((ord(char) < 32 and char not in '\t\n\r') or
+                   0xD800 <= ord(char) <= 0xDFFF or ord(char) in (0xFFFE, 0xFFFF)
+                   for char in value):
+                raise ValueError('Ответственный или доклад содержит недопустимые символы.')
+            item[key] = value.replace('\r\n', '\n').replace('\r', '\n').strip()
         item['_theme'] = row['_theme']
         item['_sig'] = signature(item[HEADERS[10]])
         result.append(item)

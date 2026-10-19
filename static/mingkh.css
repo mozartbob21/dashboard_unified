@@ -387,3 +387,9 @@ html[data-theme="dark"] .mingkh-dashboard .trendcard { --curr: #68a9f4; --prev: 
 .mingkh-dashboard #sources .sources-table td:last-child { padding-right: 0; }
 .mingkh-dashboard #sources .sources-table .numcell { text-align: right; }
 .mingkh-dashboard #sources .sources-table th[scope="row"] { color: var(--text); }
+
+/* SMS preparation shares the complaints workspace. */
+.top-actions .mingkh-sms-link{background:var(--accent-soft,#eef0ff);border-color:var(--accent,#6467e8);color:var(--text,#1c2541);gap:8px;white-space:nowrap}
+.module-mingkh .top-actions{flex-wrap:wrap}
+
+@media(max-width:900px){html body.unified-module-page.module-mingkh .topbar.unified-shell-topbar{position:static!important;top:auto!important}}

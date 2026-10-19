@@ -1,0 +1,87 @@
+{% extends "mingkh-sms-base.html" %}
+{% block sms_content %}
+<div class="wrap">
+  <div>
+    <div class="card">
+      <div class="step">Набор тематик</div>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="card">
+      <div class="step">Период</div>
+      <div class="row">
+        с <input type="date" id="from" aria-label="Начало периода"> по <input type="date" id="date" aria-label="Дата отсчёта">
+        <span class="note" style="margin:0">по умолчанию — с 1 января по последнюю среду</span>
+      </div>
+    </div>
+
+    <details class="card" id="subsBox">
+      <summary><span class="step">Тематики</span><span class="sel" id="subsSel"></span></summary>
+      <div class="body">
+        <div class="row">
+          <button type="button" class="mini" data-subs="all">Все</button>
+          <button type="button" class="mini" data-subs="none">Снять</button>
+        </div>
+        <div class="checks" id="subs"></div>
+        <div class="note">Не учитываются никогда: «Вне компетенции», «Платежные документы (ЕИРЦ)»,
+          «Деятельность УК», «Прямая линия с населением».</div>
+      </div>
+    </details>
+
+    <details class="card" id="srcsBox">
+      <summary><span class="step">Источники</span><span class="sel" id="srcsSel"></span></summary>
+      <div class="body">
+        <div class="row">
+          <button type="button" class="mini" data-src="all">Все</button>
+          <button type="button" class="mini" data-src="none">Снять</button>
+        </div>
+        <div class="checks" id="srcs"></div>
+        <div class="note">Данные запрашиваются с портала при каждом формировании. Подготовка по отдельным источникам может занять несколько минут.</div>
+      </div>
+    </details>
+
+    <div class="card">
+      <div class="step">ОМСУ</div>
+      <select id="omsu" aria-label="Муниципалитет"></select>
+      <div class="badge" id="deptBadge" hidden>Исполнитель — ФКР (пресет «Жалобы по ФКР»)
+        <button type="button" class="mini" id="deptOff" title="Убрать фильтр по исполнителю">✕</button></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <button type="button" class="btn" id="go">Сформировать СМС</button>
+      </div>
+      <div class="status" id="msg" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="step" style="margin:0">Текст СМС</div>
+      <button type="button" class="mini" id="copy">Копировать</button>
+    </div>
+    <textarea id="out" aria-label="Текст СМС" spellcheck="false" placeholder="Здесь появится текст"></textarea>
+  </div>
+
+  <div class="card" style="grid-column:1/-1">
+    <div class="row" style="justify-content:space-between">
+      <div class="step" style="margin:0">Ежедневный доклад</div>
+      <button type="button" class="mini" id="dCopy">Копировать</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      с <input type="date" id="dFrom" aria-label="Начало периода ежедневного доклада"> по <input type="date" id="dDate" aria-label="Конец периода ежедневного доклада">
+      <button type="button" class="btn small" id="dGo" style="padding:8px 16px;font-size:13.5px">Сформировать доклад</button>
+      <span class="note" style="margin:0">топ-5 подтем дня + прочие вопросы — к тому же дню неделей раньше</span>
+    </div>
+    <div class="status" id="dMsg" role="status" aria-live="polite"></div>
+    <textarea id="dOut" aria-label="Текст ежедневного доклада" spellcheck="false" placeholder="Здесь появится доклад" style="min-height:260px;margin-top:8px;white-space:pre-wrap"></textarea>
+    <details id="dHow" style="margin-top:10px" hidden><summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--sms-accent)">Как посчитано</summary>
+      <div class="note">Портал тепловой карты: куратор МинЖКХ, все источники, оба типа сообщений, без спама; все подтемы, кроме «Вне компетенции», ЕИРЦ, «Деятельность УК» и «Прямой линии»; топ-5 — по числу обращений за день;
+        день — по «Дате первого взятия в работу». АПП — тот же период целым числом недель раньше (день и неделя — неделей раньше), чтобы совпадали дни недели.
+        Процент = разница ÷ прошлая неделя × 100, округление до целого.</div>
+      <div class="twrap"><table id="dTbl"></table></div>
+    </details>
+  </div>
+</div>
+{% endblock %}
+{% block sms_script %}<script src="/static/mingkh-sms/summary.js?v=20261019"></script>{% endblock %}

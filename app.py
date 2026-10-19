@@ -143,6 +143,8 @@ from routers.edds import router as edds_router
 app.include_router(edds_router)
 from routers.mingkh import router as mingkh_router
 app.include_router(mingkh_router)
+from routers.mingkh_sms import router as mingkh_sms_router
+app.include_router(mingkh_sms_router)
 from routers.collective import router as collective_router
 app.include_router(collective_router)
 from routers.telegram import router as telegram_router
@@ -1176,7 +1178,10 @@ async def auth_middleware(request: Request, call_next):
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    sms_embed = (request.url.path in {"/mingkh/sms/summary", "/mingkh/sms/resonance",
+                                     "/mingkh/sms/system", "/mingkh/sms/solutions"}
+                 and request.query_params.get("embed") == "1")
+    response.headers["X-Frame-Options"] = "SAMEORIGIN" if sms_embed else "DENY"
     # no-referrer makes browser form POSTs send Origin: null and fail our CSRF
     # check. same-origin preserves local form origins without sending referrers
     # to other sites. Keep rejecting opaque and foreign origins above.
@@ -1192,7 +1197,7 @@ async def security_headers(request: Request, call_next):
         f"style-src 'self' 'unsafe-inline'; img-src {image_sources}; "
         "font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; "
         "frame-src 'self' blob:; object-src 'none'; base-uri 'self'; "
-        "form-action 'self'; frame-ancestors 'none'")
+        "form-action 'self'; frame-ancestors " + ("'self'" if sms_embed else "'none'"))
     if not request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-store"
     return response

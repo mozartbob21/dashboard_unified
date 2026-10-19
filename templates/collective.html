@@ -1,10 +1,11 @@
 {% extends "base_module.html" %}
 {% block title %}Коллективные обращения — Нейрона ИИ{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/collective.css?v=20261007">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/collective.css?v=20261019-workflow">{% endblock %}
+{% block body_class %}module-collective{% endblock %}
 {% block content %}
 <div class="container">
-<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Коллективные обращения</div></div></div><div class="top-actions">{% if can_view_mingkh %}<a href="/mingkh" class="secondary-button">Дашборд МИНЖКХ</a>{% endif %}<a href="/" class="secondary-button">← Назад</a></div></header>
-<div class="collective-dashboard" data-owner="{{ owner_key }}">
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Коллективные обращения</div></div></div><div class="top-actions">{% if can_view_mingkh %}<a href="/mingkh" class="secondary-button">Дашборд по жалобам МинЖКХ</a>{% endif %}<a href="/" class="secondary-button">← Назад</a></div></header>
+<div class="collective-dashboard" data-owner="{{ owner_key }}" data-can-manage="{{ 'true' if can_manage else 'false' }}">
 
 <header>
   <div>
@@ -27,15 +28,18 @@
     </span>
     <button class="btn" id="exportPptx" title="Презентация по обращениям, которые сейчас на экране">Презентация</button>
     <button class="btn primary" id="exportAll">Выгрузить в Excel</button>
+    <button class="btn" id="manageAssignees" hidden>Ответственные</button>
   </div>
 </header>
 <main>
   <div class="err" id="err" role="alert" hidden></div>
+  <section id="legacyThemes" class="legacy-themes" hidden><p id="legacyThemeNote"></p><button class="btn" id="migrateThemes">Перенести ручные темы на сервер</button><div id="migrationStatus" class="save-state" role="status" aria-live="polite"></div></section>
   <section class="kpis" id="kpis" aria-live="polite"></section>
   <nav class="tabs" id="tabs" aria-label="Темы обращений"></nav>
   <section class="filters">
     <div class="ms" data-key="omsu" data-all="Все ОМСУ" data-many="ОМСУ"></div>
     <div class="ms" data-key="status" data-all="Все статусы" data-many="статусов"></div>
+    <select id="assigneeFilter" aria-label="Фильтр по ответственному"><option value="">Все ответственные</option></select>
     <input type="search" id="q" aria-label="Поиск обращений" placeholder="Поиск: адрес, номер, текст…">
     <select id="sortSel" aria-label="Сортировка обращений">
       <option value="sig">Сначала больше подписей</option>
@@ -45,9 +49,11 @@
     <label class="toggle"><input type="checkbox" id="bigOnly"><span class="dot"></span>Более 100 подписей</label>
     <label class="toggle"><input type="checkbox" id="repOnly"><span class="dot"></span>Повторные</label>
     <label class="toggle"><input type="checkbox" id="hideNc"><span class="dot"></span>Скрыть «Не учитывается»</label>
+    <label class="toggle"><input type="checkbox" id="unassignedOnly"><span class="dot"></span>Не распределённые</label>
     <button class="btn" id="resetFilters" title="Сбросить все фильтры">✕ Сбросить</button>
   </section>
   <section class="grid">
+    <div class="summary-stack">
     <div class="card">
       <h2>В разрезе ОМСУ <small>клик — фильтр по ОМСУ</small></h2>      <div class="scroll">
         <table id="omsuTable">
@@ -62,26 +68,67 @@
         </table>
       </div>
     </div>
+    <div class="card responsible-summary">
+      <h2>По ответственным <small>выберите строку для фильтра</small></h2>
+      <div class="scroll"><table id="assigneeTable"><thead><tr><th scope="col">Ответственный</th><th class="n" scope="col">Обр.</th><th class="n" scope="col">Подписи</th><th class="n" scope="col">Доклады</th></tr></thead><tbody></tbody></table></div>
+      <p class="table-note" id="assignmentNote"></p>
+    </div>
+    </div>
     <div class="card">
       <h2><span id="listTitle">Обращения</span> <small>клик — карточка</small></h2>
       <div class="scroll"><div class="list" id="list"></div></div>
     </div>
   </section>
-<p class="source-note">Источник: коллективные обращения МинЖКХ МО, cur.bi.mosreg.ru. Ручная тема сохраняется в этом браузере для вашей учётной записи. Выгрузки учитывают выбранные фильтры.</p></main>
+<p class="source-note">Источник: коллективные обращения МинЖКХ МО, cur.bi.mosreg.ru. Ответственные, доклады и ручные темы сохраняются на сервере и доступны коллегам с правами на этот раздел. Выгрузки учитывают выбранные фильтры и сохранённые изменения.</p>
+<p class="field-note" id="workflowSyncStatus" role="status">Изменения коллег синхронизируются раз в минуту, когда карточка не редактируется.</p>
+{% if can_manage %}<details class="distribution-import"><summary>Перенести сохранённое распределение</summary><p class="field-note">Если вы работали в отдельной программе, выберите её файл «распределение.json». Прежние назначения и доклады будут доступны в платформе. Текущие правки сохранятся.</p><form id="importDistributionForm" class="distribution-import-row"><label class="btn file-picker"><input id="distributionFile" type="file" accept=".json,application/json"><span>Выбрать файл</span></label><span id="distributionFileName">Файл не выбран</span><button class="btn" id="importDistribution" type="submit" disabled>Перенести</button></form><div id="distributionImportStatus" class="save-state" role="status" aria-live="polite"></div></details>{% endif %}
+</main>
 
 <dialog id="dlg" aria-labelledby="dlgTitle">
   <div class="dlg-head">
     <div><h3 id="dlgTitle"></h3><div id="dlgSub" style="color:var(--muted);font-size:11px;margin-top:3px"></div></div>
     <div class="dlg-actions">
-      <select id="dlgTheme" title="Тема (можно поправить вручную)"></select>
       <button class="btn" id="dlgExport">В Excel</button>
       <button class="btn" id="dlgClose" aria-label="Закрыть">✕</button>
     </div>
   </div>
-  <div class="dlg-body"><dl id="dlgBody"></dl></div>
+  <div class="dlg-body">
+    <section class="workflow-panel" aria-label="Работа с обращением">
+      <div class="workflow-fields">
+        <label for="dlgAssignee">Ответственный<select id="dlgAssignee"><option value="">Не назначен</option></select></label>
+        <label for="dlgTheme">Тема обращения<select id="dlgTheme"></select></label>
+      </div>
+      <p class="field-note" id="dlgAssignNote"></p>
+      <div class="save-state" id="dlgFieldStatus" role="status" aria-live="polite"></div>
+      <label class="report-label" for="dlgReport">Доклад</label>
+      <textarea id="dlgReport" rows="5" maxlength="20000" placeholder="Опишите текущее состояние, принятые меры и дальнейшие действия."></textarea>
+      <div class="report-footer"><span id="dlgReportCount">0 / 20 000</span><span id="dlgReportDraft" hidden>Есть несохранённые изменения</span><button class="btn primary" id="saveReport">Сохранить доклад</button></div>
+      <div class="save-state" id="dlgReportSavedAt"></div>
+      <div class="save-state" id="dlgReportStatus" role="status" aria-live="polite"></div>
+      <section class="report-conflict" id="reportConflict" hidden aria-label="Изменения другого пользователя">
+        <p>Пока вы редактировали, коллега сохранил изменения. Ваш текст сохранён в поле выше. Сравните его с актуальным докладом перед повторным сохранением.</p>
+        <details><summary>Доклад на сервере</summary><p id="conflictServerReport"></p></details>
+        <button class="btn" id="useServerReport">Использовать версию с сервера</button>
+        <button class="btn" id="keepOwnReport">Сохранить мой доклад</button>
+      </section>
+      <div class="report-conflict" id="closeDraftWarning" hidden><p>Доклад ещё не сохранён на сервере. Сохраните его перед выходом. Если закрыть карточку сейчас, черновик останется до перезагрузки этой страницы.</p><button class="btn" id="closeWithDraft">Закрыть и оставить черновик</button></div>
+    </section>
+    <dl id="dlgBody"></dl>
+  </div>
+</dialog>
+
+<dialog id="assigneeDialog" aria-labelledby="assigneeTitle">
+  <div class="dlg-head"><div><h3 id="assigneeTitle">Ответственные</h3><p class="field-note">Управление справочником для коллективных обращений</p></div><button class="btn" id="closeAssignees" aria-label="Закрыть справочник ответственных">✕</button></div>
+  <div class="dlg-body">
+    <form id="addAssigneeForm" class="add-assignee"><label for="newAssigneeName">Фамилия и имя или название подразделения<input id="newAssigneeName" type="text" maxlength="120" autocomplete="off" required placeholder="Например, отдел водоснабжения"></label><button class="btn primary" type="submit" id="addAssignee">Добавить</button></form>
+    <p class="field-note">Архивный ответственный остаётся в прежних обращениях. Назначить его на новое обращение можно после восстановления.</p>
+    <div id="assigneeStatus" class="save-state" role="status" aria-live="polite"></div>
+    <h4>Действующие</h4><div id="activeAssignees" class="assignee-list"></div>
+    <details class="archive-directory"><summary>Архив <span id="archivedCount"></span></summary><div id="archivedAssignees" class="assignee-list"></div></details>
+  </div>
 </dialog>
 
 </div></div>
 <script src="/static/vendor/xlsx.full.min.js"></script>
-<script src="/static/collective.js?v=20261007"></script>
+<script src="/static/collective.js?v=20261019-workflow"></script>
 {% endblock %}
