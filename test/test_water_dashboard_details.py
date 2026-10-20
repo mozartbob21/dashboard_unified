@@ -29,7 +29,7 @@ def test_flush_is_absent_even_before_refresh_of_old_snapshot():
     assert old == before
     assert 'flush' not in normalized['sources']
     assert 'flush' not in normalized['sources_updated']
-    assert len(normalized['sources']) == len(SOURCES) == 7
+    assert len(normalized['sources']) == len(SOURCES) == 10
     assert normalized['updated_at'] == '2026-10-01'
     assert group(normalized['sources']['tasks']['details'], 'worst')[0]['value'] == 8
     assert normalized['schema_version'] == 3
@@ -209,7 +209,7 @@ def test_single_source_can_create_first_snapshot_with_other_sources_unknown(tmp_
     from services.water_dashboard import builder
     monkeypatch.setattr(builder, 'SNAPSHOT_FILE', tmp_path / 'snapshot.json')
     result = builder.build_snapshot({'tasks': {'tables': [table(['ОМСУ', 'Кол-во задач'], [['Округ', '7']])]}}, source_ids=['tasks'])
-    assert len(result['sources']) == 7
+    assert len(result['sources']) == 10
     assert result['kpis']['tasks_total'] == 7
     assert result['sources']['meetings']['metrics'][0]['value'] is None
     assert result['sources']['meetings'].get('checked_at') is None

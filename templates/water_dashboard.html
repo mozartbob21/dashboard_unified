@@ -26,13 +26,13 @@
         <div>
             <div class="wd-eyebrow">Мин ЖКХ Московской области</div>
             <h1 class="wd-title">Сводный дашборд качества водоснабжения</h1>
-            <p class="wd-sub">Семь источников — единая картина по муниципалитетам: ZULUGIS, задачи РМ МИНЖКХ, водоснабжение, ЭДО, НВОС, дисциплина и капремонт.</p>
+            <p class="wd-sub">Десять источников в одном своде: водоснабжение, капремонт, задачи РМ МИНЖКХ, ZULUGIS, ЭДО, НВОС, дисциплина, энергоаудит и подключение РСО к ЖКХ-Контур.</p>
         </div>
         <div class="wd-side">
             <div class="wd-snap">
                 <span>📸 Снимок данных: <b>{{ snapshot_date }}</b></span>
                 <span>🗺️ Охват: <b id="wdCoverage">—</b> Московской области</span>
-                <span>🔄 Автопроверка при открытии · обновление всех 7 источников</span>
+                <span>🔄 Автопроверка при открытии · обновление всех 10 источников</span>
             </div>
             <div class="wd-statusline" id="wdStatus" role="status" aria-live="polite">⏳ Загрузка статуса…</div>
             <button class="wd-refresh" id="refreshSnap" type="button">⟳ Обновить снимок</button>
@@ -87,6 +87,9 @@
             <li>Плата за негативное воздействие — <a href="https://datalens.yandex/62l1qih3msocq" target="_blank" rel="noopener noreferrer">открыть</a></li>
             <li>Присутствие на совещаниях — <a href="https://datalens.yandex/5f1g88ft7v1up" target="_blank" rel="noopener noreferrer">открыть</a></li>
             <li>Системные адреса (капремонт) — <a href="https://datalens.yandex/6rxd41nckzkep" target="_blank" rel="noopener noreferrer">открыть</a></li>
+            <li>Задачи на проверке у контролеров — <a href="https://datalens.yandex/718l45rx26wir" target="_blank" rel="noopener noreferrer">открыть</a></li>
+            <li>Энергоаудит РСО — <a href="https://datalens.yandex/20vf4r1bc5m8m" target="_blank" rel="noopener noreferrer">открыть</a></li>
+            <li>Подключение РСО к ЖКХ-Контур — <a href="https://datalens.yandex/770dxd2j6hncq" target="_blank" rel="noopener noreferrer">открыть</a></li>
         </ul>
         <div class="wd-disclaimer">
             <b>О данных.</b> Снимок содержит значения из перечисленных дашбордов и дату их получения.
@@ -105,5 +108,5 @@
     <div id="sourceDetailsFooter" class="wd-drawer-footer"></div>
 </dialog>
 <script id="waterSnapshot" type="application/json">{{ snapshot | tojson }}</script>
-<script src="/static/water-dashboard.js?v=20261020-metrics" defer></script>
+<script src="/static/water-dashboard.js?v=20261020-sources" defer></script>
 {% endblock %}

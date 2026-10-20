@@ -78,7 +78,7 @@ def test_deployed_v31_catalog_has_only_current_news_and_filters_module_details(a
     assert payload["pending_count"] == 1
     assert len(DEPLOYED_RELEASES) == 1
     note, = payload["releases"]
-    assert note["id"] == "2026-10-20-mobile-design-v31" and note["read_at"] is None
+    assert note["id"] == "2026-10-20-mobile-design-sources-v31" and note["read_at"] is None
     assert note["version"] == "3.1" and note["title"] == "Нейрона ИИ — версия 3.1"
     shared = {"mobile-controls-and-layout", "shared-glass-surfaces"}
     assert {entry["id"] for entry in note["entries"]} == shared
@@ -273,7 +273,7 @@ def test_water_dashboard_details_require_current_water_grant(app, monkeypatch):
         notes = client.get('/api/releases/pending').json()['releases']
     note, = notes
     assert {entry['id'] for entry in note['entries']} == {
-        'mobile-controls-and-layout', 'shared-glass-surfaces', 'water-dashboard-metric-priority'}
+        'mobile-controls-and-layout', 'shared-glass-surfaces', 'water-dashboard-metric-priority', 'water-dashboard-three-new-sources'}
 
 
 def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch):

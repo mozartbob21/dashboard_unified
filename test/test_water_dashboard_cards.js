@@ -4,23 +4,28 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const script = fs.readFileSync(require.resolve('../static/water-dashboard.js'), 'utf8');
 
-function render(sources) {
+function mount(sources) {
   const elements = new Map();
+  const requests = [];
   function element(id) {
     if (!elements.has(id)) elements.set(id, {innerHTML:'', textContent:'', open:false,
-      addEventListener(){}, classList:{toggle(){}}, querySelector(){return element(id+' child');}});
+      handlers:{}, addEventListener(type,handler){this.handlers[type]=handler;},
+      showModal(){this.open=true;}, close(){this.open=false;}, focus(){},
+      classList:{toggle(){}}, querySelector(){return element(id+' child');}});
     return elements.get(id);
   }
   element('waterSnapshot').textContent = JSON.stringify({metric_schema:1, sources, table:[], kpis:{}});
   const context = {
     document:{getElementById:element, querySelector:element, querySelectorAll:()=>[]},
     // Polling is suspended: this is a deterministic frontend contract check.
-    fetch:()=>new Promise(()=>{}), setInterval:()=>0, Date, Set, URL,
+    fetch:(url,options)=>{requests.push({url,options});return new Promise(()=>{});},
+    setInterval:()=>0, Date, Set, URL,
     location:{href:'http://localhost/water-dashboard'}
   };
   vm.runInNewContext(script, context);
-  return element('kpiGrid').innerHTML;
+  return {element,requests};
 }
+function render(sources) { return mount(sources).element('kpiGrid').innerHTML; }
 const metric = (id,label,value,unit='')=>({id,label,value,unit});
 function source(metrics) { return {metric_schema:1,ok:true,metrics,updated_at:'2099-01-01'}; }
 function article(html,id) {
@@ -77,4 +82,81 @@ test('other source cards retain their leading metric and additional indicators',
   const html=article(render({valves:source([metric('inserted','Внесено',10,'шт.'),metric('plan','План',20,'шт.')])}),'valves');
   assert.match(primary(html),/data-metric="inserted"/);assert.match(primary(html),/>10 шт\.</);
   assert.match(html.slice(html.indexOf('<div class="wd-rows">')),/>20 шт\.</);
+});
+
+test('three new sources append to the existing seven with individual refresh and details controls',()=>{
+  const html=render({});
+  assert.equal((html.match(/<article /g)||[]).length,10);
+  const names={
+    controller_tasks:'Задачи на проверке у контролеров',
+    energy_audit:'Энергоаудит РСО',
+    gkh_kontur:'Подключение РСО к ЖКХ-Контур'
+  };
+  for (const [id,name] of Object.entries(names)) {
+    const card=article(html,id);
+    assert.ok(html.indexOf('data-source="'+id+'"')>html.indexOf('data-source="sys_kr"'));
+    assert.ok(card.includes('aria-label="Обновить: '+name+'"'));
+    assert.ok(card.includes('data-refresh="'+id+'"'));
+    assert.ok(card.includes('data-details="'+id+'"'));
+    assert.match(card,/Частота не указана источником/);
+    assert.match(primary(card),/class="wd-num">—</);
+  }
+});
+
+test('new cards use semantic primary metrics even when the input order differs',()=>{
+  const sources={
+    controller_tasks:source([
+      metric('overdue_tasks','Просрочено',5,'задач'),
+      metric('tasks_total','Задачи на проверке',12,'задач')
+    ]),
+    energy_audit:source([
+      metric('energy_cost_high_mln','Затраты крупных потребителей',6,'млн ₽'),
+      metric('energy_cost_total_mln','Затраты на электроэнергию',10,'млн ₽'),
+      metric('meters_high_consumption','Крупные потребители',4,'шт.'),
+      metric('meters_total','Приборы учёта',8,'шт.'),
+      metric('optimal_tariff_pct','Оптимальная ценовая категория',0,'%')
+    ]),
+    gkh_kontur:source([
+      metric('tasks_total','Всего задач',500,'задач'),
+      metric('tasks_closed','Закрыто задач',125,'задач'),
+      metric('completion_pct','Выполнение дорожной карты',18.5,'%')
+    ])
+  };
+  const html=render(sources);
+  assert.match(primary(article(html,'controller_tasks')),/>12 задач</);
+  assert.match(primary(article(html,'energy_audit')),/>0 %</);
+  assert.match(primary(article(html,'gkh_kontur')),/>18,5 %</);
+  const energy=article(html,'energy_audit');
+  assert.doesNotMatch(energy,/Затраты крупных потребителей/);
+  assert.ok(energy.indexOf('Приборы учёта')<energy.indexOf('Крупные потребители'));
+  assert.match(energy,/>10 млн ₽</);
+});
+
+test('each new refresh button requests only its own source',()=>{
+  for (const id of ['controller_tasks','energy_audit','gkh_kontur']) {
+    const app=mount({});
+    app.element('kpiGrid').handlers.click({target:{
+      closest:selector=>selector==='[data-refresh]'?{dataset:{refresh:id}}:null
+    }});
+    const request=app.requests.find(r=>r.options?.method==='POST');
+    assert.equal(request?.url,'/water-dashboard/refresh-source/'+id);
+    assert.equal(app.requests.filter(r=>r.options?.method==='POST').length,1);
+  }
+});
+
+test('new source details open in a dialog without changing the grid and safely render text',()=>{
+  const data=source([metric('optimal_tariff_pct','Доля',42,'%')]);
+  data.refresh='Обновляется каждые 30 минут';
+  data.details={metrics:[metric('meters_total','Приборы учёта <текст>',15,'шт.')]};
+  const app=mount({energy_audit:data}), grid=app.element('kpiGrid');
+  const before=grid.innerHTML;
+  grid.handlers.click({target:{
+    closest:selector=>selector==='[data-details]'?{dataset:{details:'energy_audit'}}:null
+  }});
+  assert.equal(app.element('sourceDetails').open,true);
+  assert.equal(app.element('sourceDetailsTitle').textContent,'Энергоаудит РСО');
+  assert.equal(grid.innerHTML,before);
+  assert.match(app.element('sourceDetailsBody').innerHTML,/Приборы учёта &lt;текст&gt;/);
+  assert.match(app.element('sourceDetailsBody').innerHTML,/>15 шт\.</);
+  assert.match(app.element('sourceDetailsBody').innerHTML,/Обновляется каждые 30 минут/);
 });

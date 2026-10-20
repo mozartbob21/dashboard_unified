@@ -259,7 +259,7 @@ def extract_widgets(text):
 
 
 def normalize_snapshot(snapshot):
-    """Project any saved snapshot onto the current seven-source contract.
+    """Project any saved snapshot onto the current source contract.
 
     Used on reads as well as writes: removing a source takes effect immediately,
     even before the next successful collection. Does not mutate the saved object
@@ -347,7 +347,7 @@ def build_snapshot(extractions, source_ids=None):
             'text': data.get('text', ''), 'updated_at': now, 'data_date': data.get('data_date'),
             'refresh': extract_refresh_info(data.get('text', '')),
         }
-        if valid and sid == 'edo_rso':
+        if valid and sid in ('edo_rso', 'gkh_kontur'):
             sources[sid].update(ranking_tables=data.get('ranking_tables') or [],
                                 ranking_url=data.get('ranking_url', ''),
                                 ranking_error=data.get('ranking_error', ''))

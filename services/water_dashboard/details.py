@@ -17,6 +17,8 @@ ATTENDANCE_HEADERS = ('присутствовали на перекличках,
 
 EDO_CURRENT_HEADER = 'Доля документов, обработанных в электронном виде, % от общего объема (текущая неделя)'
 EDO_PREVIOUS_HEADER = 'Доля документов, обработанных в электронном виде, % от общего объема (прошлая неделя)'
+KONTUR_COMPLETION_HEADER = 'Процент выполнения дорожной карты'
+KONTUR_TASK_HEADER = 'Ссылка на задачи дорожной карты'
 
 
 def _name(value):
@@ -131,6 +133,95 @@ def _edo_rankings(data):
     return result
 
 
+def _controller_workload(data):
+    records = defaultdict(list)
+    required = ('контролер', '#', 'контроль сроков', 'категория')
+    for table in data.get('tables') or []:
+        headers = [_normal(header) for header in table.get('headers') or []]
+        if not all(key in headers for key in required):
+            continue
+        indices = [headers.index(key) for key in required]
+        for row in table.get('rows') or []:
+            cells = [row[index] if index < len(row) else None for index in indices]
+            name = _name(cells[0])
+            if not name or _normal(name) in ('null', 'none', '—', '-'):
+                continue
+            count = _count(cells[1])
+            record = None if count is None else {
+                'name': name, 'value': count, 'unit': 'задач',
+                'secondary': [_secondary('Контроль сроков', cells[2]),
+                              _secondary('Категории', cells[3])],
+            }
+            if record not in records[_normal(name)]:
+                records[_normal(name)].append(record)
+    items = [rows[0] for rows in records.values() if len(rows) == 1 and rows[0] is not None]
+    result = _result(
+        'Количество задач, ожидающих проверки у каждого контролёра. '
+        'Это объём задач на проверке, а не число просроченных задач. При равенстве — по алфавиту.',
+        items, len(records) - len(items),
+        note='Статус контроля сроков и категории приведены из таблицы источника.',
+    )
+    result['groups'][0].update(id='workload', title='Топ-5 по числу задач на проверке')
+    result['entity_type'] = 'controller'
+    return result
+
+
+def is_kontur_ranking_table(table):
+    headers = {_normal(header) for header in table.get('headers') or []}
+    return (
+        'рсо' in headers
+        and bool(headers & set(MUNICIPALITY_HEADERS))
+        and _normal(KONTUR_COMPLETION_HEADER) in headers
+        and _normal(KONTUR_TASK_HEADER) in headers
+    )
+
+
+def _kontur_rankings(data):
+    records = defaultdict(list)
+    # Partial pagination is not a valid basis for an overall top-five.
+    tables = [] if data.get('ranking_error') else data.get('ranking_tables') or []
+    for table in tables:
+        if not is_kontur_ranking_table(table):
+            continue
+        headers = [_normal(header) for header in table.get('headers') or []]
+        rso_index = headers.index('рсо')
+        city_index = next(headers.index(key) for key in MUNICIPALITY_HEADERS if key in headers)
+        value_index = headers.index(_normal(KONTUR_COMPLETION_HEADER))
+        task_index = headers.index(_normal(KONTUR_TASK_HEADER))
+        for row in table.get('rows') or []:
+            cell = lambda index: row[index] if index < len(row) else None
+            # Preserve legal abbreviations (АО, МУП, РСО) and the source's
+            # organisation spelling; title-casing is only for municipalities.
+            name = ' '.join(str(cell(rso_index) or '').split())
+            municipality = _name(cell(city_index))
+            task = ' '.join(str(cell(task_index) or '').split())
+            if (not name or _normal(name).startswith(('итого', 'всего'))
+                    or not municipality or not task.isdecimal()):
+                continue
+            value = _percent(cell(value_index), bounded=True)
+            record = None if value is None else {
+                'name': name, 'municipality': municipality, 'task_id': task,
+                'value': value, 'unit': '%',
+                'secondary': [_secondary('ОМСУ', municipality), _secondary('Задача ДК', task)],
+            }
+            # The task distinguishes branches of one RSO in the same municipality.
+            key = (_normal(name), _normal(municipality), task)
+            if record not in records[key]:
+                records[key].append(record)
+    items = [rows[0] for rows in records.values() if len(rows) == 1 and rows[0] is not None]
+    reason = data.get('ranking_error') or 'Полная таблица дорожных карт ещё не получена. Обновите этот источник.'
+    result = _result(
+        'Процент выполнения дорожной карты по РСО. Выше процент — лучше. '
+        'При равенстве — по алфавиту. Организации и их подразделения различаются по ОМСУ и задаче дорожной карты.',
+        items, len(records) - len(items), higher_is_better=True, best=True,
+        note=(f'Рейтинг среди {len(items)} дорожных карт с распознаваемыми данными в полной таблице источника.'
+              if items else reason),
+    )
+    result['entity_type'] = 'rso'
+    result['source_url'] = data.get('ranking_url', '')
+    return result
+
+
 def source_details(sid, data):
     """No network or writes: details belong to the source's existing data date."""
     data = data or {}
@@ -169,6 +260,17 @@ def source_details(sid, data):
                        'категории не суммируются. При равенстве — по алфавиту.', items, excluded)
     if sid == 'edo_rso':
         return _edo_rankings(data)
+    if sid == 'controller_tasks':
+        return _controller_workload(data)
+    if sid == 'energy_audit':
+        return _result(
+            'Показатели энергоаудита из подписанных индикаторов источника. '
+            'Все приборы и приборы с потреблением свыше 10 000 кВт·ч в месяц показаны отдельно; '
+            'значения и единицы измерения приведены как в первоисточнике.',
+            [], 0, kind='metrics', metrics=list(data.get('metrics') or []),
+        )
+    if sid == 'gkh_kontur':
+        return _kontur_rankings(data)
     if sid == 'meetings':
         items, excluded = _unique(data, {'attendance': ATTENDANCE_HEADERS}, lambda row:
             {'name': row['name'], 'value': _percent(row['attendance'], bounded=True), 'unit': '%', 'secondary': []}

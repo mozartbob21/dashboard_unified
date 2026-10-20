@@ -10,7 +10,10 @@ const defs = [
  ['edo_rso','Переход РСО на ЭДО','https://datalens.yandex/f5wqqij889haz'],
  ['nvos','Плата за НВОС','https://datalens.yandex/62l1qih3msocq?tab=KD'],
  ['meetings','Дисциплина совещаний','https://datalens.yandex/5f1g88ft7v1up'],
- ['sys_kr','Капитальный ремонт','https://datalens.yandex/6rxd41nckzkep']
+ ['sys_kr','Капитальный ремонт','https://datalens.yandex/6rxd41nckzkep'],
+ ['controller_tasks','Задачи на проверке у контролеров','https://datalens.yandex/718l45rx26wir'],
+ ['energy_audit','Энергоаудит РСО','https://datalens.yandex/20vf4r1bc5m8m'],
+ ['gkh_kontur','Подключение РСО к ЖКХ-Контур','https://datalens.yandex/770dxd2j6hncq']
 ];
 let snap = JSON.parse(document.getElementById('waterSnapshot').textContent || '{}');
 let sortKey='resVS',asc=false,busy=false,observedRunning=false,autoAttempted=false,polling=false,lastRevision=null,loginRequired=false,submitting=false,refreshError='';
@@ -29,14 +32,20 @@ const metricRows = items => items.map(x=>'<div class="wd-row"><span>'+esc(x.labe
 const cardPrimary = {
  sys_vs:[['system_addresses','Системные адреса'],['resonant_addresses','Резонансные адреса']],
  sys_kr:[['system_addresses','Системные адреса'],['resonant_addresses','Резонансные адреса']],
- edo_rso:[['electronic_documents_pct','Электронные документы в общем количестве']]
+ edo_rso:[['electronic_documents_pct','Электронные документы в общем количестве']],
+ controller_tasks:[['tasks_total','Задачи на проверке']],
+ energy_audit:[['optimal_tariff_pct','Переход в оптимальную ценовую категорию']],
+ gkh_kontur:[['completion_pct','Выполнение задач дорожной карты']]
 };
+const cardSecondary = {energy_audit:['meters_total','meters_high_consumption','energy_cost_total_mln']};
 function cardIndicators(id,items){
  const primary=cardPrimary[id]
   ? cardPrimary[id].map(([key,label])=>items.find(item=>item.id===key)||{id:key,label,value:null})
   : [items[0]||{label:'Показатели источника',value:null}];
  const selected=new Set(primary.map(item=>item.id));
- const secondary=items.filter(item=>!selected.has(item.id)).slice(0,3);
+ const secondary=cardSecondary[id]
+  ? cardSecondary[id].map(key=>items.find(item=>item.id===key)).filter(Boolean)
+  : items.filter(item=>!selected.has(item.id)).slice(0,3);
  const html='<div class="wd-primary-metrics'+(primary.length>1?' wd-primary-metrics--paired':'')+'">'+primary.map(item=>
   '<div class="wd-primary-metric" data-metric="'+esc(item.id||'')+'"><p class="wd-name">'+esc(item.label)+'</p><div class="wd-num">'+esc(metricValue(item))+'</div></div>'
  ).join('')+'</div><div class="wd-rows">'+metricRows(secondary)+'</div>';

@@ -69,7 +69,8 @@ def municipality_names(snapshot):
             continue
         for entity in (source.get('details') or {}).get('entities', []):
             if isinstance(entity, dict):
-                name = text(entity.get('municipality')) or (text(entity.get('name')) if sid != 'edo_rso' else '')
+                name = text(entity.get('municipality')) or (text(entity.get('name'))
+                    if sid not in ('edo_rso', 'gkh_kontur', 'controller_tasks') else '')
                 if name:
                     names.add(municipality_display(name))
         for table in source.get('tables', []):
@@ -167,7 +168,7 @@ def source_reports(snapshot, source_id='', municipality='', limit_rows=12):
         if isinstance(details, dict) and details.get('schema_version') == 1:
             entities = [safe_entity(e) for e in details.get('entities', []) if isinstance(e, dict)]
             if municipality:
-                report['entities'] = [e for e in entities if municipality_key(e.get('municipality') or e['name']) == municipality_key(municipality)]
+                report['entities'] = [e for e in entities if municipality_key(e.get('municipality') or (e['name'] if sid not in ('edo_rso', 'gkh_kontur', 'controller_tasks') else '')) == municipality_key(municipality)]
                 if report['entities']:
                     report['warning'] = text(data.get('error'), 500)
             else:

@@ -37,7 +37,7 @@ def test_no_access_does_not_read_sources(monkeypatch):
 
 def test_removed_source_never_appears_even_in_old_snapshot(local_data):
     bundle = reports.prepare('Сводный дашборд', ['water-dashboard'])
-    assert len(bundle['sources']) == 7
+    assert len(bundle['sources']) == len(water.source_catalog())
     assert 'flush' not in {s['id'] for s in bundle['sources']}
     assert 'Retired secret' not in reports.to_prompt(bundle)
 
@@ -141,7 +141,7 @@ def test_truncation_is_explicit_and_json_stays_valid(local_data, monkeypatch):
     bundle = reports.prepare('Сводный дашборд', ['water-dashboard'])
     serialized = reports.to_prompt(bundle)
     assert len(serialized) <= reports.MAX_CONTEXT_CHARS
-    assert len(json.loads(serialized)['sources']) == 7
+    assert len(json.loads(serialized)['sources']) == len(water.source_catalog())
     assert any('сокращена' in x for x in bundle['limitations'])
     assert any(s.get('omitted_metrics') for s in bundle['sources'])
 
@@ -205,7 +205,7 @@ def test_actual_local_water_snapshot_is_readable_and_typed():
     # Uses only saved data, and remains valid in a fresh checkout without a snapshot.
     snap = water.load_snapshot()
     sources = water.source_reports(snap)
-    assert len(sources) == 7
+    assert len(sources) == len(water.source_catalog())
     for source in sources:
         assert source['id'] != 'flush'
         assert source['status'] in {'current', 'stale', 'missing'}
@@ -248,3 +248,31 @@ def test_common_plural_municipality_inflections(local_data, monkeypatch):
     assert reports.prepare('Дай информацию о водоснабжении по Химкам', ['water-dashboard'])['selection'] == {
         'module': 'water-dashboard', 'source': 'sys_vs', 'municipality': 'Химки',
         'modules': ['water-dashboard'], 'sources': ['sys_vs'], 'municipalities': ['Химки'], 'group_by': ''}
+
+
+@pytest.mark.parametrize('question,sid', [
+    ('Дай отчёт по задачам на проверке у контролёров', 'controller_tasks'),
+    ('Дай отчёт по энергоаудиту РСО', 'energy_audit'),
+    ('Дай отчёт по подключению РСО к ЖКХ-Контур', 'gkh_kontur'),
+])
+def test_new_water_sources_resolve_by_name(local_data, question, sid):
+    bundle = reports.prepare(question, ['water-dashboard'])
+    assert [source['id'] for source in bundle['sources']] == [sid]
+
+
+def test_controller_name_never_becomes_municipality():
+    snap = {'sources': {'controller_tasks': {'details': {
+        'schema_version': 1, 'entity_type': 'controller',
+        'entities': [{'name': 'Солнечногорск', 'value': 17, 'unit': 'задач'}],
+    }}}}
+    assert 'Солнечногорск' not in water.municipality_names(snap)
+    report, = water.source_reports(snap, source_id='controller_tasks', municipality='Солнечногорск')
+    assert report['entities'] == [] and report['metrics'] == []
+
+
+def test_kontur_municipal_report_labels_road_map_and_keeps_rso():
+    report = {'id': 'gkh_kontur', 'entities': [{'name': 'Тестовая РСО', 'value': 25, 'secondary': []}]}
+    row, = reports._municipality_rows(report, 'Солнечногорск')
+    assert row['РСО'] == 'Тестовая РСО'
+    assert row['Выполнение дорожной карты (%)'] == 25
+    assert 'Статус замены' not in row

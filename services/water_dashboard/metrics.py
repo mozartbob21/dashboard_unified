@@ -153,6 +153,47 @@ def source_metrics(sid, data, table):
             _metric('meetings', 'Проведено совещаний', _widget(data,
                 ['Проведено совещаний'], parse=_count), 'шт.'),
         ]
+    if sid == 'controller_tasks':
+        return [
+            _metric('tasks_total', 'Задачи на проверке', _widget(data,
+                ['Всего задач'], parse=_count), 'шт.'),
+            _metric('overdue_tasks', 'Из них просрочено', _widget(data,
+                ['Просрочено'], parse=_count), 'шт.'),
+        ]
+    if sid == 'energy_audit':
+        # Duplicate chart titles refer to different populations and units.
+        # Match the caption inside the same widget, never its screen position.
+        def quantity(value):
+            return None if isinstance(value, str) and '%' in value else _number(value)
+
+        def energy_value(label, caption, parse=quantity):
+            return _widget(data, [label], caption=caption, parse=parse)
+
+        return [
+            _metric('optimal_tariff_pct', 'Переход в оптимальную ценовую категорию', _widget(data,
+                ['Доля (%) успешных переходов в оптимальную ценовую категорию'],
+                parse=lambda value: _percent(value, bounded=True)), '%'),
+            _metric('meters_total', 'Всего приборов учёта', energy_value(
+                'Всего', 'приборов учета (шт.)', _count), 'шт.'),
+            _metric('meters_high_consumption', 'Приборы с потреблением свыше 10 000 кВт·ч в месяц',
+                energy_value('Приборы учета', 'с потреблением свыше 10 000 кВт·ч в месяц (шт.)', _count), 'шт.'),
+            _metric('energy_cost_total_mln', 'Затраты на электроэнергию: все приборы',
+                energy_value('Затраты', 'на оплату ЭЭ (все ПУ) (млн руб.)'), 'млн ₽'),
+            _metric('energy_cost_high_mln', 'Затраты: приборы свыше 10 000 кВт·ч в месяц',
+                energy_value('Затраты', 'на оплату ЭЭ ПУ (свыше 10 000 кВт·ч в месяц) (млн руб.)'), 'млн ₽'),
+            _metric('consumption_total_mln_kwh', 'Потребление: все приборы',
+                energy_value('Потребление', '(все ПУ) (млн кВт*ч)'), 'млн кВт·ч'),
+            _metric('consumption_high_mln_kwh', 'Потребление: приборы свыше 10 000 кВт·ч в месяц',
+                energy_value('Потребление', '(все ПУ) свыше 10 000 кВт·ч в месяц (млн кВт*ч)'), 'млн кВт·ч'),
+        ]
+    if sid == 'gkh_kontur':
+        # The source's completion formula is not closed / total tasks.
+        return [
+            _metric('completion_pct', 'Выполнение задач дорожной карты', _widget(data,
+                ['% выполнения задач ДК'], parse=lambda value: _percent(value, bounded=True)), '%'),
+            _metric('tasks_total', 'Всего задач', _widget(data, ['Всего задач'], parse=_count), 'шт.'),
+            _metric('tasks_closed', 'Закрыто задач', _widget(data, ['Закрыто задач'], parse=_count), 'шт.'),
+        ]
     if sid == 'nvos':
         parsed = data.get('nvos') or {}
 

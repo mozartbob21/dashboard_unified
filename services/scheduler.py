@@ -37,7 +37,6 @@ MODULE_COMMANDS: dict[str, list[str]] = {
     "watercontrol":         [sys.executable, "-m", "services.watercontrol.runner"],
     "utnkr":                [sys.executable, "-m", "services.utnkr.scanner"],
     "cameras":              [sys.executable, "-m", "services.cameras.camera_checker"],
-    "camera_prescriptions": [sys.executable, "-m", "services.cameras.prescription_generator"],
     "cds":                  [sys.executable, "-m", "services.cds.runner"],
 }
 
@@ -50,7 +49,6 @@ DEFAULT_INTERVALS: dict[str, int] = {
     "watercontrol": 120,
     "utnkr": 180,
     "cameras": 240,
-    "camera_prescriptions": 360,
     "cds": 1440,
 }
 
@@ -76,6 +74,15 @@ def _seed_jobs() -> None:
             return
 
         with get_db_connection() as conn:
+            # Предписания формируются вручную. Сохраняем историю старой задачи,
+            # но отключаем её расписание после обновления уже работающего сервера.
+            conn.execute(
+                """UPDATE scheduler_jobs
+                      SET enabled = 0, next_run_at = NULL, updated_at = ?
+                    WHERE module_id = 'camera_prescriptions'
+                      AND (enabled != 0 OR next_run_at IS NOT NULL)""",
+                (_now_iso(),),
+            )
             for module_id, command in MODULE_COMMANDS.items():
                 label = MODULE_LABELS.get(module_id, module_id)
                 icon = MODULE_ICONS.get(module_id, "⚙️")
@@ -154,10 +161,12 @@ def get_all_jobs() -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM scheduler_jobs ORDER BY module_id"
         ).fetchall()
-    return [_row_to_dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r["module_id"] in MODULE_COMMANDS]
 
 
 def get_job(module_id: str) -> Optional[dict]:
+    if module_id not in MODULE_COMMANDS:
+        return None
     _seed_jobs()
     with get_db_connection() as conn:
         row = conn.execute(
@@ -169,6 +178,8 @@ def get_job(module_id: str) -> Optional[dict]:
 
 def set_enabled(module_id: str, enabled: bool) -> dict:
     """Включает/выключает автозапуск. При включении ставит next_run_at."""
+    if module_id not in MODULE_COMMANDS:
+        raise ValueError("Этот блок недоступен для автозапуска")
     _seed_jobs()
     now = _now()
 
@@ -202,6 +213,8 @@ def set_enabled(module_id: str, enabled: bool) -> dict:
 
 def set_interval(module_id: str, interval_minutes: int) -> dict:
     """Изменяет интервал. Пересчитывает next_run_at если включён."""
+    if module_id not in MODULE_COMMANDS:
+        raise ValueError("Этот блок недоступен для автозапуска")
     _seed_jobs()
     if interval_minutes < 5:
         raise ValueError("Минимальный интервал — 5 минут")
@@ -389,6 +402,8 @@ def _tick() -> None:
 
     for row in rows:
         module_id = row["module_id"]
+        if module_id not in MODULE_COMMANDS:
+            continue
         next_run_str = row["next_run_at"]
 
         if not next_run_str:

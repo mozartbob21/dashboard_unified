@@ -196,3 +196,87 @@ def test_edo_ranking_timeout_is_separate_from_overview_metrics(tmp_path):
     assert result['ranking_tables'] == []
     assert result['ranking_error'].startswith('Полная таблица РСО не получена.')
     context.close.assert_called_once()
+
+
+def kontur_table(*rows):
+    from services.water_dashboard.details import KONTUR_COMPLETION_HEADER, KONTUR_TASK_HEADER
+    return {'headers': ['ОМСУ', 'РСО', KONTUR_TASK_HEADER, KONTUR_COMPLETION_HEADER],
+            'rows': list(rows)}
+
+
+def kontur_browser(pages, next_states):
+    from unittest.mock import MagicMock
+    page, widget, next_button, previous = (MagicMock() for _ in range(4))
+    page.locator.return_value.filter.return_value = widget
+    widget.count.return_value = 1
+    widget.get_attribute.return_value = 'false'
+    next_button.count.return_value = previous.count.return_value = 1
+    previous.is_enabled.return_value = False
+    next_button.is_enabled.side_effect = next_states
+    widget.locator.side_effect = lambda selector: previous if 'prev-btn' in selector else next_button
+    page.evaluate.side_effect = pages
+    return page, next_button
+
+
+def test_kontur_ranking_reads_second_page_before_building_top():
+    first = kontur_table(['Округ', 'Первая РСО', '1', '80'])
+    second = kontur_table(['Округ', 'Вторая РСО', '2', '0'])
+    # Rows do not change immediately when the paginator moves.
+    page, next_button = kontur_browser([[first], [first], [second], [second]], [True, False])
+    with patch.object(scraper, '_wait_for_content'):
+        result = scraper._read_kontur_rankings(page, 'https://datalens.yandex/770dxd2j6hncq')
+    assert result['ranking_error'] == ''
+    assert result['ranking_tables'] == [first, second]
+    next_button.click.assert_called_once()
+    from services.water_dashboard.details import source_details
+    details = source_details('gkh_kontur', result)
+    assert details['groups'][0]['items'][0]['name'] == 'Вторая РСО'
+
+
+def test_kontur_pagination_failure_never_publishes_partial_ranking():
+    first = kontur_table(['Округ', 'Первая РСО', '1', '80'])
+    page, _ = kontur_browser([[first]], [True])
+    page.evaluate.side_effect = None
+    page.evaluate.return_value = [first]
+    result = scraper._read_kontur_rankings(page, 'https://datalens.yandex/770dxd2j6hncq')
+    assert result['ranking_tables'] == []
+    assert result['ranking_error']
+    assert page.evaluate.call_count <= 91
+
+
+def test_energy_selects_latest_date_and_preserves_it(tmp_path):
+    from unittest.mock import MagicMock
+    page, context, playwright = MagicMock(), MagicMock(), MagicMock()
+    context.pages = [page]
+    page.frames = []
+    widgets = [{'label': 'Доля (%) успешных переходов в оптимальную ценовую категорию', 'value': '18'}]
+    page.evaluate.side_effect = [[], widgets, 'Энергоаудит', '<body>Энергоаудит</body>']
+    with patch.object(scraper, 'DEBUG_DIR', tmp_path / 'debug'), \
+         patch.object(scraper, 'PLAYWRIGHT_PROFILE_DIR', tmp_path / 'profile'), \
+         patch.object(scraper, 'SOURCES', [{'id': 'energy_audit', 'name': 'Энергоаудит РСО', 'url': 'https://datalens.yandex/20vf4r1bc5m8m'}]), \
+         patch.object(scraper, 'sync_playwright', return_value=playwright), \
+         patch.object(scraper, 'launch_context', return_value=(context, 'Chromium')), \
+         patch.object(scraper, '_wait_for_content'), \
+         patch.object(scraper, 'stab_wait_after_date'), \
+         patch.object(scraper, '_select_latest_date', return_value='2026-10-20') as select:
+        result = scraper.scrape_all(source_ids=['energy_audit'])
+    select.assert_called_once_with(page, 'energy_audit')
+    assert result['energy_audit']['data_date'] == '2026-10-20'
+    assert result['energy_audit']['widgets'] == widgets
+
+
+def test_new_source_refresh_isolated_and_failed_refresh_retains_metrics(tmp_path):
+    with patch.object(builder, 'SNAPSHOT_FILE', tmp_path / 'snapshot.json'):
+        initial = builder.build_snapshot({
+            'controller_tasks': {'widgets': [{'label': 'Всего задач', 'value': '0'}]},
+            'gkh_kontur': {'widgets': [{'label': '% выполнения задач ДК', 'value': '12,28%'}],
+                           'ranking_tables': [kontur_table(['Округ', 'РСО', '1', '50'])]},
+        }, source_ids=['controller_tasks', 'gkh_kontur'])
+        next_snap = builder.build_snapshot({'controller_tasks': {'error': 'Нет сети'}},
+                                           source_ids=['controller_tasks'])
+    assert next_snap['sources']['gkh_kontur'] == initial['sources']['gkh_kontur']
+    assert next_snap['sources']['gkh_kontur']['details']['coverage']['entities'] == 1
+    current = next_snap['sources']['controller_tasks']
+    assert current['metrics'][0]['value'] == 0
+    assert current['updated_at'] == initial['sources']['controller_tasks']['updated_at']
+    assert current['ok'] is False

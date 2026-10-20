@@ -18,4 +18,7 @@ SOURCES = [
     {"id": "nvos",     "name": "Плата за НВОС",                "url": "https://datalens.yandex/62l1qih3msocq?tab=KD"},
     {"id": "meetings", "name": "Присутствие на совещаниях",    "url": "https://datalens.yandex/5f1g88ft7v1up"},
     {"id": "sys_kr",   "name": "Системные адреса (капремонт)", "url": "https://datalens.yandex/6rxd41nckzkep"},
+    {"id": "controller_tasks", "name": "Задачи на проверке у контролеров", "url": "https://datalens.yandex/718l45rx26wir"},
+    {"id": "energy_audit", "name": "Энергоаудит РСО", "url": "https://datalens.yandex/20vf4r1bc5m8m"},
+    {"id": "gkh_kontur", "name": "Подключение РСО к ЖКХ-Контур", "url": "https://datalens.yandex/770dxd2j6hncq"},
 ]

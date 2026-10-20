@@ -185,7 +185,7 @@ def stab_wait_after_date(page, max_rounds=15):
         page.wait_for_load_state("networkidle", timeout=20000)
     except Exception:
         pass
-    print("[nvos-stab] дата выбрана, жду пересчёта...", flush=True)
+    print("[date-stab] дата выбрана, жду пересчёта...", flush=True)
     prev = None
     for _ in range(max_rounds):
         page.wait_for_timeout(2000)
@@ -196,7 +196,7 @@ def stab_wait_after_date(page, max_rounds=15):
         if cur and cur == prev:
             break
         prev = cur
-    print("[nvos-stab] пересчёт стабилен", flush=True)
+    print("[date-stab] пересчёт стабилен", flush=True)
 
 
 def _read_edo_rankings(page, source_url):
@@ -226,6 +226,56 @@ def _read_edo_rankings(page, source_url):
         # laggards into a fabricated "best" ranking when this tab fails.
         print(f'[warn] edo_rso rankings: {exc}', flush=True)
         return {'ranking_tables': [], 'ranking_url': table_url,
+                'ranking_error': 'Полная таблица РСО не получена. ' + MESSAGES[error_code(exc)]}
+
+
+
+def _read_kontur_rankings(page, source_url):
+    """Read every page of the road-map table before publishing a ranking.
+
+    An incomplete/unchanged page must not look like a full list of laggards.
+    The overview indicators are kept independently when detail collection fails.
+    """
+    from services.water_dashboard.details import is_kontur_ranking_table
+    print('STAGE: ЖКХ-Контур — полная таблица РСО', flush=True)
+    try:
+        widget = page.locator('[data-qa="chart-widget"]').filter(
+            has=page.locator('.widget-header').filter(has_text='Статусы задач ДК'))
+        if widget.count() != 1:
+            raise SourceReadError('source_error')
+        next_button = widget.locator('[data-qa="chartkit-table-paginator-next-btn"]')
+        previous_button = widget.locator('[data-qa="chartkit-table-paginator-prev-btn"]')
+        if previous_button.count() and previous_button.is_enabled():
+            raise SourceReadError('source_error')
+        tables, seen = [], set()
+        for _ in range(50):
+            current = [table for table in page.evaluate(TABLES_JS) if is_kontur_ranking_table(table)]
+            if not current:
+                raise SourceReadError('source_error')
+            fingerprint = json.dumps(current, ensure_ascii=False, sort_keys=True)
+            if fingerprint in seen:
+                raise SourceReadError('source_error')
+            seen.add(fingerprint)
+            tables.extend(current)
+            if not next_button.count() or not next_button.is_enabled():
+                return {'ranking_tables': tables, 'ranking_url': source_url, 'ranking_error': ''}
+            next_button.click(timeout=5000)
+            # DataLens updates the paginator before replacing rows. Wait for
+            # different rows AND a completed chart, not just the page number.
+            for _ in range(90):
+                page.wait_for_timeout(500)
+                if widget.get_attribute('aria-busy') == 'true':
+                    continue
+                updated = [table for table in page.evaluate(TABLES_JS) if is_kontur_ranking_table(table)]
+                if updated and json.dumps(updated, ensure_ascii=False, sort_keys=True) != fingerprint:
+                    break
+            else:
+                raise SourceReadError('timeout')
+            _wait_for_content(page)
+        raise SourceReadError('source_error')
+    except Exception as exc:
+        print(f'[warn] gkh_kontur rankings: {exc}', flush=True)
+        return {'ranking_tables': [], 'ranking_url': source_url,
                 'ranking_error': 'Полная таблица РСО не получена. ' + MESSAGES[error_code(exc)]}
 
 
@@ -271,7 +321,7 @@ def scrape_all(source_ids=None):
                     _wait_for_content(page)
 
                     data_date = None
-                    if sid == "nvos":
+                    if sid in ("nvos", "energy_audit"):
                         data_date = _select_latest_date(page, sid)
                         stab_wait_after_date(page)
                         _wait_for_content(page)
@@ -296,6 +346,8 @@ def scrape_all(source_ids=None):
                     extractions[sid] = {"tables": tables, "widgets": widgets, "text": text, "data_date": data_date}
                     if sid == "edo_rso":
                         extractions[sid].update(_read_edo_rankings(page, src["url"]))
+                    elif sid == "gkh_kontur":
+                        extractions[sid].update(_read_kontur_rankings(page, src["url"]))
 
                     with open(DEBUG_DIR / f"{sid}.json", "w", encoding="utf-8") as f:
                         json.dump({"url": src["url"], **extractions[sid]},

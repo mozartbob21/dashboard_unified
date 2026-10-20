@@ -52,6 +52,9 @@ SOURCE_ALIASES = {
     'sys_vs': (r'системн\w* адрес\w*.*(?:\bвс\b|водоснабж)', r'резонансн\w* адрес\w*.*водоснабж', r'(?:^|\bо\s+|\bпо\s+)водоснабжен\w*\b'),
     'edo_rso': (r'переход\w* (?:рсо )?на эдо', r'\bэцп\b', r'\bэдо\b'),
     'nvos': (r'\bнвос\b', r'\bквц\b'),
+    'controller_tasks': (r'контрол[её]р', r'задач\w* на проверке'),
+    'energy_audit': (r'энергоаудит', r'энергоаудит\w* рсо'),
+    'gkh_kontur': (r'жкх[\s—–-]*контур',),
     'meetings': (r'дисциплин', r'\bявк', r'совещани'),
     'sys_kr': (r'капремонт', r'капитальн\w* ремонт'),
 }
@@ -441,11 +444,12 @@ def _municipality_rows(report, municipality):
         return [dict({'Муниципалитет': municipality}, **{m['label'] + (' (' + m['unit'] + ')' if m.get('unit') else ''): m.get('value') for m in metrics})]
     entities = report.get('entities') or []
     if entities:
-        primary = 'Электронные документы за текущую неделю (%)' if report['id'] == 'edo_rso' else 'Статус замены'
+        primary = {'edo_rso': 'Электронные документы за текущую неделю (%)',
+                   'gkh_kontur': 'Выполнение дорожной карты (%)'}.get(report['id'], 'Статус замены')
         output = []
         for entity in entities:
             row = {'Муниципалитет': municipality}
-            if report['id'] == 'edo_rso':
+            if report['id'] in ('edo_rso', 'gkh_kontur'):
                 row['РСО'] = entity['name']
             row[primary] = entity.get('value')
             for m in entity.get('secondary', []):
