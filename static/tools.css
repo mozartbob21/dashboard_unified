@@ -15,3 +15,16 @@
   background-size:6px 6px;
   background-repeat:no-repeat;
 }
+
+/* File actions remain separate targets instead of squeezing the filename. */
+.tools-page :is(.tool-card,.tool-fields,.tool-fields > *, .tool-template-row > span) { min-width:0; }
+@media(max-width:600px) {
+  .tools-page :is(.tools-tabs,.conversion-options) button { min-height:44px;white-space:normal; }
+  .tools-page .tool-card :is(input:not([type=checkbox]),select,textarea) { min-width:0;max-width:100%;font-size:16px; }
+  .tools-page .tool-file-list li { flex-wrap:wrap;gap:10px; }
+  .tools-page .tool-file-name { flex-basis:100%; }
+  .tools-page .tool-file-controls { margin-left:auto; }
+  .tools-page .tool-file-controls button,.tools-page .tool-template-row button { width:44px;height:44px; }
+  .tools-page .tool-upload { padding:14px; }
+  .tools-page .tool-actions > :is(button,a) { min-width:0;min-height:44px;white-space:normal;text-align:center; }
+}

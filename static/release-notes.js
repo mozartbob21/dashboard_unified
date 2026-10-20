@@ -57,7 +57,8 @@
     dialog.setAttribute('aria-describedby', 'releaseNotesIntro');
     const header = node('div', 'release-notes-head');
     const heading = node('div', '');
-    heading.append(node('span', 'release-notes-kicker', 'НЕЙРОНА · ВЕРСИЯ 3'));
+    const version = releases[0]?.version;
+    heading.append(node('span', 'release-notes-kicker', 'НЕЙРОНА' + (version ? ' · ВЕРСИЯ ' + version : '')));
     const title = node('h2', '', history ? 'Что нового в сервисе' : 'Сервис стал удобнее'); title.id = 'releaseNotesTitle';
     const intro = node('p', '', 'Общие улучшения сервиса и новости доступных вам разделов.'); intro.id = 'releaseNotesIntro';
     heading.append(title, intro);
@@ -111,6 +112,7 @@
     async function openHistory() {
       if (document.getElementById('releaseNotesDialog')) return;
       finished = true;
+      global.NeuronaProfileMenu?.close(true);
       document.querySelectorAll('#profileMenuDropdown').forEach(menu => { menu.hidden = true; menu.classList.remove('open'); });
       document.querySelectorAll('#profileMenuButton').forEach(button => button.setAttribute('aria-expanded', 'false'));
       try { showDialog(api, await api.list(true), true); } catch (_) { showDialog(api, [], true, true); }

@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
-    <script src="/static/appearance-menu.js?v=20261001"></script>
+    <script src="/static/appearance-menu.js?v=20261020"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Нейрона ИИ{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v=stable_cards_20260912">
     {% block head %}{% endblock %}
-    <link rel="stylesheet" href="{{ url_for('static', path='module-shell.css') }}?v=20261001-appearance">
-    <script src="{{ url_for('static', path='module-shell.js') }}?v=20261001-appearance" defer></script>
-    <link rel="stylesheet" href="/static/appearance-menu.css?v=20261001">
+    <link rel="stylesheet" href="{{ url_for('static', path='module-shell.css') }}?v=20261020">
+    <script src="{{ url_for('static', path='module-shell.js') }}?v=20261020" defer></script>
+    <link rel="stylesheet" href="/static/appearance-menu.css?v=20261020">
     <link rel="stylesheet" href="/static/release-notes.css?v=20261015">
-    <script src="/static/release-notes.js?v=20261015" defer></script>
+    <script src="/static/release-notes.js?v=20261020" defer></script>
+    <link rel="stylesheet" href="/static/responsive-system.css?v=20261020">
 </head>
 <body class="unified-module-page {% block body_class %}{% endblock %}">
     {% block content %}{% endblock %}

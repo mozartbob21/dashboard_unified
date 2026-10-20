@@ -221,3 +221,17 @@ html[data-theme="dark"] .admin-console #message.error { background: #432332; col
   .admin-console .activity-heading { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion:reduce) { .admin-console * { scroll-behavior: auto !important; transition: none !important; } }
+
+/* Permissions, credentials and account actions stay usable at phone widths. */
+.admin-console :is(.fields > *, .admin-navigation a > span) { min-width:0;overflow-wrap:anywhere; }
+.admin-console :is(.activity-table-wrap,.popularity-table-wrap) { max-width:100%;overscroll-behavior-inline:contain; }
+@media(max-width:600px) {
+  .admin-console .fields { grid-template-columns:minmax(0,1fr); }
+  .admin-console .admin-main :is(input:not([type=checkbox]),select,textarea) { min-width:0;max-width:100%;font-size:16px; }
+  .admin-console .admin-main button { min-height:44px;white-space:normal; }
+  .admin-console .check { min-height:44px;align-items:center; }
+  .admin-console .check input { margin-top:0; }
+  .admin-console .permissions-disclosure summary { min-height:44px;padding-block:9px; }
+  .admin-console .activity-heading { flex-wrap:wrap; }
+  .admin-console .activity-summary { grid-template-columns:minmax(0,1fr); }
+}

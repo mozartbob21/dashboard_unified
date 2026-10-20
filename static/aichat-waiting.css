@@ -4,7 +4,7 @@
 .ac-waiting-fact-heading strong{font-weight:650;color:var(--text,#34415a)}
 .ac-waiting-fact p{margin:7px 0 5px;font-size:14px;line-height:1.55;overflow-wrap:anywhere}
 .ac-waiting-fact small{font-size:11px;color:var(--muted,#677389)}
-.ac-waiting-fact button{position:absolute;right:7px;top:7px;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:9px;color:var(--muted,#677389);background:transparent;cursor:pointer;font-size:22px}
+.ac-waiting-fact button{position:absolute;right:3px;top:3px;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:9px;color:var(--muted,#677389);background:transparent;cursor:pointer;font-size:22px}
 .ac-waiting-fact button:hover{background:var(--surface-hover,rgba(113,100,195,.1))}
 .ac-waiting-fact button:focus-visible{outline:3px solid #9f92ea;outline-offset:2px}
 @keyframes ac-fact-appear{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}

@@ -227,3 +227,34 @@ html[data-theme="dark"] .collective-dashboard header input[type=date] { color-sc
  .collective-dashboard #assigneeTable th,.collective-dashboard #assigneeTable td{padding:9px 7px;font-size:11px}
  .collective-dashboard .responsible-summary h2{align-items:flex-start;flex-direction:column}
 }
+
+/* Mobile editing retains full width without shrinking tap targets. */
+.collective-dashboard :is(.card,.kpi){border-radius:var(--surface-radius,18px);box-shadow:var(--surface-shadow,var(--shadow))}
+.collective-dashboard :is(.filters,.hdr-tools,.ms,.ms-btn,.ms-panel,.dlg-actions){min-width:0;max-width:100%}
+.collective-dashboard :is(.item .txt,.source-note,.err,.card h2){overflow-wrap:anywhere}
+.collective-dashboard dialog{max-height:calc(100dvh - 24px);overscroll-behavior:contain}
+@media(max-width:640px){
+ .collective-dashboard main{padding:14px 12px 28px}
+ .collective-dashboard .hdr-tools>*{max-width:100%}
+ .collective-dashboard :is(.filters>.ms,.filters>select,.filters>input){flex:1 1 100%;width:100%;min-width:0}
+ .collective-dashboard .ms-panel{width:100%;min-width:0;max-width:100%}
+ .collective-dashboard .ms-list{max-height:45vh;max-height:45dvh;overscroll-behavior:contain}
+ .collective-dashboard .ms-list label{min-height:44px}
+ .collective-dashboard .ms-list label span{min-width:0;overflow-wrap:anywhere}
+ .collective-dashboard :is(.btn,.tab,.ms-btn,.ms-actions button,.toggle,.file-picker,summary){min-height:44px}
+ .collective-dashboard :is(input:not([type=checkbox]):not([type=file]),select,textarea){font-size:16px;min-height:44px;min-width:0;max-width:100%}
+ .collective-dashboard #dlgReport{font-size:16px;line-height:1.6}
+ .collective-dashboard #customDates{width:100%}
+ .collective-dashboard #customDates input{flex:1 1 130px;width:130px}
+ .collective-dashboard .card h2{align-items:flex-start;flex-wrap:wrap;padding:14px}
+ .collective-dashboard .card h2 small{font-size:12px;line-height:1.5}
+ .collective-dashboard .scroll{max-width:100%;overscroll-behavior-x:contain}
+ .collective-dashboard :is(#omsuTable,#assigneeTable) :is(th,td){padding-top:12px;padding-bottom:12px}
+ .collective-dashboard .assignee-row{flex-wrap:wrap;gap:8px}
+ .collective-dashboard .assignee-row .btn{min-height:44px}
+ .collective-dashboard .dlg-actions{width:100%;flex-wrap:wrap}
+ .collective-dashboard .dlg-actions select{flex:1 1 160px;width:160px}
+ .collective-dashboard .kpi{padding:12px;overflow-wrap:anywhere}
+ .collective-dashboard .kpi .l{font-size:11px;line-height:1.45;letter-spacing:.02em}
+ .collective-dashboard .kpi .v{font-size:25px}
+}

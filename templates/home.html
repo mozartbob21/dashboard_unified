@@ -2,9 +2,9 @@
 <html lang="ru" data-theme="light">
 <head>
     <link rel="stylesheet" href="/static/release-notes.css?v=20261015">
-    <script src="/static/release-notes.js?v=20261015" defer></script>
-    <script src="/static/appearance-menu.js?v=20261001" ></script>
-    <link rel="stylesheet" href="/static/ux-survey.css?v=20261013">
+    <script src="/static/release-notes.js?v=20261020" defer></script>
+    <script src="/static/appearance-menu.js?v=20261020" ></script>
+    <link rel="stylesheet" href="/static/ux-survey.css?v=20261020-mobile">
     <script src="/static/ux-survey.js?v=20261013" defer></script>
 
     <meta charset="UTF-8">
@@ -726,7 +726,8 @@
 <link rel="stylesheet" href="/static/module-layout.css?v=20260915">
 <link rel="stylesheet" href="/static/home-premium.css?v=20261007-collective">
 <script src="/static/module-layout.js?v=20261007-collective" defer></script>
-<link rel="stylesheet" href="/static/appearance-menu.css?v=20261001">
+<link rel="stylesheet" href="/static/appearance-menu.css?v=20261020">
+    <link rel="stylesheet" href="/static/responsive-system.css?v=20261020">
 </head>
 
 
@@ -803,7 +804,7 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button" data-release-notes-open><span>Что нового</span><strong>Версия 3</strong></button>
+                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button" data-release-notes-open><span>Что нового</span><strong>Версия 3.1</strong></button>
                         {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <a href="/feedback/survey" class="profile-menu-item" data-ux-survey-link>Оценить удобство сервиса</a>
@@ -1669,21 +1670,35 @@
         const btn = document.getElementById("profileMenuButton");
         const dropdown = document.getElementById("profileMenuDropdown");
         if (!btn || !dropdown) return;
+        const floating = window.NeuronaAppearance?.floatingPanel(dropdown, btn, 320);
+        btn.setAttribute("aria-controls", "profileMenuDropdown");
+        dropdown.setAttribute("aria-label", "Профиль");
 
         function openMenu() {
-            dropdown.hidden = false;
+            if (floating) floating.open(); else dropdown.hidden = false;
             btn.setAttribute("aria-expanded", "true");
         }
-        function closeMenu() {
-            dropdown.hidden = true;
+        function closeMenu(restoreFocus = false) {
+            if (floating) floating.close(); else dropdown.hidden = true;
             btn.setAttribute("aria-expanded", "false");
+            if (restoreFocus) btn.focus();
         }
+        window.NeuronaProfileMenu = {close: closeMenu};
         function toggleMenu(e) {
             e.stopPropagation();
-            if (dropdown.hidden) openMenu(); else closeMenu();
+            if (dropdown.hidden) {
+                openMenu();
+                if (e.detail === 0) dropdown.querySelector("button, a[href]")?.focus();
+            } else closeMenu();
         }
 
         btn.addEventListener("click", toggleMenu);
+        btn.addEventListener("keydown", function (e) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault(); openMenu();
+                dropdown.querySelector("button, a[href]")?.focus();
+            }
+        });
 
         document.addEventListener("click", function (e) {
             if (!dropdown.hidden && !dropdown.contains(e.target) && e.target !== btn) {
@@ -1691,7 +1706,10 @@
             }
         });
         document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") closeMenu();
+            if (e.key === "Escape" && !dropdown.hidden) closeMenu(true);
+        });
+        dropdown.addEventListener("focusout", function (e) {
+            if (!dropdown.contains(e.relatedTarget) && !btn.contains(e.relatedTarget)) closeMenu();
         });
     })();
     </script>

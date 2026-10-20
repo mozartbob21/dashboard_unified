@@ -41,11 +41,11 @@ html:not([data-glass="on"]) .aichat-page :is(.topbar,.ac-side.card,.ac-main.card
 .aichat-page .dlg { position:relative;flex:none;border:1px solid transparent;border-radius:12px;transition:background .15s; }
 .aichat-page .dlg:hover { background:var(--ac-soft); }
 .aichat-page .dlg.active { background:var(--ac-soft);border-color:var(--ac-focus); }
-.aichat-page .dlg-open { display:block;width:100%;padding:12px 30px 12px 10px;border:0;border-radius:11px;background:transparent;color:var(--text);text-align:left; }
+.aichat-page .dlg-open { display:block;width:100%;padding:12px 52px 12px 10px;border:0;border-radius:11px;background:transparent;color:var(--text);text-align:left; }
 .aichat-page .dlg .t, .aichat-page .dlg .p { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .aichat-page .dlg .t { font-size:13px;font-weight:550;line-height:1.5; }
 .aichat-page .dlg .p { margin-top:4px;font-size:12px;line-height:1.4;color:var(--muted); }
-.aichat-page .dlg .del { position:absolute;right:3px;top:10px;width:26px;height:28px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-size:20px;opacity:0; }
+.aichat-page .dlg .del { position:absolute;right:3px;top:8px;width:44px;height:44px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-size:20px;opacity:0; }
 .aichat-page .dlg:hover .del, .aichat-page .dlg:focus-within .del { opacity:1; }
 .aichat-page .dlg .del:hover { background:var(--card);color:var(--text); }
 .aichat-page .ac-chat { flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:26px;padding:28px clamp(16px,3vw,44px);scrollbar-gutter:stable; }
@@ -98,14 +98,14 @@ html:not([data-glass="on"]) .aichat-page :is(.topbar,.ac-side.card,.ac-main.card
 .aichat-page .ac-report-note { margin:8px 2px 0;font-size:11px;line-height:1.5;color:var(--muted); }
 .aichat-page .ac-pend { display:flex;gap:10px;flex-wrap:wrap;max-height:110px;overflow:auto; }
 .aichat-page .ac-pend:not(:empty) { padding:8px 4px 14px; }
-.aichat-page .pend { position:relative;padding:6px 30px 6px 6px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft); }
+.aichat-page .pend { position:relative;min-height:56px;max-width:100%;padding:6px 50px 6px 6px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft); }
 .aichat-page .pend img { width:48px;height:48px;object-fit:cover;border-radius:7px;display:block; }
 .aichat-page .pend .fn { max-width:220px;padding:8px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text); }
-.aichat-page .pend .x { position:absolute;top:5px;right:4px;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:20px;line-height:1; }
+.aichat-page .pend .x { position:absolute;top:5px;right:4px;width:44px;height:44px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:20px;line-height:1; }
 .aichat-page .pend .x:hover { background:var(--card);color:var(--text); }
 .aichat-page .ac-input { display:flex;align-items:flex-end;gap:8px;border:1px solid var(--border);border-radius:16px;padding:8px;background:var(--card);transition:border-color .15s,box-shadow .15s; }
 .aichat-page .ac-input:focus-within { border-color:var(--ac-accent);box-shadow:0 0 0 3px var(--ac-focus); }
-.aichat-page .ac-plus, .aichat-page .ac-send { flex:0 0 40px;width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center; }
+.aichat-page .ac-plus, .aichat-page .ac-send { flex:0 0 44px;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center; }
 .aichat-page .ac-plus { border:0;background:transparent;color:var(--muted); }
 .aichat-page .ac-plus:hover { background:var(--ac-soft);color:var(--text); }
 .aichat-page .ac-send { border:1px solid transparent;background:#7162c6;color:#fff; }
@@ -133,7 +133,7 @@ html:not([data-glass="on"]) .aichat-page :is(.topbar,.ac-side.card,.ac-main.card
 .aichat-page .modal.wide { width:min(780px,100%); }
 .aichat-page .modal h3 { margin:0 0 18px;font-size:20px!important;line-height:1.35;color:var(--text)!important; }
 .aichat-page .modal textarea { width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft);color:var(--text);font-size:14px;line-height:1.6;resize:vertical; }
-.aichat-page .m-row { display:flex;justify-content:flex-end;gap:8px;margin-top:20px; }
+.aichat-page .m-row { display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:20px; }
 .aichat-page .btn { border:1px solid transparent;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600; }
 .aichat-page .btn.prim { background:#7162c6;color:#fff; }
 .aichat-page .btn.ghost { background:var(--bg-soft);border-color:var(--border);color:var(--text); }
@@ -156,7 +156,7 @@ html[data-glass="on"] .aichat-page :is(.ac-main.card,.ac-side.card) { background
   .aichat-page .ac-history-heading span { margin:0;font-size:10px; }
   .aichat-page .ac-list { grid-column:1/-1;max-height:108px; }
   .aichat-page .dlg .del { opacity:1; }
-  .aichat-page .ac-main.card { min-height:620px;height:calc(100dvh - 24px);border-radius:16px!important; }
+  .aichat-page .ac-main.card { min-height:min(620px,calc(100dvh - 24px));height:calc(100dvh - 24px);border-radius:16px!important; }
   .aichat-page .ac-chat { padding:20px 12px;gap:22px; }
   .aichat-page .ac-compose { padding:8px 12px 12px; }
   .aichat-page .welcome { padding:8px 2px; }.aichat-page .welcome p { font-size:13px;margin-bottom:16px; }
@@ -190,7 +190,7 @@ html[data-glass="on"] .aichat-page :is(.ac-main.card,.ac-side.card) { background
 .aichat-page .ac-team-modal { display:flex;flex-direction:column;width:min(1000px,100%);max-height:90dvh;padding:26px;overflow:hidden; }
 .aichat-page .ac-team-modal-heading { display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex:none; }
 .aichat-page .ac-team-modal-heading h3 { margin:7px 0 0;font-size:25px!important;letter-spacing:-.025em; }
-.aichat-page .ac-team-close { display:grid;place-items:center;flex:none;width:34px;height:34px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft);color:var(--muted);font-size:24px;line-height:1; }
+.aichat-page .ac-team-close { display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft);color:var(--muted);font-size:24px;line-height:1; }
 .aichat-page .ac-team-intro { max-width:660px;margin:12px 0 22px;flex:none;font-size:13px;line-height:1.65;color:var(--muted); }
 .aichat-page .ac-team-loading { padding:32px 0;color:var(--muted);font-size:14px; }
 .aichat-page .ac-team-layout { display:grid;grid-template-columns:210px minmax(0,1fr);gap:24px;min-height:0;overflow:auto;padding:4px 4px 10px;scrollbar-width:thin; }
@@ -254,3 +254,29 @@ html[data-glass="on"] .aichat-page :is(.ac-main.card,.ac-side.card) { background
   .aichat-page .ac-team-modal-footer .m-row { display:grid;grid-template-columns:1fr 1fr;gap:7px; }
   .aichat-page .ac-team-modal-footer .btn { font-size:11px;padding:11px 8px; }
 }
+
+/* Keep controls reachable on narrow screens and with an open keyboard. */
+@media(max-width:760px) {
+  .aichat-page .ac-side.card { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .aichat-page :is(.ac-new,.ac-hub,.chip,.btn,.ac-shortcuts summary) { min-height:44px; }
+  .aichat-page .ac-team-entry > span:nth-child(2) { flex-wrap:wrap;gap:3px 10px; }
+  .aichat-page .ac-team-strip-actions { flex-wrap:wrap; }
+  .aichat-page .pend .fn { max-width:100%; }
+  .aichat-page .modal :is(input,select,textarea) { font-size:16px; }
+  .aichat-page .ac-compose { padding-bottom:max(12px,env(safe-area-inset-bottom)); }
+  .aichat-page .welcome .chip { font-size:12px;line-height:1.5; }
+}
+@media(max-width:380px) {
+  .aichat-page .welcome .cap-chips { grid-template-columns:1fr; }
+  .aichat-page .ac-team-presets { grid-template-columns:1fr; }
+  .aichat-page .ac-history-heading { flex-wrap:wrap;gap:4px; }
+}
+@media(max-height:560px) {
+  .aichat-page .ac-team-modal { overflow:auto; }
+  .aichat-page .ac-team-layout { flex:none;overflow:visible; }
+}
+@media(max-width:760px) and (max-height:560px) {
+  .aichat-page .ac-main.card { height:auto;min-height:0; }
+  .aichat-page .ac-chat { flex:none;max-height:65dvh;min-height:120px; }
+}
+@media(hover:none) { .aichat-page .dlg .del { opacity:1; } }

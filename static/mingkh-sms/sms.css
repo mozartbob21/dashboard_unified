@@ -135,3 +135,23 @@ html[data-theme="dark"] .module-mingkh-sms input[type="date"]{color-scheme:dark}
 @media(max-width:850px){.module-mingkh-sms .wrap{grid-template-columns:minmax(0,1fr)}.module-mingkh-sms .blk{grid-template-columns:minmax(140px,.7fr) minmax(0,1fr)}.module-mingkh-sms .blk .dates{margin-left:0}.module-mingkh-sms .sms-hero{padding:20px}.module-mingkh-sms textarea{min-height:320px}}
 @media(max-width:560px){.module-mingkh-sms .sms-shell{width:calc(100% - 24px);margin:12px auto 24px}.module-mingkh-sms .sms-hero{padding:18px}.module-mingkh-sms .sms-hero-mark{display:none}.module-mingkh-sms .sms-tabs{margin-bottom:20px}.module-mingkh-sms .sms-tabs a{padding:10px 13px}.module-mingkh-sms .card{padding:16px}.module-mingkh-sms details.card>summary{padding:15px 16px}.module-mingkh-sms details.card .body{padding:0 16px 16px}.module-mingkh-sms .blk{grid-template-columns:minmax(0,1fr)}.module-mingkh-sms .blk .dates{margin-left:25px}.module-mingkh-sms .row{gap:8px}.module-mingkh-sms .row>input[type="date"]{flex:1 1 125px;max-width:100%;width:125px}.module-mingkh-sms .sms-section-heading h2{font-size:19px}.module-mingkh-sms .mini,.module-mingkh-sms .btn{min-height:40px}.module-mingkh-sms .sms-import{padding:0 14px}.module-mingkh-sms .sms-admin-label{display:block;margin-left:15px}.module-mingkh-sms textarea{padding:13px;font-size:14px}.module-mingkh-sms details.card>summary .sel{font-size:11px}}
 @media(prefers-reduced-motion:reduce){.module-mingkh-sms *{transition:none!important;animation:none!important}}
+
+/* Touch controls share platform spacing; wide results scroll within their table. */
+.module-mingkh-sms :is(.card,.sms-hero,.sms-tabs){border-radius:var(--surface-radius,18px);box-shadow:var(--surface-shadow,0 6px 24px rgba(15,30,60,.05))}
+.module-mingkh-sms :is(.twrap,.sms-workspace,.sms-hero>div,.sms-tabs){min-width:0;max-width:100%}
+.module-mingkh-sms .twrap{overscroll-behavior-x:contain}
+.module-mingkh-sms :is(.mini,.btn,.sms-tabs a,.sms-file-picker,summary):focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+@media(max-width:640px){
+ .module-mingkh-sms :is(.mini,.btn,.sms-file-picker,.sms-tabs a,.badge .mini){min-height:44px}
+ .module-mingkh-sms .sms-tabs a{display:inline-flex;align-items:center}
+ .module-mingkh-sms :is(input[type=date],input[type=text],input[type=number],select,textarea,tr.case textarea.adr,.blk .dates input){font-size:16px;min-height:44px}
+ .module-mingkh-sms .checks label{min-height:44px;align-items:center}
+ .module-mingkh-sms .badge{flex-wrap:wrap;overflow-wrap:anywhere}
+ .module-mingkh-sms .badge .mini{margin-left:0}
+ .module-mingkh-sms .grid3{grid-template-columns:minmax(0,1fr)}
+ .module-mingkh-sms .blk .dates{margin-left:0;grid-template-columns:1fr;gap:8px}
+ .module-mingkh-sms .blk .st{padding-left:0}
+ .module-mingkh-sms .sms-hero h1{font-size:24px;overflow-wrap:anywhere}
+ .module-mingkh-sms .row>.btn{max-width:100%}
+ .module-mingkh-sms .txtprev{min-width:160px}
+}

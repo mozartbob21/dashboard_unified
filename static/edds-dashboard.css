@@ -1,0 +1,56 @@
+/* Local dashboard layout; data processing and Leaflet geometry stay unchanged. */
+.edds-page{--r:var(--surface-radius,18px)}
+.edds-page :is(main,.page,.card,.charts,.chart-wrap,.filters,.f,.ms,.kv>*){min-width:0;max-width:100%}
+.edds-page .charts{grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))}
+.edds-page :is(.pivot-tools,.map-bar,.obj-set,.seg){flex-wrap:wrap;max-width:100%}
+.edds-page :is(.note,.hint,.err,.system-status,.msg,.kv dd,.live-badge){overflow-wrap:anywhere;white-space:normal}
+.edds-page :is(.card,.kpi,.filters){box-shadow:var(--surface-shadow,var(--shadow))}
+.edds-page .scroll{max-width:100%;overscroll-behavior-x:contain}
+.edds-page .modal-box{max-height:calc(100dvh - 32px);overscroll-behavior:contain}
+.edds-page .leaflet-popup-content{max-width:calc(100vw - 88px);max-height:min(55vh,420px);overflow:auto;overscroll-behavior:contain}
+.edds-page .pop{width:100%;table-layout:fixed}
+.edds-page .pop th{width:36%;white-space:normal}
+.edds-page .pop td{overflow-wrap:anywhere}
+.edds-page .leaflet-popup-content-wrapper,.edds-page .leaflet-popup-tip{background:var(--surface);color:var(--ink)}
+@media(max-width:760px){
+ .edds-page main{padding:12px;gap:14px}
+ .edds-page>.topbar{position:relative;top:auto;padding:12px;gap:8px}
+ .edds-page .topbar>.brand{flex:1 1 100%;min-width:0}
+ .edds-page .tabs{width:100%;flex-wrap:wrap}
+ .edds-page .tabs button{flex:1 1 130px}
+ .edds-page :is(.btn,.tabs button,.seg button,.ms-btn,.ms-acts button,.ms-opt){min-height:44px}
+ .edds-page :is(.btn,.tabs button,.seg button){white-space:normal;justify-content:center;text-align:center}
+ .edds-page .filters{padding:12px;gap:12px}
+ .edds-page .filters>.f,.edds-page .fl-more>.f{flex:1 1 100%;width:100%}
+ .edds-page .f :is(select,input:not([type=checkbox])),.edds-page .live-dates input{min-width:0;max-width:100%;font-size:16px;min-height:44px}
+ .edds-page .f>input,.edds-page .f>select,.edds-page .ms-btn{width:100%;max-width:100%;min-width:0}
+ .edds-page .f-range input.rg-num{width:90px;max-width:calc(50% - 18px)}
+ .edds-page .ms-panel{width:100%;min-width:0;max-width:100%}
+ .edds-page .ms-list{max-height:45vh;max-height:45dvh;overscroll-behavior:contain}
+ .edds-page .ms-opt{align-items:center}
+ .edds-page .ms-opt span{min-width:0;overflow-wrap:anywhere}
+ .edds-page .rg-na{min-height:44px}
+ .edds-page .drop{width:100%;margin:20px auto;padding:24px 16px}
+ .edds-page .charts{grid-template-columns:minmax(0,1fr)}
+ .edds-page .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .edds-page .kpi{padding:12px;overflow-wrap:anywhere}
+ .edds-page .kpi .v{font-size:25px}
+ .edds-page .pivot-tools{margin-left:0;gap:8px}
+ .edds-page .card>header{padding:12px;align-items:flex-start}
+ .edds-page .card .body{padding:12px}
+ .edds-page .card>header .note{margin-left:0;flex-basis:100%}
+ .edds-page .modal{padding:12px}
+ .edds-page .modal-box{max-height:calc(100dvh - 24px)}
+ .edds-page .modal-box header{padding:14px;align-items:flex-start}
+ .edds-page .modal-box header .btn{flex:0 0 auto}
+ .edds-page .modal-box .body{padding:14px}
+ .edds-page .kv{grid-template-columns:minmax(0,1fr);gap:4px}
+ .edds-page .kv dd{margin-bottom:10px}
+ .edds-page #map-canvas{height:480px;height:clamp(320px,60svh,520px)}
+ .edds-page .map-rad input,.edds-page .obj-set input{font-size:16px;min-height:44px}
+ .edds-page .leaflet-touch .leaflet-bar a{min-width:44px;height:44px;line-height:44px}
+ .edds-page .leaflet-bar a.map-selbtn{min-height:44px;height:auto;line-height:44px;padding:0 9px}
+ .edds-page .leaflet-popup-content{margin:36px 16px 16px}
+ .edds-page .leaflet-container a.leaflet-popup-close-button{width:44px;height:44px;line-height:44px;color:var(--ink-2)}
+ .edds-page th.sortable,.edds-page td.tw{padding-top:14px;padding-bottom:14px}
+}

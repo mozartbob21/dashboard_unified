@@ -67,7 +67,7 @@ def api(app, actor="1"):
     return TestClient(app, headers={"X-Test-User": actor} if actor else {})
 
 
-def test_deployed_v3_catalog_has_shared_news_and_filters_module_details(app, monkeypatch):
+def test_deployed_v31_catalog_has_only_current_news_and_filters_module_details(app, monkeypatch):
     monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
     releases._validate_catalog()
     with api(app) as client:
@@ -75,33 +75,25 @@ def test_deployed_v3_catalog_has_shared_news_and_filters_module_details(app, mon
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     payload = response.json()
-    assert payload["pending_count"] == 3
-    new_note = next(item for item in payload['releases'] if item['id'] == '2026-10-19-collective-period-and-chat')
-    assert [entry['id'] for entry in new_note['entries']] == ['chat-platform-guidance']
-    assert 'коллективн' not in str(new_note).lower()
-    note = next(item for item in payload["releases"] if item["id"] == RELEASE_ID)
-    assert note["id"] == RELEASE_ID and note["read_at"] is None
-    assert note["version"] == "3" and note["title"] == "Нейрона ИИ — версия 3"
-    assert {entry["id"] for entry in note["entries"]} == {
-        "ai-work-skills", "service-feedback", "zip-sources-and-validation"}
-    assert len(next(item for item in DEPLOYED_RELEASES if item["id"] == RELEASE_ID)["entries"]) == 6
-    for user, extra in (("2", "mingkh-map-refresh"), ("3", "admin-sections-and-statistics")):
+    assert payload["pending_count"] == 1
+    assert len(DEPLOYED_RELEASES) == 1
+    note, = payload["releases"]
+    assert note["id"] == "2026-10-20-mobile-design-v31" and note["read_at"] is None
+    assert note["version"] == "3.1" and note["title"] == "Нейрона ИИ — версия 3.1"
+    shared = {"mobile-controls-and-layout", "shared-glass-surfaces"}
+    assert {entry["id"] for entry in note["entries"]} == shared
+    for user in ("2", "3"):
         with api(app, user) as client:
             notes = client.get("/api/releases/pending").json()["releases"]
-            note = next(item for item in notes if item["id"] == RELEASE_ID)
-            assert {entry["id"] for entry in note["entries"]} == {"ai-work-skills", "service-feedback", extra}
-            assert all(entry["module_id"] != "zips" for entry in note["entries"])
-            assert "погонные метры" not in str(note) and "Облако МО" not in str(note)
+            note, = notes
+            assert {entry["id"] for entry in note["entries"]} == shared
+            assert all(entry["module_id"] is None for entry in note["entries"])
     with db.get_db_connection() as conn:
         conn.execute("UPDATE users SET modules='[]' WHERE id=1")
     with api(app) as client:
         notes = client.get("/api/releases/pending").json()["releases"]
-        note = next(item for item in notes if item["id"] == RELEASE_ID)
-        assert {entry["id"] for entry in note["entries"]} == {"ai-work-skills", "service-feedback"}
-
-        latest = next(item for item in notes if item['id'] == '2026-10-15-history-and-header')
-        assert [entry['id'] for entry in latest['entries']] == ['history-russian-names']
-        assert all(entry['module_id'] is None for entry in latest['entries'])
+        note, = notes
+        assert {entry["id"] for entry in note["entries"]} == shared
 
 
 @pytest.mark.parametrize("path", ["/api/releases/pending", "/api/releases/history"])
@@ -273,12 +265,22 @@ def test_catalog_rejects_unknown_module_instead_of_broadening_audience(isolated,
         releases.pending(isolated["1"])
 
 
-def test_collective_update_details_require_collective_grant(app, monkeypatch):
+def test_water_dashboard_details_require_current_water_grant(app, monkeypatch):
     monkeypatch.setattr(releases, 'RELEASES', DEPLOYED_RELEASES)
     with db.get_db_connection() as conn:
-        conn.execute("UPDATE users SET modules='[\"collective\"]' WHERE id=1")
+        conn.execute("UPDATE users SET modules='[\"water-dashboard\"]' WHERE id=1")
     with api(app) as client:
         notes = client.get('/api/releases/pending').json()['releases']
-    note = next(item for item in notes if item['id'] == '2026-10-19-collective-period-and-chat')
+    note, = notes
     assert {entry['id'] for entry in note['entries']} == {
-        'chat-platform-guidance', 'collective-layout-and-period', 'collective-ai-context'}
+        'mobile-controls-and-layout', 'shared-glass-surfaces', 'water-dashboard-metric-priority'}
+
+
+def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch):
+    with api(app) as client:
+        assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
+        monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
+        history = client.get("/api/releases/history").json()
+        assert history["pending_count"] == 1
+        assert [item["version"] for item in history["releases"]] == ["3.1"]
+        assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404

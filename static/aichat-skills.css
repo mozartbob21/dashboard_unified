@@ -13,7 +13,7 @@
 .aichat-page .ac-skills-heading { display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex:none; }
 .aichat-page .ac-skills-eyebrow { display:block;color:var(--ac-skill-accent);font-size:10px;line-height:1.5;font-weight:650;letter-spacing:.06em;text-transform:uppercase; }
 .aichat-page .ac-skills-heading h3 { margin:7px 0 0;font-size:25px!important;letter-spacing:-.025em; }
-.aichat-page .ac-skills-close { display:grid;place-items:center;width:34px;height:34px;flex:none;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft);color:var(--muted);font-size:24px;line-height:1; }
+.aichat-page .ac-skills-close { display:grid;place-items:center;width:44px;height:44px;flex:none;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft);color:var(--muted);font-size:24px;line-height:1; }
 .aichat-page .ac-skills-intro { max-width:690px;margin:13px 0 16px;color:var(--muted);font-size:13px;line-height:1.7;flex:none; }
 .aichat-page .ac-skills-example { display:flex;align-items:flex-start;gap:10px;flex:none;margin-bottom:19px;padding:12px 15px;border:1px solid var(--ac-skill-focus);border-radius:12px;background:var(--ac-skill-soft);color:var(--ac-skill-accent); }
 .aichat-page .ac-skills-example > span { font-size:20px;line-height:1.3; }
@@ -102,4 +102,12 @@ html[data-theme="dark"] .aichat-page { --ac-skill-accent:#7bcbbd;--ac-skill-soft
 }
 @media(prefers-reduced-motion:reduce) {
   .aichat-page :is(.ac-skill-activity-signal,.ac-skill-step-mark,.ac-skill-switch > span,.ac-skill-switch > span::after) { animation:none!important;transition:none!important; }
+}
+
+@media(max-height:560px) {
+  .aichat-page .ac-skills-modal { overflow:auto; }
+  .aichat-page .ac-skills-content { flex:none;overflow:visible; }
+}
+@media(pointer:coarse) {
+  .aichat-page .ac-skill-switch { height:44px;display:flex;align-items:center; }
 }

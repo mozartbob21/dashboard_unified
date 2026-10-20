@@ -73,6 +73,20 @@
         .sm-history-text{box-sizing:border-box;white-space:pre-wrap;overflow-wrap:anywhere;max-height:55dvh;overflow:auto;margin:0;padding:16px;border:1px solid var(--border-color,#e2e8f0);border-radius:12px;background:var(--bg-neutral-100,rgba(0,0,0,.025));color:inherit;font-family:inherit;font-size:13px;line-height:1.7}
         .sm-dialog-foot{flex-wrap:wrap;margin-top:20px}.sm-source-details{margin-bottom:12px;font-size:13px}.sm-source-details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
         @media(max-width:700px){.sm-history-preview,.sm-detail-grid{grid-template-columns:minmax(0,1fr)}.sm-history-dialog{padding:16px}.sm-history-text{max-height:36dvh}.sm-history-heading{align-items:flex-start;flex-wrap:wrap}.sm-history-open{text-align:left}.sm-delete-icon{margin-right:10px}.sm-hitem{padding:12px}}
+
+        @media(max-width:700px){
+          .sm-card{min-width:0;padding:16px!important}
+          .sm-card textarea,.sm-comment,.sm-version-bar select{font-size:16px}
+          .sm-btn,.sm-detail-heading button,.sm-source-details summary{min-height:44px}
+          .sm-delete-icon{width:44px;height:44px}
+          .sm-detail-heading{flex-wrap:wrap;gap:8px}
+          .sm-history-dialog{overflow:auto;overscroll-behavior:contain}
+          .sm-dialog-head>div{min-width:0;overflow-wrap:anywhere}
+          #closeHistoryBtn{flex:none;width:44px;padding:0}
+          .sm-dialog-foot>button{flex:1 1 auto}
+          .sm-history-actions{flex-wrap:wrap;max-width:100%;gap:8px}
+          .sm-history-heading>*{min-width:0}
+        }
     </style>
 {% endblock %}
 {% block content %}

@@ -107,3 +107,22 @@ body { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; }
 }
+
+/* Restrained glass on the sign-in surface; forms keep an opaque input background. */
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
+  .login-container {
+    background:rgba(255,255,255,.88);
+    backdrop-filter:blur(22px) saturate(120%);
+    -webkit-backdrop-filter:blur(22px) saturate(120%);
+    box-shadow:inset 0 1px 0 #fff,0 28px 80px -35px #48417345;
+  }
+}
+.login-brand > div { min-width:0;overflow-wrap:anywhere; }
+.login-register a { display:inline-flex;align-items:center;min-height:44px; }
+@media(max-width:520px) {
+  .login-page { padding-bottom:max(24px,env(safe-area-inset-bottom)); }
+  .login-intro { margin-top:32px; }
+}
+@media(prefers-reduced-transparency:reduce) {
+  .login-container { background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none; }
+}

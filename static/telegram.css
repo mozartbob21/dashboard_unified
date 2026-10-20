@@ -8,3 +8,25 @@
 .tg-conversation{min-height:0;display:flex;flex-direction:column}.tg-conversation-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;border-bottom:1px solid var(--tg-line)}.tg-conversation-head h2{margin:0;font-size:17px;overflow-wrap:anywhere}.tg-messages{flex:1;min-height:0;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:12px;background:#7658e804}.tg-empty{margin:auto;text-align:center;color:var(--tg-muted);max-width:380px}.tg-message{border:1px solid var(--tg-line);border-radius:14px;padding:12px 15px;max-width:82%;align-self:flex-start;background:var(--tg-bg);overflow-wrap:anywhere}.tg-message.out{align-self:flex-end;background:#7658e813}.tg-message header{font-size:12px;color:var(--tg-accent);font-weight:600;margin-bottom:7px}.tg-message-text{white-space:pre-wrap;line-height:1.55;font-size:14px}.tg-message footer{display:flex;align-items:center;gap:12px;justify-content:flex-end;margin-top:9px;color:var(--tg-muted);font-size:11px}.tg-message footer button{background:none;color:var(--tg-muted);border:0;cursor:pointer;font:inherit}.tg-message .tg-file{margin-top:10px;white-space:normal;text-align:left}.tg-older{align-self:center;margin:8px}.tg-composer{padding:14px 20px;border-top:1px solid var(--tg-line)}.tg-composer textarea{resize:vertical;max-height:180px;min-height:65px}.tg-compose-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}.tg-reply{display:flex;align-items:center;justify-content:space-between;gap:12px;border-left:3px solid var(--tg-accent);padding:5px 10px;font-size:12px;margin-bottom:8px}.tg-reply span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tg-picker{width:min(600px,calc(100% - 24px));max-height:85vh;padding:24px;border:1px solid var(--tg-line);border-radius:20px;background:var(--tg-bg);color:var(--tg-ink)}.tg-picker::backdrop{background:#10182f80}.tg-picker-head,.tg-picker-actions{display:flex;align-items:center;justify-content:space-between;gap:14px}.tg-picker-head h2{margin:0}.tg-picker-actions{margin-top:18px}.tg-dialog-list{max-height:42vh;overflow:auto;margin:12px 0}.tg-dialog-row{display:flex;gap:12px;align-items:center;padding:12px 6px;border-bottom:1px solid var(--tg-line);cursor:pointer;overflow-wrap:anywhere}.tg-dialog-row input{width:18px;height:18px;flex-shrink:0;accent-color:var(--tg-accent)}.tg-visually-hidden{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 @media(max-width:760px){.tg-app{padding:0 12px;margin-top:14px}.tg-header{gap:10px}.tg-workspace{grid-template-columns:1fr;height:auto;min-height:0}.tg-sidebar{max-height:280px;border-right:0;border-bottom:1px solid var(--tg-line)}.tg-conversation{height:640px;max-height:85vh}.tg-message{max-width:95%}.tg-messages{padding:14px}.tg-connect{margin:25px auto;padding:24px}.tg-compose-actions .tg-small{display:none}}
+
+/* Contain conversation scrolling without forcing the whole page sideways. */
+.tg-app,.tg-picker { box-sizing:border-box; }
+.tg-app :is(.tg-conversation,.tg-conversation-head h2,.tg-message,.tg-reply span,#tgProfile) { min-width:0; }
+.tg-app :is(.tg-notice,#tgProfile) { overflow-wrap:anywhere; }
+.tg-picker { overflow:auto;overscroll-behavior:contain; }
+.tg-picker :is(.tg-picker-head,.tg-picker-actions) { flex-wrap:wrap; }
+.tg-picker-head h2 { flex:1;min-width:0; }
+.tg-picker #tgPickerClose { flex:none;min-width:44px; }
+.tg-app .tg-messages { overscroll-behavior:contain; }
+@media(max-width:760px) {
+  .tg-app .tg-button { min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere; }
+  .tg-app :is(input:not([type=checkbox]),textarea) { font-size:16px; }
+  .tg-app .tg-conversation { height:85vh;height:85dvh;max-height:none;min-height:300px; }
+  .tg-app .tg-conversation-head { flex-wrap:wrap;padding:14px;gap:8px; }
+  .tg-app .tg-conversation-head h2 { flex:1 1 160px; }
+  .tg-app .tg-composer { padding:12px 14px max(12px,env(safe-area-inset-bottom)); }
+  .tg-app .tg-message footer { flex-wrap:wrap;gap:6px 12px; }
+  .tg-app .tg-message footer button { min-height:44px;padding:8px; }
+  .tg-app .tg-picker { padding:18px;max-height:calc(100dvh - 24px); }
+  .tg-app .tg-dialog-list { max-height:40dvh; }
+}

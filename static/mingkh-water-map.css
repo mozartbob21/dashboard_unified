@@ -268,3 +268,37 @@ html[data-theme="dark"] .water-map {--crit:#ff9da6;--serious:#ffc68b;--hvs:#5598
 .water-map .maintenance-body {padding:0 14px 14px;border-top:1px solid var(--line-soft);}
 .water-map .maintenance-body > .dataset-note:first-child {margin-top:12px;}
 @media(max-width:600px){.water-map .map-maintenance > summary span{display:block;margin-left:16px;}}
+
+/* Filters never extend beyond their map card on a narrow screen. */
+.water-map :is(.wrap,.head>div,.filters,.fld,.ms,.map-bar,.tbl-head,.ot-grid>div){min-width:0;max-width:100%}
+.water-map :is(.head,.map-bar,.tbl-head){flex-wrap:wrap}
+.water-map :is(.sub,.map-status,.dataset-note,.kpis-note,.ot-total){overflow-wrap:anywhere}
+.water-map .card{border-radius:var(--surface-radius,18px);box-shadow:var(--surface-shadow,0 6px 24px rgba(15,30,60,.05))}
+.water-map :is(button,input,select,a,[tabindex]):focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.water-map .leaflet-popup-content{max-height:min(55vh,420px);overflow:auto;overscroll-behavior:contain}
+.water-map .leaflet-popup-content-wrapper{background:var(--surface);color:var(--ink)}
+.water-map .leaflet-popup-tip{background:var(--surface)}
+.water-map table.pop th{color:var(--ink-2)}
+@media(max-width:640px){
+ .water-map .filters>.fld{width:100%;flex:1 1 100%}
+ .water-map .ms,.water-map .ms-btn{width:100%;min-width:0;max-width:100%}
+ .water-map .ms-pop,.water-map .ms-wide .ms-pop{width:100%;min-width:0;max-width:100%}
+ .water-map .ms-list{max-height:45vh;max-height:45dvh;overscroll-behavior:contain}
+ .water-map :is(.btn,.ms-btn,.ms-opt,.ms-acts button,.per-opt,.tgl,.seg button,.linkbtn,.archive-picker-button,#import-submit){min-height:44px}
+ .water-map :is(.inp,input[type=date],select){font-size:16px;min-height:44px;min-width:0;max-width:100%}
+ .water-map .map-bar .seg{display:flex;flex-wrap:wrap;max-width:100%}
+ .water-map .map-bar .seg button{flex:1 1 130px;white-space:normal}
+ .water-map .archive-picker{flex-wrap:wrap;gap:8px}
+ .water-map .archive-filename{flex-basis:100%}
+ .water-map .box-chip{max-width:100%;white-space:normal}
+ .water-map #box-clear{min-width:44px;min-height:44px}
+ .water-map .cats{grid-template-columns:1fr}
+ .water-map .kpis{gap:8px}
+ .water-map .kpi{min-width:0;padding:12px;overflow-wrap:anywhere}
+ .water-map #map{height:480px;height:clamp(320px,60svh,520px)}
+ .water-map .leaflet-touch .leaflet-bar a{min-width:44px;height:44px;line-height:44px}
+ .water-map .leaflet-bar a.map-selbtn{line-height:44px;min-height:44px;padding:0 9px;font-size:12px}
+ .water-map .leaflet-popup-content{width:min(280px,calc(100vw - 88px))!important;margin:36px 16px 16px;max-width:calc(100vw - 88px)}
+ .water-map .leaflet-container a.leaflet-popup-close-button{width:44px;height:44px;line-height:44px;color:var(--ink-2)}
+ .water-map .ot th,.water-map .ot td{padding-top:12px;padding-bottom:12px}
+}

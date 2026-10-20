@@ -24,16 +24,34 @@ function sourceState(d){
 }
 const frequency = d => d.refresh || 'Частота не указана источником';
 const metricRows = items => items.map(x=>'<div class="wd-row"><span>'+esc(x.label)+'</span><b>'+esc(metricValue(x))+'</b></div>').join('');
+// Presentation priorities are keyed by semantic IDs, never by position or value.
+// A missing indicator stays missing; a different percentage cannot substitute it.
+const cardPrimary = {
+ sys_vs:[['system_addresses','Системные адреса'],['resonant_addresses','Резонансные адреса']],
+ sys_kr:[['system_addresses','Системные адреса'],['resonant_addresses','Резонансные адреса']],
+ edo_rso:[['electronic_documents_pct','Электронные документы в общем количестве']]
+};
+function cardIndicators(id,items){
+ const primary=cardPrimary[id]
+  ? cardPrimary[id].map(([key,label])=>items.find(item=>item.id===key)||{id:key,label,value:null})
+  : [items[0]||{label:'Показатели источника',value:null}];
+ const selected=new Set(primary.map(item=>item.id));
+ const secondary=items.filter(item=>!selected.has(item.id)).slice(0,3);
+ const html='<div class="wd-primary-metrics'+(primary.length>1?' wd-primary-metrics--paired':'')+'">'+primary.map(item=>
+  '<div class="wd-primary-metric" data-metric="'+esc(item.id||'')+'"><p class="wd-name">'+esc(item.label)+'</p><div class="wd-num">'+esc(metricValue(item))+'</div></div>'
+ ).join('')+'</div><div class="wd-rows">'+metricRows(secondary)+'</div>';
+ return html;
+}
+
 function render(){
  document.getElementById('wdCoverage').textContent=(snap.table||[]).length+' ОМСУ';
  document.querySelector('.wd-snap b').textContent=stamp(snap.updated_at);
  document.getElementById('kpiGrid').innerHTML=defs.map(([id,name,url])=>{
   const d=snap.sources?.[id]||{},state=sourceState(d);
-  const items=d.metric_schema===1 ? d.metrics||[] : [], first=items[0];
+  const items=d.metric_schema===1 ? d.metrics||[] : [];
   return '<article class="wd-card s-'+(state.good?'good':'warn')+'" data-source="'+id+'">'+
    '<div class="wd-head"><h3 class="wd-src">'+esc(name)+'</h3><button class="wd-refresh-card" type="button" data-refresh="'+id+'" aria-label="Обновить: '+esc(name)+'" title="Обновить только этот источник" '+(busy?'disabled':'')+'>↻</button></div>'+
-   '<span class="wd-status '+(state.good?'good':'warn')+'">'+state.label+'</span><p class="wd-name">'+esc(first?.label||'Показатели источника')+'</p><div class="wd-num">'+esc(metricValue(first))+'</div>'+
-   '<div class="wd-rows">'+metricRows(items.slice(1,4))+'</div><div class="wd-card-meta">'+
+   '<span class="wd-status '+(state.good?'good':'warn')+'">'+state.label+'</span>'+cardIndicators(id,items)+'<div class="wd-card-meta">'+
    (d.error?'<p class="wd-card-note">Последняя проверка не завершена. Подробности — в данных источника.</p>':'')+
    (d.data_date?'<p class="wd-hint">Данные на '+esc(d.data_date.split('-').reverse().join('.'))+'</p>':'')+
    '<p class="wd-hint">Получено: '+esc(stamp(d.updated_at))+'</p></div>'+

@@ -393,3 +393,38 @@ html[data-theme="dark"] .mingkh-dashboard .trendcard { --curr: #68a9f4; --prev: 
 .module-mingkh .top-actions{flex-wrap:wrap}
 
 @media(max-width:900px){html body.unified-module-page.module-mingkh .topbar.unified-shell-topbar{position:static!important;top:auto!important}}
+
+/* Filters and expanded rows stay within the mobile dashboard. */
+.mingkh-dashboard :is(.wrap,.head>div,.toprow>div,.controls,.grp,.fld,.ms){min-width:0}
+.mingkh-dashboard :is(.head,.row,.grp,.fld){max-width:100%}
+.mingkh-dashboard :is(.card,.kpi,.controls,.lastbox){border-radius:var(--surface-radius,18px);box-shadow:var(--surface-shadow,0 6px 24px rgba(15,30,60,.05))}
+.mingkh-dashboard :is(button,input,select,summary):focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+@media(max-width:640px){
+ .mingkh-dashboard{padding:14px 0 32px}
+ .mingkh-dashboard .controls,.mingkh-dashboard .card{padding:14px}
+ .mingkh-dashboard .head h1{font-size:24px;overflow-wrap:anywhere}
+ .mingkh-dashboard .lastbox{flex:1 1 100%;text-align:left;max-width:100%}
+ .mingkh-dashboard .row{gap:10px}
+ .mingkh-dashboard .grp,.mingkh-dashboard .fld{flex:1 1 100%;flex-wrap:wrap}
+ .mingkh-dashboard .ms{flex:1 1 100%;width:100%}
+ .mingkh-dashboard .msbtn{width:100%;max-width:100%;min-width:0}
+ .mingkh-dashboard .mspanel{width:100%;min-width:0;max-width:100%;max-height:50vh;max-height:50dvh;overscroll-behavior:contain}
+ .mingkh-dashboard .opt{min-height:44px;overflow-wrap:anywhere}
+ .mingkh-dashboard :is(.pre,.msbtn,.chip,.mapsort,.trendtab,select,input[type=date],input[type=text]){min-height:44px}
+ .mingkh-dashboard :is(select,input[type=date],input[type=text]){font-size:16px;min-width:0;max-width:100%}
+ .mingkh-dashboard .grp>select{flex:1 1 160px;width:100%}
+ .mingkh-dashboard .grp>input[type=date]{flex:1 1 130px;width:130px}
+ .mingkh-dashboard .caretbtn{width:44px;height:44px;margin-right:5px;border-radius:10px;vertical-align:middle}
+ .mingkh-dashboard .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .mingkh-dashboard .kpi{padding:14px;overflow-wrap:anywhere}
+ .mingkh-dashboard .kpi-v{font-size:27px}
+ .mingkh-dashboard .toprow{grid-template-columns:minmax(0,1fr)}
+ .mingkh-dashboard :is(.donutwrap,.donut-legend){min-width:0;max-width:100%}
+ .mingkh-dashboard .donutwrap{justify-content:center}
+ .mingkh-dashboard .lgi{white-space:normal;flex-wrap:wrap}
+ .mingkh-dashboard .lgi.hit{min-height:44px;max-width:100%}
+ .mingkh-dashboard :is(.bartable,.plain){font-size:12px}
+ .mingkh-dashboard .clickrow>th,.mingkh-dashboard .clickrow>td,.mingkh-dashboard .sortable-h{padding-top:12px;padding-bottom:12px}
+ .mingkh-dashboard .cell{min-height:100px}
+ .mingkh-dashboard .lastbox-t,.mingkh-dashboard .foot{overflow-wrap:anywhere}
+}

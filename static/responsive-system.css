@@ -1,0 +1,274 @@
+/* Shared surfaces and mobile ergonomics. Loaded after each module's own styles. */
+:root {
+  --surface-panel: rgba(255, 255, 255, .92);
+  --surface-raised: #fff;
+  --surface-border: rgba(77, 97, 133, .17);
+  --surface-highlight: rgba(255, 255, 255, .95);
+  --surface-shadow: 0 8px 28px rgba(31, 49, 83, .07), inset 0 1px 0 var(--surface-highlight);
+  --surface-blur: 16px;
+  --surface-radius: 20px;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-panel: rgba(23, 34, 54, .94);
+  --surface-raised: #172236;
+  --surface-border: rgba(172, 190, 222, .2);
+  --surface-highlight: rgba(255, 255, 255, .1);
+  --surface-shadow: 0 8px 28px rgba(0, 0, 0, .2), inset 0 1px 0 var(--surface-highlight);
+}
+html[data-theme="light"], html[data-theme="kreml"] { color-scheme: light; }
+html[data-theme="kreml"] {
+  --surface-panel: rgba(251, 241, 221, .94);
+  --surface-raised: #fbf1dd;
+  --surface-border: rgba(119, 77, 48, .2);
+  --surface-highlight: rgba(255, 255, 255, .8);
+}
+html[data-glass="on"] { --surface-panel: rgba(250, 252, 255, .8); --surface-blur: 24px; }
+html[data-theme="dark"][data-glass="on"] { --surface-panel: rgba(23, 34, 54, .82); }
+html[data-theme="kreml"][data-glass="on"] { --surface-panel: rgba(251, 241, 221, .84); }
+
+:where(.home-page, .unified-module-page, .zip-curator-page) {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  line-height: 1.5;
+}
+:where(.home-page, .unified-module-page, .zip-curator-page) :where(
+  .card, .metric-card, .module-card, .chart-card, .kpi-card, .sch-card, .panel,
+  .dashboard-card, .home-utility, .wd-source-card, .survey-card
+) {
+  min-width: 0;
+  border-radius: var(--surface-radius);
+  box-shadow: var(--surface-shadow);
+}
+:where(.home-page, .unified-module-page, .zip-curator-page) :where(
+  .container, .wrap, main, section, .grid, .charts-grid, .metrics-grid, .filters,
+  .actions, .action-card, .hero-copy, .hero-side, .field, .modal-body
+) { min-width: 0; }
+:where(.home-page, .unified-module-page, .zip-curator-page) :where(h1, h2, h3, p, label, .metric-label) {
+  overflow-wrap: anywhere;
+}
+:where(.home-page, .unified-module-page, .zip-curator-page) :where(button, a, input, select, textarea, summary) {
+  touch-action: manipulation;
+}
+:where(.home-page, .unified-module-page, .zip-curator-page) :where(
+  button, a[href], input, select, textarea, summary, [tabindex]
+):focus-visible {
+  outline: 3px solid var(--primary, #3867ff);
+  outline-offset: 3px;
+}
+:where(.home-page, .unified-module-page, .zip-curator-page) :where(
+  .table-wrap, .table-wrapper, .table-container, .table-scroll, .data-table-wrap,
+  .review-table-wrap, .twrap, .ecur-matrix-scroll
+) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+:where(.home-page, .unified-module-page, .zip-curator-page) :where(
+  .metric-value, .kpi-value, .num, .stat-value
+) { font-variant-numeric: tabular-nums; }
+
+/* Reflections stay on the surface: never put a hit-testing layer over content. */
+html[data-glass="on"] body:is(.home-page, .unified-module-page, .zip-curator-page) :is(
+  .card, .metric-card, .module-card, .chart-card, .kpi-card, .sch-card, .home-utility, .wd-card, .wd-dcard
+) {
+  background: linear-gradient(135deg, var(--surface-highlight), transparent 45%), var(--surface-panel) !important;
+  border-color: var(--surface-border) !important;
+  box-shadow: var(--surface-shadow) !important;
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(130%) !important;
+  backdrop-filter: blur(var(--surface-blur)) saturate(130%) !important;
+}
+html[data-glass="on"] body:is(.home-page, .unified-module-page, .zip-curator-page) .card::after {
+  /* The old full-card overlay washed out text and could cover nested panels. */
+  content: none;
+}
+body.home-page .topbar, .unified-module-page .unified-shell-topbar, .zip-curator-page > .top {
+  background: linear-gradient(120deg, var(--surface-highlight), transparent 55%), var(--surface-panel) !important;
+  border: 1px solid var(--surface-border) !important;
+  box-shadow: var(--surface-shadow) !important;
+  -webkit-backdrop-filter: blur(var(--surface-blur)) saturate(135%);
+  backdrop-filter: blur(var(--surface-blur)) saturate(135%);
+  overflow: visible !important;
+}
+/* Native popovers use the top layer; older browsers use a body-level portal. */
+.floating-panel-portal { position: relative; z-index: 10000; }
+.neurona-appearance .appearance-menu[data-floating-panel],
+#profileMenuDropdown[data-floating-panel] {
+  position: fixed !important;
+  inset: auto !important;
+  top: var(--menu-y, 12px) !important;
+  left: var(--menu-x, 12px) !important;
+  width: var(--menu-width, 320px) !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: var(--menu-height, calc(100dvh - 24px)) !important;
+  margin: 0 !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  background: var(--surface-raised) !important;
+  color: var(--text, #102033);
+  border: 1px solid var(--surface-border);
+  border-radius: 20px;
+  box-shadow: 0 20px 64px rgba(15, 23, 42, .24), inset 0 1px var(--surface-highlight);
+}
+
+/* Legacy embedded RM dashboards use the same palette and typography as the shell. */
+.unified-module-page #pane-rm {
+  --ink: var(--text); --steel: var(--primary); --water: var(--bg);
+  --paper: var(--surface-raised); --line: var(--border); --mut: var(--muted);
+  color: var(--text);
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--surface-radius);
+}
+.unified-module-page #pane-rm header {
+  color: var(--text);
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border);
+}
+.unified-module-page #pane-rm :is(header h1, .block > h2) { font-family: inherit; }
+.unified-module-page #pane-rm :is(.block > h2, th) {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.unified-module-page #pane-rm tr:nth-child(even) td { background: var(--card); }
+.unified-module-page #pane-rm :is(input, .copybtn, #autoBtn) {
+  background: var(--surface-raised); color: var(--text);
+}
+
+@media (max-width: 900px) {
+  body.home-page .topbar .top-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  body.home-page .topbar .top-actions > :is(.appearance-dropdown, .profile-menu, .scheduler-btn) {
+    display: flex !important;
+    position: relative !important;
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+  }
+  body.home-page .topbar .top-actions > .appearance-dropdown { flex: 1 1 180px !important; }
+  body.home-page .topbar #themeToggle.appearance-trigger {
+    width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+    min-height: 46px !important; height: auto !important;
+    padding: 8px 10px !important; justify-content: flex-start !important;
+  }
+  body.home-page .topbar #themeToggle .theme-toggle-copy,
+  body.home-page .topbar #themeToggle .theme-toggle-text,
+  body.home-page .topbar #themeToggle .theme-toggle-arrow { display: block !important; }
+  body.home-page .topbar :is(.scheduler-btn, .professional-profile) {
+    width: 46px !important; min-width: 46px !important; height: 46px !important; min-height: 46px !important;
+  }
+  .unified-module-page .unified-shell-topbar { position: relative !important; top: auto !important; }
+  .home-page .topbar { position: relative !important; top: auto !important; }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  /* Exclude hidden inputs and custom switch internals; enlarge their labels locally. */
+  :is(.home-page, .unified-module-page, .zip-curator-page) :is(
+    button:not(.sch-toggle-slider), .btn, .primary-button, .secondary-button,
+    .shell-control, .module-link, .tab-button, .profile-menu-item, .copy-btn
+  ) { min-height: 44px; }
+  .unified-module-page .shell-control { min-height: 44px !important; }
+  :where(.home-page, .unified-module-page, .zip-curator-page) :is(
+    input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range]),
+    select
+  ) { min-height: 44px; max-width: 100%; }
+  :where(.home-page, .unified-module-page, .zip-curator-page) summary { min-height: 44px; padding-block: 10px; }
+  .home-page :is(.favorite-toggle, .info-btn, .module-info-trigger, .module-view-controls button) {
+    width: 44px; min-width: 44px; height: 44px; flex-basis: 44px;
+  }
+}
+/* Map filter menus must escape their card; a backdrop would trap fixed descendants. */
+html[data-glass="on"] body.unified-module-page .card.water-filters-card {
+  overflow: visible !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+@media (max-width: 760px) {
+  :root { --surface-radius: 18px; --surface-blur: 12px; }
+  html[data-glass="on"] { --surface-blur: 16px; }
+  :where(.home-page, .unified-module-page, .zip-curator-page) :is(
+    input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=range]), select, textarea
+  ) { font-size: 16px; } /* Prevent iOS focus zoom without disabling browser zoom. */
+  .unified-module-page > .container, .home-page > .container {
+    width: calc(100% - 24px) !important;
+    max-width: 100% !important;
+    margin-inline: auto !important;
+  }
+  .unified-module-page :is(.hero, .action-card, .action-row, .header-actions, .filter-bar) {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .unified-module-page .hero { grid-template-columns: minmax(0, 1fr) !important; }
+  .unified-module-page :is(.hero-copy, .hero-side, .action-card > div, .charts-grid > *, .metrics-grid > *) {
+    min-width: 0; max-width: 100%;
+  }
+  .unified-module-page .unified-shell-topbar :is(.actions, .nav) {
+    flex: 1 1 100%; width: 100%; margin-left: 0; justify-content: flex-start;
+  }
+  .unified-module-page .unified-shell-topbar :is(.shell-control, .system-status) {
+    min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere;
+  }
+  .unified-module-page .unified-shell-topbar .appearance-dropdown { max-width: 100%; }
+  .unified-module-page .unified-shell-topbar #themeToggle.appearance-trigger { max-width: 100% !important; }
+  :where(.home-page, .unified-module-page, .zip-curator-page) :is(.toast, .toast-message) {
+    max-width: calc(100vw - 24px); overflow-wrap: anywhere;
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .unified-module-page :is(.filter-select, .contacts-toolbar input) { min-width: 0; max-width: 100%; }
+  .unified-module-page .sch-grid { grid-template-columns: minmax(0, 1fr); }
+  .unified-module-page .sch-status-bar { flex-wrap: wrap; gap: 10px; }
+  .unified-module-page .sch-status-meta { margin-left: 0; }
+  .unified-module-page #pane-rm main { padding-inline: 12px; }
+  .unified-module-page #pane-rm :is(header, .section) { padding-inline: 14px; }
+  .unified-module-page #pane-rm .rmrow input[type=password] { min-width: 0; flex-basis: 100%; }
+  .unified-module-page #pane-rm .striprow { flex-wrap: wrap; }
+  .unified-module-page #pane-rm .idstrip { min-width: 0; }
+  .unified-module-page .ecur-summary, .unified-module-page .ecur-grid2 { grid-template-columns: minmax(0, 1fr); }
+  .unified-module-page :is(.ecur-cal-dow-row, .ecur-cal-grid) { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+  .unified-module-page .ecur-cal-cell { width: 100%; min-width: 0; min-height: 40px; }
+  .unified-module-page .ecur-kpi-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .unified-module-page .ecur-dl { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .unified-module-page .ecur-crow { grid-template-columns: 12px minmax(0, 1fr) auto; }
+  .unified-module-page .ecur-caddr { grid-column: 2 / -1; white-space: normal; }
+  .unified-module-page .ecur-search { min-width: 0; max-width: 100%; }
+  .unified-module-page .utnkr-filters-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .unified-module-page :is(.ecur-modal, .modal-content) { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+  .unified-module-page :is(.ecur-modal-h .mclose, .ecur-cal-btn, .contact-delete) { min-width: 44px; min-height: 44px; }
+  .zip-curator-page .top-leading { width: 100%; }
+  .zip-curator-page .top-actions { width: 100%; margin-left: 0; }
+  .zip-curator-page .rhead .bar .btn { flex: 1 1 auto; min-width: 0; white-space: normal; }
+  .zip-curator-page .card { min-width: 0; }
+  .zip-curator-page .back-link { width: 44px; min-height: 44px; flex-shrink: 0; }
+  .zip-curator-page .review-page-controls label { flex-wrap: wrap; }
+  .zip-curator-page .btn, .zip-curator-page select { min-height: 44px; }
+  .zip-curator-page .category-dialog { max-height: calc(100dvh - 24px); padding: 18px; }
+}
+@media (max-width: 380px) {
+  .home-page .topbar .top-actions > .appearance-dropdown { flex-basis: 100% !important; }
+  .unified-module-page .ecur-kpi-cats { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.home-page, .unified-module-page, .zip-curator-page) { scroll-behavior: auto; }
+  :where(.home-page, .unified-module-page, .zip-curator-page) :is(.card, .module-card, .shell-control) {
+    animation: none !important; transition: none !important;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html:root body:is(.home-page, .unified-module-page, .zip-curator-page) :is(
+    .card, .metric-card, .module-card, .chart-card, .kpi-card, .sch-card, .home-utility, .wd-card, .wd-dcard, .topbar, .unified-shell-topbar
+  ) { background: var(--surface-raised) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html:root body:is(.home-page, .unified-module-page, .zip-curator-page) :is(
+    .card, .metric-card, .module-card, .chart-card, .kpi-card, .sch-card, .home-utility, .wd-card, .wd-dcard, .topbar, .unified-shell-topbar
+  ) { background: var(--surface-raised) !important; }
+}

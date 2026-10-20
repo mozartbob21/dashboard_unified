@@ -99,3 +99,36 @@ body:has(.wd-drawer[open]){overflow:hidden}
 @media(prefers-reduced-motion:reduce){.wd-drawer[open]{animation:none}}
 
 .water-dashboard-page .wd-hero .wd-title{font-size:clamp(22px,2.2vw,30px);line-height:1.3}
+
+/* Source controls and details stay usable with touch. */
+.water-dashboard-page :is(.wd-card,.wd-dcard,.wd-tbl-shell){border-radius:var(--surface-radius,18px);box-shadow:var(--surface-shadow,0 6px 24px rgba(15,30,60,.05))}
+.water-dashboard-page :is(.wd-hero>*,.wd-tbl-shell,.wd-tbl-scroll,.wd-src-list li){min-width:0;max-width:100%}
+.water-dashboard-page .wd-src-list li{overflow-wrap:anywhere}
+.water-dashboard-page .wd-card-actions{flex-wrap:wrap}
+.water-dashboard-page .wd-source-link{white-space:normal}
+.water-dashboard-page .wd-tbl-scroll{overscroll-behavior-x:contain}
+@media(max-width:760px),(pointer:coarse){
+ .water-dashboard-page :is(.wd-refresh-card,.wd-close){width:44px;height:44px;min-width:44px;min-height:44px}
+ .water-dashboard-page :is(.wd-details-button,.wd-refresh,.wd-ai-link,.wd-source-link){min-height:44px;display:inline-flex;align-items:center}
+ .water-dashboard-page .wd-tbl th{padding-top:14px;padding-bottom:14px}
+}
+@media(max-width:620px){
+ .water-dashboard-page .wd-hero{gap:18px;padding:18px!important}
+ .water-dashboard-page .wd-card{padding:18px}
+ .water-dashboard-page .wd-src{font-size:12px;letter-spacing:.02em}
+ .water-dashboard-page .wd-row{font-size:13px}
+ .water-dashboard-page .wd-frequency{font-size:12px;text-align:left}
+ .water-dashboard-page .wd-card-actions>*{max-width:100%}
+ .water-dashboard-page .wd-drawer-head,.water-dashboard-page .wd-drawer-body{padding:16px}
+ .water-dashboard-page .wd-drawer-footer{padding:14px 16px max(14px,env(safe-area-inset-bottom))}
+ .water-dashboard-page .wd-drawer-head{gap:12px}
+ .water-dashboard-page .wd-rank-item{grid-template-columns:18px minmax(0,1fr) minmax(40px,30%)}
+ .water-dashboard-page .wd-rank-value{max-width:100%}
+}
+
+/* Both address totals have equal visual weight, including missing values. */
+.wd-primary-metrics{display:grid;gap:14px;min-width:0}
+.wd-primary-metric{display:flex;flex-direction:column;gap:7px;min-width:0}
+.wd-primary-metrics--paired .wd-primary-metric+.wd-primary-metric{padding-top:14px;border-top:1px solid var(--border)}
+.wd-primary-metrics .wd-name{font-size:12px;line-height:1.5;margin:0}
+.wd-primary-metrics .wd-num{font-size:30px;line-height:1.25;font-weight:800;overflow-wrap:anywhere}

@@ -2,7 +2,7 @@
 {% block title %}Качество водоснабжения МО — Нейрона ИИ{% endblock %}
 {% block body_class %}compact-module-page water-dashboard-page{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="/static/water-dashboard.css?v=20261001-details-1">
+<link rel="stylesheet" href="/static/water-dashboard.css?v=20261020-mobile">
 {% endblock %}
 {% block content %}
 <div class="container">
@@ -105,5 +105,5 @@
     <div id="sourceDetailsFooter" class="wd-drawer-footer"></div>
 </dialog>
 <script id="waterSnapshot" type="application/json">{{ snapshot | tojson }}</script>
-<script src="/static/water-dashboard.js?v=20261001-details-1" defer></script>
+<script src="/static/water-dashboard.js?v=20261020-metrics" defer></script>
 {% endblock %}

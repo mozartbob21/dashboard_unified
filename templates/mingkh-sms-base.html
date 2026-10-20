@@ -3,7 +3,7 @@
 {% set sms_descriptions = {'overview':'Соберите единый текст из нужных разделов. Выберите блоки и период — итог можно проверить и скопировать.','summary':'Свод обращений с начала года, сравнение с прошлым годом и ежедневный доклад.','resonance':'Новые резонансные адреса, повторные обращения и очаги. Проверьте отбор и выгрузите реестр.','system':'Изменения в реестре системных адресов: новые улицы, возвращённые задачи и адреса без жалоб.','solutions':'Быстрые и системные решения по мероприятиям РМ. Сводный текст и детализация в Excel.'} %}
 {% block title %}{{ sms_labels.get(sms_page, 'СМС и доклады') }} — Нейрона ИИ{% endblock %}
 {% block body_class %}module-mingkh-sms{% if embed %} sms-embedded{% endif %}{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/mingkh-sms/sms.css?v=20261019">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/mingkh-sms/sms.css?v=20261020-mobile">{% endblock %}
 {% block content %}
 <div class="container sms-shell">
 {% if not embed %}
