@@ -208,3 +208,10 @@ tests_html/
 
 # Authorized compact private water-map seed; served only behind module access.
 !services/mingkh/water_map_seed.json.gz
+
+# Local documentation and audit deliverables are not part of the server checkout.
+# Tests and runtime skills/aichat/**/*.md remain versioned.
+*.pdf
+*.PDF
+/docs/
+/audit-output/
