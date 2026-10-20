@@ -275,9 +275,9 @@ def test_water_dashboard_details_require_current_water_grant(app, monkeypatch):
         conn.execute("UPDATE users SET modules='[\"water-dashboard\"]' WHERE id=1")
     with api(app) as client:
         notes = client.get('/api/releases/pending').json()['releases']
-    note, = notes
-    assert {entry['id'] for entry in note['entries']} == {
-        'mobile-controls-and-layout', 'shared-glass-surfaces', 'water-dashboard-metric-priority', 'water-dashboard-three-new-sources'}
+    assert {entry['id'] for note in notes for entry in note['entries']} == {
+        'profile-menu-theme-contrast', 'mobile-controls-and-layout', 'shared-glass-surfaces',
+        'water-dashboard-metric-priority', 'water-dashboard-three-new-sources'}
 
 
 def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch):
@@ -285,6 +285,6 @@ def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
         monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
         history = client.get("/api/releases/history").json()
-        assert history["pending_count"] == 1
-        assert [item["version"] for item in history["releases"]] == ["3.1"]
+        assert history["pending_count"] == 2
+        assert [item["version"] for item in history["releases"]] == ["3.1", "3.1"]
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404
