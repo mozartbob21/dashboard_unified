@@ -75,25 +75,29 @@ def test_deployed_v31_catalog_has_only_current_news_and_filters_module_details(a
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     payload = response.json()
-    assert payload["pending_count"] == 1
-    assert len(DEPLOYED_RELEASES) == 1
-    note, = payload["releases"]
-    assert note["id"] == "2026-10-20-mobile-design-sources-v31" and note["read_at"] is None
-    assert note["version"] == "3.1" and note["title"] == "Нейрона ИИ — версия 3.1"
-    shared = {"mobile-controls-and-layout", "shared-glass-surfaces"}
-    assert {entry["id"] for entry in note["entries"]} == shared
+    assert payload["pending_count"] == 2
+    assert len(DEPLOYED_RELEASES) == 2
+    expected_shared = {
+        "2026-10-20-profile-menu-contrast-v31": {"profile-menu-theme-contrast"},
+        "2026-10-20-mobile-design-sources-v31": {"mobile-controls-and-layout", "shared-glass-surfaces"},
+    }
+
+    def check_visible_notes(notes):
+        assert {note["id"] for note in notes} == set(expected_shared)
+        for note in notes:
+            assert note["read_at"] is None
+            assert note["version"] == "3.1"
+            assert {entry["id"] for entry in note["entries"]} == expected_shared[note["id"]]
+            assert all(entry["module_id"] is None for entry in note["entries"])
+
+    check_visible_notes(payload["releases"])
     for user in ("2", "3"):
         with api(app, user) as client:
-            notes = client.get("/api/releases/pending").json()["releases"]
-            note, = notes
-            assert {entry["id"] for entry in note["entries"]} == shared
-            assert all(entry["module_id"] is None for entry in note["entries"])
+            check_visible_notes(client.get("/api/releases/pending").json()["releases"])
     with db.get_db_connection() as conn:
         conn.execute("UPDATE users SET modules='[]' WHERE id=1")
     with api(app) as client:
-        notes = client.get("/api/releases/pending").json()["releases"]
-        note, = notes
-        assert {entry["id"] for entry in note["entries"]} == shared
+        check_visible_notes(client.get("/api/releases/pending").json()["releases"])
 
 
 @pytest.mark.parametrize("path", ["/api/releases/pending", "/api/releases/history"])

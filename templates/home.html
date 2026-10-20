@@ -526,8 +526,10 @@
             top: calc(100% + 8px);
             right: 0;
             min-width: 220px;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
+            background: var(--surface-raised, var(--card-strong));
+            color: var(--text);
+            --profile-danger: #b91c1c;
+            border: 1px solid var(--border);
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.12);
             padding: 6px;
@@ -535,10 +537,10 @@
         }
         .profile-menu-dropdown[hidden] { display: none; }
         .profile-menu-header { padding: 8px 12px 4px; }
-        .profile-menu-name { font-weight: 600; font-size: 14px; color: #111827; }
-        .profile-menu-role { font-size: 12px; color: #6b7280; }
-        .profile-menu-divider { height: 1px; background: #f0f0f3; margin: 6px 4px; }
-        .profile-menu-info { padding: 4px 12px; font-size: 12px; color: #6b7280; }
+        .profile-menu-name { font-weight: 600; font-size: 14px; color: var(--text); }
+        .profile-menu-role { font-size: 12px; color: var(--muted); }
+        .profile-menu-divider { height: 1px; background: var(--border); margin: 6px 4px; }
+        .profile-menu-info { padding: 4px 12px; font-size: 12px; color: var(--muted); }
         .profile-menu-item {
             display: block;
             width: 100%;
@@ -549,13 +551,16 @@
             background: transparent;
             border-radius: 8px;
             font-size: 14px;
-            color: #111827;
+            color: var(--text);
             cursor: pointer;
             text-decoration: none;
         }
-        .profile-menu-item:hover { background: #f3f4f6; }
-        .profile-menu-logout { color: #b91c1c; }
-        .profile-menu-logout:hover { background: #fef2f2; }
+        .profile-menu-item:is(:hover, :focus-visible) { background: var(--violet-soft); }
+        .profile-menu-item:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+        #profileMenuDropdown .version-menu-item strong { color: var(--violet); }
+        .profile-menu-logout { color: var(--profile-danger); }
+        .profile-menu-logout:is(:hover, :focus-visible) { background: var(--danger-soft); }
+        html[data-theme="dark"] .profile-menu-dropdown { --profile-danger: #ff7b92; }
 
         .module-card { 
             padding: 16px 18px !important;
