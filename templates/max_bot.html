@@ -1,0 +1,82 @@
+{% extends "base_module.html" %}
+{% block title %}Подключить MAX — Нейрона ИИ{% endblock %}
+{% block body_class %}compact-module-page max-bot-page{% endblock %}
+{% block head %}
+<meta name="max-bot-csrf" content="{{ max_bot_csrf }}">
+<link rel="stylesheet" href="/static/max-bot-link.css?v=20261022-guide">
+<link rel="stylesheet" href="/static/max-bot-tour.css?v=20261022-guide">
+<script defer src="/static/max-bot-link.js?v=20261022-guide"></script>
+<script defer src="/static/max-bot-tour.js?v=20261022-guide"></script>
+{% endblock %}
+{% block content %}
+<div class="container max-bot-container">
+  <header class="topbar">
+    <div class="brand">
+      <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
+      <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Подключение бота MAX</div></div>
+    </div>
+    <div class="top-actions"><a href="/" class="secondary-button">← На главную</a><a href="/zips" class="secondary-button">Остатки ЗиП РСО</a></div>
+  </header>
+  <main class="max-bot-main" id="max-bot-main">
+    <section class="max-bot-hero">
+      <div class="max-bot-eyebrow">Нейрона в вашем мессенджере</div>
+      <h1>Подключите MAX<br>к своему аккаунту</h1>
+      <p>Подключите свой аккаунт Нейроны, чтобы искать опубликованные остатки и получать контакты ответственных в обычном чате с ботом.</p>
+      <div class="max-bot-tags"><span>Поиск по названию</span><span>Наличие по муниципалитетам</span><span>Контакты из системы</span></div>
+      <button class="max-bot-tour-launch" type="button" data-max-tour-start aria-controls="max-tour-card"><span aria-hidden="true">↗</span> Как подключить MAX <small>4 простых шага</small></button>
+    </section>
+    <div class="max-bot-layout">
+      <section class="max-bot-card" aria-labelledby="max-bot-heading">
+        <div class="max-bot-card-head"><h2 id="max-bot-heading" tabindex="-1">Подключение аккаунта</h2><span class="max-bot-status" id="max-bot-status">Проверяем…</span></div>
+        <p id="max-bot-error" class="max-bot-notice error" role="alert" hidden></p>
+        <button class="max-bot-button secondary" id="max-bot-retry" type="button" hidden>Повторить проверку</button>
+        <div id="max-bot-loading" class="max-bot-loading" role="status"><span aria-hidden="true"></span>Проверяем состояние подключения</div>
+        <div id="max-bot-disabled" hidden><p>Бот пока не настроен. Администратору нужно добавить серверные настройки и запустить процесс бота.</p><p class="max-bot-muted">Логин, пароль и токен бота на этой странице вводить не нужно.</p></div>
+        <div id="max-bot-unlinked" hidden>
+          <p>Получите одноразовый код, отправьте его вашему боту и подтвердите привязку здесь. Пароль от платформы боту не передаётся.</p>
+          <button class="max-bot-button primary" id="max-bot-create" type="button">Получить код</button>
+          <div class="max-bot-code-panel" id="max-bot-code-panel" hidden>
+            <span class="max-bot-muted">Отправьте эту команду вашему боту MAX:</span>
+            <div class="max-bot-code-row"><code id="max-bot-code" aria-label="Команда с одноразовым кодом"></code><button id="max-bot-copy" class="max-bot-button secondary" type="button" aria-label="Скопировать команду привязки">Скопировать</button></div>
+            <p id="max-bot-expiry" class="max-bot-muted"></p>
+            <p class="max-bot-code-warning">Не передавайте код другим людям. Подтверждайте только свой аккаунт MAX.</p>
+          </div>
+          <p id="max-bot-expired" class="max-bot-notice" hidden>Срок кода истёк. Получите новый код, если подключение ещё не завершено.</p>
+        </div>
+        <div id="max-bot-pending" hidden><h3>Подтвердите привязку</h3><p class="max-bot-muted">Сверьте аккаунт с тем, из которого вы отправили код. Если это не вы, не подтверждайте запрос.</p><div id="max-bot-pending-list"></div></div>
+        <div id="max-bot-active" hidden>
+          <div class="max-bot-connected"><span aria-hidden="true">✓</span><div><strong>Аккаунт подключён</strong><p id="max-bot-active-label"></p></div></div>
+          <p>Можно искать остатки и контакты в чате с ботом. Доступ определяется текущими правами вашего аккаунта в Нейроне.</p>
+          <button class="max-bot-button danger" id="max-bot-unlink" type="button">Отключить MAX</button>
+          <p class="max-bot-muted max-bot-unlink-note">Бот перестанет выдавать данные вашему аккаунту MAX. Остатки и контакты в платформе сохранятся.</p>
+        </div>
+        <p id="max-bot-updated" class="max-bot-updated" aria-live="polite"></p>
+      </section>
+      <aside class="max-bot-card max-bot-guide" aria-labelledby="max-bot-guide-title">
+        <h2 id="max-bot-guide-title">Как начать</h2>
+        <p class="max-bot-destination" id="max-bot-name">Откройте в MAX бота, которого вам предоставил администратор.</p>
+        <ol><li id="max-guide-code"><strong>Получите код</strong><span>Нажмите «Получить код» в карточке подключения. Код действует 5 минут.</span></li><li id="max-guide-send"><strong>Отправьте команду боту</strong><span>Скопируйте команду <code>/link КОД</code> и отправьте её в личный чат с вашим ботом MAX.</span></li><li id="max-guide-confirm"><strong>Подтвердите подключение</strong><span>Вернитесь сюда. Запрос появится автоматически — подтвердите только свой аккаунт MAX.</span></li><li id="max-guide-search"><strong>Найдите остатки и контакт</strong><span>Например: «Нужна муфта D80». Выберите подходящую позицию и муниципалитет, затем откройте контакт ответственного.</span></li></ol>
+        <div class="max-bot-commands"><span><code>/help</code> — помощь</span><span><code>/stop</code> — отключить доступ в боте</span></div>
+        <p class="max-bot-muted">Наличие подтверждается только при положительном остатке с датой не старше 30 дней. По более старым записям потребуется уточнение у ответственного.</p>
+      </aside>
+    </div>
+    <p class="max-bot-notice max-bot-local"><strong>Локальная проверка.</strong> Бот работает, пока запущен процесс на компьютере. Для промышленного режима MAX требует HTTPS и webhook.</p>
+    <p class="max-bot-privacy">Бот предоставляет только просмотр опубликованных остатков и контактов. Согласование и редактирование данных выполняются в основной платформе.</p>
+    <div id="max-bot-announcement" class="max-bot-sr-only" role="status" aria-live="polite"></div>
+  </main>
+</div>
+<div class="max-tour-layer" id="max-tour-layer" hidden>
+  <div class="max-tour-spotlight" id="max-tour-spotlight" aria-hidden="true"></div>
+  <svg class="max-tour-arrow" id="max-tour-arrow" aria-hidden="true"><defs><marker id="max-tour-arrow-tip" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M1 1 6 4 1 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs><path id="max-tour-arrow-path" fill="none" stroke="currentColor" stroke-width="2" marker-end="url(#max-tour-arrow-tip)"/></svg>
+  <section class="max-tour-card" id="max-tour-card" role="dialog" aria-modal="false" aria-labelledby="max-tour-title" aria-describedby="max-tour-text" tabindex="-1">
+    <div class="max-tour-card-top"><span id="max-tour-count" class="max-tour-count">Шаг 1 из 4</span><button id="max-tour-close" class="max-tour-close" type="button" aria-label="Закрыть обучение">×</button></div>
+    <div class="max-tour-progress" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <h2 id="max-tour-title"></h2>
+    <p id="max-tour-text"></p>
+    <p class="max-tour-hint" id="max-tour-hint"></p>
+    <div class="max-tour-controls"><button id="max-tour-prev" class="max-tour-prev" type="button">← Назад</button><button id="max-tour-next" class="max-tour-next" type="button">Далее →</button></div>
+    <p class="max-tour-keyboard">Обучение можно закрыть в любой момент · Esc</p>
+    <span id="max-tour-announcement" class="max-bot-sr-only" aria-live="polite"></span>
+  </section>
+</div>
+{% endblock %}

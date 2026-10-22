@@ -1061,6 +1061,7 @@ PATH_MODULE_MAP = {
     "/tools": "tools",
     "/summarizer": "summarizer",
     "/zips": "zips",
+    "/max-bot": "zips",
     "/zip": "zips",
     "/zip_curator": "zips",
     "/zip_curator.html": "zips",
@@ -1224,6 +1225,7 @@ async def home(request: Request, error: str = ""):
             "user_username": user.get("username", ""),
             "access_error": error,
             "can_manage_users": is_account_manager(user),
+            "max_bot_available": max_bot_available_for_user(user),
         },
     )
 
@@ -2516,6 +2518,11 @@ async def delete_appeal(request_id: str):
 
 
 
+from routers.max_bot import router as max_bot_router
+from services.max_bot.config import enabled_for_ui as max_bot_enabled_for_ui, available_for_user as max_bot_available_for_user
+app.include_router(max_bot_router)
+
+
 @app.get("/zips", response_class=HTMLResponse)
 async def zips_page(request: Request):
     token = request.cookies.get("access_token")
@@ -2528,6 +2535,7 @@ async def zips_page(request: Request):
             "user": user,
             "user_username": user.get("username", ""),
             "user_role": user.get("role", ""),
+            "max_bot_enabled": max_bot_enabled_for_ui(),
         },
     )
 

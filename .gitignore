@@ -215,3 +215,6 @@ tests_html/
 *.PDF
 /docs/
 /audit-output/
+
+# Public root CA approved for MAX only; private keys and other PEM stay ignored.
+!deploy/certs/russian-trusted-root-ca.pem

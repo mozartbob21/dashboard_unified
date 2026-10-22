@@ -67,38 +67,32 @@ def api(app, actor="1"):
     return TestClient(app, headers={"X-Test-User": actor} if actor else {})
 
 
-def test_deployed_v31_catalog_has_only_current_news_and_filters_module_details(app, monkeypatch):
+def test_deployed_v32_catalog_has_only_current_news_and_filters_module_details(app, monkeypatch):
     monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
     releases._validate_catalog()
+    assert len(DEPLOYED_RELEASES) == 1
     with api(app) as client:
         response = client.get("/api/releases/pending")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     payload = response.json()
-    assert payload["pending_count"] == 3
-    assert len(DEPLOYED_RELEASES) == 3
-    expected_shared = {
-        "2026-10-22-history-collective-v31": {"home-history-collapse"},
-        "2026-10-20-profile-menu-contrast-v31": {"profile-menu-theme-contrast"},
-        "2026-10-20-mobile-design-sources-v31": {"mobile-controls-and-layout", "shared-glass-surfaces"},
+    assert payload["pending_count"] == 1
+    note, = payload["releases"]
+    assert note["id"] == "2026-10-22-max-v32"
+    assert note["version"] == "3.2" and note["read_at"] is None
+    assert {entry["id"] for entry in note["entries"]} == {
+        "max-guided-connection", "max-portable-certificate",
+        "max-contacts-source-explanation", "max-mobile-connect-controls",
     }
-
-    def check_visible_notes(notes):
-        assert {note["id"] for note in notes} == set(expected_shared)
-        for note in notes:
-            assert note["read_at"] is None
-            assert note["version"] == "3.1"
-            assert {entry["id"] for entry in note["entries"]} == expected_shared[note["id"]]
-            assert all(entry["module_id"] is None for entry in note["entries"])
-
-    check_visible_notes(payload["releases"])
+    assert all(entry["module_id"] == "zips" for entry in note["entries"])
     for user in ("2", "3"):
         with api(app, user) as client:
-            check_visible_notes(client.get("/api/releases/pending").json()["releases"])
+            assert client.get("/api/releases/pending").json() == {"releases": [], "pending_count": 0}
+            assert client.get("/api/releases/history").json()["releases"] == []
     with db.get_db_connection() as conn:
         conn.execute("UPDATE users SET modules='[]' WHERE id=1")
     with api(app) as client:
-        check_visible_notes(client.get("/api/releases/pending").json()["releases"])
+        assert client.get("/api/releases/pending").json()["releases"] == []
 
 
 @pytest.mark.parametrize("path", ["/api/releases/pending", "/api/releases/history"])
@@ -271,14 +265,15 @@ def test_catalog_rejects_unknown_module_instead_of_broadening_audience(isolated,
 
 
 def test_water_dashboard_details_require_current_water_grant(app, monkeypatch):
-    monkeypatch.setattr(releases, 'RELEASES', DEPLOYED_RELEASES)
-    with db.get_db_connection() as conn:
-        conn.execute("UPDATE users SET modules='[\"water-dashboard\"]' WHERE id=1")
+    catalog = copy.deepcopy(CATALOG)
+    catalog[0]["entries"][2]["module_id"] = "water-dashboard"
+    monkeypatch.setattr(releases, "RELEASES", catalog)
     with api(app) as client:
-        notes = client.get('/api/releases/pending').json()['releases']
-    assert {entry['id'] for note in notes for entry in note['entries']} == {
-        'home-history-collapse', 'profile-menu-theme-contrast', 'mobile-controls-and-layout', 'shared-glass-surfaces',
-        'water-dashboard-metric-priority', 'water-dashboard-three-new-sources'}
+        assert "map" not in {entry["id"] for note in client.get("/api/releases/pending").json()["releases"] for entry in note["entries"]}
+        with db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[\"water-dashboard\"]' WHERE id=1")
+        notes = client.get("/api/releases/pending").json()["releases"]
+        assert {entry["id"] for note in notes for entry in note["entries"]} == {"everyone", "map"}
 
 
 def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch):
@@ -286,20 +281,22 @@ def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
         monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
         history = client.get("/api/releases/history").json()
-        assert history["pending_count"] == 3
-        assert [item["version"] for item in history["releases"]] == ["3.1", "3.1", "3.1"]
+        assert history["pending_count"] == 1
+        assert [item["version"] for item in history["releases"]] == ["3.2"] * len(DEPLOYED_RELEASES)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404
 
 
 def test_collective_release_details_require_collective_grant(app, monkeypatch):
-    monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
+    catalog = copy.deepcopy(CATALOG)
+    catalog[0]["entries"][2]["module_id"] = "collective"
+    monkeypatch.setattr(releases, "RELEASES", catalog)
     with db.get_db_connection() as conn:
         conn.execute("UPDATE users SET modules=? WHERE id=1", ('["collective"]',))
     with api(app) as client:
         notes = client.get("/api/releases/pending").json()["releases"]
         details = [entry for note in notes for entry in note["entries"] if entry["module_id"]]
         assert [(entry["id"], entry["module_id"]) for entry in details] == [
-            ("collective-readable-filters", "collective")]
+            ("map", "collective")]
         with db.get_db_connection() as conn:
             conn.execute("UPDATE users SET modules='[]' WHERE id=1")
         notes = client.get("/api/releases/pending").json()["releases"]

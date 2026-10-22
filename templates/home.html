@@ -765,6 +765,7 @@
 <script src="/static/module-layout.js?v=20261007-collective" defer></script>
 <link rel="stylesheet" href="/static/appearance-menu.css?v=20261020">
     <link rel="stylesheet" href="/static/responsive-system.css?v=20261020">
+    {% if max_bot_available %}<link rel="stylesheet" href="/static/max-bot-tour.css?v=20261022-v32">{% endif %}
 </head>
 
 
@@ -783,6 +784,12 @@
             </div>
 
             <div class="top-actions">
+                {% if max_bot_available %}
+                <div class="max-home-connect">
+                    <a href="/max-bot" class="max-home-button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 18.5 4 21l5-2h7a5 5 0 0 0 5-5V8a5 5 0 0 0-5-5H8a5 5 0 0 0-5 5v6a5 5 0 0 0 2 4.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m8 13 3-5 2 5 3-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Подключить MAX</span></a>
+                    <a href="/max-bot?tour=1" class="max-home-help"><svg class="max-home-help-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 9a2.5 2.5 0 1 1 4.2 1.8c-1 .8-1.7 1-1.7 2.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg><span class="max-home-help-label">Как подключить</span><span class="max-home-help-arrow" aria-hidden="true">↗</span></a>
+                </div>
+                {% endif %}
                 <div class="theme-dropdown appearance-dropdown">
                     <button id="themeToggle" class="theme-toggle appearance-trigger" type="button"
                             aria-haspopup="true" aria-expanded="false" aria-label="Настроить оформление">
@@ -841,8 +848,9 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button" data-release-notes-open><span>Что нового</span><strong>Версия 3.1</strong></button>
+                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button" data-release-notes-open><span>Что нового</span><strong>Версия 3.2</strong></button>
                         {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
+                        {% if max_bot_available %}<a href="/max-bot" class="profile-menu-item">Подключить MAX <span aria-hidden="true">↗</span></a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <a href="/feedback/survey" class="profile-menu-item" data-ux-survey-link>Оценить удобство сервиса</a>
                         <div class="profile-menu-divider"></div>
