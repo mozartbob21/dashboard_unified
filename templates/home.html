@@ -355,20 +355,54 @@
     border-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Шапка: заголовок + кнопка "Дата" */
+/* Заголовок и сворачивание истории */
 .history-widget-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     margin-bottom: 16px;
-    flex-wrap: wrap;
 }
 
 .history-title-group {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.history-collapse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-width: 44px;
+    min-height: 44px;
+    margin-left: auto;
+    padding: 9px 12px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text, #1e293b);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+.history-collapse:hover { background: var(--violet-soft, #f0edff); }
+.history-collapse:focus-visible { outline: 3px solid var(--primary, #6c5ce7); outline-offset: 3px; }
+.history-collapse svg { width: 18px; height: 18px; flex-shrink: 0; transition: transform .18s ease; }
+.history-collapse[aria-expanded="false"] svg { transform: rotate(180deg); }
+.history-widget.is-collapsed .history-widget-head { margin-bottom: 0; }
+.history-widget .history-body[hidden] { display: none; }
+@media (max-width: 420px) {
+    .history-collapse { padding: 10px; }
+    .history-collapse-label { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .history-collapse, .history-collapse svg { transition: none; }
 }
 
 .live-dot {
@@ -503,9 +537,7 @@
     }
 
     .history-widget-head {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+        gap: 8px;
     }
 
     .btn-sm {
@@ -838,16 +870,22 @@
             
             <section class="card history-widget" id="historyWidget">
             <div class="history-content">
-    <!-- Шапка: заголовок + кнопка "Дата" -->
+    <!-- Заголовок и сворачивание истории -->
     <div class="history-widget-head">
         <div class="history-title-group">
             <span class="live-dot"></span>
             <strong>История запусков</strong>
         </div>
+        <button class="history-collapse" id="historyCollapseBtn" type="button"
+                aria-expanded="true" aria-controls="historyBody" aria-label="Свернуть историю запусков">
+            <span class="history-collapse-label">Свернуть</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+        </button>
     </div>
 
     <!-- Тело: либо список, либо заглушка с ошибкой -->
-    <div class="history-body">
+    <div class="history-body" id="historyBody">
         <!-- Сюда JS будет рендерить список .history-list -->
         <div id="historyList" class="history-list"></div>
     </div>
@@ -1435,6 +1473,30 @@
         const refreshBtn = document.getElementById("historyRefreshBtn");
         if (!listEl) return;
 
+        const widget = document.getElementById("historyWidget");
+        const body = document.getElementById("historyBody");
+        const collapseBtn = document.getElementById("historyCollapseBtn");
+        const preferenceKey = "neurona-history-collapsed";
+        let collapsed = false;
+        function setCollapsed(value) {
+            collapsed = value;
+            body.hidden = value;
+            widget.classList.toggle("is-collapsed", value);
+            collapseBtn.setAttribute("aria-expanded", String(!value));
+            const action = value ? "Развернуть" : "Свернуть";
+            collapseBtn.setAttribute("aria-label", action + " историю запусков");
+            collapseBtn.querySelector(".history-collapse-label").textContent = action;
+        }
+        if (widget && body && collapseBtn) {
+            try { collapsed = localStorage.getItem(preferenceKey) === "true"; } catch (_) {}
+            setCollapsed(collapsed);
+            collapseBtn.addEventListener("click", () => {
+                setCollapsed(!collapsed);
+                try { localStorage.setItem(preferenceKey, String(collapsed)); } catch (_) {}
+                if (!collapsed) loadHistory();
+            });
+        }
+
         const STATUS_LABELS = {
             "running": "Выполняется", "success": "Успешно",
             "error":   "Ошибка",      "unknown": "—"
@@ -1522,7 +1584,7 @@
         }
         let historyLoading = false;
         async function loadHistory() {
-            if (historyLoading || document.hidden) return;
+            if (historyLoading || document.hidden || collapsed) return;
             historyLoading = true;
             try {
                 const resp = await fetch("/api/history/recent", {

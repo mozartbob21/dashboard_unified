@@ -75,9 +75,10 @@ def test_deployed_v31_catalog_has_only_current_news_and_filters_module_details(a
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     payload = response.json()
-    assert payload["pending_count"] == 2
-    assert len(DEPLOYED_RELEASES) == 2
+    assert payload["pending_count"] == 3
+    assert len(DEPLOYED_RELEASES) == 3
     expected_shared = {
+        "2026-10-22-history-collective-v31": {"home-history-collapse"},
         "2026-10-20-profile-menu-contrast-v31": {"profile-menu-theme-contrast"},
         "2026-10-20-mobile-design-sources-v31": {"mobile-controls-and-layout", "shared-glass-surfaces"},
     }
@@ -276,7 +277,7 @@ def test_water_dashboard_details_require_current_water_grant(app, monkeypatch):
     with api(app) as client:
         notes = client.get('/api/releases/pending').json()['releases']
     assert {entry['id'] for note in notes for entry in note['entries']} == {
-        'profile-menu-theme-contrast', 'mobile-controls-and-layout', 'shared-glass-surfaces',
+        'home-history-collapse', 'profile-menu-theme-contrast', 'mobile-controls-and-layout', 'shared-glass-surfaces',
         'water-dashboard-metric-priority', 'water-dashboard-three-new-sources'}
 
 
@@ -285,6 +286,21 @@ def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
         monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
         history = client.get("/api/releases/history").json()
-        assert history["pending_count"] == 2
-        assert [item["version"] for item in history["releases"]] == ["3.1", "3.1"]
+        assert history["pending_count"] == 3
+        assert [item["version"] for item in history["releases"]] == ["3.1", "3.1", "3.1"]
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404
+
+
+def test_collective_release_details_require_collective_grant(app, monkeypatch):
+    monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
+    with db.get_db_connection() as conn:
+        conn.execute("UPDATE users SET modules=? WHERE id=1", ('["collective"]',))
+    with api(app) as client:
+        notes = client.get("/api/releases/pending").json()["releases"]
+        details = [entry for note in notes for entry in note["entries"] if entry["module_id"]]
+        assert [(entry["id"], entry["module_id"]) for entry in details] == [
+            ("collective-readable-filters", "collective")]
+        with db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[]' WHERE id=1")
+        notes = client.get("/api/releases/pending").json()["releases"]
+        assert not any(entry["module_id"] for note in notes for entry in note["entries"])
