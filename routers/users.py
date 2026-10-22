@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field, StrictBool, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Literal
 
 from core.web import templates
 from core.roles import MODULE_NAMES
-from services.auth.accounts import require_account_manager, list_accounts, save_account
+from services.auth.accounts import require_account_manager, list_accounts, save_account, save_own_modules
 from services.auth.accounts import list_notifications, read_notifications
 from services.auth.accounts import is_parent_manager
 from services.auth.accounts import archive_account
@@ -21,6 +21,11 @@ class AccountPayload(BaseModel):
     modules: list[StrictStr] = Field(default_factory=list, max_length=50)
     is_active: StrictBool = True
     can_manage_users: StrictBool | None = None
+
+
+class OwnModulesPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    modules: list[StrictStr] = Field(max_length=50)
 
 
 class ReadNotificationsPayload(BaseModel):
@@ -130,7 +135,9 @@ async def users_list(request: Request):
     summaries = account_summaries()
     users = [{**user, "activity": summaries.get(user["id"])} for user in list_accounts()]
     return {"users": users, "modules": MODULE_NAMES,
-            "is_parent_manager": is_parent_manager(request.state.user)}
+            "is_parent_manager": is_parent_manager(request.state.user),
+            "current_user_id": next((user["id"] for user in users
+                                     if user["username"] == request.state.user.get("username")), None)}
 
 
 @router.get("/api/users/module-popularity")
@@ -146,6 +153,12 @@ async def users_activity(user_id: int):
 @router.post("/api/users", status_code=201)
 async def users_create(payload: AccountPayload, request: Request):
     save_account(payload, actor=request.state.user)
+    return {"ok": True}
+
+
+@router.put("/api/users/me/modules")
+async def users_own_modules(payload: OwnModulesPayload, actor=Depends(require_account_manager)):
+    save_own_modules(payload.modules, actor=actor)
     return {"ok": True}
 
 

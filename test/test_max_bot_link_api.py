@@ -29,6 +29,10 @@ def api(tmp_path, monkeypatch):
     accounts = tmp_path / "accounts.sqlite"
     with sqlite3.connect(accounts) as conn:
         conn.execute("CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,role TEXT,modules TEXT,is_active INTEGER,password_hash TEXT)")
+        conn.execute("CREATE TABLE account_control(id INTEGER PRIMARY KEY, manager_user_id INTEGER)")
+        conn.execute("INSERT INTO account_control VALUES(1,1)")
+        conn.execute("CREATE TABLE account_managers(user_id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO account_managers VALUES(2)")
         conn.executemany("INSERT INTO users VALUES (?,?,?,?,?,?)", [
             (1, "reader", "Пользователь", '["zips"]', 1, "synthetic-hash-one"),
             (2, "second", "Пользователь", '["zips"]', 1, "synthetic-hash-two"),

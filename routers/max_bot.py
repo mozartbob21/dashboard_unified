@@ -6,6 +6,7 @@ import hmac
 import ipaddress
 import json
 import re
+import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 
 from services.max_bot.config import ROOT, Settings, http_origin, lan_address
 from services.max_bot.store import Store, StoreError
+from services.max_bot.access import read_account, denial
 
 router = APIRouter(prefix="/max-bot", tags=["max-bot"])
 templates = Jinja2Templates(directory=str(ROOT / "templates"))
@@ -39,7 +41,7 @@ def get_store(config=Depends(settings)):
         raise HTTPException(exc.status_code, {"code": exc.code, "message": exc.message}) from None
 
 
-def require_user(request: Request):
+def require_user(request: Request, config=Depends(settings)):
     from services.auth.security import get_user_from_token
     user = getattr(request.state, "user", None) or get_user_from_token(request.cookies.get("access_token"))
     if not user or not user.get("is_active", True):
@@ -48,7 +50,15 @@ def require_user(request: Request):
         raise HTTPException(403, {"code": "LOCAL_ACCOUNT_REQUIRED", "message": "Для локальной проверки нужна локальная учётная запись Нейроны."})
     if "zips" not in user.get("modules", []):
         raise HTTPException(403, {"code": "MODULE_FORBIDDEN"})
-    return user
+    try:
+        current = read_account(config.accounts_path, user["id"])
+    except (OSError, sqlite3.Error):
+        raise HTTPException(503, {"code": "SYSTEM_UNAVAILABLE"}) from None
+    rejected = denial(current)
+    if rejected:
+        code, message = rejected
+        raise HTTPException(403, {"code": code, "message": message})
+    return {key: current[key] for key in ("id", "username", "role", "modules", "is_active")}
 
 
 def transport_allowed(request: Request, config: Settings):

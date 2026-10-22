@@ -5,6 +5,8 @@ scheduled jobs, secrets and network integrations are never imported or started.
 """
 import ast
 import asyncio
+import sqlite3
+from dataclasses import replace
 from html.parser import HTMLParser
 from types import SimpleNamespace
 
@@ -21,6 +23,21 @@ LOCAL_READER = {"id": 1, "username": "synthetic-reader", "role": "Пользов
                 "modules": ["zips"], "is_active": True}
 
 
+@pytest.fixture(autouse=True)
+def navigation_accounts(tmp_path, monkeypatch):
+    path = tmp_path / 'navigation.sqlite'
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE users(id INTEGER PRIMARY KEY, username TEXT, role TEXT, modules TEXT, is_active INTEGER, password_hash TEXT)")
+        conn.execute("CREATE TABLE account_control(id INTEGER PRIMARY KEY, manager_user_id INTEGER)")
+        conn.execute("CREATE TABLE account_managers(user_id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO account_control VALUES(1,1)")
+        conn.execute("INSERT INTO users VALUES(1,'synthetic-reader','Пользователь','[\"zips\"]',1,'test-only')")
+        conn.execute("INSERT INTO users VALUES(2,'admin','Администратор','[\"zips\"]',1,'test-only')")
+    original = config.Settings.from_env
+    monkeypatch.setattr(config.Settings, 'from_env', classmethod(lambda cls, mapping=None: replace(original(mapping), accounts_path=path)))
+    return path
+
+
 def configure(monkeypatch, *, enabled="true", mode="development-polling"):
     # Use a complete synthetic environment, never real .env values or tokens.
     monkeypatch.setattr(config, "os", SimpleNamespace(environ={
@@ -31,6 +48,7 @@ def configure(monkeypatch, *, enabled="true", mode="development-polling"):
 
 @pytest.mark.parametrize("user, expected", [
     (LOCAL_READER, True),
+    ({**LOCAL_READER, "id": 2, "role": "Администратор", "can_manage_users": True}, False),
     ({**LOCAL_READER, "role": "Администратор"}, True),
     ({**LOCAL_READER, "modules": []}, False),
     ({**LOCAL_READER, "role": "Администратор", "username": "admin", "modules": []}, False),
@@ -113,6 +131,7 @@ def render_actual_home():
 
 @pytest.mark.parametrize("user, enabled, mode, expected", [
     (LOCAL_READER, "true", "development-polling", True),
+    ({**LOCAL_READER, "id": 2, "role": "Администратор", "can_manage_users": True}, "true", "development-polling", False),
     ({**LOCAL_READER, "role": "Администратор"}, "true", "development-polling", True),
     ({**LOCAL_READER, "modules": []}, "true", "development-polling", False),
     ({**LOCAL_READER, "role": "Администратор", "username": "admin", "modules": []}, "true", "development-polling", False),
@@ -157,3 +176,11 @@ def test_authorized_tour_is_read_only_and_does_not_create_link_codes(api):
     assert not api.config.db_path.exists()
     assert "synthetic-token-only" not in response.text
     assert "no-store" in response.headers["cache-control"]
+
+
+def test_entry_point_updates_after_manager_permission_revoked(navigation_accounts, monkeypatch):
+    configure(monkeypatch)
+    assert config.available_for_user(LOCAL_READER)
+    with sqlite3.connect(navigation_accounts) as conn:
+        conn.execute("UPDATE account_control SET manager_user_id=NULL")
+    assert not config.available_for_user({**LOCAL_READER, 'can_manage_users': True})

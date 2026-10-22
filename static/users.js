@@ -1,10 +1,23 @@
-(() => {
+((root) => {
   'use strict';
+  function accountEditPolicy(user, currentUserId, isParentManager) {
+    const self=!!user && Number.isInteger(currentUserId) && user.id===currentUserId;
+    return {self, ownModulesOnly:self&&!isParentManager,
+      protectedUser:!!user?.can_manage_users&&!isParentManager&&!self};
+  }
+  function accountSaveRequest(user, currentUserId, isParentManager, payload) {
+    const ownModulesOnly=accountEditPolicy(user,currentUserId,isParentManager).ownModulesOnly;
+    return {url:ownModulesOnly?'/api/users/me/modules':user?`/api/users/${user.id}`:'/api/users',
+      method:user?'PUT':'POST', payload:ownModulesOnly?{modules:payload.modules}:payload};
+  }
+  if(typeof module==='object'&&module.exports) module.exports={accountEditPolicy,accountSaveRequest};
+  if(!root.document) return;
+  const document=root.document;
   const form = document.getElementById('userForm');
   const message = document.getElementById('message');
   const list = document.getElementById('userList');
   const search = document.getElementById('userSearch');
-  let users = [], selected = null, isParentManager = false;
+  let users = [], selected = null, isParentManager = false, currentUserId = null;
   const names={username:'Логин',email:'Почта',password:'Новый пароль',modules:'Доступные блоки',is_active:'Учётная запись активна'};
   let sessionExpired=false;
   function notify(text, error=false) {
@@ -83,22 +96,24 @@
     if (!form.hidden && form.dataset.dirty==='true' && !confirm('Перейти без сохранения изменений?')) return;
     selected=user; clearErrors(); form.reset(); form.hidden=false; form.dataset.dirty='false';
     document.getElementById('editorEmpty').hidden=true;
-    document.getElementById('permissionsDetails').open=!user;
-    const protectedUser=!!user?.can_manage_users&&!isParentManager;
+    const {self,ownModulesOnly,protectedUser}=accountEditPolicy(user,currentUserId,isParentManager);
+    document.getElementById('permissionsDetails').open=!user||self;
     form.querySelectorAll('input,button,fieldset').forEach(el=>el.disabled=protectedUser);
-    document.getElementById('editorTitle').textContent=user ? user.username : 'Новый пользователь';
+    document.getElementById('editorTitle').textContent=user ? `${user.username}${self?' · ваш аккаунт':''}` : 'Новый пользователь';
     document.getElementById('editorHint').textContent=user ? 'Изменения прав действуют со следующего запроса пользователя.' : 'После создания передайте пользователю логин и пароль.';
     form.elements.username.value=user?.username||''; form.elements.username.readOnly=!!user;
     form.elements.email.value=user?.email||''; form.elements.password.value=''; form.elements.password.required=!user;
-    form.elements.is_active.checked=user?.is_active??true; form.elements.is_active.disabled=protectedUser||!!user?.is_manager;
+    for(const name of ['username','email','password']) form.elements[name].disabled=protectedUser||ownModulesOnly;
+    form.elements.is_active.checked=user?.is_active??true; form.elements.is_active.disabled=protectedUser||ownModulesOnly||!!user?.is_manager;
     if(user?.archived_at) form.elements.is_active.disabled=true;
-    document.getElementById('moduleChoices').disabled=protectedUser||!!user?.is_manager;
+    document.getElementById('moduleChoices').disabled=protectedUser;
     form.elements.can_manage_users.checked=!!user?.can_manage_users;
     form.elements.can_manage_users.disabled=!isParentManager||!!user?.is_manager;
     document.getElementById('delegationOption').hidden=!isParentManager;
     document.getElementById('protectedNote').hidden=!protectedUser;
+    document.getElementById('selfModulesNote').hidden=!ownModulesOnly;
     const archive=document.getElementById('archiveUser');
-    archive.hidden=!user||!!user.is_manager||protectedUser;
+    archive.hidden=!user||self||!!user.is_manager||protectedUser;
     archive.textContent=user?.archived_at?'Восстановить из архива':'В архив';
     document.getElementById('archiveNote').hidden=!user?.archived_at;
     document.getElementById('managerNote').hidden=!user?.is_manager;
@@ -110,7 +125,12 @@
   function updateModuleSelection(){
     document.getElementById('moduleSelectionCount').textContent=`· выбрано ${form.querySelectorAll('[name=modules]:checked').length}`;
   }
-  async function loadUsers() { const data=await api('/api/users'); users=data.users; isParentManager=data.is_parent_manager; renderList(); }
+  async function loadUsers() {
+    const data=await api('/api/users'); users=data.users; isParentManager=data.is_parent_manager;
+    currentUserId=data.current_user_id;
+    document.getElementById('myModules').disabled=!users.some(user=>user.id===currentUserId);
+    renderList();
+  }
   const activityPanel=document.getElementById('userActivity');
   const activityStatus=document.getElementById('activityStatus');
   const activityContent=document.getElementById('activityContent');
@@ -175,6 +195,10 @@
     }catch(e){notify(e.message,true);}
   });
   document.getElementById('newUser').addEventListener('click',()=>openUser());
+  document.getElementById('myModules').addEventListener('click',()=>{
+    const user=users.find(item=>item.id===currentUserId);
+    if(user){openUser(user);document.getElementById('moduleChoices').scrollIntoView({block:'nearest'});}
+  });
   form.addEventListener('input',()=>{form.dataset.dirty='true';updateModuleSelection();});
   form.addEventListener('invalid',event=>{
     event.target.setAttribute('aria-invalid','true');
@@ -191,7 +215,8 @@
     if(isParentManager) payload.can_manage_users=form.elements.can_manage_users.checked;
     let committed=false;
     try {
-      await api(selected?`/api/users/${selected.id}`:'/api/users',{method:selected?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const request=accountSaveRequest(selected,currentUserId,isParentManager,payload);
+      await api(request.url,{method:request.method,headers:{'Content-Type':'application/json'},body:JSON.stringify(request.payload)});
       committed=true;
       form.dataset.dirty='false'; form.elements.password.value='';
       await loadUsers(); openUser(users.find(u=>u.username.toLowerCase()===payload.username.trim().toLowerCase()));
@@ -310,4 +335,4 @@
     finally{setIntegrationBusy(false);}
   });
   loadIntegration();
-})();
+})(typeof window==='object'?window:globalThis);

@@ -690,7 +690,7 @@ class AccessControlTests(unittest.TestCase):
         self.manager_login()
         user=next(u for u in self.client.get('/api/users').json()['users'] if u['is_manager'])
         self.assertEqual(self.client.put(f"/api/users/{user['id']}",json={'username':user['username'],'is_active':False}).status_code,400)
-        self.assertEqual(self.client.put(f"/api/users/{user['id']}",json={'username':user['username'],'modules':['edo']}).status_code,400)
+        self.assertEqual(self.client.put(f"/api/users/{user['id']}",json={'username':user['username'],'modules':['edo']}).status_code,200)
 
     def test_legacy_migration_is_once_and_registration_starts_without_grants(self):
         from services.auth.accounts import initialize_access_control

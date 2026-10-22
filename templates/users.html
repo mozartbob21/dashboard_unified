@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/static/users.css?v=20261020-mobile">
 <link rel="stylesheet" href="/static/admin-feedback.css?v=20261014-admin">
 <script src="/static/admin-navigation.js?v=20261014-admin" defer></script>
-<script src="/static/users.js?v=20261014-admin" defer></script>
+<script src="/static/users.js?v=20261023-self-modules" defer></script>
 <script src="/static/module-popularity.js?v=20261014-admin" defer></script>
 <script src="/static/ux-survey-admin.js?v=20261014-admin" defer></script>
 {% endblock %}
@@ -43,6 +43,7 @@
         <div class="panel-heading"><h2>Учётные записи</h2><span class="admin-tag" id="directoryTotal">—</span></div>
         <label for="userSearch">Поиск по логину или почте</label><input id="userSearch" type="search" placeholder="Найти пользователя…">
         <label for="userArchiveFilter">Показать</label><select id="userArchiveFilter"><option value="current">Текущие пользователи</option><option value="archived">Архив</option><option value="all">Все пользователи</option></select>
+        <button id="myModules" type="button" class="secondary" disabled>Мои блоки</button>
         <p id="userCount" class="muted"></p><div id="userList"></div>
       </section>
       <section class="panel editor" aria-labelledby="editorTitle">
@@ -58,6 +59,7 @@
           <label class="check"><input name="is_active" type="checkbox" checked> Учётная запись активна</label>
           <label class="check" id="delegationOption" hidden><input name="can_manage_users" type="checkbox"> Управление пользователями — разрешить назначать рабочие блоки и редактировать обычные учётные записи</label>
           <p id="protectedNote" class="common-note" hidden>Только родительская учётная запись может редактировать управляющих и выдавать или отзывать право управления.</p>
+          <p id="selfModulesNote" class="common-note" hidden>Вы можете выбирать доступные себе блоки. Данные учётной записи и право управления изменяет родительская учётная запись.</p>
           <fieldset id="moduleChoices"><legend>Доступные блоки</legend>
             <details class="permissions-disclosure" id="permissionsDetails"><summary>Настроить доступ <span id="moduleSelectionCount"></span></summary>
             <div class="selection-actions"><button id="selectAll" type="button" class="secondary">Выбрать все</button><button id="clearAll" type="button" class="secondary">Снять все</button></div>

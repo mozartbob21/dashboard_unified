@@ -152,6 +152,29 @@ def read_notifications(through_id):
         conn.execute("UPDATE account_notifications SET is_read=1 WHERE id<=?", (through_id,))
 
 
+def save_own_modules(modules, *, actor):
+    """Assign only the current manager's modules; never accept an account id."""
+    if not isinstance(modules, list) or any(module not in ALL_MODULE_IDS for module in modules):
+        raise HTTPException(400, "Неизвестный блок")
+    if not actor or actor.get("kc_sub"):
+        raise HTTPException(403, "Требуется право «Управление пользователями»")
+    with get_db_connection() as conn:
+        # Recheck live privileges under the write lock: a revoked manager must not
+        # reuse an earlier session or a request authorized before the revocation.
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT u.id FROM users u CROSS JOIN account_control c "
+            "WHERE c.id=1 AND u.username=? AND u.is_active=1 "
+            "AND NOT EXISTS (SELECT 1 FROM account_archives a WHERE a.user_id=u.id) "
+            "AND (u.id=c.manager_user_id OR EXISTS (SELECT 1 FROM account_managers m WHERE m.user_id=u.id))",
+            (actor.get("username"),),
+        ).fetchone()
+        if not row:
+            raise HTTPException(403, "Право управления пользователями отозвано")
+        conn.execute("UPDATE users SET modules=? WHERE id=?",
+                     (json.dumps(list(dict.fromkeys(modules)), ensure_ascii=False), row["id"]))
+
+
 def save_account(payload, user_id=None, *, actor):
     modules = payload.modules
     if any(module not in ALL_MODULE_IDS for module in modules):
@@ -197,8 +220,8 @@ def save_account(payload, user_id=None, *, actor):
                 if username != row["username"].lower():
                     raise HTTPException(400, "Логин существующего пользователя менять нельзя")
                 manager = conn.execute("SELECT manager_user_id FROM account_control WHERE id=1").fetchone()[0]
-                if user_id == manager and (not payload.is_active or modules or payload.can_manage_users is False):
-                    raise HTTPException(400, "Учётная запись управления должна оставаться активной без рабочих блоков")
+                if user_id == manager and (not payload.is_active or payload.can_manage_users is False):
+                    raise HTTPException(400, "Родительская учётная запись должна оставаться активной и сохранять право управления")
                 conn.execute(
                     "UPDATE users SET email=?, modules=?, is_active=?, password_hash=COALESCE(?,password_hash) WHERE id=?",
                     (email, modules_json, int(payload.is_active), password_hash, user_id),

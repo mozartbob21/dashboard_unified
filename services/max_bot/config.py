@@ -4,6 +4,9 @@ from pathlib import Path
 import os
 import re
 import ipaddress
+import sqlite3
+
+from .access import read_account, denial
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -105,7 +108,13 @@ def enabled_for_ui():
 
 
 def available_for_user(user):
-    """Mirror current local-account eligibility before rendering entry points."""
-    return bool(user and user.get("is_active", True) and not user.get("kc_sub")
-                and type(user.get("id")) is int and "zips" in user.get("modules", [])
-                and enabled_for_ui())
+    """Use current DB permissions, including on already-open or stale sessions."""
+    if not (user and user.get("is_active", True) and not user.get("kc_sub")
+            and type(user.get("id")) is int and "zips" in user.get("modules", [])):
+        return False
+    try:
+        config = Settings.from_env()
+        return bool(config.enabled and denial(read_account(config.accounts_path, user["id"])) is None)
+    except (ValueError, OSError, sqlite3.Error):
+        # Optional MAX availability must not break the platform's home page.
+        return False

@@ -16,6 +16,8 @@ import sqlite3
 import time
 from pathlib import Path
 
+from .access import read_account, denial
+
 
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 MIGRATION = Path(__file__).resolve().parents[2] / "migrations/20261022_max_bot.sql"
@@ -98,23 +100,12 @@ class Store:
     def _account(self, user_id):
         identifier = int(_identifier(user_id))
         try:
-            uri = self.accounts_path.resolve().as_uri() + "?mode=ro"
-            with closing(sqlite3.connect(uri, uri=True, timeout=3)) as conn:
-                conn.row_factory = sqlite3.Row
-                row = conn.execute("SELECT id,username,role,modules,is_active,password_hash FROM users WHERE id=?", (identifier,)).fetchone()
-                user = dict(row) if row else None
-        except sqlite3.Error:
+            user = read_account(self.accounts_path, identifier)
+        except (OSError, sqlite3.Error):
             raise StoreError("SYSTEM_UNAVAILABLE", "Система временно недоступна. Повторите позже.", 503) from None
-        if not user or not user["is_active"]:
-            raise StoreError("ACCESS_REVOKED", "Доступ отозван. Обратитесь к администратору Нейроны.", 403)
-        try:
-            modules = json.loads(user["modules"])
-        except (TypeError, ValueError):
-            modules = []
-        # Same explicit local grant as core.roles; role alone never grants ZIP access.
-        if not isinstance(modules, list) or "zips" not in modules:
-            raise StoreError("MODULE_FORBIDDEN", "Нет доступа к Остаткам ЗиП РСО.", 403)
-        user["modules"] = modules
+        rejected = denial(user)
+        if rejected:
+            raise StoreError(*rejected, status_code=403)
         user["is_active"] = bool(user["is_active"])
         return user
 

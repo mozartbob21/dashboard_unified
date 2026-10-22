@@ -33,6 +33,10 @@ def handler(tmp_path, monkeypatch):
     accounts, published, contacts = (tmp_path / name for name in ("accounts.db", "published.json", "contacts.json"))
     with sqlite3.connect(accounts) as conn:
         conn.execute("CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,role TEXT,modules TEXT,is_active INTEGER,password_hash TEXT)")
+        conn.execute("CREATE TABLE account_control(id INTEGER PRIMARY KEY, manager_user_id INTEGER)")
+        conn.execute("INSERT INTO account_control VALUES(1,1)")
+        conn.execute("CREATE TABLE account_managers(user_id INTEGER PRIMARY KEY)")
+        conn.execute("INSERT INTO account_managers VALUES(2)")
         conn.executemany("INSERT INTO users VALUES (?,?,?,?,?,?)", [(i, f"synthetic-{i}", "user", '["zips"]', 1, f"test-hash-{i}") for i in (1, 2)])
     published.write_text(json.dumps({"rows": [
         ["РСО", "Округ", "Наименование", "Категория", "Группа", "Количество", "Ед.", "Водоподготовка", "Дата"],

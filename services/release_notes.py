@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from core.roles import MODULE_NAMES, effective_modules
 from services.release_catalog import RELEASES
+from services.max_bot.config import enabled_for_ui as max_bot_enabled
 from utils.db import get_db_connection
 
 MIGRATION_ID = "20261015_release_notes"
@@ -83,23 +84,36 @@ def _validate_catalog():
                 raise ValueError("Invalid or duplicate release entry id")
             entry_ids.add(entry_id)
             audience = entry.get("audience")
-            if audience not in {"all", "admin", "module"}:
+            if audience not in {"all", "admin", "module", "max", "without_max"}:
                 raise ValueError("Unknown release audience")
             if audience == "module" and entry.get("module_id") not in MODULE_NAMES:
                 raise ValueError("Unknown release module")
+            if audience == "max" and entry.get("module_id") != "zips":
+                raise ValueError("MAX release audience requires the zips module")
+            if audience == "without_max" and entry.get("module_id") is not None:
+                raise ValueError("MAX fallback must be general platform news")
             for field, limit in (("title", 160), ("text", 1500)):
                 if not isinstance(entry.get(field), str) or not 0 < len(entry[field]) <= limit:
                     raise ValueError("Invalid release entry text")
     return RELEASES
 
 
-def _visible(release, allowed, manager):
+def _max_available(allowed, manager):
+    # _principal reads both grants and account management from the same database
+    # transaction. Keycloak and stale client role/module fields cannot enable MAX.
+    # Invalid optional bot configuration hides MAX without taking down the feed.
+    return bool(manager and "zips" in allowed and max_bot_enabled())
+
+
+def _visible(release, allowed, manager, can_use_max):
     entries = []
     for entry in release["entries"]:
         audience = entry["audience"]
-        module_id = entry.get("module_id") if audience == "module" else None
+        module_id = entry.get("module_id") if audience in {"module", "max"} else None
         if not (audience == "all" or (audience == "admin" and manager)
-                or (audience == "module" and module_id in allowed)):
+                or (audience == "module" and module_id in allowed)
+                or (audience == "max" and can_use_max)
+                or (audience == "without_max" and not can_use_max)):
             continue
         entries.append({"id": entry["id"], "module_id": module_id,
                         "module_name": MODULE_NAMES[module_id] if module_id else
@@ -116,11 +130,12 @@ def _list(user, *, include_read=False):
         _ensure_schema(conn)
         conn.execute("BEGIN")
         account_key, allowed, manager = _principal(conn, user)
+        can_use_max = _max_available(allowed, manager)
         read_dates = {row[0]: row[1] for row in conn.execute(
             "SELECT release_id,read_at FROM release_note_receipts WHERE account_key=?", (account_key,))}
         releases = [{**visible, "read_at": read_dates.get(release["id"])} for release in catalog
                     if include_read or release["id"] not in read_dates
-                    if (visible := _visible(release, allowed, manager)) is not None]
+                    if (visible := _visible(release, allowed, manager, can_use_max)) is not None]
     releases.sort(key=lambda item: (datetime.fromisoformat(item["published_at"].replace("Z", "+00:00")), item["id"]), reverse=True)
     return {"releases": releases, "pending_count": sum(item["read_at"] is None for item in releases)}
 
@@ -139,8 +154,9 @@ def acknowledge(user, release_id):
         _ensure_schema(conn)
         conn.execute("BEGIN IMMEDIATE")
         account_key, allowed, manager = _principal(conn, user)
+        can_use_max = _max_available(allowed, manager)
         release = next((item for item in catalog if item["id"] == release_id), None)
-        if release is None or _visible(release, allowed, manager) is None:
+        if release is None or _visible(release, allowed, manager, can_use_max) is None:
             raise HTTPException(404, "Обновление не найдено")
         conn.execute("INSERT OR IGNORE INTO release_note_receipts(account_key,release_id,read_at) VALUES (?,?,?)",
                      (account_key, release_id, datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")))

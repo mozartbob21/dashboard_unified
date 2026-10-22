@@ -1,6 +1,7 @@
 """Actual API/storage tests with temporary SQLite only; no app startup or network."""
 from concurrent.futures import ThreadPoolExecutor
 import copy
+import json
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -67,17 +68,36 @@ def api(app, actor="1"):
     return TestClient(app, headers={"X-Test-User": actor} if actor else {})
 
 
-def test_deployed_v32_catalog_has_only_current_news_and_filters_module_details(app, monkeypatch):
+@pytest.fixture
+def deployed(monkeypatch):
     monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
+    monkeypatch.setattr(releases, "max_bot_enabled", lambda: True)
+
+
+def assert_stability_only(payload):
+    assert len(payload["releases"]) == 1
+    note = payload["releases"][0]
+    assert note["id"] == "2026-10-23-account-access-v32"
+    assert note["version"] == "3.2"
+    assert [(entry["id"], entry["title"], entry["module_id"]) for entry in note["entries"]] == [
+        ("access-stability", "Улучшена стабильность", None)]
+    # Ineligible users do not receive MAX details, including prior release titles.
+    assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
+
+
+def test_deployed_v32_catalog_has_only_current_news_and_filters_module_details(app, deployed):
     releases._validate_catalog()
-    assert len(DEPLOYED_RELEASES) == 2
-    with api(app) as client:
+    assert len(DEPLOYED_RELEASES) == 3
+    assert {entry["audience"] for release in DEPLOYED_RELEASES for entry in release["entries"]} == {"max", "without_max"}
+    with api(app, "4") as client:
         response = client.get("/api/releases/pending")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     payload = response.json()
-    assert payload["pending_count"] == 2
-    lan, note = payload["releases"]
+    assert payload["pending_count"] == 3
+    current, lan, note = payload["releases"]
+    assert current["id"] == "2026-10-23-account-access-v32"
+    assert [entry["id"] for entry in current["entries"]] == ["max-manager-access"]
     assert lan["id"] == "2026-10-22-max-lan-v32" and lan["version"] == "3.2"
     assert [(entry["id"], entry["module_id"]) for entry in lan["entries"]] == [("max-lan-access", "zips")]
     assert note["id"] == "2026-10-22-max-v32"
@@ -86,15 +106,90 @@ def test_deployed_v32_catalog_has_only_current_news_and_filters_module_details(a
         "max-guided-connection", "max-portable-certificate",
         "max-contacts-source-explanation", "max-mobile-connect-controls",
     }
-    assert all(entry["module_id"] == "zips" for entry in note["entries"])
-    for user in ("2", "3"):
-        with api(app, user) as client:
-            assert client.get("/api/releases/pending").json() == {"releases": [], "pending_count": 0}
-            assert client.get("/api/releases/history").json()["releases"] == []
+    assert all(entry["module_id"] == "zips" for item in payload["releases"] for entry in item["entries"])
+    # Mere block access or an administrator display label does not grant management.
+    # The parent account without a zips grant gets the same generic version notice.
+    for actor in ("1", "2", "3"):
+        with api(app, actor) as client:
+            assert_stability_only(client.get("/api/releases/pending").json())
+            assert_stability_only(client.get("/api/releases/history").json())
+            for release in DEPLOYED_RELEASES[1:]:
+                assert client.post(f"/api/releases/{release['id']}/read").status_code == 404
+
+
+@pytest.mark.parametrize("change", ["module", "manager"])
+def test_max_news_disappears_immediately_after_permission_revoked(app, deployed, change):
+    with api(app, "4") as client:
+        assert client.get("/api/releases/pending").json()["pending_count"] == 3
+        for release in DEPLOYED_RELEASES:
+            assert client.post(f"/api/releases/{release['id']}/read").status_code == 200
+        with db.get_db_connection() as conn:
+            if change == "module":
+                conn.execute("UPDATE users SET modules='[]' WHERE id=4")
+            else:
+                conn.execute("DELETE FROM account_managers WHERE user_id=4")
+        history = client.get("/api/releases/history").json()
+        assert_stability_only(history)
+        assert history["pending_count"] == 0
+        assert client.post("/api/releases/2026-10-22-max-v32/read").status_code == 404
+
+
+def test_parent_sees_max_news_only_after_zips_is_granted(app, deployed):
+    with api(app, "3") as client:
+        assert_stability_only(client.get("/api/releases/pending").json())
+        with db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[\"zips\"]' WHERE id=3")
+        notes = client.get("/api/releases/history").json()["releases"]
+        assert len(notes) == 3
+        assert notes[0]["entries"][0]["id"] == "max-manager-access"
+        assert not any(entry["id"] == "access-stability" for note in notes for entry in note["entries"])
+
+
+def test_disabled_bot_shows_stability_even_to_manager_with_zips(app, deployed, monkeypatch):
+    monkeypatch.setattr(releases, "max_bot_enabled", lambda: False)
+    with api(app, "4") as client:
+        assert_stability_only(client.get("/api/releases/pending").json())
+        assert_stability_only(client.get("/api/releases/history").json())
+        assert client.post("/api/releases/2026-10-22-max-lan-v32/read").status_code == 404
+
+
+def test_invalid_optional_bot_config_does_not_break_general_feed(app, deployed, monkeypatch):
+    from services.max_bot.config import enabled_for_ui
+    monkeypatch.setattr(releases, "max_bot_enabled", enabled_for_ui)
+    monkeypatch.setenv("MAX_ZIP_BOT_ENABLED", "true")
+    monkeypatch.setenv("MAX_ZIP_BOT_MODE", "invalid-mode")
+    with api(app, "4") as client:
+        response = client.get("/api/releases/history")
+        assert response.status_code == 200
+        assert_stability_only(response.json())
+
+
+def test_old_32_readers_receive_new_notice_without_repeating_old_records(app, deployed):
+    # These receipts can exist before this update changes the MAX eligibility rule.
+    releases.initialize()
     with db.get_db_connection() as conn:
-        conn.execute("UPDATE users SET modules='[]' WHERE id=1")
-    with api(app) as client:
-        assert client.get("/api/releases/pending").json()["releases"] == []
+        for actor in (1, 4):
+            conn.executemany("INSERT INTO release_note_receipts(account_key,release_id,read_at) VALUES (?,?,?)", [
+                (f"local:{actor}", note["id"], "2026-10-22T21:00:00Z")
+                for note in DEPLOYED_RELEASES[1:]])
+    with api(app, "1") as ordinary, api(app, "4") as manager:
+        payload = ordinary.get("/api/releases/pending").json()
+        assert_stability_only(payload)
+        assert payload["pending_count"] == 1
+        payload = manager.get("/api/releases/pending").json()
+        assert payload["pending_count"] == 1
+        assert payload["releases"][0]["id"] == "2026-10-23-account-access-v32"
+        assert payload["releases"][0]["entries"][0]["id"] == "max-manager-access"
+        for client in (ordinary, manager):
+            assert client.post("/api/releases/2026-10-23-account-access-v32/read").status_code == 200
+            assert client.get("/api/releases/pending").json()["pending_count"] == 0
+
+
+def test_keycloak_cannot_receive_max_news_even_with_role_and_zips(app, deployed, isolated):
+    isolated["external"] = {"kc_sub": "4", "id": 4, "roles": ["zips"], "modules": ["zips"],
+                            "role": "admin", "is_active": True}
+    with api(app, "external") as client:
+        assert_stability_only(client.get("/api/releases/history").json())
 
 
 @pytest.mark.parametrize("path", ["/api/releases/pending", "/api/releases/history"])
@@ -283,8 +378,8 @@ def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
         monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
         history = client.get("/api/releases/history").json()
-        assert history["pending_count"] == 2
-        assert [item["version"] for item in history["releases"]] == ["3.2"] * len(DEPLOYED_RELEASES)
+        assert history["pending_count"] == 1
+        assert_stability_only(history)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404
 
 
@@ -303,3 +398,17 @@ def test_collective_release_details_require_collective_grant(app, monkeypatch):
             conn.execute("UPDATE users SET modules='[]' WHERE id=1")
         notes = client.get("/api/releases/pending").json()["releases"]
         assert not any(entry["module_id"] for note in notes for entry in note["entries"])
+
+
+@pytest.mark.parametrize("entry", [
+    {"audience": "max"},
+    {"audience": "max", "module_id": "mingkh"},
+    {"audience": "without_max", "module_id": "zips"},
+    {"audience": "unknown"},
+])
+def test_special_audience_validation_fails_closed(isolated, monkeypatch, entry):
+    broken = copy.deepcopy(CATALOG)
+    broken[0]["entries"][0].update(entry)
+    monkeypatch.setattr(releases, "RELEASES", broken)
+    with pytest.raises(ValueError):
+        releases.pending(isolated["1"])
