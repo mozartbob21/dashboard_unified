@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from services.max_bot.config import ROOT, Settings
+from services.max_bot.config import ROOT, Settings, http_origin, lan_address
 from services.max_bot.store import Store, StoreError
 
 router = APIRouter(prefix="/max-bot", tags=["max-bot"])
@@ -51,16 +51,31 @@ def require_user(request: Request):
     return user
 
 
-def secure_transport(request: Request):
+def transport_allowed(request: Request, config: Settings):
     if request.url.scheme == "https":
-        return
+        return True
+    if request.url.scheme != "http":
+        return False
     try:
+        if "%" in request.client.host or "%" in (request.url.hostname or ""):
+            return False
         peer_local = ipaddress.ip_address(request.client.host).is_loopback
         host = request.url.hostname
         host_local = host == "localhost" or ipaddress.ip_address(host).is_loopback
     except (ValueError, AttributeError):
         peer_local = host_local = False
-    if not (peer_local and host_local):
+    if peer_local and host_local:
+        return True
+    try:
+        origin = http_origin(f"http://{request.url.netloc}")
+        # Use the ASGI peer, never raw X-Forwarded-For/Forwarded headers.
+        return origin in config.http_origins and (peer_local or lan_address(request.client.host))
+    except (ValueError, AttributeError):
+        return False
+
+
+def secure_transport(request: Request, config=Depends(settings)):
+    if not transport_allowed(request, config):
         raise HTTPException(403, {"code": "MAX_BOT_HTTPS_REQUIRED"})
 
 
@@ -117,11 +132,17 @@ def response(data):
     return JSONResponse(data, headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"})
 
 
-@router.get("", dependencies=[Depends(secure_transport)])
-def page(request: Request, user=Depends(require_user)):
+@router.get("")
+def page(request: Request, user=Depends(require_user), config=Depends(settings)):
+    allowed = transport_allowed(request, config)
     return templates.TemplateResponse(request, "max_bot.html", {
         "request": request, "user": user, "user_username": user.get("username", ""),
-        "user_role": user.get("role", ""), "max_bot_csrf": csrf_token(request),
+        "user_role": user.get("role", ""), "max_bot_csrf": csrf_token(request) if allowed else "",
+        "max_bot_transport_message": "" if allowed else (
+            "Этот адрес Нейроны ещё не разрешён для подключения MAX. "
+            "Администратору нужно разрешить адрес внутренней сети или настроить HTTPS. "
+            "После настройки обновите страницу."
+        ),
     }, headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer"})
 
 

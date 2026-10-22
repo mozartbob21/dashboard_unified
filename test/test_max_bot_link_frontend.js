@@ -136,10 +136,19 @@ test('template contains no password/token fields, storage or MiniApp bridge', ()
   assert.equal(expiresAt('invalid'), 0);
 });
 
-test('HTTP LAN policy failure explains HTTPS requirement without bypass instructions', async () => {
+test('HTTP LAN policy failure explains the administrator-controlled address policy', async () => {
   const { page } = environment();
   page.request = createRequest({ fetch: async () => ({ ok: false, status: 403, json: async () => ({ detail: { code: 'MAX_BOT_HTTPS_REQUIRED' } }) }) }, 'csrf');
   await page.loadStatus();
-  assert.match(page.el('error').textContent, /по HTTPS или локально/);
+  assert.match(page.el('error').textContent, /Администратору нужно разрешить адрес внутренней сети или настроить HTTPS/);
   assert.equal(page.state.blocked, true);
+});
+
+test('blocked transport explanation never starts requests or polling', () => {
+  const {boot} = require('../static/max-bot-link.js');
+  let requests = 0;
+  boot({ document: {getElementById: id => id === 'max-bot-transport-error' ? {} : null},
+         fetch: () => {requests++; throw Error('should not fetch');},
+         setInterval: () => {throw Error('should not poll');} });
+  assert.equal(requests, 0);
 });

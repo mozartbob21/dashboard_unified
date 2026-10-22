@@ -2,10 +2,10 @@
 {% block title %}Подключить MAX — Нейрона ИИ{% endblock %}
 {% block body_class %}compact-module-page max-bot-page{% endblock %}
 {% block head %}
-<meta name="max-bot-csrf" content="{{ max_bot_csrf }}">
+{% if not max_bot_transport_message %}<meta name="max-bot-csrf" content="{{ max_bot_csrf }}">{% endif %}
 <link rel="stylesheet" href="/static/max-bot-link.css?v=20261022-guide">
 <link rel="stylesheet" href="/static/max-bot-tour.css?v=20261022-guide">
-<script defer src="/static/max-bot-link.js?v=20261022-guide"></script>
+<script defer src="/static/max-bot-link.js?v=20261022-lan"></script>
 <script defer src="/static/max-bot-tour.js?v=20261022-guide"></script>
 {% endblock %}
 {% block content %}
@@ -23,11 +23,15 @@
       <h1>Подключите MAX<br>к своему аккаунту</h1>
       <p>Подключите свой аккаунт Нейроны, чтобы искать опубликованные остатки и получать контакты ответственных в обычном чате с ботом.</p>
       <div class="max-bot-tags"><span>Поиск по названию</span><span>Наличие по муниципалитетам</span><span>Контакты из системы</span></div>
-      <button class="max-bot-tour-launch" type="button" data-max-tour-start aria-controls="max-tour-card"><span aria-hidden="true">↗</span> Как подключить MAX <small>4 простых шага</small></button>
+      {% if not max_bot_transport_message %}<button class="max-bot-tour-launch" type="button" data-max-tour-start aria-controls="max-tour-card"><span aria-hidden="true">↗</span> Как подключить MAX <small>4 простых шага</small></button>{% endif %}
     </section>
     <div class="max-bot-layout">
       <section class="max-bot-card" aria-labelledby="max-bot-heading">
-        <div class="max-bot-card-head"><h2 id="max-bot-heading" tabindex="-1">Подключение аккаунта</h2><span class="max-bot-status" id="max-bot-status">Проверяем…</span></div>
+        <div class="max-bot-card-head"><h2 id="max-bot-heading" tabindex="-1">Подключение аккаунта</h2><span class="max-bot-status" id="max-bot-status">{{ "Нужна настройка доступа" if max_bot_transport_message else "Проверяем…" }}</span></div>
+        {% if max_bot_transport_message %}
+        <p id="max-bot-transport-error" class="max-bot-notice error" role="alert">{{ max_bot_transport_message }}</p>
+        <a href="/" class="max-bot-button secondary">На главную</a>
+        {% else %}
         <p id="max-bot-error" class="max-bot-notice error" role="alert" hidden></p>
         <button class="max-bot-button secondary" id="max-bot-retry" type="button" hidden>Повторить проверку</button>
         <div id="max-bot-loading" class="max-bot-loading" role="status"><span aria-hidden="true"></span>Проверяем состояние подключения</div>
@@ -51,6 +55,7 @@
           <p class="max-bot-muted max-bot-unlink-note">Бот перестанет выдавать данные вашему аккаунту MAX. Остатки и контакты в платформе сохранятся.</p>
         </div>
         <p id="max-bot-updated" class="max-bot-updated" aria-live="polite"></p>
+        {% endif %}
       </section>
       <aside class="max-bot-card max-bot-guide" aria-labelledby="max-bot-guide-title">
         <h2 id="max-bot-guide-title">Как начать</h2>
@@ -65,6 +70,7 @@
     <div id="max-bot-announcement" class="max-bot-sr-only" role="status" aria-live="polite"></div>
   </main>
 </div>
+{% if not max_bot_transport_message %}
 <div class="max-tour-layer" id="max-tour-layer" hidden>
   <div class="max-tour-spotlight" id="max-tour-spotlight" aria-hidden="true"></div>
   <svg class="max-tour-arrow" id="max-tour-arrow" aria-hidden="true"><defs><marker id="max-tour-arrow-tip" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M1 1 6 4 1 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs><path id="max-tour-arrow-path" fill="none" stroke="currentColor" stroke-width="2" marker-end="url(#max-tour-arrow-tip)"/></svg>
@@ -79,4 +85,5 @@
     <span id="max-tour-announcement" class="max-bot-sr-only" aria-live="polite"></span>
   </section>
 </div>
+{% endif %}
 {% endblock %}

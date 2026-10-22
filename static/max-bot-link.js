@@ -19,7 +19,7 @@
     return date ? new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' }).format(date) + ' мск' : '';
   }
   function errorMessage(error) {
-    if (error.code === 'MAX_BOT_HTTPS_REQUIRED') return 'Для подключения MAX откройте Нейрону по HTTPS или локально на компьютере сервера. Через обычное HTTP-подключение по сети привязка недоступна.';
+    if (error.code === 'MAX_BOT_HTTPS_REQUIRED') return 'Этот адрес Нейроны ещё не разрешён для подключения MAX. Администратору нужно разрешить адрес внутренней сети или настроить HTTPS. После настройки обновите страницу.';
     if (error.status === 401 || error.status === 403) return 'Сессия завершилась или доступ изменился. Обновите страницу и войдите в Нейрону снова.';
     if (error.status === 429) return 'Слишком много попыток. Подождите немного и повторите действие.';
     if ([404, 409, 410].includes(error.status)) return 'Запрос уже завершён или истёк. Проверьте состояние подключения; при необходимости получите новый код.';
@@ -183,5 +183,5 @@
       finally { if (generation === this.generation) this.setBusy(false); }
     }
   }
-  return { LinkError, expiresAt, timeLabel, errorMessage, createRequest, LinkPage, boot(win) { new LinkPage(win).init(); } };
+  return { LinkError, expiresAt, timeLabel, errorMessage, createRequest, LinkPage, boot(win) { if (!win.document.getElementById("max-bot-transport-error")) new LinkPage(win).init(); } };
 });

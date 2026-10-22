@@ -158,7 +158,7 @@ def test_csrf_token_from_another_session_is_invalid(api):
     assert post(api, "link").status_code == 403
 
 
-@pytest.mark.parametrize("path", ["/max-bot", "/max-bot/api/status", "/max-bot/api/link"])
+@pytest.mark.parametrize("path", ["/max-bot/api/status", "/max-bot/api/link"])
 def test_lan_http_cannot_reveal_or_exchange_linking_data(api, path):
     with TestClient(api.app, base_url="http://192.168.1.20:8000", client=("192.168.1.10", 53000)) as client:
         client.cookies.set("access_token", COOKIE)

@@ -70,14 +70,16 @@ def api(app, actor="1"):
 def test_deployed_v32_catalog_has_only_current_news_and_filters_module_details(app, monkeypatch):
     monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
     releases._validate_catalog()
-    assert len(DEPLOYED_RELEASES) == 1
+    assert len(DEPLOYED_RELEASES) == 2
     with api(app) as client:
         response = client.get("/api/releases/pending")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "private, no-store"
     payload = response.json()
-    assert payload["pending_count"] == 1
-    note, = payload["releases"]
+    assert payload["pending_count"] == 2
+    lan, note = payload["releases"]
+    assert lan["id"] == "2026-10-22-max-lan-v32" and lan["version"] == "3.2"
+    assert [(entry["id"], entry["module_id"]) for entry in lan["entries"]] == [("max-lan-access", "zips")]
     assert note["id"] == "2026-10-22-max-v32"
     assert note["version"] == "3.2" and note["read_at"] is None
     assert {entry["id"] for entry in note["entries"]} == {
@@ -281,7 +283,7 @@ def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
         monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
         history = client.get("/api/releases/history").json()
-        assert history["pending_count"] == 1
+        assert history["pending_count"] == 2
         assert [item["version"] for item in history["releases"]] == ["3.2"] * len(DEPLOYED_RELEASES)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404
 
