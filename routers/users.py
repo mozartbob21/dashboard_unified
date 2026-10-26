@@ -40,13 +40,13 @@ class IntegrationPayload(BaseModel):
 
 
 @router.get('/api/users/integrations/{service}')
-async def integration_status(service: Literal['edds','edds_arm','mingkh','zip_cloud']):
+async def integration_status(service: Literal['edds','edds_arm','mingkh','zip_cloud','presentations']):
     from services.auth.integrations import credential_status
     return credential_status(service)
 
 
 @router.put('/api/users/integrations/{service}')
-async def integration_save(payload: IntegrationPayload, service: Literal['edds','edds_arm','mingkh','zip_cloud']):
+async def integration_save(payload: IntegrationPayload, service: Literal['edds','edds_arm','mingkh','zip_cloud','presentations']):
     from services.auth.integrations import save_credentials
     save_credentials(payload.username,payload.password,service,
                      source_url=payload.source_url,folder_path=payload.folder_path)
@@ -65,6 +65,21 @@ def integration_zip_cloud_check():
         return JSONResponse({'ok': False, 'message': str(exc)}, status_code=502)
     except Exception:
         return JSONResponse({'ok': False, 'message': 'Не удалось проверить папку Облака МО. Проверьте подключение сервера и повторите попытку.'}, status_code=502)
+
+
+@router.post('/api/users/integrations/presentations/check')
+def integration_presentations_check():
+    """Read-only source check: no files/messages/baseline changes."""
+    from services.max_bot.presentation_config import source_factory
+    from services.max_bot.presentation_source import SourceError
+    try:
+        with source_factory() as source:
+            items = source.list_attachments()
+        return {'ok': True, 'message': f'Доступ подтверждён. Файлов в источнике: {len(items)}. Проверка ничего не отправляет в MAX.'}
+    except SourceError as exc:
+        return JSONResponse({'ok': False, 'message': exc.message}, status_code=502)
+    except Exception:
+        return JSONResponse({'ok': False, 'message': 'Не удалось проверить источник презентаций. Повторите позже.'}, status_code=502)
 
 
 @router.post('/api/users/integrations/edds/check')

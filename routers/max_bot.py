@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 
 from services.max_bot.config import ROOT, Settings, http_origin, lan_address
 from services.max_bot.store import Store, StoreError
-from services.max_bot.access import read_account, denial
+from services.max_bot.access import read_account, denial, stock_denial
 
 router = APIRouter(prefix="/max-bot", tags=["max-bot"])
 templates = Jinja2Templates(directory=str(ROOT / "templates"))
@@ -48,7 +48,7 @@ def require_user(request: Request, config=Depends(settings)):
         raise HTTPException(401, {"code": "AUTH_REQUIRED"})
     if user.get("kc_sub") or type(user.get("id")) is not int:
         raise HTTPException(403, {"code": "LOCAL_ACCOUNT_REQUIRED", "message": "Для локальной проверки нужна локальная учётная запись Нейроны."})
-    if "zips" not in user.get("modules", []):
+    if not {"zips", "presentations"}.intersection(user.get("modules", [])):
         raise HTTPException(403, {"code": "MODULE_FORBIDDEN"})
     try:
         current = read_account(config.accounts_path, user["id"])
@@ -147,6 +147,8 @@ def page(request: Request, user=Depends(require_user), config=Depends(settings))
     allowed = transport_allowed(request, config)
     return templates.TemplateResponse(request, "max_bot.html", {
         "request": request, "user": user, "user_username": user.get("username", ""),
+        "max_presentations": "presentations" in user["modules"],
+        "max_stocks": stock_denial(read_account(config.accounts_path, user["id"])) is None,
         "user_role": user.get("role", ""), "max_bot_csrf": csrf_token(request) if allowed else "",
         "max_bot_transport_message": "" if allowed else (
             "Этот адрес Нейроны ещё не разрешён для подключения MAX. "

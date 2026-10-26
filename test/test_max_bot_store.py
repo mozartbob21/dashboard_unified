@@ -175,13 +175,16 @@ def test_live_revocation_every_request(store, statement, code):
     store.unlink(1)
 
 
-def test_identity_and_chat_must_both_match_and_expiry_is_absolute(store):
+def test_identity_and_chat_must_both_match_and_binding_has_no_expiry(store):
     linked(store)
     fails("LINK_REQUIRED", store.authorize, MAX_ID + 1, CHAT_ID, now=NOW)
     fails("LINK_REQUIRED", store.authorize, MAX_ID, CHAT_ID + 1, now=NOW)
     assert store.authorize(MAX_ID, CHAT_ID, now=NOW + 2591999)["id"] == 1
-    fails("LINK_REQUIRED", store.authorize, MAX_ID, CHAT_ID, now=NOW + 2592000)
-    assert not store.binding_status(1, now=NOW + 2592000)["active"]
+    assert store.authorize(MAX_ID, CHAT_ID, now=NOW + 10 * 365 * 86400)["id"] == 1
+    state = store.binding_status(1, now=NOW + 10 * 365 * 86400)
+    assert state["active"] is True
+    assert state["binding"]["permanent"] is True
+    assert state["binding"]["expires_at"] is None
 
 
 def test_unlink_clears_pending_codes_and_persisted_binding(store):

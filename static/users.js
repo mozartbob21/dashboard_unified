@@ -267,12 +267,15 @@
   let integrationVersion=0, integrationSaved=false, integrationBusy=false;
   function updateIntegrationCheck(){
     const isEdds=integrationForm.elements.service.value==='edds';
+    const isPresentations=integrationForm.elements.service.value==='presentations';
     const isCloud=integrationForm.elements.service.value==='zip_cloud';
     document.getElementById('cloudSourceSettings').hidden=!isCloud;
     integrationForm.elements.source_url.required=isCloud;
-    checkEddsLogin.hidden=!(isEdds||isCloud); checkEddsHint.hidden=!(isEdds||isCloud);
-    checkEddsLogin.textContent=isCloud?'Проверить доступ к папке':'Проверить вход и выгрузку';
-    checkEddsHint.textContent=isCloud
+    checkEddsLogin.hidden=!(isEdds||isCloud||isPresentations); checkEddsHint.hidden=!(isEdds||isCloud||isPresentations);
+    checkEddsLogin.textContent=isPresentations?'Проверить источник презентаций':isCloud?'Проверить доступ к папке':'Проверить вход и выгрузку';
+    checkEddsHint.textContent=isPresentations
+      ?'Проверяет вход и список файлов. Ничего не отправляет в MAX и не меняет историю проверок. Подписки включаются пользователями в боте.'
+      :isCloud
       ?'Проверяет сохранённый доступ и список Excel-файлов в указанной папке. При двухфакторной защите может понадобиться пароль приложения из настроек облака.'
       :'Проверяет вход и получение одной записи отчёта Добродела с компьютера-сервера. Проверка может занять до двух минут.';
     checkEddsLogin.disabled=integrationBusy||!integrationSaved;
@@ -326,8 +329,8 @@
   });
   checkEddsLogin.addEventListener('click',async()=>{
     const service=integrationForm.elements.service.value;
-    if(integrationBusy||!integrationSaved||!['edds','zip_cloud'].includes(service))return;
-    setIntegrationBusy(true);integrationStatus.textContent=service==='zip_cloud'?'Проверяем доступ к папке Облака МО…':'Проверяем вход и получение данных Добродела…';
+    if(integrationBusy||!integrationSaved||!['edds','zip_cloud','presentations'].includes(service))return;
+    setIntegrationBusy(true);integrationStatus.textContent=service==='presentations'?'Проверяем источник презентаций…':service==='zip_cloud'?'Проверяем доступ к папке Облака МО…':'Проверяем вход и получение данных Добродела…';
     try{
       const data=await api('/api/users/integrations/'+service+'/check',{method:'POST'});
       integrationStatus.textContent=data.message;

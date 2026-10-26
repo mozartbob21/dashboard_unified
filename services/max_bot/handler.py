@@ -4,20 +4,24 @@ import hashlib
 import re
 import secrets
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from .access import stock_denial
 
 from .store import StoreError
 from .stock import StockError
 
-HELP = ("Остатки ЗиП РСО · Нейрона ИИ\n\n"
-        "Сейчас подключение доступно пользователям с правом управления пользователями и доступом к Остаткам ЗиП РСО.\n\n"
-        "Для подключения на главной странице Нейроны нажмите «Подключить MAX». "
-        "Получите код, отправьте /link КОД и подтвердите подключение на странице Нейроны.\n\n"
-        "Затем напишите, что нужно найти: название, диаметр или модель. "
-        "Несколько позиций разделяйте точкой с запятой. "
-        "Выберите муниципалитет в результате, чтобы получить контакт ответственного.\n\n"
-        "Подтверждённое наличие: положительный остаток с датой не старше 30 дней. "
-        "Старые записи требуют уточнения.\n/help — помощь\n/stop — отключить доступ. "
+HELP = ("Нейрона ИИ · MAX\n\n"
+        "Подключите аккаунт: на главной странице Нейроны нажмите «Подключить MAX», "
+        "получите код, отправьте /link КОД и подтвердите подключение в Нейроне.\n\n"
+        "/presentations — еженедельные презентации и личная подписка. "
+        "Нужно отдельное право «Еженедельные презентации».\n"
+        "Для поиска остатков напишите название, диаметр или модель. Поиск ЗиП и контактов "
+        "пока доступен управляющим аккаунтами с правом на ЗиП РСО.\n\n"
+        "/menu — доступные функции\n/help — помощь\n/stop — отключить доступ и подписки. "
         "Пароль от Нейроны боту не отправляйте.")
+
 
 
 def text(value, limit=180):
@@ -26,9 +30,10 @@ def text(value, limit=180):
 
 
 class BotHandler:
-    def __init__(self, store, stock, clock=time.monotonic):
+    def __init__(self, store, stock, clock=time.monotonic, *, presentations=None):
         self.store, self.stock, self.clock = store, stock, clock
         self.actions = OrderedDict()
+        self.presentations = presentations
 
     @staticmethod
     def _identity(update):
@@ -112,8 +117,12 @@ class BotHandler:
                 self.actions = OrderedDict((k, v) for k, v in self.actions.items() if v[1] != identity)
                 return None if kind == "bot_stopped" else self._reply(update, identity, "Доступ MAX отключён. Для повторного подключения получите новый код в Нейроне.")
             self.store.rate_limit("bot-actions", str(uid), 30, 60)
-            if kind == "bot_started" or command.strip() in {"/start", "/help"}:
-                return self._reply(update, identity, HELP)
+            if kind == "bot_started" or command.strip() in {"/start", "/help", "/menu"}:
+                try:
+                    account = self.store.authorize(uid, chat)
+                except StoreError:
+                    return self._reply(update, identity, HELP)
+                return self._menu(update, identity, account)
             if kind == "message_created" and command.strip().startswith("/link"):
                 parts = command.strip().split()
                 if len(parts) != 2 or parts[0] != "/link":
@@ -122,12 +131,19 @@ class BotHandler:
                 self.store.audit("link_redeem", "ok")
                 return self._reply(update, identity, f"Код принят. Аккаунт MAX: •••• {str(uid)[-4:]}.\nВернитесь в Нейрону, сверьте эти цифры и нажмите «Подтвердить». До подтверждения данные недоступны.")
             account = self.store.authorize(uid, chat)
+            if kind == "message_created" and command.strip().lower() in {"/presentations", "презентации", "еженедельные презентации"}:
+                return self._presentations(update, identity, account)
             if kind == "message_callback":
                 key = (update.get("callback") or {}).get("payload")
                 saved = self.actions.get(key) if isinstance(key, str) else None
                 if not saved or saved[0] <= self.clock() or saved[1] != identity or saved[2] != account["id"]:
                     return self._reply(update, identity, "Эта кнопка устарела. Отправьте поисковый запрос ещё раз.")
                 action = saved[3]
+                if action["kind"] == "presentations":
+                    return self._presentations(update, identity, account, action.get("enabled"))
+                if action["kind"] in {"presentation_retry", "presentation_retry_confirm"}:
+                    return self._retry_presentation(update, identity, account, action)
+                self._stock_permission(account)
                 if action["kind"] == "contacts":
                     return self._contacts(update, identity, account, action)
                 query, page = action["query"], action["page"]
@@ -135,9 +151,78 @@ class BotHandler:
                 query, page = command.strip(), 1
             if not query or len(query) > 500:
                 return self._reply(update, identity, "Напишите название и характеристики позиции, до 500 символов. Например: «Нужна муфта…».")
+            self._stock_permission(account)
             return self._search(update, identity, account, query, page)
         except (StoreError, StockError) as exc:
             return self._reply(update, identity, exc.message)
+
+    def _stock_permission(self, account):
+        rejected = stock_denial(self.store._account(account["id"]))
+        if rejected:
+            raise StoreError(*rejected, status_code=403)
+
+    def _menu(self, update, identity, account):
+        buttons = []
+        lines = ["Нейрона ИИ · ваши функции"]
+        if "presentations" in account["modules"]:
+            lines.append("Еженедельные презентации: новые файлы из источника по личной подписке.")
+            buttons.append(self._button("Еженедельные презентации", identity, account, {"kind": "presentations"}))
+        if stock_denial(self.store._account(account["id"])) is None:
+            lines.append("Остатки ЗиП РСО: напишите название, диаметр или модель, чтобы найти наличие и контакт.")
+        lines.append("/help — помощь · /stop — отключить MAX")
+        return self._reply(update, identity, "\n\n".join(lines), buttons)
+
+    def _presentations(self, update, identity, account, enabled=None):
+        if "presentations" not in account["modules"]:
+            raise StoreError("MODULE_FORBIDDEN", "Нужно право «Еженедельные презентации». Обратитесь к управляющему аккаунтами.", 403)
+        if self.presentations is None:
+            return self._reply(update, identity, "Подписки пока недоступны. Администратору нужно обновить процесс MAX-бота.")
+        if enabled is not None:
+            state = self.presentations.set_subscription(account, identity[0], identity[1], enabled)
+        else:
+            state = self.presentations.status(account)
+        subscribed = state["subscribed"]
+        lines = ["Еженедельные презентации", "Подписка включена." if subscribed else "Подписка выключена.",
+                 "Проверяем источник раз в час. После включения подписки присылаем только новые файлы. "
+                 "Первое успешное чтение запоминает текущие файлы без рассылки архива."]
+        checked = state.get("last_checked")
+        if checked:
+            lines.append("Источник проверен: " + datetime.fromtimestamp(checked, ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M") + " МСК.")
+        else:
+            lines.append("Первая проверка ещё не завершена.")
+        if state.get("error_code"):
+            lines.append("Есть проблема проверки или доставки. Подробности и код для администратора: " + text(state["error_code"], 64))
+        if state.get("pending"):
+            lines.append(f"Ожидают доставки: {state['pending']}.")
+        if state.get("failed"):
+            lines.append(f"Не доставлено: {state['failed']}. Администратору нужно проверить источник или размер файла.")
+        if state.get("uncertain"):
+            lines.append(f"Отправок без подтверждения: {state['uncertain']}. Автоповтор остановлен. Проверьте чат, прежде чем повторять отправку.")
+        buttons = [self._button("Выключить подписку" if subscribed else "Получать новые презентации", identity, account,
+                              {"kind": "presentations", "enabled": not subscribed}),
+                   self._button("Обновить статус", identity, account, {"kind": "presentations"})]
+        for issue in state.get("issues", []):
+            lines.append(f"Не доставлено или не подтверждено: {text(issue['name'], 160)} · {text(issue['code'], 64)}")
+            if issue.get("retryable"):
+                buttons.append(self._button("Повторить: " + text(issue["name"], 60), identity, account,
+                                            {"kind": "presentation_retry", "id": issue["id"]}))
+        return self._reply(update, identity, "\n\n".join(lines), buttons)
+
+    def _retry_presentation(self, update, identity, account, action):
+        if self.presentations is None:
+            return self._presentations(update, identity, account)
+        state = self.presentations.status(account)
+        issue = next((item for item in state.get("issues", []) if item["id"] == action["id"] and item.get("retryable")), None)
+        if not issue:
+            return self._presentations(update, identity, account)
+        if action["kind"] == "presentation_retry_confirm":
+            self.presentations.retry_delivery(account, identity[0], identity[1], action["id"])
+            return self._presentations(update, identity, account)
+        buttons = [self._button("Да, повторить файл", identity, account, {"kind": "presentation_retry_confirm", "id": issue["id"]}),
+                   self._button("Назад к подписке", identity, account, {"kind": "presentations"})]
+        return self._reply(update, identity, "Повторить отправку файла «" + text(issue["name"], 200) + "»?\n\n"
+                           "Сначала проверьте чат: если MAX не подтвердил прошлую отправку, файл уже мог прийти. "
+                           "Повторная отправка может создать дубликат.", buttons)
 
     def _search(self, update, identity, account, query, page):
         result = self.stock.search(query, page=page, page_size=5)

@@ -1276,6 +1276,15 @@
     <div class="action-panel"><a href="/telegram" class="module-link">Перейти <span aria-hidden="true">→</span></a></div>
 </article>
 {% endif %}
+{% if "presentations" in user_modules and not user.kc_sub %}
+<article data-module="presentations" class="card module-card">
+    <div class="module-head"><div class="head-pills"><span class="pill primary">MAX</span><span class="pill primary">Подписка</span></div></div>
+    <h2 class="module-title">Еженедельные презентации</h2>
+    <div class="module-description is-collapsed">Новые файлы из источника Добродела — в личном чате с ботом. Включите подписку после подключения аккаунта.</div>
+    <div class="tag-row"><span class="tag">Проверка каждый час</span><span class="tag">Файлы целиком</span></div>
+    <div class="action-panel"><a href="/max-bot" class="module-link">Подключить MAX <span aria-hidden="true">→</span></a></div>
+</article>
+{% endif %}
             {% if "zips" in user_modules %}
 <article data-module="zips" class="card module-card">
     <div class="module-head">

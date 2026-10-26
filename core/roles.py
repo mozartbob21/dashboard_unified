@@ -16,10 +16,11 @@ ALL_MODULE_IDS = [
     "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
     "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
     "water_rm", "tools",
-    "summarizer", "zips", "telegram",
+    "summarizer", "zips", "telegram", "presentations",
 ]
 
 MODULE_NAMES = {
+    "presentations": "Еженедельные презентации",
     "mingkh": "Дашборд по жалобам МинЖКХ",
     "collective": "Коллективные жалобы — МинЖКХ МО",
     "telegram": "Telegram — выбранные чаты",

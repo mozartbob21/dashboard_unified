@@ -21,6 +21,11 @@ from .access import read_account, denial
 
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 MIGRATION = Path(__file__).resolve().parents[2] / "migrations/20261022_max_bot.sql"
+PERSISTENT_BINDINGS_MIGRATION = Path(__file__).resolve().parents[2] / "migrations/20261023_max_persistent_bindings.sql"
+MAX_BINDING_TIMESTAMP = 253402300800  # First second of year 10000, outside supported dates.
+# A far-future sentinel keeps old workers from deleting links during a rolling
+# restart. New code treats this exact value as permanent, not as a deadline.
+PERMANENT_BINDING_EXPIRY = 253402300799.0
 
 
 class StoreError(Exception):
@@ -67,8 +72,7 @@ class Store:
         self.settings = settings
         self.db_path, self.accounts_path = Path(settings.db_path), Path(settings.accounts_path)
         self.link_ttl = int(getattr(settings, "link_ttl", 300))
-        self.binding_ttl = int(getattr(settings, "binding_ttl", 30 * 86400))
-        if not 60 <= self.link_ttl <= 600 or not 300 <= self.binding_ttl <= 30 * 86400:
+        if not 60 <= self.link_ttl <= 600:
             raise ValueError("Invalid linking lifetime")
         if self.db_path.resolve() == self.accounts_path.resolve():
             raise ValueError("MAX bot storage must be separate from platform accounts")
@@ -80,6 +84,7 @@ class Store:
         self.db_path.chmod(0o600)
         with self._connection() as conn:
             conn.executescript(MIGRATION.read_text(encoding="utf-8"))
+            conn.executescript(PERSISTENT_BINDINGS_MIGRATION.read_text(encoding="utf-8"))
             conn.execute("INSERT OR IGNORE INTO max_bot_meta(key,value) VALUES ('rate_secret',?)", (secrets.token_hex(32),))
             self._rate_secret = bytes.fromhex(conn.execute("SELECT value FROM max_bot_meta WHERE key='rate_secret'").fetchone()[0])
 
@@ -110,10 +115,18 @@ class Store:
         return user
 
     @staticmethod
+    def binding_is_active(expires_at, current):
+        """Recognize the permanent sentinel; malformed expiry values fail closed."""
+        return (type(expires_at) in (int, float) and math.isfinite(expires_at)
+                and (expires_at == PERMANENT_BINDING_EXPIRY
+                     or max(0, current) < expires_at < MAX_BINDING_TIMESTAMP))
+
+    @staticmethod
     def _cleanup(conn, current):
         conn.execute("DELETE FROM max_bot_codes WHERE expires_at<=?", (current,))
         conn.execute("DELETE FROM max_bot_pending WHERE expires_at<=?", (current,))
-        conn.execute("DELETE FROM max_bot_bindings WHERE expires_at<=?", (current,))
+        conn.execute("DELETE FROM max_bot_bindings WHERE expires_at>0 AND expires_at!=? AND expires_at<=?",
+                     (PERMANENT_BINDING_EXPIRY, current))
 
     def create_link(self, user_id, now=None):
         current = _now(now)
@@ -158,14 +171,18 @@ class Store:
             binding = conn.execute("SELECT * FROM max_bot_bindings WHERE user_id=?", (user["id"],)).fetchone()
             pending = conn.execute("SELECT * FROM max_bot_pending WHERE user_id=? ORDER BY created_at DESC", (user["id"],)).fetchall()
         fingerprint = _sha(user["password_hash"])
-        active = bool(binding and hmac.compare_digest(binding["password_fingerprint"], fingerprint))
+        active = bool(binding and self.binding_is_active(binding["expires_at"], current)
+                      and hmac.compare_digest(binding["password_fingerprint"], fingerprint))
         result = {"active": active, "pending": [
             {"request_id": row["request_id"], "max_user_mask": _masked(row["max_user_id"]),
              "created_at": row["created_at"], "expires_at": row["expires_at"]}
             for row in pending if hmac.compare_digest(row["password_fingerprint"], fingerprint)
         ]}
         if active:
-            result["binding"] = {"max_user_mask": _masked(binding["max_user_id"]), "expires_at": binding["expires_at"]}
+            permanent = binding["expires_at"] == PERMANENT_BINDING_EXPIRY
+            result["binding"] = {"max_user_mask": _masked(binding["max_user_id"]),
+                                 "expires_at": None if permanent else binding["expires_at"],
+                                 "permanent": permanent}
         return result
 
     def confirm_link(self, user_id, request_id, now=None):
@@ -189,10 +206,12 @@ class Store:
             conn.execute("INSERT INTO max_bot_bindings VALUES (?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET "
                          "max_user_id=excluded.max_user_id,chat_id=excluded.chat_id,password_fingerprint=excluded.password_fingerprint,"
                          "created_at=excluded.created_at,expires_at=excluded.expires_at", (
-                             user["id"], row["max_user_id"], row["chat_id"], row["password_fingerprint"], current, current + self.binding_ttl))
+                             user["id"], row["max_user_id"], row["chat_id"], row["password_fingerprint"], current,
+                             PERMANENT_BINDING_EXPIRY))
             conn.execute("DELETE FROM max_bot_codes WHERE user_id=?", (user["id"],))
             conn.execute("DELETE FROM max_bot_pending WHERE user_id=?", (user["id"],))
-        return {"active": True, "binding": {"max_user_mask": _masked(row["max_user_id"]), "expires_at": current + self.binding_ttl}}
+        return {"active": True, "binding": {"max_user_mask": _masked(row["max_user_id"]),
+                                           "expires_at": None, "permanent": True}}
 
     def unlink(self, user_id):
         # Local authenticated account identity is supplied by the existing router.
@@ -229,7 +248,7 @@ class Store:
         max_id, chat = _identifier(max_user_id), _identifier(chat_id, signed=True)
         with self._connection() as conn:
             row = conn.execute("SELECT * FROM max_bot_bindings WHERE max_user_id=? AND chat_id=?", (max_id, chat)).fetchone()
-        if not row or row["expires_at"] <= current:
+        if not row or not self.binding_is_active(row["expires_at"], current):
             raise StoreError("LINK_REQUIRED", "Для подключения аккаунта MAX нажмите «Подключить MAX» на главной странице Нейроны.", 401)
         user = self._account(row["user_id"])
         if not hmac.compare_digest(row["password_fingerprint"], _sha(user["password_hash"])):

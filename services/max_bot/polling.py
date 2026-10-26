@@ -35,12 +35,13 @@ class PollingError(Exception):
 
 
 class DevPoller:
-    def __init__(self, store, client, handler, *, owner=None, clock=time.monotonic, sleeper=time.sleep):
+    def __init__(self, store, client, handler, *, owner=None, clock=time.monotonic, sleeper=time.sleep, presentations=None):
         self.store, self.client, self.handler = store, client, handler
         self.owner = owner or uuid.uuid4().hex
         self._clock, self._sleep = clock, sleeper
         self._started = False
         self._last_poll = None
+        self.presentations = presentations
 
     def _lease(self):
         if not self.store.lease(self.owner, ttl=LEASE_TTL):
@@ -64,12 +65,16 @@ class DevPoller:
             self.store.ensure_bot_id(me["user_id"])
             self._lease()
             self._started = True
+            if self.presentations is not None:
+                self.presentations.start()
         except BaseException:
             self.store.release_lease(self.owner)
             raise
 
     def close(self):
         try:
+            if self.presentations is not None:
+                self.presentations.close()
             self.store.release_lease(self.owner)
         finally:
             self._started = False
@@ -244,7 +249,11 @@ def main(argv=None):
         previous[sig] = signal.signal(sig, lambda *_args: stop.set())
     try:
         with MaxClient(settings.bot_token, ca_bundle=settings.ca_file) as client:
-            DevPoller(store, client, handler).run(stop=stop, max_iterations=args.max_polls)
+            from .presentations import PresentationService
+            from .presentation_config import source_factory
+            presentations = PresentationService(store, source_factory=source_factory, client=client)
+            handler.presentations = presentations
+            DevPoller(store, client, handler, presentations=presentations).run(stop=stop, max_iterations=args.max_polls)
         return 0
     except KeyboardInterrupt:
         return 0

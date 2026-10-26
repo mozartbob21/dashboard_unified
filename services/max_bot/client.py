@@ -6,11 +6,14 @@ All callers must already have authorized the user and the outgoing data.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import ssl
+import stat
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -19,6 +22,8 @@ API_ORIGIN = "https://platform-api2.max.ru"
 UPDATE_TYPES = ("message_created", "message_callback", "bot_started", "bot_stopped")
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_BODY_BYTES = 32 * 1024
+# Operational limit for this worker, deliberately lower than MAX's API limit.
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 POLL_TIMEOUT = 30
 SEND_INTERVAL = 0.55
 
@@ -85,6 +90,71 @@ def _nonfinite(_value):
     raise ValueError("nonfinite")
 
 
+def _read_json(response):
+    declared = response.headers.get("content-length")
+    if declared is not None and (not declared.isdecimal() or int(declared) > MAX_RESPONSE_BYTES):
+        raise ValueError("response size")
+    if response.headers.get("content-encoding", "identity").lower() != "identity":
+        raise ValueError("compressed response")
+    content = bytearray()
+    for chunk in response.iter_bytes(chunk_size=65536):
+        content.extend(chunk)
+        if len(content) > MAX_RESPONSE_BYTES:
+            raise ValueError("response size")
+    result = json.loads(content.decode("utf-8"), object_pairs_hook=_json_object, parse_constant=_nonfinite)
+    if not isinstance(result, dict):
+        raise ValueError("response object")
+    return result
+
+
+def _file_token(value):
+    if not isinstance(value, str) or not 1 <= len(value) <= 8192 or any(ord(c) < 33 or ord(c) > 126 for c in value):
+        raise _invalid("Некорректный токен файла MAX.")
+    return value
+
+
+def _upload_url(value):
+    # Official file-upload endpoint; do not broaden to arbitrary MAX-related
+    # domains. A future endpoint change needs review, not an automatic redirect.
+    # https://dev.max.ru/docs-api/use-cases/sending-messages/media
+    try:
+        if not isinstance(value, str) or not 1 <= len(value) <= 16384 or any(ord(c) < 33 or ord(c) > 126 for c in value) or "\\" in value:
+            raise ValueError("url")
+        parts = urlsplit(value)
+        if (parts.scheme != "https" or parts.hostname != "fu.oneme.ru" or parts.port not in (None, 443)
+                or parts.username is not None or parts.password is not None or parts.fragment
+                or parts.path != "/api/upload.do" or not parts.query):
+            raise ValueError("url")
+    except (ValueError, TypeError, UnicodeError):
+        raise MaxAPIError("MAX_UPLOAD_URL_DENIED", "MAX вернул неподдерживаемый адрес загрузки файла. Администратору нужно проверить интеграцию.") from None
+    return value
+
+
+class _BoundedFile:
+    """Stream at most the opened file's original size, even if it grows."""
+
+    def __init__(self, file, size):
+        self.file, self.size = file, size
+
+    def tell(self):
+        return self.file.tell()
+
+    def seek(self, offset, whence=os.SEEK_SET):
+        target = self.size + offset if whence == os.SEEK_END else offset
+        if whence not in (os.SEEK_SET, os.SEEK_END) or not 0 <= target <= self.size:
+            raise OSError("file position")
+        return self.file.seek(target)
+
+    def read(self, count=-1):
+        remaining = self.size - self.tell()
+        if remaining <= 0 or count == 0:
+            return b""
+        data = self.file.read(min(remaining, 65536, count if count >= 0 else 65536))
+        if not data:
+            raise OSError("file changed")
+        return data
+
+
 def _body(value):
     if not isinstance(value, dict) or set(value) - {"text", "attachments", "notify"}:
         raise _invalid("Некорректное сообщение MAX.")
@@ -97,9 +167,16 @@ def _body(value):
     if not isinstance(attachments, list) or len(attachments) > 1:
         raise _invalid()
     for attachment in attachments:
-        if not isinstance(attachment, dict) or set(attachment) != {"type", "payload"} or attachment["type"] != "inline_keyboard":
+        if not isinstance(attachment, dict) or set(attachment) != {"type", "payload"}:
             raise _invalid()
         payload = attachment["payload"]
+        if attachment["type"] == "file":
+            if not isinstance(payload, dict) or set(payload) != {"token"}:
+                raise _invalid()
+            _file_token(payload["token"])
+            continue
+        if attachment["type"] != "inline_keyboard":
+            raise _invalid()
         if not isinstance(payload, dict) or set(payload) != {"buttons"}:
             raise _invalid()
         rows = payload["buttons"]
@@ -147,6 +224,7 @@ class MaxClient:
             transport=transport,
         )
         self._clock, self._sleep = clock, sleeper
+        self._verify, self._transport = verify, transport
         self._send_lock = threading.Lock()
         self._last_send = None
 
@@ -163,9 +241,12 @@ class MaxClient:
         # No arbitrary URLs, proxies, paths, redirect targets or user-supplied
         # header forwarding are available through this adapter.
         if (method, path) not in {("GET", "/me"), ("GET", "/subscriptions"), ("GET", "/updates"),
-                                  ("POST", "/messages"), ("POST", "/answers")}:
+                                  ("POST", "/messages"), ("POST", "/answers"), ("POST", "/uploads")}:
             raise _invalid()
-        write = method == "POST"
+        if path == "/uploads" and (params != {"type": "file"} or body is not None):
+            raise _invalid()
+        # Allocating an upload URL does not deliver anything to a recipient.
+        write = method == "POST" and path != "/uploads"
         try:
             with self._http.stream(method, path, params=params, json=body) as response:
                 if response.is_redirect:
@@ -177,21 +258,16 @@ class MaxClient:
                 if response.status_code >= 500:
                     raise MaxAPIError("MAX_UNAVAILABLE", "MAX временно недоступен. Повторите позже.", retryable=not write, uncertain=write)
                 if not 200 <= response.status_code < 300:
+                    if (path == "/messages" and response.status_code in (400, 409, 422)
+                            and isinstance(body, dict) and any(a.get("type") == "file" for a in body.get("attachments", []) if isinstance(a, dict))):
+                        try:
+                            error_body = _read_json(response)
+                        except (ValueError, UnicodeError, RecursionError, OverflowError):
+                            error_body = {}
+                        if error_body.get("code") == "attachment.not.ready":
+                            raise MaxAPIError("MAX_ATTACHMENT_NOT_READY", "MAX ещё обрабатывает файл. Отправка будет повторена позже.", retryable=True)
                     raise MaxAPIError("MAX_REQUEST_REJECTED", "MAX не принял запрос. Повторите действие позже.")
-                declared = response.headers.get("content-length")
-                if declared is not None and (not declared.isdecimal() or int(declared) > MAX_RESPONSE_BYTES):
-                    raise ValueError("response size")
-                if response.headers.get("content-encoding", "identity").lower() != "identity":
-                    raise ValueError("compressed response")
-                content = bytearray()
-                for chunk in response.iter_bytes(chunk_size=65536):
-                    content.extend(chunk)
-                    if len(content) > MAX_RESPONSE_BYTES:
-                        raise ValueError("response size")
-                result = json.loads(content.decode("utf-8"), object_pairs_hook=_json_object, parse_constant=_nonfinite)
-                if not isinstance(result, dict):
-                    raise ValueError("response object")
-                return result
+                return _read_json(response)
         except MaxAPIError:
             raise
         except (httpx.HTTPError, ssl.SSLError) as error:
@@ -199,6 +275,58 @@ class MaxClient:
         except (ValueError, UnicodeError, RecursionError, OverflowError):
             raise MaxAPIError("MAX_RESPONSE_INVALID", "Не удалось прочитать ответ MAX. Повторите действие позже.",
                               retryable=not write, uncertain=write) from None
+
+    def upload_file(self, path: Path) -> str:
+        """Upload a caller-authorized private file; this does not send a message.
+
+        No automatic retry or file removal. The worker persists the returned
+        token and handles delivery separately. Upload failures are safe to retry
+        when marked retryable; message delivery has stricter uncertainty rules.
+        """
+        try:
+            path = Path(path)
+            if path.is_symlink():
+                raise OSError("symlink")
+            descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
+            with os.fdopen(descriptor, "rb") as file:
+                before = os.fstat(file.fileno())
+                if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= MAX_UPLOAD_BYTES:
+                    raise MaxAPIError("MAX_FILE_SIZE_INVALID", "Размер файла должен быть больше нуля и не превышать 50 МиБ.")
+                result = self._request("POST", "/uploads", params={"type": "file"})
+                url = _upload_url(result.get("url"))
+                filename = "".join(c if ord(c) >= 32 and c not in '\\"/' else "_" for c in path.name)[:180] or "presentation.bin"
+                # No Authorization header/cookies from the API client are ever
+                # forwarded to storage. Multipart URLs are already signed.
+                with httpx.Client(headers={"Accept": "application/json", "Accept-Encoding": "identity"},
+                                  verify=self._verify, trust_env=False, follow_redirects=False,
+                                  timeout=httpx.Timeout(connect=10.0, read=120.0, write=120.0, pool=10.0),
+                                  transport=self._transport) as upload:
+                    with upload.stream("POST", url, files={"data": (filename, _BoundedFile(file, before.st_size), "application/octet-stream")}) as response:
+                        if response.is_redirect:
+                            raise MaxAPIError("MAX_UPLOAD_REDIRECT_DENIED", "MAX перенаправил загрузку файла. Перенаправление запрещено.")
+                        if response.status_code == 429 or response.status_code >= 500:
+                            raise MaxAPIError("MAX_UPLOAD_UNAVAILABLE", "Загрузка файлов в MAX временно недоступна.", retryable=True)
+                        if not 200 <= response.status_code < 300:
+                            raise MaxAPIError("MAX_UPLOAD_REJECTED", "MAX не принял файл. Администратору нужно проверить формат и доступ.")
+                        result = _read_json(response)
+                after = os.fstat(file.fileno())
+                if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                    raise OSError("file changed")
+                try:
+                    return _file_token(result.get("token"))
+                except MaxAPIError:
+                    raise MaxAPIError("MAX_UPLOAD_RESPONSE_INVALID", "MAX не подтвердил загрузку файла.", retryable=True) from None
+        except MaxAPIError:
+            raise
+        except (httpx.HTTPError, ssl.SSLError) as error:
+            raise classify_network_error(error, write=False) from None
+        except (OSError, TypeError):
+            raise MaxAPIError("MAX_FILE_UNAVAILABLE", "Не удалось прочитать сохранённый файл для отправки в MAX.") from None
+        except (ValueError, UnicodeError, RecursionError, OverflowError):
+            raise MaxAPIError("MAX_UPLOAD_RESPONSE_INVALID", "Не удалось прочитать подтверждение загрузки MAX.", retryable=True) from None
+
+    def send_file(self, user_id: int, token: str, caption: str) -> bool:
+        return self.send(user_id, {"text": caption, "attachments": [{"type": "file", "payload": {"token": _file_token(token)}}]})
 
     def get_me(self):
         result = self._request("GET", "/me")

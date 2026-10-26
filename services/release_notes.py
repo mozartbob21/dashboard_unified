@@ -84,12 +84,14 @@ def _validate_catalog():
                 raise ValueError("Invalid or duplicate release entry id")
             entry_ids.add(entry_id)
             audience = entry.get("audience")
-            if audience not in {"all", "admin", "module", "max", "without_max"}:
+            if audience not in {"all", "admin", "module", "max", "max_presentations", "without_max"}:
                 raise ValueError("Unknown release audience")
             if audience == "module" and entry.get("module_id") not in MODULE_NAMES:
                 raise ValueError("Unknown release module")
             if audience == "max" and entry.get("module_id") != "zips":
                 raise ValueError("MAX release audience requires the zips module")
+            if audience == "max_presentations" and entry.get("module_id") != "presentations":
+                raise ValueError("MAX presentations audience requires the presentations module")
             if audience == "without_max" and entry.get("module_id") is not None:
                 raise ValueError("MAX fallback must be general platform news")
             for field, limit in (("title", 160), ("text", 1500)):
@@ -105,14 +107,15 @@ def _max_available(allowed, manager):
     return bool(manager and "zips" in allowed and max_bot_enabled())
 
 
-def _visible(release, allowed, manager, can_use_max):
+def _visible(release, allowed, manager, can_use_max, *, can_use_presentations=False):
     entries = []
     for entry in release["entries"]:
         audience = entry["audience"]
-        module_id = entry.get("module_id") if audience in {"module", "max"} else None
+        module_id = entry.get("module_id") if audience in {"module", "max", "max_presentations"} else None
         if not (audience == "all" or (audience == "admin" and manager)
                 or (audience == "module" and module_id in allowed)
                 or (audience == "max" and can_use_max)
+                or (audience == "max_presentations" and can_use_presentations)
                 or (audience == "without_max" and not can_use_max)):
             continue
         entries.append({"id": entry["id"], "module_id": module_id,
@@ -131,11 +134,12 @@ def _list(user, *, include_read=False):
         conn.execute("BEGIN")
         account_key, allowed, manager = _principal(conn, user)
         can_use_max = _max_available(allowed, manager)
+        can_use_presentations = bool(account_key.startswith("local:") and "presentations" in allowed and max_bot_enabled())
         read_dates = {row[0]: row[1] for row in conn.execute(
             "SELECT release_id,read_at FROM release_note_receipts WHERE account_key=?", (account_key,))}
         releases = [{**visible, "read_at": read_dates.get(release["id"])} for release in catalog
                     if include_read or release["id"] not in read_dates
-                    if (visible := _visible(release, allowed, manager, can_use_max)) is not None]
+                    if (visible := _visible(release, allowed, manager, can_use_max, can_use_presentations=can_use_presentations)) is not None]
     releases.sort(key=lambda item: (datetime.fromisoformat(item["published_at"].replace("Z", "+00:00")), item["id"]), reverse=True)
     return {"releases": releases, "pending_count": sum(item["read_at"] is None for item in releases)}
 
@@ -155,8 +159,9 @@ def acknowledge(user, release_id):
         conn.execute("BEGIN IMMEDIATE")
         account_key, allowed, manager = _principal(conn, user)
         can_use_max = _max_available(allowed, manager)
+        can_use_presentations = bool(account_key.startswith("local:") and "presentations" in allowed and max_bot_enabled())
         release = next((item for item in catalog if item["id"] == release_id), None)
-        if release is None or _visible(release, allowed, manager, can_use_max) is None:
+        if release is None or _visible(release, allowed, manager, can_use_max, can_use_presentations=can_use_presentations) is None:
             raise HTTPException(404, "Обновление не найдено")
         conn.execute("INSERT OR IGNORE INTO release_note_receipts(account_key,release_id,read_at) VALUES (?,?,?)",
                      (account_key, release_id, datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")))

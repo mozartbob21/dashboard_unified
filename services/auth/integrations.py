@@ -42,7 +42,7 @@ def credential_status(service='edds'):
 
 def save_credentials(username, password, service='edds', *, source_url=None, folder_path=None):
     username=username.strip()
-    if service not in {'edds','edds_arm','mingkh','zip_cloud'}: raise HTTPException(400,'Неизвестная интеграция')
+    if service not in {'edds','edds_arm','mingkh','zip_cloud','presentations'}: raise HTTPException(400,'Неизвестная интеграция')
     if not username: raise HTTPException(400,'Укажите логин системы')
     old = None
     if not password:
@@ -70,5 +70,5 @@ def save_credentials(username, password, service='edds', *, source_url=None, fol
     encrypted=cipher(create=True).encrypt(json.dumps(value).encode()).decode()
     with get_db_connection() as conn:
         conn.execute("INSERT INTO integration_credentials(service,encrypted_value) VALUES(?,?) ON CONFLICT(service) DO UPDATE SET encrypted_value=excluded.encrypted_value,updated_at=CURRENT_TIMESTAMP",(service,encrypted))
-        label={'edds':'Добродел','edds_arm':'АРМ ЕДДС','mingkh':'МИНЖКХ','zip_cloud':'Облако МО — ЗиП'}[service]
+        label={'edds':'Добродел','edds_arm':'АРМ ЕДДС','mingkh':'МИНЖКХ','zip_cloud':'Облако МО — ЗиП','presentations':'Еженедельные презентации'}[service]
         conn.execute("INSERT INTO account_notifications(message) VALUES (?)",(f'Обновлены настройки доступа: {label}.',))

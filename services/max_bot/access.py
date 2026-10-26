@@ -31,8 +31,21 @@ def denial(account):
     """A displayed role or a client-side permission flag never grants access."""
     if not account or not account['is_active']:
         return 'ACCESS_REVOKED', 'Доступ отозван. Обратитесь к администратору Нейроны.'
+    if 'presentations' in account['modules']:
+        return None
     if 'zips' not in account['modules']:
-        return 'MODULE_FORBIDDEN', 'Нет доступа к Остаткам ЗиП РСО.'
+        return 'MODULE_FORBIDDEN', 'Нет доступа к функциям бота. Нужны соответствующие права в Нейроне.'
     if not account['can_manage_users']:
         return 'MANAGER_REQUIRED', 'Подключение MAX пока доступно только пользователям с правом «Управление пользователями».'
+    return None
+
+
+def stock_denial(account):
+    """Presentation permission never grants stocks/contacts or manager rights."""
+    if not account or not account.get('is_active'):
+        return 'ACCESS_REVOKED', 'Доступ отозван. Обратитесь к администратору Нейроны.'
+    if 'zips' not in account.get('modules', []):
+        return 'MODULE_FORBIDDEN', 'Нет доступа к Остаткам ЗиП РСО.'
+    if not account.get('can_manage_users'):
+        return 'MANAGER_REQUIRED', 'Поиск остатков в MAX пока доступен только управляющим аккаунтами.'
     return None

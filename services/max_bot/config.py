@@ -57,7 +57,6 @@ class Settings:
     db_path: Path = ROOT / "data/max_bot.sqlite"
     published_path: Path = ROOT / "data/zip_curator/published.json"
     contacts_path: Path = ROOT / "data/zip_curator/contacts.json"
-    binding_ttl: int = 30 * 86400
     link_ttl: int = 300
     audit_days: int = 30
     ca_file: Path | None = BUNDLED_CA_FILE
@@ -110,7 +109,7 @@ def enabled_for_ui():
 def available_for_user(user):
     """Use current DB permissions, including on already-open or stale sessions."""
     if not (user and user.get("is_active", True) and not user.get("kc_sub")
-            and type(user.get("id")) is int and "zips" in user.get("modules", [])):
+            and type(user.get("id")) is int and {"zips", "presentations"}.intersection(user.get("modules", []))):
         return False
     try:
         config = Settings.from_env()

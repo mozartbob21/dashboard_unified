@@ -2,3 +2,5 @@
 /* Light text on the night palette's brighter violet failed AA for small labels. */
 [data-theme="dark"] .max-bot-page .max-bot-main .max-bot-button.primary{color:#11182b}
 .max-bot-main .max-bot-destination{margin:16px 0 0;padding:12px 14px;border-radius:12px;border:1px solid var(--border,#dce2ec);font-size:13px;line-height:1.6;color:var(--text,#172338);background:var(--bg-soft,#f4f6fb);overflow-wrap:anywhere}
+
+.max-presentations-card{margin-top:24px}

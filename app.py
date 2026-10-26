@@ -1061,7 +1061,6 @@ PATH_MODULE_MAP = {
     "/tools": "tools",
     "/summarizer": "summarizer",
     "/zips": "zips",
-    "/max-bot": "zips",
     "/zip": "zips",
     "/zip_curator": "zips",
     "/zip_curator.html": "zips",
@@ -1154,7 +1153,7 @@ async def auth_middleware(request: Request, call_next):
     response = await call_next(request)
     from services.auth.activity import track_response
     await asyncio.to_thread(track_response, request, response, PATH_MODULE_MAP)
-    integration_check = path in {"/api/users/integrations/edds/check", "/api/users/integrations/zip_cloud/check"}
+    integration_check = path in {"/api/users/integrations/edds/check", "/api/users/integrations/zip_cloud/check", "/api/users/integrations/presentations/check"}
     if (path == "/api/users" or path.startswith("/api/users/")) and "/notifications" not in path and not integration_check and request.method in {"PUT", "POST"} and response.status_code >= 400 and is_account_manager(user):
         from services.auth.accounts import notify_manager
         import logging

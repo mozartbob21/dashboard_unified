@@ -3,10 +3,10 @@
 {% block body_class %}compact-module-page max-bot-page{% endblock %}
 {% block head %}
 {% if not max_bot_transport_message %}<meta name="max-bot-csrf" content="{{ max_bot_csrf }}">{% endif %}
-<link rel="stylesheet" href="/static/max-bot-link.css?v=20261022-guide">
-<link rel="stylesheet" href="/static/max-bot-tour.css?v=20261022-guide">
-<script defer src="/static/max-bot-link.js?v=20261023-manager"></script>
-<script defer src="/static/max-bot-tour.js?v=20261022-guide"></script>
+<link rel="stylesheet" href="/static/max-bot-link.css?v=20261023-presentations">
+<link rel="stylesheet" href="/static/max-bot-tour.css?v=20261023-presentations">
+<script defer src="/static/max-bot-link.js?v=20261023-permanent"></script>
+<script defer src="/static/max-bot-tour.js?v=20261023-presentations"></script>
 {% endblock %}
 {% block content %}
 <div class="container max-bot-container">
@@ -15,14 +15,14 @@
       <img src="{{ url_for('static', path='logo.svg') }}" alt="Нейрона ИИ" class="brand-logo">
       <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Подключение бота MAX</div></div>
     </div>
-    <div class="top-actions"><a href="/" class="secondary-button">← На главную</a><a href="/zips" class="secondary-button">Остатки ЗиП РСО</a></div>
+    <div class="top-actions"><a href="/" class="secondary-button">← На главную</a>{% if max_stocks %}<a href="/zips" class="secondary-button">Остатки ЗиП РСО</a>{% endif %}</div>
   </header>
   <main class="max-bot-main" id="max-bot-main">
     <section class="max-bot-hero">
       <div class="max-bot-eyebrow">Нейрона в вашем мессенджере</div>
       <h1>Подключите MAX<br>к своему аккаунту</h1>
-      <p>Подключите свой аккаунт Нейроны, чтобы искать опубликованные остатки и получать контакты ответственных в обычном чате с ботом.</p>
-      <div class="max-bot-tags"><span>Поиск по названию</span><span>Наличие по муниципалитетам</span><span>Контакты из системы</span></div>
+      <p>Подключите аккаунт один раз. Привязка сохраняется без ограничения срока — выход из Нейроны и перезапуск бота её не отключают.</p>
+      <div class="max-bot-tags">{% if max_presentations %}<span>Еженедельные презентации</span><span>Личная подписка</span>{% endif %}{% if max_stocks %}<span>Остатки и контакты ЗиП РСО</span>{% endif %}</div>
       {% if not max_bot_transport_message %}<button class="max-bot-tour-launch" type="button" data-max-tour-start aria-controls="max-tour-card"><span aria-hidden="true">↗</span> Как подключить MAX <small>4 простых шага</small></button>{% endif %}
     </section>
     <div class="max-bot-layout">
@@ -50,9 +50,9 @@
         <div id="max-bot-pending" hidden><h3>Подтвердите привязку</h3><p class="max-bot-muted">Сверьте аккаунт с тем, из которого вы отправили код. Если это не вы, не подтверждайте запрос.</p><div id="max-bot-pending-list"></div></div>
         <div id="max-bot-active" hidden>
           <div class="max-bot-connected"><span aria-hidden="true">✓</span><div><strong>Аккаунт подключён</strong><p id="max-bot-active-label"></p></div></div>
-          <p>Можно искать остатки и контакты в чате с ботом. Доступ определяется текущими правами вашего аккаунта в Нейроне.</p>
+          <p>Отправьте боту <code>/menu</code>, чтобы открыть доступные функции. Доступ определяется текущими правами вашего аккаунта в Нейроне.</p>
           <button class="max-bot-button danger" id="max-bot-unlink" type="button">Отключить MAX</button>
-          <p class="max-bot-muted max-bot-unlink-note">Бот перестанет выдавать данные вашему аккаунту MAX. Остатки и контакты в платформе сохранятся.</p>
+          <p class="max-bot-muted max-bot-unlink-note">Бот перестанет выдавать данные и присылать презентации вашему аккаунту MAX. Данные в платформе сохранятся.</p>
         </div>
         <p id="max-bot-updated" class="max-bot-updated" aria-live="polite"></p>
         {% endif %}
@@ -60,13 +60,22 @@
       <aside class="max-bot-card max-bot-guide" aria-labelledby="max-bot-guide-title">
         <h2 id="max-bot-guide-title">Как начать</h2>
         <p class="max-bot-destination" id="max-bot-name">Откройте в MAX бота, которого вам предоставил администратор.</p>
-        <ol><li id="max-guide-code"><strong>Получите код</strong><span>Нажмите «Получить код» в карточке подключения. Код действует 5 минут.</span></li><li id="max-guide-send"><strong>Отправьте команду боту</strong><span>Скопируйте команду <code>/link КОД</code> и отправьте её в личный чат с вашим ботом MAX.</span></li><li id="max-guide-confirm"><strong>Подтвердите подключение</strong><span>Вернитесь сюда. Запрос появится автоматически — подтвердите только свой аккаунт MAX.</span></li><li id="max-guide-search"><strong>Найдите остатки и контакт</strong><span>Например: «Нужна муфта D80». Выберите подходящую позицию и муниципалитет, затем откройте контакт ответственного.</span></li></ol>
+        <ol><li id="max-guide-code"><strong>Получите код</strong><span>Нажмите «Получить код» в карточке подключения. Код действует 5 минут.</span></li><li id="max-guide-send"><strong>Отправьте команду боту</strong><span>Скопируйте команду <code>/link КОД</code> и отправьте её в личный чат с вашим ботом MAX.</span></li><li id="max-guide-confirm"><strong>Подтвердите подключение</strong><span>Вернитесь сюда. Запрос появится автоматически — подтвердите только свой аккаунт MAX.</span></li><li id="max-guide-search"><strong>Откройте доступные функции</strong><span>Отправьте <code>/menu</code>. {% if max_presentations %}Выберите «Еженедельные презентации» и нажмите «Получать новые презентации».{% else %}Для поиска остатков напишите название и характеристики позиции.{% endif %}</span></li></ol>
         <div class="max-bot-commands"><span><code>/help</code> — помощь</span><span><code>/stop</code> — отключить доступ в боте</span></div>
-        <p class="max-bot-muted">Наличие подтверждается только при положительном остатке с датой не старше 30 дней. По более старым записям потребуется уточнение у ответственного.</p>
+        <p class="max-bot-muted">Новый код потребуется при смене пароля Нейроны или ручном отключении MAX. Доступные функции по-прежнему зависят от ваших прав.</p>
+        {% if max_stocks %}<p class="max-bot-muted">Наличие подтверждается только при положительном остатке с датой не старше 30 дней. По более старым записям потребуется уточнение у ответственного.</p>{% endif %}
       </aside>
     </div>
+    {% if max_presentations %}
+    <section class="max-bot-card max-presentations-card" aria-labelledby="presentation-info">
+      <div class="max-bot-card-head"><h2 id="presentation-info">Новые презентации — прямо в MAX</h2><span class="max-bot-status">По подписке</span></div>
+      <p>После подключения отправьте боту <code>/presentations</code> и нажмите «Получать новые презентации».</p>
+      <p>Источник проверяется раз в час. Бот отправляет новые файлы целиком. При первой проверке существующий архив запоминается без рассылки.</p>
+      <p class="max-bot-muted">Подписка добровольная: её можно выключить в том же меню. Файлы до 50 МБ. Если отправка не подтверждена, статус покажет проблему; повторная отправка не запускается вслепую.</p>
+    </section>
+    {% endif %}
     <p class="max-bot-notice max-bot-local"><strong>Локальная проверка.</strong> Бот работает, пока запущен процесс на компьютере. Для промышленного режима MAX требует HTTPS и webhook.</p>
-    <p class="max-bot-privacy">Бот предоставляет только просмотр опубликованных остатков и контактов. Согласование и редактирование данных выполняются в основной платформе.</p>
+    <p class="max-bot-privacy">Каждая функция проверяет ваши права в Нейроне. Пароли источников и токен бота пользователям не передаются.</p>
     <div id="max-bot-announcement" class="max-bot-sr-only" role="status" aria-live="polite"></div>
   </main>
 </div>
