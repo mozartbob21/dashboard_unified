@@ -56,13 +56,14 @@ WIDGETS_JS = """
 () => Array.from(document.querySelectorAll('[data-qa="chart-widget"]')).flatMap(widget => {
     const label = (widget.querySelector('.widget-header')?.innerText || '')
         .split(/\\n/).map(s => s.trim()).filter(s => s && !/^Ещ[её]\\s+\\d+$/.test(s)).join(' ');
-    if (!label || widget.getAttribute('aria-busy') === 'true') return [];
+    if (widget.getAttribute('aria-busy') === 'true') return [];
     return Array.from(widget.querySelectorAll('.chartkit-indicator__item')).map(item => {
         const value = (item.querySelector('.chartkit-indicator__item-value')?.innerText || '').trim();
         const caption = (widget.querySelector('.dl-widget__description')?.innerText ||
                          (item.innerText || '').replace(value, '')).trim();
-        return {label, value, caption};
-    }).filter(item => item.value);
+        const itemLabel = (item.querySelector('.chartkit-indicator__item-title')?.innerText || '').trim();
+        return {label: label || itemLabel, value, caption};
+    }).filter(item => item.label && item.value);
 })
 """
 
@@ -279,6 +280,45 @@ def _read_kontur_rankings(page, source_url):
                 'ranking_error': 'Полная таблица РСО не получена. ' + MESSAGES[error_code(exc)]}
 
 
+def _read_meeting_rso(page, source_url):
+    """RSO summary is a distinct population, with its own meeting total."""
+    from services.water_dashboard.details import is_meeting_rso_table
+    table_url = urlsplit(source_url)._replace(query='tab=Wk', fragment='').geturl()
+    try:
+        page.goto(table_url, wait_until='domcontentloaded', timeout=90000)
+        _wait_for_content(page)
+        widgets = page.evaluate(WIDGETS_JS)
+        tables, seen = [], set()
+        for _ in range(50):
+            current = [t for t in page.evaluate(TABLES_JS) if is_meeting_rso_table(t)]
+            if not current:
+                raise SourceReadError('source_error')
+            fingerprint = json.dumps(current, sort_keys=True, ensure_ascii=False)
+            if fingerprint in seen:
+                raise SourceReadError('source_error')
+            seen.add(fingerprint)
+            tables.extend(current)
+            # There is exactly one paginated summary table on this tab.
+            next_button = page.locator('[data-qa="chartkit-table-paginator-next-btn"]')
+            if not next_button.count() or (next_button.count() == 1 and not next_button.is_enabled()):
+                return {'rso': {'tables': tables, 'widgets': widgets, 'url': table_url}}
+            if next_button.count() != 1:
+                raise SourceReadError('source_error')
+            next_button.click(timeout=5000)
+            for _ in range(90):
+                page.wait_for_timeout(500)
+                updated = [t for t in page.evaluate(TABLES_JS) if is_meeting_rso_table(t)]
+                if updated and json.dumps(updated, sort_keys=True, ensure_ascii=False) != fingerprint:
+                    break
+            else:
+                raise SourceReadError('timeout')
+            _wait_for_content(page)
+        raise SourceReadError('source_error')
+    except Exception as exc:
+        return {'rso': {'tables': [], 'widgets': [], 'url': table_url,
+                        'error': 'Сводка РСО не получена. ' + MESSAGES[error_code(exc)]}}
+
+
 def scrape_all(source_ids=None):
     selected = {source['id'] for source in SOURCES} if source_ids is None else set(source_ids)
     known = {source['id'] for source in SOURCES}
@@ -344,7 +384,9 @@ def scrape_all(source_ids=None):
                         raise SourceReadError("captcha")
 
                     extractions[sid] = {"tables": tables, "widgets": widgets, "text": text, "data_date": data_date}
-                    if sid == "edo_rso":
+                    if sid == "meetings":
+                        extractions[sid].update(_read_meeting_rso(page, src["url"]))
+                    elif sid == "edo_rso":
                         extractions[sid].update(_read_edo_rankings(page, src["url"]))
                     elif sid == "gkh_kontur":
                         extractions[sid].update(_read_kontur_rankings(page, src["url"]))

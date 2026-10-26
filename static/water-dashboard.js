@@ -9,7 +9,7 @@ const defs = [
  ['sys_vs','Водоснабжение','https://datalens.yandex/6k9dbjyurmu0q'],
  ['edo_rso','Переход РСО на ЭДО','https://datalens.yandex/f5wqqij889haz'],
  ['nvos','Плата за НВОС','https://datalens.yandex/62l1qih3msocq?tab=KD'],
- ['meetings','Дисциплина совещаний','https://datalens.yandex/5f1g88ft7v1up'],
+ ['meetings','Дисциплина посещения совещаний','https://datalens.yandex/5f1g88ft7v1up'],
  ['sys_kr','Капитальный ремонт','https://datalens.yandex/6rxd41nckzkep'],
  ['controller_tasks','Задачи на проверке у контролеров','https://datalens.yandex/718l45rx26wir'],
  ['energy_audit','Энергоаудит РСО','https://datalens.yandex/20vf4r1bc5m8m'],
@@ -21,6 +21,9 @@ const metricValue = item => item?.value == null ? '—' : fmt(item.value)+(item.
 function total(key){const fields={resVS:'res_vs',sysVS:'sys_vs',tasks:'tasks_total',sysKR:'sys_kr',resKR:'res_kr',att:'att_avg'};return snap.metric_schema===1?snap.kpis?.[fields[key]]??null:null;}
 const drawer=document.getElementById('sourceDetails');
 let openedSource=null,detailTrigger=null;
+const insightsCache=new Map();
+let insightSession=null;
+const insightKey=id=>id+'|'+(snap.sources?.[id]?.updated_at||'');
 function sourceState(d){
  const stale=d.updated_at && Date.now()-new Date(d.updated_at).getTime()>30*60*1000;
  return {good:d.metric_schema===1&&d.ok&&!stale,label:!d.updated_at?'Нет данных':!d.ok?'Прежние данные':stale?'Требует обновления':'Данные получены'};
@@ -35,9 +38,10 @@ const cardPrimary = {
  edo_rso:[['electronic_documents_pct','Электронные документы в общем количестве']],
  controller_tasks:[['tasks_total','Задачи на проверке']],
  energy_audit:[['optimal_tariff_pct','Переход в оптимальную ценовую категорию']],
- gkh_kontur:[['completion_pct','Выполнение задач дорожной карты']]
+ gkh_kontur:[['completion_pct','Выполнение задач дорожной карты']],
+ meetings:[['attendance_pct','Средняя явка по ОМСУ'],['rso_attendance_pct','Средняя явка по РСО']]
 };
-const cardSecondary = {energy_audit:['meters_total','meters_high_consumption','energy_cost_total_mln']};
+const cardSecondary = {meetings:['meetings','rso_meetings'],gkh_kontur:['tasks_total','tasks_closed'],energy_audit:['meters_total','meters_high_consumption','energy_cost_total_mln']};
 function cardIndicators(id,items){
  const primary=cardPrimary[id]
   ? cardPrimary[id].map(([key,label])=>items.find(item=>item.id===key)||{id:key,label,value:null})
@@ -49,7 +53,73 @@ function cardIndicators(id,items){
  const html='<div class="wd-primary-metrics'+(primary.length>1?' wd-primary-metrics--paired':'')+'">'+primary.map(item=>
   '<div class="wd-primary-metric" data-metric="'+esc(item.id||'')+'"><p class="wd-name">'+esc(item.label)+'</p><div class="wd-num">'+esc(metricValue(item))+'</div></div>'
  ).join('')+'</div><div class="wd-rows">'+metricRows(secondary)+'</div>';
- return html;
+ return html+(id==='gkh_kontur'?stagesHtml(snap.sources?.[id]?.details?.stages||[],true):'');
+}
+
+function stagesHtml(stages,compact=false){
+ if(!stages.length)return '';
+ return '<section class="wd-stages"><h3>РСО по этапам подключения</h3><p class="wd-hint">'+(compact?'Не завершили этап · РСО и подразделения':'Каждый этап учитывается отдельно: одна РСО может быть на нескольких этапах. Подразделения с отдельной дорожной картой считаются отдельно.')+'</p><ol>'+stages.map(stage=>
+  '<li><div><span>'+esc(stage.label)+'</span><b>'+esc(fmt(stage.pending))+'</b></div>'+(compact?'':'<p>Завершили: '+esc(fmt(stage.closed))+' из '+esc(fmt(stage.total))+'</p><p>'+Object.entries(stage.statuses||{}).filter(([k])=>k!=='Закрыта').map(([k,v])=>esc(k)+': '+esc(fmt(v))).join(' · ')+(stage.unknown?' · Не определено: '+esc(fmt(stage.unknown)):'')+'</p>')+'</li>'
+ ).join('')+'</ol></section>';
+}
+function insightsHtml(id,metrics){
+ const state=insightsCache.get(insightKey(id));
+ const trends={improved:'Положительная динамика',worsened:'Требует внимания',stable:'Без изменений',unknown:'Оценка показателя'};
+ let html='<section class="wd-insights" aria-label="Выводы ИИ"><div class="wd-insights-heading"><span aria-hidden="true">✦</span><h3>Краткий анализ Нейроны</h3></div><p class="wd-hint">Выводы модели по сохранённым показателям. Динамика доступна при наличии сопоставимого предыдущего снимка.</p>';
+ if(!state||state.status==='pending')html+='<p class="wd-insight-status" role="status">Подготавливаем выводы по показателям…</p>';
+ else if(state.status!=='ready')html+='<p class="wd-insight-status" role="status">'+esc(state.message||'Анализ пока недоступен. Значения источника показаны ниже.')+'</p><button type="button" class="wd-ai-link" data-insights-retry="'+esc(id)+'">Повторить анализ</button>';
+ return html+'<div class="wd-insight-grid">'+metrics.map(metric=>{
+  const item=state?.items?.find(x=>x.metric_id===metric.id),trend=Object.hasOwn(trends,item?.trend)?item.trend:'unknown';
+  return '<article class="wd-insight" data-insight-metric="'+esc(metric.id)+'"><div class="wd-insight-metric"><span>'+esc(metric.label)+'</span><strong>'+esc(metricValue(metric))+'</strong></div>'+(item?'<span class="wd-trend wd-trend--'+trend+'">'+trends[trend]+'</span><p>'+esc(item.text)+'</p>':'<p class="wd-hint">'+(metric.value==null?'Источник не передал значение.':'Вывод будет показан после анализа.')+'</p>')+'</article>';
+ }).join('')+'</div></section>';
+}
+function cancelInsights(){
+ const session=insightSession;if(!session)return;
+ insightSession=null;clearTimeout(session.timer);clearTimeout(session.deadline);session.controller.abort();
+ if(insightsCache.get(session.key)?.status==='pending')insightsCache.delete(session.key);
+}
+function loadInsights(id,force=false){
+ const key=insightKey(id);
+ if(insightSession?.key===key&&!force)return;
+ if(insightSession)cancelInsights();
+ if(!force&&insightsCache.has(key))return;
+ if(!drawer.open||openedSource!==id)return;
+ insightsCache.delete(key);
+ const session={key,id,revision:null,timer:null,deadline:null,controller:new AbortController()};
+ insightSession=session;
+ const current=()=>insightSession===session&&drawer.open&&openedSource===id&&insightKey(id)===key;
+ const finish=data=>{
+  if(!current())return;
+  clearTimeout(session.timer);clearTimeout(session.deadline);
+  insightsCache.set(key,data);insightSession=null;renderDetails(id);
+ };
+ session.deadline=setTimeout(()=>{
+  if(!current())return;
+  session.controller.abort();
+  finish({status:'unavailable',message:'Анализ занимает больше времени. Повторите запрос немного позже — показатели источника сохранены.'});
+ },120000);
+ async function request(method){
+  if(!current())return;
+  try{
+   const response=await fetch('/water-dashboard/insights/'+encodeURIComponent(id),{
+    method,cache:'no-store',signal:session.controller.signal,headers:{'Accept':'application/json'}
+   });
+   const data=await readResponse(response);
+   if(!current())return;
+   if(!response.ok)throw Error(data.message||'Не удалось получить анализ. Повторите попытку.');
+   if((data.source_updated_at!==undefined&&data.source_updated_at!==(snap.sources?.[id]?.updated_at||''))||
+      (session.revision&&data.revision!==session.revision)){
+    finish({status:'unavailable',message:'Данные источника изменились. Обновите карточку и повторите анализ.'});return;
+   }
+   if(data.status==='pending'){
+    if(typeof data.revision!=='string'||!data.revision)throw Error('Не удалось проверить состояние анализа. Повторите попытку.');
+    session.revision=data.revision;insightsCache.set(key,data);renderDetails(id);
+    const delay=Math.max(1,Math.min(10,Number(data.retry_after)||3))*1000;
+    session.timer=setTimeout(()=>request('GET'),delay);
+   }else finish(data);
+  }catch(error){if(current())finish({status:'unavailable',message:error.message});}
+ }
+ renderDetails(id);request('POST');
 }
 
 function render(){
@@ -61,15 +131,15 @@ function render(){
   return '<article class="wd-card s-'+(state.good?'good':'warn')+'" data-source="'+id+'">'+
    '<div class="wd-head"><h3 class="wd-src">'+esc(name)+'</h3><button class="wd-refresh-card" type="button" data-refresh="'+id+'" aria-label="Обновить: '+esc(name)+'" title="Обновить только этот источник" '+(busy?'disabled':'')+'>↻</button></div>'+
    '<span class="wd-status '+(state.good?'good':'warn')+'">'+state.label+'</span>'+cardIndicators(id,items)+'<div class="wd-card-meta">'+
-   (d.error?'<p class="wd-card-note">Последняя проверка не завершена. Подробности — в данных источника.</p>':'')+
+   (d.error?'<p class="wd-card-note">Последняя проверка не завершена. Подробности — по кнопке «Подробнее».</p>':'')+
    (d.data_date?'<p class="wd-hint">Данные на '+esc(d.data_date.split('-').reverse().join('.'))+'</p>':'')+
    '<p class="wd-hint">Получено: '+esc(stamp(d.updated_at))+'</p></div>'+
-   '<div class="wd-card-actions"><button class="wd-details-button" type="button" data-details="'+id+'" aria-haspopup="dialog" aria-controls="sourceDetails">Данные источника <span aria-hidden="true">↗</span></button><a class="wd-source-link" aria-label="Открыть источник: '+esc(name)+'" href="'+url+'" target="_blank" rel="noopener noreferrer">Источник ↗</a></div>'+
+   '<div class="wd-card-actions"><button class="wd-details-button" type="button" data-details="'+id+'" aria-haspopup="dialog" aria-controls="sourceDetails">Подробнее <span aria-hidden="true">↗</span></button><a class="wd-source-link" aria-label="Открыть источник: '+esc(name)+'" href="'+url+'" target="_blank" rel="noopener noreferrer">Источник ↗</a></div>'+
    '<p class="wd-frequency" title="Частота по странице первоисточника. Проверено: '+esc(stamp(d.refresh_checked_at))+'">'+esc(frequency(d))+'</p></article>';
  }).join('');
  document.getElementById('dynGrid').innerHTML=defs.map(([id,name])=>{const d=snap.sources?.[id]||{};return '<div class="wd-dcard"><p class="lbl">'+esc(name)+'</p><p>'+esc(stamp(d.updated_at))+'</p><p class="note">'+esc(d.error||frequency(d))+'</p></div>';}).join('');
  renderTable();
- if(drawer.open&&openedSource)renderDetails(openedSource);
+ if(drawer.open&&openedSource){renderDetails(openedSource);loadInsights(openedSource);}
 }
 function renderDetails(id){
  const def=defs.find(x=>x[0]===id);if(!def)return;
@@ -77,6 +147,9 @@ function renderDetails(id){
  document.getElementById('sourceDetailsTitle').textContent=name;
  let html='<div class="wd-detail-meta"><span>'+esc(sourceState(d).label)+'</span><span>Получено: '+esc(stamp(d.updated_at))+'</span>'+(d.data_date?'<span>Данные на '+esc(d.data_date.split('-').reverse().join('.'))+'</span>':'')+'</div>';
  if(d.error)html+='<p class="wd-detail-note">'+esc(d.error)+'</p>';
+ if(d.metric_schema===1&&(d.metrics||[]).length)html+=insightsHtml(id,d.metrics);
+ if(detail.rso_error)html+='<p class="wd-detail-note">'+esc(detail.rso_error)+'</p>';
+ html+=stagesHtml(detail.stages||[]);
  if(detail.basis)html+='<p class="wd-detail-basis">'+esc(detail.basis)+'</p>';
  if(detail.coverage?.note)html+='<p class="wd-detail-note">'+esc(detail.coverage.note)+'</p>';
  const groups=detail.groups||[];
@@ -97,11 +170,14 @@ document.getElementById('kpiGrid').addEventListener('click',event=>{
  if(refresh){startRefresh(refresh.dataset.refresh);return;}
  const trigger=event.target.closest('[data-details]');if(!trigger)return;
  detailTrigger=trigger;openedSource=trigger.dataset.details;renderDetails(openedSource);drawer.showModal();
+ loadInsights(openedSource);
  document.getElementById('sourceDetailsBody').scrollTop=0;
 });
+document.getElementById('sourceDetailsBody').addEventListener('click',event=>{const retry=event.target.closest('[data-insights-retry]');if(retry)loadInsights(retry.dataset.insightsRetry,true);});
 document.getElementById('closeSourceDetails').addEventListener('click',()=>drawer.close());
 drawer.addEventListener('click',event=>{if(event.target===drawer){const r=drawer.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)drawer.close();}});
 drawer.addEventListener('close',()=>{
+ cancelInsights();
  const target=detailTrigger?.isConnected?detailTrigger:document.querySelector('[data-details="'+openedSource+'"]');
  openedSource=null;target?.focus();
 });

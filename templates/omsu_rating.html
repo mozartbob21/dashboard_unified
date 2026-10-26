@@ -1,0 +1,20 @@
+{% extends "base_module.html" %}
+{% block title %}Рейтинг ОМСУ — Нейрона ИИ{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/omsu-rating.css?v=20261026-v33"><script src="/static/omsu-rating.js?v=20261026-v33" defer></script>{% endblock %}
+{% block body_class %}module-omsu-rating{% endblock %}
+{% block content %}
+<div class="container">
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Рейтинг ОМСУ</div></div></div><div class="top-actions"><a href="/" class="secondary-button">← К модулям</a></div></header>
+<main class="or-dashboard">
+<section class="or-hero"><div><span class="or-eyebrow">Эффективность ФХД РСО · методика 2026 года</span><h1>Рейтинг муниципалитетов</h1><p>Четыре показателя, единый срез по ОМСУ и детализация расчёта по каждой организации.</p></div><div class="or-actions"><button id="or-refresh" class="or-button primary" type="button">Обновить данные</button><a id="or-export" class="or-button" href="/omsu-rating/export.xlsx">Скачать Excel</a><a class="or-button" href="/omsu-rating/export.html">Снимок HTML</a><span id="or-updated" role="status">Загружаем сохранённый срез…</span></div></section>
+<p id="or-error" class="or-alert" role="alert" hidden></p>
+<nav id="or-tabs" class="or-tabs" aria-label="Показатели рейтинга"></nav>
+<section class="or-panel"><h2 id="or-title">Показатели рейтинга</h2><p id="or-methodology" class="or-note"></p><p id="or-source-error" class="or-alert" role="status" hidden></p>
+<div class="or-filters"><label>Период<select id="or-period"></select></label><label class="or-search">Муниципалитет<input id="or-search" type="search" placeholder="Название или несколько через запятую" autocomplete="off"></label><label class="or-check"><input type="checkbox" id="or-all">Показать неучаствующие ОМСУ</label></div>
+<div class="or-summary" id="or-summary" aria-live="polite"></div>
+<div class="or-table-wrap" tabindex="0" aria-label="Рейтинг ОМСУ, прокрутка таблицы"><table class="or-table"><thead><tr><th scope="col"><button type="button" data-sort="place">Место ↕</button></th><th scope="col"><button type="button" data-sort="omsu">ОМСУ ↕</button></th><th scope="col"><button type="button" data-sort="value" id="or-metric">Показатель ↕</button></th><th scope="col">К предыдущему периоду</th><th scope="col">Расчёт</th></tr></thead><tbody id="or-rows"></tbody></table></div>
+<p id="or-history" class="or-note"></p><p class="or-note">Показатели 4–6 — из Redmine; показатель 7 — из таблицы дорожных карт. Время получения указано отдельно для каждого источника. Условные и предварительные оценки отмечены в описании.</p>
+</section>
+</main></div>
+<dialog id="or-detail" class="or-detail" aria-labelledby="or-detail-title"><header><h2 id="or-detail-title"></h2><button type="button" id="or-detail-close" class="or-button" aria-label="Закрыть детализацию">Закрыть ×</button></header><div id="or-detail-body"></div></dialog>
+{% endblock %}

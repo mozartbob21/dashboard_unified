@@ -347,6 +347,15 @@ def build_snapshot(extractions, source_ids=None):
             'text': data.get('text', ''), 'updated_at': now, 'data_date': data.get('data_date'),
             'refresh': extract_refresh_info(data.get('text', '')),
         }
+        if valid:
+            from services.water_dashboard.insights import observation
+            # Keep only the previous verified numeric observation, never rows or
+            # nested history. Failed refreshes retain this pair unchanged.
+            prior_observation = observation(previous)
+            if prior_observation:
+                sources[sid]['previous_observation'] = prior_observation
+        if valid and sid == 'meetings':
+            sources[sid]['rso'] = deepcopy(data.get('rso') or {})
         if valid and sid in ('edo_rso', 'gkh_kontur'):
             sources[sid].update(ranking_tables=data.get('ranking_tables') or [],
                                 ranking_url=data.get('ranking_url', ''),

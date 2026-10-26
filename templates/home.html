@@ -5,7 +5,7 @@
     <script src="/static/release-notes.js?v=20261020" defer></script>
     <script src="/static/appearance-menu.js?v=20261020" ></script>
     <link rel="stylesheet" href="/static/ux-survey.css?v=20261020-mobile">
-    <script src="/static/ux-survey.js?v=20261013" defer></script>
+    <script src="/static/ux-survey.js?v=20261026-v33" defer></script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -765,7 +765,7 @@
 <script src="/static/module-layout.js?v=20261007-collective" defer></script>
 <link rel="stylesheet" href="/static/appearance-menu.css?v=20261020">
     <link rel="stylesheet" href="/static/responsive-system.css?v=20261020">
-    {% if max_bot_available %}<link rel="stylesheet" href="/static/max-bot-tour.css?v=20261022-v32">{% endif %}
+    {% if max_bot_available %}<link rel="stylesheet" href="/static/max-bot-tour.css?v=20261026-v33"><script src="/static/max-home-status.js?v=20261026-v33" defer></script>{% endif %}
 </head>
 
 
@@ -786,8 +786,7 @@
             <div class="top-actions">
                 {% if max_bot_available %}
                 <div class="max-home-connect">
-                    <a href="/max-bot" class="max-home-button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 18.5 4 21l5-2h7a5 5 0 0 0 5-5V8a5 5 0 0 0-5-5H8a5 5 0 0 0-5 5v6a5 5 0 0 0 2 4.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m8 13 3-5 2 5 3-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Подключить MAX</span></a>
-                    <a href="/max-bot?tour=1" class="max-home-help"><svg class="max-home-help-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 9a2.5 2.5 0 1 1 4.2 1.8c-1 .8-1.7 1-1.7 2.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg><span class="max-home-help-label">Как подключить</span><span class="max-home-help-arrow" aria-hidden="true">↗</span></a>
+                    <a href="/max-bot" class="max-home-button" data-max-home-link aria-label="Открыть подключение MAX"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 18.5 4 21l5-2h7a5 5 0 0 0 5-5V8a5 5 0 0 0-5-5H8a5 5 0 0 0-5 5v6a5 5 0 0 0 2 4.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m8 13 3-5 2 5 3-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-max-home-label>Подключить MAX</span></a>
                 </div>
                 {% endif %}
                 <div class="theme-dropdown appearance-dropdown">
@@ -848,9 +847,9 @@
                             <div class="profile-menu-role">{{ user_role or '' }}</div>
                         </div>
                         <div class="profile-menu-divider"></div>
-                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button" data-release-notes-open><span>Что нового</span><strong>Версия 3.2</strong></button>
+                        <button id="whatsNewButton" class="profile-menu-item version-menu-item" type="button" data-release-notes-open><span>Что нового</span><strong>Версия 3.3</strong></button>
                         {% if can_manage_users %}<a href="/users" class="profile-menu-item">👥 Пользователи и права</a>{% endif %}
-                        {% if max_bot_available %}<a href="/max-bot" class="profile-menu-item">Подключить MAX <span aria-hidden="true">↗</span></a>{% endif %}
+                        {% if max_bot_available %}<a href="/max-bot" class="profile-menu-item" data-max-home-link><span data-max-home-label>Подключить MAX</span> <span aria-hidden="true">↗</span></a>{% endif %}
                         <button id="helpButton" class="profile-menu-item" type="button">💬 Помощь</button>
                         <a href="/feedback/survey" class="profile-menu-item" data-ux-survey-link>Оценить удобство сервиса</a>
                         <div class="profile-menu-divider"></div>
@@ -1282,7 +1281,7 @@
     <h2 class="module-title">Еженедельные презентации</h2>
     <div class="module-description is-collapsed">Новые файлы из источника Добродела — в личном чате с ботом. Включите подписку после подключения аккаунта.</div>
     <div class="tag-row"><span class="tag">Проверка каждый час</span><span class="tag">Файлы целиком</span></div>
-    <div class="action-panel"><a href="/max-bot" class="module-link">Подключить MAX <span aria-hidden="true">→</span></a></div>
+    <div class="action-panel"><a href="/max-bot" class="module-link" data-max-home-link><span data-max-home-label>Подключить MAX</span> <span aria-hidden="true">→</span></a></div>
 </article>
 {% endif %}
             {% if "zips" in user_modules %}
@@ -1372,6 +1371,15 @@
           <div class="action-panel"><a href="/mingkh/collective" class="module-link" aria-label="Открыть коллективные жалобы">Перейти <span aria-hidden="true">→</span></a></div>
         </article>
         {% endif %}
+        {% if "omsu-rating" in user_modules %}
+        <article data-module="omsu-rating" class="card module-card">
+          <div class="module-head"><div class="head-pills"><span class="pill primary">ОМСУ</span><span class="pill primary">Рейтинг</span></div></div>
+          <h2 class="module-title">Рейтинг ОМСУ</h2>
+          <div class="module-description is-collapsed">Показатели муниципалитетов за выбранный период: сравнение результатов, место в рейтинге и выгрузка в Excel. Условные и предварительные расчёты отмечены отдельно.</div>
+          <div class="tag-row"><span class="tag">Показатели 4–7</span><span class="tag">Сравнение периодов</span><span class="tag">Excel</span></div>
+          <div class="action-panel"><a href="/omsu-rating" class="module-link">Перейти <span aria-hidden="true">→</span></a></div>
+        </article>
+        {% endif %}
         {% if "edds" in user_modules %}
         <article data-module="edds" class="card module-card">
           <div class="module-head"><div class="head-pills"><span class="pill primary">ЕДДС</span><span class="pill primary">Мониторинг</span></div></div>
@@ -1396,14 +1404,15 @@
     <h2 class="module-title">Сводный дашборд по качеству водоснабжения</h2>
 
     <div class="module-description is-collapsed">
-        Сводный аналитический срез по 8 операционным дашбордам DataLens:
+        Сводный аналитический срез по операционным дашбордам DataLens:
         занесение данных в ZULUGIS, промывки сетей, задачи ОМСУ в РМ МИНЖКХ,
         системные и резонансные адреса, переход РСО на ЭДО, плата за НВОС,
-        дисциплина совещаний и системные адреса капремонта. Сортируемая таблица по 56 ОМСУ.
+        дисциплина совещаний ОМСУ и РСО, системные адреса капремонта,
+        энергообследования и подключение РСО к ЖКХ-Контур. Показатели и выводы ИИ по каждому направлению.
     </div>
 
     <div class="tag-row">
-        <span class="tag tag-white">7 источников DataLens</span>
+        <span class="tag tag-white">10 источников DataLens</span>
         <span class="tag tag-white">56 ОМСУ</span>
         <span class="tag tag-white">KPI + динамика</span>
         <span class="tag tag-white">Таблица с сортировкой</span>

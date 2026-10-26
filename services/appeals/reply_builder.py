@@ -102,7 +102,7 @@ def _ai_empathy_call(original_text, subject, meta):
                 {"role": "system", "content": _AI_SYSTEM_PROMPT},
                 {"role": "user",   "content": user_prompt},
             ],
-            max_tokens=700,
+            max_tokens=700, module_id="appeals",
         )
     except Exception as e:
         print(f"[empathy-ai] ошибка Qwen: {e}", flush=True)

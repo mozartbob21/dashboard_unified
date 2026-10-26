@@ -120,7 +120,7 @@ def _generate_items():
     raw = _qwen_chat(
         [{'role': 'system', 'content': 'Ты составляешь проверяемые образовательные карточки. Следуй указанному JSON-формату.'},
          {'role': 'user', 'content': _PROMPT}],
-        max_tokens=1200, timeout=httpx.Timeout(connect=10.0, read=45.0, write=10.0, pool=5.0))
+        module_id="aichat", max_tokens=1200, timeout=httpx.Timeout(connect=10.0, read=45.0, write=10.0, pool=5.0))
     if not isinstance(raw, str) or len(raw.encode('utf-8')) > _MAX_CACHE_BYTES:
         raise ValueError('Invalid fact response')
     raw = raw.strip()

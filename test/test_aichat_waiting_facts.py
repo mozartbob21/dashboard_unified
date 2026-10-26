@@ -69,7 +69,8 @@ def test_get_is_nonblocking_single_flight_and_uses_only_generic_model_prompt(sta
     call, = state.calls
     assert [message['role'] for message in call['messages']] == ['system', 'user']
     assert call['messages'][-1]['content'] == facts._PROMPT
-    assert set(call) == {'messages', 'max_tokens', 'timeout'}
+    assert set(call) == {'messages', 'max_tokens', 'timeout', 'module_id'}
+    assert call['module_id'] == 'aichat'
     assert call['max_tokens'] == 1200
     assert call['timeout'].read == 45 and call['timeout'].connect == 10
     assert call['timeout'].write == 10 and call['timeout'].pool == 5

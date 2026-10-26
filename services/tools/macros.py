@@ -18,7 +18,7 @@ def generate(prompt, target, job):
         raise ToolError('Выберите Excel или Word и опишите задачу (от 10 до 12 000 символов).')
     try:
         raw = _qwen_chat([{'role':'system','content':SYSTEM},
-                          {'role':'user','content':f'Приложение: {target}\nЗадача:\n{prompt}'}], max_tokens=8000)
+                          {'role':'user','content':f'Приложение: {target}\nЗадача:\n{prompt}'}], max_tokens=8000, module_id="tools")
         payload = json.loads(re.sub(r'^```(?:json)?\s*|\s*```$', '', raw.strip()))
         if not isinstance(payload, dict):
             raise ValueError('Expected object')

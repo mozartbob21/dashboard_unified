@@ -139,6 +139,10 @@ from routers.ux_survey import router as ux_survey_router
 app.include_router(ux_survey_router)
 from routers.release_notes import router as release_notes_router
 app.include_router(release_notes_router)
+from routers.omsu_rating import router as omsu_rating_router
+app.include_router(omsu_rating_router)
+from routers.water_insights import router as water_insights_router
+app.include_router(water_insights_router)
 from routers.edds import router as edds_router
 app.include_router(edds_router)
 from routers.mingkh import router as mingkh_router
@@ -1056,6 +1060,7 @@ PATH_MODULE_MAP = {
     "/municipality-report": "municipality-report",
     "/ecur": "ecur",
     "/water-dashboard": "water-dashboard",
+    "/omsu-rating": "omsu-rating",
     "/water-rm": "water_rm",
     "/api/cds": "cds",
     "/tools": "tools",

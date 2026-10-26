@@ -3,12 +3,12 @@
 {% block body_class %}module-users admin-console{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/ux-survey.css?v=20261020-mobile">
-<script src="/static/ux-survey.js?v=20261013" defer></script>
+<script src="/static/ux-survey.js?v=20261026-v33" defer></script>
 <link rel="stylesheet" href="/static/module-popularity.css?v=20261013">
-<link rel="stylesheet" href="/static/users.css?v=20261020-mobile">
+<link rel="stylesheet" href="/static/users.css?v=20261026-ai-tokens">
 <link rel="stylesheet" href="/static/admin-feedback.css?v=20261014-admin">
-<script src="/static/admin-navigation.js?v=20261014-admin" defer></script>
-<script src="/static/users.js?v=20261023-presentations" defer></script>
+<script src="/static/admin-navigation.js?v=20261026-ai-tokens" defer></script>
+<script src="/static/users.js?v=20261026-ai-tokens" defer></script>
 <script src="/static/module-popularity.js?v=20261014-admin" defer></script>
 <script src="/static/ux-survey-admin.js?v=20261014-admin" defer></script>
 {% endblock %}
@@ -183,6 +183,31 @@
         </details>
       </aside>
     </div>
+
+      <div class="token-settings-grid">
+      <section class="panel credentials-panel" aria-labelledby="ratingKeyTitle">
+        <div class="panel-heading"><h2 id="ratingKeyTitle">Рейтинг ОМСУ</h2><span class="admin-tag">API-ключ источника</span></div>
+        <p>Ключ доступа к данным рейтинга. Сохраняется на сервере зашифрованным и применяется при следующем обновлении рейтинга.</p>
+        <form id="ratingKeyForm" autocomplete="off">
+          <label>Новый API-ключ<input name="token" type="password" maxlength="8192" autocomplete="new-password" spellcheck="false" aria-describedby="ratingKeyHint"></label>
+          <p id="ratingKeyHint" class="muted">Пустое поле оставляет текущий ключ. Этот ключ используется только для источника рейтинга ОМСУ.</p>
+          <p id="ratingKeyStatus" role="status" aria-live="polite"></p>
+          <div class="form-actions"><button type="submit">Сохранить API-ключ</button><button id="removeRatingKey" type="button" class="secondary" disabled>Удалить отдельный ключ</button><button id="refreshRatingKey" type="button" class="secondary">Обновить статус</button></div>
+        </form>
+      </section>
+
+      <section class="panel credentials-panel" aria-labelledby="aiTokensTitle">
+        <div class="panel-heading"><h2 id="aiTokensTitle">Токены нейросетей</h2><span class="admin-tag">По блокам</span></div>
+        <p>Отдельный токен применяется со следующего запроса. Адрес сервиса и модель остаются такими, как настроены на сервере. Токены хранятся зашифрованными и не отображаются.</p>
+        <form id="aiTokenForm" autocomplete="off">
+          <label>Блок<select name="module_id" required disabled><option value="">Загрузка…</option></select></label>
+          <label>Новый токен<input name="token" type="password" maxlength="8192" autocomplete="new-password" spellcheck="false" aria-describedby="aiTokenHint"></label>
+          <p id="aiTokenHint" class="muted">Пустое поле сохраняет текущий токен. После удаления отдельного токена блок использует настройки сервера, если они заданы.</p>
+          <p id="aiTokenStatus" role="status" aria-live="polite"></p>
+          <div class="form-actions"><button type="submit" disabled>Сохранить токен</button><button id="removeAiToken" type="button" class="secondary" disabled>Использовать настройки сервера</button><button id="refreshAiTokens" type="button" class="secondary">Обновить статус</button></div>
+        </form>
+      </section>
+      </div>
 
       </section>
     </main>

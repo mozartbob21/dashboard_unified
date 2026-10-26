@@ -6,7 +6,7 @@ from collections import Counter, OrderedDict
 
 
 # ═══════════════ КЛИЕНТЫ ═══════════════
-def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None, timeout=180):
+def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None, timeout=180, *, module_id=None):
     """Chat completions for the configured GosChat or local model."""
     import httpx
     from core.ai_errors import AIServiceError
@@ -15,7 +15,8 @@ def _qwen_chat(messages, max_tokens=2000, base=None, key=None, model=None, timeo
             or os.getenv("QWEN_BASE_URL", "").strip()
             or "https://aiplatform.mosreg.ru/api/user-models/v1").strip().rstrip("/")
     base = ai_endpoint(base)
-    key = (key or os.getenv("QWEN_API_KEY", "")).strip()
+    from services.auth.ai_credentials import resolve_key
+    key = resolve_key(module_id, key)
     model = (model or os.getenv("QWEN_MODEL", "").strip() or "qwen3.8-27b-fp8").strip()
     if not key and "aiplatform.mosreg.ru" in base:
         raise AIServiceError('AI_KEY_MISSING')
@@ -415,7 +416,7 @@ def summarize(text, max_points=7, backend=None, creds=None, qwen_key=None):
         try:
             authors = _extract_authors(text)
             msgs = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}]
-            ai_text = _qwen_chat(msgs, max_tokens=8000, key=qwen_key)
+            ai_text = _qwen_chat(msgs, max_tokens=8000, key=qwen_key, module_id="summarizer")
             return {
                 "ok": True, "backend": backend, "report_text": ai_text,
                 "stats": {

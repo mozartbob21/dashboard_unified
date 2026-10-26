@@ -1,5 +1,14 @@
 {% extends "auth_base.html" %}
 
+{% block background %}
+<div class="autumn-background" aria-hidden="true">
+    {% for left, delay, duration, size, color in [(3,-4,19,27,'#bc7448'),(12,-13,24,33,'#c18c37'),(22,-8,22,21,'#b16048'),(31,-17,26,29,'#b68b48'),(42,-2,23,24,'#bd7248'),(51,-12,28,32,'#b49450'),(60,-19,25,22,'#bd7448'),(70,-6,21,28,'#b56546'),(79,-14,27,35,'#b28e47'),(88,-9,24,24,'#c0844c'),(95,-21,29,29,'#b56d46')] %}
+    <span class="autumn-leaf" style="--leaf-x:{{ left }}%;--leaf-delay:{{ delay }}s;--leaf-duration:{{ duration }}s;--leaf-size:{{ size }}px;--leaf-color:{{ color }}"><svg viewBox="0 0 40 48" focusable="false"><path d="M20 2 25 12 35 10 32 20 39 24 28 30 27 38 21 36 22 47 19 47 18 36 11 39 12 30 1 25 9 20 6 10 16 13Z" fill="currentColor"/><path d="m20 9 0 29m0-14-9-6m9 10 10-8" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1"/></svg></span>
+    {% endfor %}
+</div>
+<button type="button" class="autumn-pause" data-autumn-pause aria-pressed="false" hidden>Пауза фона</button>
+{% endblock %}
+
 {% block content %}
         <form method="post" action="/login" class="login-form">
             <div class="login-field">
@@ -20,4 +29,8 @@
                 </svg>
             </button>
         </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/login-autumn.js?v=20261026-v33" defer></script>
 {% endblock %}

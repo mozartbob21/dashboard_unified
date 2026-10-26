@@ -703,7 +703,7 @@ def parse_html_to_slides_ai(html: str, engine=None) -> list:
     raw = _qwen_chat([
         {"role": "system", "content": AI_PARSE_PROMPT + ' Добавь поле images: список идентификаторов picture_N из HTML. Сохрани все изображения, по одному на слайд.'},
         {"role": "user", "content": str(soup)[:20000]},
-    ], max_tokens=4000)
+    ], max_tokens=4000, module_id="tools")
     m = re.search(r"\[.*\]", raw, re.S)
     if not m:
         return []

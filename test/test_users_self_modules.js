@@ -27,3 +27,16 @@ test('new and ordinary accounts keep the established save routes',()=>{
 test('unknown identity does not enable self editing',()=>{
   for(const id of [undefined,null,'2',false]) assert.equal(accountEditPolicy(delegate,id,false).protectedUser,true);
 });
+
+const {aiTokenItems}=require('../static/users.js');
+test('AI token settings reject missing or malformed response with a readable message',()=>{
+  for(const data of [null,{}, {items:null}, {items:{}}, {items:[]}, {items:[null]}, {items:[{module_id:'aichat'}]},
+    {items:[{module_id:'aichat',label:'Чат'},{module_id:'aichat',label:'Другой'}]}]){
+    assert.throws(()=>aiTokenItems(data),/Сервер вернул некорректный список настроек ИИ/);
+  }
+});
+test('AI token settings accept the complete list before rendering and copy its array',()=>{
+  const data={items:[{module_id:'aichat',label:'ИИ-чат',source:'saved'},{module_id:'tools',label:'Инструменты',source:'none'}]};
+  const items=aiTokenItems(data);
+  assert.deepEqual(items,data.items); assert.notEqual(items,data.items);
+});

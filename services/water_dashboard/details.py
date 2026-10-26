@@ -222,6 +222,86 @@ def _kontur_rankings(data):
     return result
 
 
+KONTUR_STAGE_LABELS = (
+    'Заключение соглашения', 'Регистрация пользователя',
+    'Реестр ВЗУ и датчики', 'Объекты и координаты',
+    'Тестирование API', 'Передача данных датчиков',
+)
+KONTUR_STAGE_HEADERS = (
+    '1. Заключение Соглашения', '2. Регистрация пользователя',
+    '3. Актуализация реестра ВЗУ и добавления датчиков',
+    '4. Актуализация объектов и определение координат в системе ЖКХ Контур',
+    '5. Тестирование API по получению значений датчиков',
+    '6. Транслировать данные с датчиков каждого объекта из реестра в систему ЖКХ Контур',
+)
+
+
+def kontur_stages(data):
+    """Count RSO/branches independently at each named stage, never task totals."""
+    if data.get('ranking_error'):
+        return []
+    records = defaultdict(set)
+    for table in data.get('ranking_tables') or []:
+        if not is_kontur_ranking_table(table):
+            continue
+        headers = [_normal(h) for h in table.get('headers') or []]
+        if any(_normal(h) not in headers for h in KONTUR_STAGE_HEADERS):
+            return []  # An old/partial schema cannot imply zero unfinished RSO.
+        name_i = headers.index('рсо')
+        city_i = next(headers.index(h) for h in MUNICIPALITY_HEADERS if h in headers)
+        task_i = headers.index(_normal(KONTUR_TASK_HEADER))
+        indices = [headers.index(_normal(h)) for h in KONTUR_STAGE_HEADERS]
+        for row in table.get('rows') or []:
+            cell = lambda i: _normal(row[i]) if i < len(row) else ''
+            if not cell(name_i) or not _name(cell(city_i)) or not cell(task_i).isdecimal():
+                continue
+            records[(cell(name_i), cell(city_i), cell(task_i))].add(tuple(cell(i) for i in indices))
+    if not records:
+        return []
+    accepted = [next(iter(v)) for v in records.values() if len(v) == 1]
+    statuses = ('Закрыта', 'Новая', 'В работе', 'На проверке', 'Возвращена на доработку', 'Просрочена', 'Получен отказ')
+    result = []
+    for i, label in enumerate(KONTUR_STAGE_LABELS):
+        counts = {status: sum(row[i] == _normal(status) for row in accepted) for status in statuses}
+        unknown = len(records) - sum(counts.values())
+        result.append({'id': f'stage_{i+1}', 'label': label, 'total': len(records),
+                       'closed': counts['Закрыта'],
+                       'pending': None if unknown else len(records) - counts['Закрыта'],
+                       'unknown': unknown, 'statuses': counts})
+    return result
+
+
+def is_meeting_rso_table(table):
+    headers = {_normal(h) for h in table.get('headers') or []}
+    return 'рсо' in headers and bool(headers & set(MUNICIPALITY_HEADERS)) and bool(headers & set(ATTENDANCE_HEADERS))
+
+
+def meeting_rso_records(data):
+    if data.get('error'):
+        return [], 0
+    records = defaultdict(list)
+    for table in data.get('tables') or []:
+        if not is_meeting_rso_table(table):
+            continue
+        headers = [_normal(h) for h in table['headers']]
+        name_i = headers.index('рсо')
+        city_i = next(headers.index(h) for h in MUNICIPALITY_HEADERS if h in headers)
+        att_i = next(headers.index(h) for h in ATTENDANCE_HEADERS if h in headers)
+        for row in table.get('rows') or []:
+            cell = lambda i: row[i] if i < len(row) else None
+            name, city = ' '.join(str(cell(name_i) or '').split()), _name(cell(city_i))
+            if not _name(name) or not city:
+                continue
+            value = _percent(cell(att_i), bounded=True)
+            item = None if value is None else {'name': name, 'municipality': city, 'value': value,
+                       'unit': '%', 'secondary': [_secondary('ОМСУ', city)]}
+            key = (_normal(name), _normal(city))
+            if item not in records[key]:
+                records[key].append(item)
+    items = [v[0] for v in records.values() if len(v) == 1 and v[0] is not None]
+    return items, len(records) - len(items)
+
+
 def source_details(sid, data):
     """No network or writes: details belong to the source's existing data date."""
     data = data or {}
@@ -270,13 +350,23 @@ def source_details(sid, data):
             [], 0, kind='metrics', metrics=list(data.get('metrics') or []),
         )
     if sid == 'gkh_kontur':
-        return _kontur_rankings(data)
+        result = _kontur_rankings(data)
+        result['stages'] = kontur_stages(data)
+        return result
     if sid == 'meetings':
         items, excluded = _unique(data, {'attendance': ATTENDANCE_HEADERS}, lambda row:
             {'name': row['name'], 'value': _percent(row['attendance'], bounded=True), 'unit': '%', 'secondary': []}
             if _percent(row['attendance'], bounded=True) is not None else None)
-        return _result('Доля присутствия на перекличках: ниже явка — ниже результат. '
-                       'При равенстве — по алфавиту.', items, excluded, higher_is_better=True)
+        result = _result('Доля присутствия на перекличках: ниже явка — ниже результат. '
+                       'ОМСУ и РСО оцениваются отдельно. При равенстве — по алфавиту.', items, excluded, higher_is_better=True)
+        result['groups'][0]['title'] = 'Топ-5 отстающих ОМСУ'
+        rso, rso_excluded = meeting_rso_records(data.get('rso') or {})
+        result['groups'].append({'id': 'rso_worst', 'title': 'Топ-5 отстающих РСО',
+            'items': sorted(rso, key=lambda r: (r['value'], _normal(r['name']), _normal(r['municipality'])))[:5]})
+        result['rso_entities'] = rso
+        result['rso_coverage'] = {'entities': len(rso), 'excluded': rso_excluded}
+        result['rso_error'] = (data.get('rso') or {}).get('error', '')
+        return result
     if sid == 'nvos':
         # Keep all typed measurements for compact source detail and AI reports.
         # Municipal data remain in the verified source tables, not guessed from

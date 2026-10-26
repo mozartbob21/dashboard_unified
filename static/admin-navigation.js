@@ -57,7 +57,7 @@
       show(requested(), true);
     }
     function unload(event) {
-      if (['userForm','integrationForm'].some(id => doc.getElementById(id)?.dataset.dirty === 'true')) {
+      if (['userForm','integrationForm','aiTokenForm','ratingKeyForm'].some(id => doc.getElementById(id)?.dataset.dirty === 'true')) {
         event.preventDefault();
         event.returnValue = '';
       }

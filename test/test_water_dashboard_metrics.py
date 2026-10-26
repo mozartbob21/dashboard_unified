@@ -95,7 +95,7 @@ def test_attendance_uses_percentage_column_including_zero_without_truncation():
     data = table_data('ОМСУ', 'Присутствовали на перекличках, %', 'Число перекличек')
     data['widgets'] = [widget('Проведено совещаний', '8')]
     metrics = source_metrics('meetings', data, [{'att': 0}, {'att': 66.6}, {'att': None}])
-    assert values(metrics) == {'attendance_pct': 33.3, 'meetings': 8}
+    assert values(metrics) == {'attendance_pct': 33.3, 'meetings': 8, 'rso_attendance_pct': None, 'rso_meetings': None}
     assert metrics[0]['label'] == 'Средняя явка по ОМСУ'
 
 

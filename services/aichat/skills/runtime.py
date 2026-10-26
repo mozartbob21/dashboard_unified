@@ -21,7 +21,7 @@ def _model(messages, **kwargs):
     # Same approved deployment adapter as ordinary chat; never choose a provider.
     from services.summarizer.engine import _qwen_chat
     timeout = 45 if kwargs.get('max_tokens', 0) <= 400 else 90
-    return _qwen_chat(messages, timeout=timeout, **kwargs)
+    return _qwen_chat(messages, timeout=timeout, module_id="aichat", **kwargs)
 
 
 def _json_object(text):

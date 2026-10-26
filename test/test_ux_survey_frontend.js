@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {cleanDraft, missingRatings, commentLength, SurveyAPI, SurveySession, safeToInvite} = require('../static/ux-survey.js');
+const {cleanDraft, missingRatings, commentLength, SurveyAPI, SurveySession, updateSurveyLinks} = require('../static/ux-survey.js');
 const state = (draft = {}, version = 0) => ({completed:false,draft:cleanDraft(draft),draft_version:version});
 const ratings = score => Object.fromEntries(['q1','q2','q3','q4','q5','q6'].map(id => [id,score]));
 const deferred = () => {let resolve, reject; const promise = new Promise((a,b)=>{resolve=a;reject=b;}); return {promise,resolve,reject};};
@@ -102,17 +102,6 @@ test('API preserves conflict metadata and gives safe session expiry error', asyn
   await assert.rejects(loggedOut.request('/state'),/Сессия завершилась/);
 });
 
-test('idle invitation respects focused input, form edits, active dialogs and background tabs', () => {
-  global.getComputedStyle=()=>({visibility:'visible'});
-  const doc={visibilityState:'visible',hasFocus:()=>true,activeElement:{matches:()=>false,closest:()=>null},querySelectorAll:()=>[]};
-  assert.equal(safeToInvite(doc,0,false,16000),true);
-  assert.equal(safeToInvite(doc,5000,false,16000),false);
-  assert.equal(safeToInvite(doc,0,true,16000),false);
-  doc.activeElement.matches=()=>true;assert.equal(safeToInvite(doc,0,false,16000),false);doc.activeElement.matches=()=>false;
-  doc.querySelectorAll=()=>[{getClientRects:()=>[1]}];assert.equal(safeToInvite(doc,0,false,16000),false);doc.querySelectorAll=()=>[];
-  doc.visibilityState='hidden';assert.equal(safeToInvite(doc,0,false,16000),false);
-});
-
 test('comment rendering never uses HTML and stars expose native labelled keyboard inputs', () => {
   const js=fs.readFileSync(path.join(__dirname,'../static/ux-survey.js'),'utf8');
   const html=fs.readFileSync(path.join(__dirname,'../templates/ux_survey.html'),'utf8');
@@ -120,8 +109,7 @@ test('comment rendering never uses HTML and stars expose native labelled keyboar
   assert.match(js,/comment\.value = data\.comment/);
   assert.match(js,/input\.type = 'radio'/);
   assert.match(js,/input\.setAttribute\('aria-label'/);
-  assert.match(js,/event\.preventDefault\(\); defer\(\)/);
-  assert.match(js,/\/invitation\/shown/);
+  assert.doesNotMatch(js,/showModal|\/invitation\/claim|\/invitation\/shown/);
   assert.doesNotMatch(html,/maxlength=/);
   assert.match(js,/comment\.setCustomValidity/);
   assert.match(html,/id="uxSurveyFields" disabled/);
@@ -147,15 +135,18 @@ test('Unicode limit accepts exactly 2000 emoji and keeps 2001 without truncation
 });
 
 
-test('invitation ignores hidden modal ancestors but blocks visible pending form submission', () => {
-  global.getComputedStyle=()=>({visibility:'visible'});
-  const hidden={getClientRects:()=>[]};
-  const busy={getClientRects:()=>[1]};
-  let submitting=false;
-  const doc={visibilityState:'visible',hasFocus:()=>true,activeElement:{matches:()=>false,closest:()=>null},querySelectorAll:selector=>{
-    assert.ok(selector.includes('form button[type="submit"]:disabled'));
-    return submitting ? [hidden,busy] : [hidden];
-  }};
-  assert.equal(safeToInvite(doc,0,false,20000),true);
-  submitting=true;assert.equal(safeToInvite(doc,0,false,20000),false);
+test('home only refreshes the manual profile link, with no invitation claim or timers', async () => {
+  const links = [{textContent: ''}];
+  global.document = {querySelectorAll: () => links};
+  try {
+    for (const [state, label] of [
+      [{completed:false,has_draft:false,eligible:true},'Оценить удобство сервиса'],
+      [{completed:false,has_draft:true,eligible:true},'Продолжить опрос'],
+      [{completed:true,has_draft:false},'Обратная связь · ответы отправлены']
+    ]) {
+      const requests = [];
+      await updateSurveyLinks({request:async path=>{requests.push(path);return state;}});
+      assert.deepEqual(requests,['/state']);assert.equal(links[0].textContent,label);
+    }
+  } finally { delete global.document; }
 });

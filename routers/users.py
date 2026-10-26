@@ -32,6 +32,57 @@ class ReadNotificationsPayload(BaseModel):
     through_id: int = Field(ge=0)
 
 
+async def _token_payload(request):
+    import json
+    raw = await request.body()
+    if len(raw) > 16384:
+        raise HTTPException(400, 'Слишком большой запрос токена')
+    try:
+        payload = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise HTTPException(400, 'Некорректный запрос токена') from None
+    if not isinstance(payload, dict) or set(payload) != {'token'}:
+        raise HTTPException(400, 'Укажите только поле token')
+    return payload['token']
+
+
+@router.get('/api/users/source-api-keys/{source}')
+def source_key_status(source: str):
+    from services.auth.source_api_keys import status
+    return status(source)
+
+
+@router.put('/api/users/source-api-keys/{source}')
+async def source_key_save(source: str, request: Request):
+    from services.auth.source_api_keys import save
+    return save(source, await _token_payload(request))
+
+
+@router.delete('/api/users/source-api-keys/{source}')
+def source_key_remove(source: str):
+    from services.auth.source_api_keys import remove
+    return remove(source)
+
+
+@router.get('/api/users/ai-tokens')
+def ai_tokens_status():
+    from services.auth.ai_credentials import statuses
+    return statuses()
+
+
+@router.put('/api/users/ai-tokens/{module_id}')
+async def ai_token_save(module_id: str, request: Request):
+    # Manual validation keeps submitted tokens out of FastAPI validation errors.
+    from services.auth.ai_credentials import save
+    return save(module_id, await _token_payload(request))
+
+
+@router.delete('/api/users/ai-tokens/{module_id}')
+def ai_token_remove(module_id: str):
+    from services.auth.ai_credentials import remove
+    return remove(module_id)
+
+
 class IntegrationPayload(BaseModel):
     username: StrictStr = Field(min_length=1,max_length=254)
     password: StrictStr = Field(default='',max_length=1024)

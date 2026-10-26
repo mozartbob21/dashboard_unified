@@ -10,7 +10,15 @@
     return {url:ownModulesOnly?'/api/users/me/modules':user?`/api/users/${user.id}`:'/api/users',
       method:user?'PUT':'POST', payload:ownModulesOnly?{modules:payload.modules}:payload};
   }
-  if(typeof module==='object'&&module.exports) module.exports={accountEditPolicy,accountSaveRequest};
+  function aiTokenItems(data){
+    if(!data||!Array.isArray(data.items)||!data.items.length||data.items.some(item=>
+      !item||typeof item.module_id!=='string'||!item.module_id||typeof item.label!=='string'||!item.label)||
+      new Set(data.items.map(item=>item.module_id)).size!==data.items.length){
+      throw new Error('Сервер вернул некорректный список настроек ИИ. Нажмите «Обновить статус» или повторите позже.');
+    }
+    return data.items.slice();
+  }
+  if(typeof module==='object'&&module.exports) module.exports={accountEditPolicy,accountSaveRequest,aiTokenItems};
   if(!root.document) return;
   const document=root.document;
   const form = document.getElementById('userForm');
@@ -337,5 +345,86 @@
     }catch(e){integrationStatus.textContent=e instanceof TypeError?'Не удалось связаться с сервером. Повторите проверку.':e.message;}
     finally{setIntegrationBusy(false);}
   });
+  const ratingKeyForm=document.getElementById('ratingKeyForm');
+  const ratingKeyStatus=document.getElementById('ratingKeyStatus');
+  const removeRatingKey=document.getElementById('removeRatingKey');
+  let ratingKeyBusy=false, ratingKeySaved=false;
+  async function updateRatingKey(method='GET'){
+    if(ratingKeyBusy)return;
+    if(method==='DELETE'&&!root.confirm('Удалить отдельный API-ключ рейтинга ОМСУ?'))return;
+    ratingKeyBusy=true;ratingKeyForm.querySelectorAll('input,button').forEach(el=>el.disabled=true);
+    try{
+      const options={method};
+      if(method==='PUT'){options.headers={'Content-Type':'application/json'};options.body=JSON.stringify({token:ratingKeyForm.elements.token.value});}
+      const item=await api('/api/users/source-api-keys/omsu_rating',options);
+      ratingKeySaved=item.override;
+      if(method!=='GET'){ratingKeyForm.elements.token.value='';ratingKeyForm.dataset.dirty='false';}
+      ratingKeyStatus.textContent=item.error?'Сохранённый ключ не читается. Проверьте ключ шифрования или сохраните API-ключ заново.'
+        :item.override?'API-ключ сохранён. Значение скрыто.':item.configured?'Используется API-ключ из настроек сервера.':'API-ключ не задан.';
+    }catch(e){ratingKeyStatus.textContent=e.message;}
+    finally{ratingKeyBusy=false;ratingKeyForm.querySelectorAll('input,button').forEach(el=>el.disabled=false);removeRatingKey.disabled=!ratingKeySaved;}
+  }
+  ratingKeyForm.elements.token.addEventListener('input',()=>{ratingKeyForm.dataset.dirty=String(!!ratingKeyForm.elements.token.value);});
+  ratingKeyForm.addEventListener('submit',event=>{event.preventDefault();updateRatingKey('PUT');});
+  removeRatingKey.addEventListener('click',()=>updateRatingKey('DELETE'));
+  document.getElementById('refreshRatingKey').addEventListener('click',()=>updateRatingKey());
+  updateRatingKey();
+  const aiTokenForm=document.getElementById('aiTokenForm');
+  const aiTokenStatus=document.getElementById('aiTokenStatus');
+  const removeAiToken=document.getElementById('removeAiToken');
+  let aiTokens=[], aiBusy=false;
+  function selectedAiToken(){return aiTokens.find(item=>item.module_id===aiTokenForm.elements.module_id.value);}
+  function aiStateText(item){
+    if(!item)return 'Не удалось загрузить настройки.';
+    return item.error?'Сохранённый токен не читается. Проверьте ключ шифрования или сохраните новый токен.'
+      :item.source==='saved'?'Используется отдельный токен этого блока.'
+      :item.source==='environment'?'Используется токен из настроек сервера.'
+      :'Токен не задан. Локальная модель может работать без токена.';
+  }
+  function setAiBusy(value){
+    aiBusy=value;
+    aiTokenForm.querySelectorAll('input,select,button').forEach(el=>el.disabled=value);
+    aiTokenForm.elements.module_id.disabled=value||!aiTokens.length;
+    aiTokenForm.querySelector('[type="submit"]').disabled=value||!selectedAiToken();
+    removeAiToken.disabled=value||!selectedAiToken()?.override;
+  }
+  async function loadAiTokens(){
+    if(aiBusy)return;
+    setAiBusy(true);
+    try{
+      const current=aiTokenForm.elements.module_id.value;
+      const data=await api('/api/users/ai-tokens'); aiTokens=aiTokenItems(data);
+      aiTokenForm.elements.module_id.replaceChildren();
+      for(const item of aiTokens){const option=document.createElement('option');option.value=item.module_id;option.textContent=item.label;aiTokenForm.elements.module_id.append(option);}
+      if(aiTokens.some(item=>item.module_id===current))aiTokenForm.elements.module_id.value=current;
+      aiTokenStatus.textContent=aiStateText(selectedAiToken());
+    }catch(e){
+      aiTokens=[];aiTokenForm.elements.module_id.replaceChildren();
+      aiTokenStatus.textContent=e instanceof TypeError?'Не удалось загрузить настройки ИИ. Проверьте соединение и нажмите «Обновить статус».':e.message;
+    }
+    finally{setAiBusy(false);}
+  }
+  aiTokenForm.elements.module_id.addEventListener('change',()=>{
+    aiTokenForm.elements.token.value='';aiTokenForm.dataset.dirty='false';aiTokenStatus.textContent=aiStateText(selectedAiToken());setAiBusy(false);
+  });
+  async function updateAiToken(remove){
+    if(aiBusy||!selectedAiToken())return;
+    if(remove&&!root.confirm('Удалить отдельный токен этого блока и использовать настройки сервера?'))return;
+    setAiBusy(true);
+    try{
+      const id=aiTokenForm.elements.module_id.value;
+      const options=remove?{method:'DELETE'}:{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:aiTokenForm.elements.token.value})};
+      const item=await api('/api/users/ai-tokens/'+encodeURIComponent(id),options);
+      aiTokens=aiTokens.map(old=>old.module_id===id?item:old);
+      aiTokenForm.elements.token.value='';aiTokenForm.dataset.dirty='false';aiTokenStatus.textContent=aiStateText(item);
+      loadNotifications().catch(()=>{});
+    }catch(e){aiTokenStatus.textContent=e.message;}
+    finally{setAiBusy(false);}
+  }
+  aiTokenForm.elements.token.addEventListener('input',()=>{aiTokenForm.dataset.dirty=String(!!aiTokenForm.elements.token.value);});
+  aiTokenForm.addEventListener('submit',event=>{event.preventDefault();updateAiToken(false);});
+  removeAiToken.addEventListener('click',()=>updateAiToken(true));
+  document.getElementById('refreshAiTokens').addEventListener('click',loadAiTokens);
+  loadAiTokens();
   loadIntegration();
 })(typeof window==='object'?window:globalThis);

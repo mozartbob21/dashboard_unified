@@ -443,7 +443,7 @@ async def assistant_ask(payload: dict):
             {"role": "user", "content": question},
         ]
 
-        answer = _qwen_chat(messages, max_tokens=300)
+        answer = _qwen_chat(messages, max_tokens=300, module_id="aichat")
 
         return {
             "ok": True,

@@ -346,80 +346,23 @@
     await load();
   }
 
-  function safeToInvite(document, lastActivity, edited, now = Date.now()) {
-    if (edited || document.visibilityState !== 'visible' || !document.hasFocus() || now - lastActivity < 15000) return false;
-    const active = document.activeElement;
-    if (active?.matches('input, textarea, select, [contenteditable="true"]') || active?.closest('form')) return false;
-    return !Array.from(document.querySelectorAll('dialog[open], [role="dialog"]:not([hidden]), [aria-busy="true"], [aria-expanded="true"], .modal.show, .modal.open, .loading:not([hidden]), form button[type="submit"]:disabled, form input[type="submit"]:disabled'))
-      .some(node => node.getClientRects().length && global.getComputedStyle(node).visibility !== 'hidden');
-  }
-  async function mountInvitation(api) {
+  // Participation is now opened explicitly from the profile. No invitation claims,
+  // exposure tracking, idle timers or automatic dialogs are created on any page.
+  async function updateSurveyLinks(api) {
     let state;
     try { state = await api.request('/state'); } catch (_) { return; }
     document.querySelectorAll('[data-ux-survey-link]').forEach(link => {
       link.textContent = state.completed ? 'Обратная связь · ответы отправлены' : state.has_draft ? 'Продолжить опрос' : 'Оценить удобство сервиса';
     });
-    if (state.completed || !state.eligible || typeof HTMLDialogElement === 'undefined') return;
-    let lastActivity = Date.now();
-    let edited = false;
-    let claimed = false;
-    const recordActivity = () => { lastActivity = Date.now(); };
-    ['pointerdown', 'keydown', 'scroll'].forEach(name => document.addEventListener(name, recordActivity, {passive: true}));
-    document.addEventListener('input', event => { if (!event.target.closest('.ux-survey')) edited = true; }, {once: true});
-    const interval = setInterval(async () => {
-      if (claimed || !safeToInvite(document, lastActivity, edited)) return;
-      claimed = true; clearInterval(interval);
-      let claim;
-      try { claim = await api.request('/invitation/claim', 'POST'); } catch (_) { return; }
-      if (!claim.show || claim.state?.completed || !safeToInvite(document, lastActivity, edited)) return;
-      showInvitation(api, claim.token, Boolean(claim.state?.has_draft));
-    }, 3000);
-    global.addEventListener('pagehide', () => clearInterval(interval), {once: true});
-  }
-  function showInvitation(api, token, hasDraft) {
-    const dialog = element('dialog', 'ux-survey ux-survey-dialog');
-    dialog.setAttribute('aria-labelledby', 'uxSurveyInviteTitle'); dialog.setAttribute('aria-describedby', 'uxSurveyInviteDescription');
-    const close = element('button', 'ux-survey-close', '×'); close.type = 'button'; close.setAttribute('aria-label', 'Закрыть и напомнить через 24 часа');
-    const kicker = element('div', 'ux-survey-kicker', 'Обратная связь');
-    const title = element('h2', '', 'Помогите сделать сервис удобнее'); title.id = 'uxSurveyInviteTitle';
-    const description = element('p', '', 'Оцените удобство и оформление сервиса. Ваши ответы помогут нам определить, что улучшить. Результаты доступны только администраторам.'); description.id = 'uxSurveyInviteDescription';
-    const actions = element('div', 'ux-survey-actions');
-    const start = element('a', 'ux-survey-button ux-survey-button-primary', 'Пройти опрос'); start.href = '/feedback/survey';
-    const later = element('button', 'ux-survey-button', 'Напомнить позже'); later.type = 'button'; later.autofocus = true;
-    actions.append(start, later); dialog.append(close, kicker, title, description);
-    if (hasDraft) dialog.append(element('p', '', 'У вас есть сохранённый черновик. Можно продолжить с того же места.'));
-    dialog.append(actions); document.body.append(dialog);
-    let dismissed = false;
-    async function defer() {
-      if (dismissed) return; dismissed = true; dialog.close(); dialog.remove();
-      // Claim already reserves 24 hours on the server even if this request loses connectivity.
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try { await api.request('/later', 'POST', undefined, {keepalive: true}); return; }
-        catch (_) { if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); }
-      }
-    }
-    close.addEventListener('click', defer); later.addEventListener('click', defer);
-    dialog.addEventListener('cancel', event => { event.preventDefault(); defer(); });
-    dialog.addEventListener('close', () => { if (!dismissed) defer(); });
-    start.addEventListener('click', () => { dismissed = true; dialog.close(); dialog.remove(); });
-    try { dialog.showModal(); }
-    catch (_) { dialog.remove(); return; }
-    // Count exposure only after a dialog was actually presented. Retrying the same token is safe.
-    (async () => {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try { await api.request('/invitation/shown', 'POST', {token}, {keepalive: true}); return; }
-        catch (_) { if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); }
-      }
-    })();
   }
 
-  const exported = {cleanDraft, missingRatings, commentLength, SurveyAPI, SurveySession, safeToInvite};
+  const exported = {cleanDraft, missingRatings, commentLength, SurveyAPI, SurveySession, updateSurveyLinks};
   if (typeof module !== 'undefined' && module.exports) module.exports = exported;
   if (typeof document !== 'undefined') {
     const boot = () => {
       const api = new SurveyAPI(global.fetch.bind(global));
       if (document.getElementById('uxSurveyPage')) mountForm(api);
-      else if (global.location.pathname === '/' || global.location.pathname === '/users') mountInvitation(api);
+      else if (document.querySelector('[data-ux-survey-link]')) updateSurveyLinks(api);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once: true}); else boot();
   }

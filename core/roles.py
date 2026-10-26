@@ -14,7 +14,7 @@ FULL_ACCESS_ROLES = {"admin", "администратор", "руководит�
 ALL_MODULE_IDS = [
     "edds", "mingkh", "collective",
     "edo", "overdue", "watercontrol", "utnkr", "cameras", "appeals",
-    "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard",
+    "cds", "mgkh_rm", "ecur", "municipality-report", "water-dashboard", "omsu-rating",
     "water_rm", "tools",
     "summarizer", "zips", "telegram", "presentations",
 ]
@@ -31,6 +31,7 @@ MODULE_NAMES = {
     "cds": "Обращения 1С", "mgkh_rm": "ЖКХ Redmine", "ecur": "ЕЦУР — жалобы",
     "municipality-report": "Отчёт по муниципалитету",
     "water-dashboard": "Сводный дашборд по качеству водоснабжения",
+    "omsu-rating": "Рейтинг ОМСУ",
     "water_rm": "Проверка задач по качеству воды", "tools": "Полезные инструменты",
     "summarizer": "Сумматор", "zips": "Остатки ЗиП РСО и куратор",
 }
@@ -60,6 +61,7 @@ KC_ROLE_TO_MODULE = {
     "ecur":              "ecur",
     "municipality-report": "municipality-report",
     "water-dashboard":   "water-dashboard",
+    "omsu-rating":       "omsu-rating",
     "water_rm":          "water_rm",
     "tools":             "tools",
 }

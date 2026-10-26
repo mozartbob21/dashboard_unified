@@ -146,12 +146,18 @@ def source_metrics(sid, data, table):
                 ['Резонансных', 'Резонансные адреса', 'Количество резонансных адресов', 'Кол-во резонансных адресов']), 'адр.'),
         ]
     if sid == 'meetings':
+        from services.water_dashboard.details import meeting_rso_records
+        rso = data.get('rso') or {}
+        records, excluded = meeting_rso_records(rso)
+        rso_average = round(sum(r['value'] for r in records) / len(records), 1) if records and not excluded else None
         value = _aggregate(data, table, 'att',
             ['Присутствовали на перекличках, %', 'Явка, %', 'Явка (%)'], attendance=True)
         return [
             _metric('attendance_pct', 'Средняя явка по ОМСУ', value, '%'),
-            _metric('meetings', 'Проведено совещаний', _widget(data,
+            _metric('meetings', 'Проведено совещаний ОМСУ', _widget(data,
                 ['Проведено совещаний'], parse=_count), 'шт.'),
+            _metric('rso_attendance_pct', 'Средняя явка по РСО', rso_average, '%'),
+            _metric('rso_meetings', 'Проведено совещаний РСО', _widget(rso, ['Проведено совещаний'], parse=_count) if not rso.get('error') else None, 'шт.'),
         ]
     if sid == 'controller_tasks':
         return [
@@ -187,13 +193,14 @@ def source_metrics(sid, data, table):
                 energy_value('Потребление', '(все ПУ) свыше 10 000 кВт·ч в месяц (млн кВт*ч)'), 'млн кВт·ч'),
         ]
     if sid == 'gkh_kontur':
+        from services.water_dashboard.details import kontur_stages
         # The source's completion formula is not closed / total tasks.
         return [
             _metric('completion_pct', 'Выполнение задач дорожной карты', _widget(data,
                 ['% выполнения задач ДК'], parse=lambda value: _percent(value, bounded=True)), '%'),
             _metric('tasks_total', 'Всего задач', _widget(data, ['Всего задач'], parse=_count), 'шт.'),
             _metric('tasks_closed', 'Закрыто задач', _widget(data, ['Закрыто задач'], parse=_count), 'шт.'),
-        ]
+        ] + [_metric(stage['id'] + '_pending', stage['label'] + ': не завершили', stage['pending'], 'РСО / подразделений') for stage in kontur_stages(data)]
     if sid == 'nvos':
         parsed = data.get('nvos') or {}
 

@@ -132,3 +132,27 @@ body:has(.wd-drawer[open]){overflow:hidden}
 .wd-primary-metrics--paired .wd-primary-metric+.wd-primary-metric{padding-top:14px;border-top:1px solid var(--border)}
 .wd-primary-metrics .wd-name{font-size:12px;line-height:1.5;margin:0}
 .wd-primary-metrics .wd-num{font-size:30px;line-height:1.25;font-weight:800;overflow-wrap:anywhere}
+
+/* A compact reading surface for source interpretation and road-map stages. */
+.wd-insights{margin:20px 0 26px;padding:18px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,rgba(111,92,230,.07),rgba(64,153,201,.04))}
+.wd-insights-heading{display:flex;gap:9px;align-items:center;color:var(--primary)}
+.wd-insights-heading h3,.wd-stages h3{font-size:14px;margin:0;line-height:1.5}
+.wd-insight-grid{display:grid;gap:10px;margin-top:14px}
+.wd-insight{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--card);min-width:0}
+.wd-insight-metric{display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:13px;line-height:1.5}
+.wd-insight-metric span{min-width:0;overflow-wrap:anywhere}.wd-insight-metric strong{flex:none;font-variant-numeric:tabular-nums}
+.wd-insight p,.wd-insight-status{font-size:13px;line-height:1.65;overflow-wrap:anywhere;margin:8px 0 0;color:var(--text)}
+.wd-trend{display:inline-block;font-size:11px;font-weight:650;margin-top:10px;color:var(--muted)}
+.wd-trend--improved{color:#168467}.wd-trend--worsened{color:#bd6940}
+html[data-theme="dark"] .wd-trend--improved{color:#74d5b4}html[data-theme="dark"] .wd-trend--worsened{color:#f4be86}
+.wd-stages{margin:18px 0 22px}.wd-stages ol{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}
+.wd-stages li{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.wd-stages li>div{display:flex;justify-content:space-between;gap:12px;font-size:12px;line-height:1.5}.wd-stages li span{min-width:0;overflow-wrap:anywhere}
+.wd-stages li b{font-variant-numeric:tabular-nums;flex:none}.wd-stages li p{font-size:12px;line-height:1.6;color:var(--muted);margin:6px 0 0}
+.wd-card .wd-stages{margin:12px 0}.wd-card .wd-stages li{border:0;border-radius:0;border-bottom:1px solid var(--border);padding:6px 0}
+@media(max-width:620px){.wd-insights{padding:12px}.wd-insight{padding:12px}.wd-insight-metric{flex-wrap:wrap;gap:4px}.wd-insight-metric strong{flex:initial;overflow-wrap:anywhere}}
+
+/* Retry is a real button: never inherit the browser's native ButtonFace. */
+.water-dashboard-page .wd-insights button.wd-ai-link{appearance:none;-webkit-appearance:none;display:inline-flex;align-items:center;justify-content:center;min-height:44px;max-width:100%;margin-top:12px;padding:10px 14px;background:var(--card-strong);color:var(--text);border:1px solid var(--border);border-radius:10px;font:inherit;font-size:12px;font-weight:700;line-height:1.4;text-align:center;cursor:pointer}
+.water-dashboard-page .wd-insights button.wd-ai-link:hover{background:var(--bg-soft);border-color:var(--primary)}
+.water-dashboard-page .wd-insights button.wd-ai-link:focus-visible{outline:3px solid var(--primary);outline-offset:3px}

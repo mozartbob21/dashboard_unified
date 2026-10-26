@@ -1,5 +1,5 @@
 /* MAX entry points and opt-in walkthrough. Only rendered for eligible accounts. */
-.home-page .topbar .max-home-connect{display:flex!important;flex-direction:column;align-items:center;gap:0;min-width:0;flex:none;padding:0!important;box-sizing:border-box;max-width:100%}
+.home-page .topbar .max-home-connect{display:flex!important;flex-direction:row;align-items:center;gap:0;min-width:0;flex:none;padding:0!important;box-sizing:border-box;max-width:100%}
 .max-home-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 15px;border:1px solid var(--border,#dce2ec);border-radius:15px;background:var(--violet-soft,#eeecff);color:var(--text,#172338);font-family:inherit;font-weight:650;font-size:13px;line-height:1.4;text-decoration:none;white-space:nowrap}
 .max-home-button svg{width:21px;height:21px;flex:none}
 .max-home-help{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:5px 10px;font-size:12px;line-height:1.4;color:var(--muted,#64718a);text-decoration:none}
@@ -37,16 +37,9 @@
 [data-theme=dark] .max-tour-card{background:#172338!important}
 [data-theme=kreml] .max-tour-card{background:#fffaf3!important}
 @media(max-width:600px){
- .home-page .topbar .max-home-connect{display:grid!important;grid-template-columns:minmax(0,1.16fr) minmax(0,1fr);align-items:stretch;flex:1 1 100%;gap:6px;width:100%;padding:4px!important;border:1px solid var(--border,#dce2ec);border-radius:17px;background:var(--bg-soft,#f4f6fb)}
- .home-page .topbar .max-home-button,.home-page .topbar .max-home-help{width:100%;min-width:0;min-height:48px;gap:7px;padding:8px;box-sizing:border-box;border-radius:12px;font-size:13px;line-height:1.2;font-weight:650;white-space:normal;text-align:left}
- .home-page .topbar .max-home-button{border-color:transparent}
- .home-page .topbar .max-home-button>span{max-width:94px}
+ .home-page .topbar .max-home-connect{display:flex!important;flex:0 1 auto;align-items:center;min-width:0;max-width:100%;padding:0!important;border:0;background:transparent}
+ .home-page .topbar .max-home-button{min-height:46px;gap:7px;padding:10px 13px;box-sizing:border-box;border-radius:14px;font-size:13px;line-height:1.3;white-space:nowrap;text-align:center}
  .home-page .topbar .max-home-button svg{width:20px;height:20px}
- .home-page .topbar .max-home-help{border:1px solid var(--border,#dce2ec);background:var(--card,#fff);color:var(--text,#172338);box-shadow:0 2px 5px rgba(20,31,55,.035)}
- .home-page .topbar .max-home-help-icon{display:block;width:18px;height:18px;flex:none;color:var(--muted,#64718a)}
- .home-page .topbar .max-home-help-label{min-width:0;max-width:82px;overflow-wrap:normal}
- .home-page .topbar .max-home-help-arrow{display:none}
- .home-page .topbar .max-home-help:hover{border-color:var(--primary,#6256df);background:var(--bg-soft,#f4f6fb)}
  .max-tour-card{width:370px;padding:16px 18px 14px;border-radius:20px}
  .max-tour-card h2{font-size:19px}
  .max-tour-card p{font-size:13px;line-height:1.6}
@@ -56,3 +49,5 @@
 }
 @media(max-width:350px){.home-page .topbar .max-home-button,.home-page .topbar .max-home-help{font-size:12px;gap:5px;padding:7px 6px}.home-page .topbar .max-home-button svg{width:18px;height:18px}.home-page .topbar .max-home-help-icon{width:16px;height:16px}}
 @media(prefers-reduced-motion:no-preference){.max-tour-card{animation:max-tour-in .18s ease-out}@keyframes max-tour-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}}
+
+.max-home-button[data-max-state="connected"] { border-color: var(--primary, #6256df); }

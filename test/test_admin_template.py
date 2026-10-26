@@ -53,7 +53,7 @@ def test_rendered_admin_has_one_active_panel_and_unique_script_targets(section):
             assert attrs['for'] in ids, ('missing input', attrs['for'])
     assert sum(tag == 'main' for tag, _ in document.elements) == 1
     assert sum(tag == 'h1' for tag, _ in document.elements) == 1
-    assert {attrs.get('id') for tag, attrs in document.elements if tag == 'form'} == {'userForm', 'integrationForm'}
+    assert {attrs.get('id') for tag, attrs in document.elements if tag == 'form'} == {'userForm', 'integrationForm', 'aiTokenForm', 'ratingKeyForm'}
     scripts = [attrs['src'].split('?')[0] for tag, attrs in document.elements if tag == 'script' and 'src' in attrs]
     assert scripts.index('/static/admin-navigation.js') < scripts.index('/static/users.js')
     assert scripts.index('/static/admin-navigation.js') < scripts.index('/static/module-popularity.js')

@@ -149,7 +149,7 @@ def ask(history, max_tokens=2500, platform_context="", team=None, skill_instruct
             "<platform_data>\n" + platform_context + "\n</platform_data>"
         )
     messages = [{"role": "system", "content": system}, *conversation]
-    return _qwen_chat(messages, max_tokens=max_tokens, timeout=model_timeout())
+    return _qwen_chat(messages, max_tokens=max_tokens, timeout=model_timeout(), module_id="aichat")
 
 
 _VOSK_MODEL = None
@@ -265,7 +265,8 @@ def _platform_creds():
     key = (getattr(_se, "API_KEY", None) or getattr(_se, "QWEN_API_KEY", None)
            or os.getenv("QWEN_API_KEY") or os.getenv("AI_API_KEY") or os.getenv("API_KEY") or "")
     from core.privacy import ai_endpoint
-    return ai_endpoint(base), key
+    from services.auth.ai_credentials import resolve_key
+    return ai_endpoint(base), resolve_key("aichat", key)
 
 
 def _wav_normalized_bytes(data: bytes) -> bytes:
