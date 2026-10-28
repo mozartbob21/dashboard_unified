@@ -1,0 +1,43 @@
+<div class="container or-container">
+  <header class="topbar">
+    <div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Рейтинг ОМСУ</div></div></div>
+    <div class="top-actions"><a id="or-home" {% if snapshot %}hidden{% else %}href="/"{% endif %} class="secondary-button">← К модулям</a></div>
+  </header>
+  <main class="or-dashboard">
+    <section class="or-hero">
+      <div><span class="or-eyebrow">Эффективность ФХД РСО · методика 2026 года</span><h1>Рейтинг муниципалитетов</h1><p>Четыре показателя, единый срез по ОМСУ и подробный расчёт по каждой организации.</p></div>
+      <div class="or-actions">
+        <button id="or-refresh" class="or-button primary" type="button" {% if snapshot %}hidden disabled{% endif %}>Обновить данные</button>
+        <a id="or-export" class="or-button" {% if not snapshot %}href="/omsu-rating/export.xlsx"{% endif %}>Скачать Excel</a>
+        <a id="or-export-html" class="or-button" {% if snapshot %}hidden{% else %}href="/omsu-rating/export.html"{% endif %}>Снимок HTML</a>
+        <span id="or-updated" role="status">Загружаем сохранённый срез…</span>
+      </div>
+    </section>
+    <p id="or-error" class="or-alert" role="alert" hidden></p>
+    <nav id="or-tabs" class="or-tabs" aria-label="Показатели рейтинга"></nav>
+    <section class="or-panel">
+      <h2 id="or-title">Показатели рейтинга</h2>
+      <p id="or-methodology" class="or-note"></p>
+      <details class="or-methodology"><summary>Что означает показатель и как определяется место</summary><p id="or-methodology-detail" class="or-note"></p></details>
+      <p id="or-source-error" class="or-alert" role="status" hidden></p>
+      <div class="or-filters">
+        <label>Период<select id="or-period"></select></label>
+        <label class="or-search">Муниципалитет<input id="or-search" type="search" list="or-omsu-list" placeholder="Название или несколько через запятую" autocomplete="off"><datalist id="or-omsu-list"></datalist></label>
+        <label class="or-check"><input type="checkbox" id="or-all">Показать неучаствующие ОМСУ</label>
+      </div>
+      <div class="or-summary" id="or-summary" aria-live="polite"></div>
+      <div id="or-legend" class="or-legend" aria-label="Цветовые зоны рейтинга">
+        <span>Место в своей группе:</span><span class="or-legend-item z1">Верхняя треть</span><span class="or-legend-item z2">Средняя треть</span><span class="or-legend-item z3">Нижняя треть</span>
+        <small>Цвета и места рассчитаны до применения фильтра. ЗАТО — отдельно.</small>
+      </div>
+      <p class="or-table-hint">Нажмите на заголовок для сортировки, на «Подробнее» — для расчёта. Таблицу можно прокручивать по горизонтали.</p>
+      <div class="or-table-wrap" tabindex="0" aria-label="Рейтинг ОМСУ, прокрутка таблицы"><table class="or-table"><thead id="or-head"></thead><tbody id="or-rows"></tbody></table></div>
+      <p class="or-source-line"><a id="or-source-link" class="or-source-link" target="_blank" rel="noopener noreferrer" hidden>Открыть источник ↗</a></p>
+      <p id="or-history" class="or-note"></p>
+      <p class="or-note">Показатели 4–6 — из Redmine; показатель 7 — из таблицы дорожных карт. Время получения указано отдельно для каждого источника. Условные и предварительные оценки отмечены в описании.</p>
+    </section>
+  </main>
+</div>
+<dialog id="or-detail" class="or-detail" aria-labelledby="or-detail-title">
+  <header><h2 id="or-detail-title"></h2><button type="button" id="or-detail-close" class="or-button" aria-label="Закрыть детализацию">Закрыть ×</button></header><div id="or-detail-body"></div>
+</dialog>

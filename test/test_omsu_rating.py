@@ -40,7 +40,9 @@ def test_k5_zero_flags_ties_precise_values_and_missing():
 def test_k6_conventional_place_and_exact_extra_totals():
     rows=calc.rating(6,2,[issue('ДУБНА',{201:20,196:100,197:10,198:5,199:3,200:2}),issue('ИСТРА',{201:2})])
     assert all(r['place']==1 for r in rows)
-    row=next(r for r in rows if r['omsu']=='ДУБНА');assert row['extra']=={'total':100,'without':20}
+    row=next(r for r in rows if r['omsu']=='ДУБНА')
+    assert row['extra']['total']==100 and row['extra']['without']==20
+    assert row['extra']['parts']==[10,5,3,2]
 
 def test_eligibility_requires_omsu_numeric17_and_keeps_finite_zero():
     assert not calc.rating(5,0,[issue('',{158:4}),issue(fields={17:None,158:4})])
@@ -152,8 +154,8 @@ def test_export_real_workbook_all_indicators_and_formula_safe(api,monkeypatch):
     store.refresh(store.claim())
     response=client.get('/omsu-rating/export.xlsx');assert response.status_code==200
     book=load_workbook(io.BytesIO(response.content));assert len(book.sheetnames)==4
-    assert book['Показатель 5']['B5'].value.startswith('=HYPERLINK')
-    assert book['Показатель 5']['B5'].data_type=='s'
+    assert book['Показатель 5']['C5'].value.startswith('=HYPERLINK')
+    assert book['Показатель 5']['C5'].data_type=='s'
     assert response.headers['cache-control']=='private, no-store'
     assert client.get('/omsu-rating/export.xlsx?period=9').status_code==400
 
@@ -162,9 +164,12 @@ def test_snapshot_export_is_portable_escaped_and_has_no_credentials(api,monkeypa
     monkeypatch.setattr(source,'fetch_redmine',lambda q,k:[issue('<img src=x onerror=alert(1)>',{158:5,165:100,169:10000,189:10})])
     store.refresh(store.claim());response=client.get('/omsu-rating/export.html')
     assert response.status_code==200
-    assert '<script' not in response.text and '<img' not in response.text
-    assert '&lt;img' in response.text and 'synthetic-key' not in response.text
-    assert "default-src 'none'" in response.text
+    from test.test_omsu_rating_exports import SnapshotParser
+    parsed=SnapshotParser();parsed.feed(response.text)
+    assert len(parsed.scripts)==2 and not parsed.external
+    assert '<img src=x onerror=alert(1)>' not in response.text
+    assert '\\u003cimg' in response.text and 'synthetic-key' not in response.text
+    assert "default-src 'none'" in parsed.policy and "connect-src 'none'" in parsed.policy
     with connect() as conn:conn.execute('UPDATE users SET is_active=0')
     assert client.get('/omsu-rating/export.html').status_code==403
 

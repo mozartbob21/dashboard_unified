@@ -92,8 +92,8 @@ def assert_general_only(payload):
 
 def test_deployed_v33_catalog_replaces_previous_versions(app, deployed):
     releases._validate_catalog()
-    assert len(DEPLOYED_RELEASES) == 2
-    assert {note["id"] for note in DEPLOYED_RELEASES} == {CURRENT_RELEASE_ID, "2026-10-26-dashboard-retry-v33"}
+    assert len(DEPLOYED_RELEASES) == 3
+    assert {note["id"] for note in DEPLOYED_RELEASES} == {CURRENT_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
     assert {note["version"] for note in DEPLOYED_RELEASES} == {"3.3"}
     with api(app, "4") as client:
         response = client.get("/api/releases/pending")
@@ -169,7 +169,7 @@ def test_keycloak_cannot_receive_local_max_news_even_with_admin_claims(app, depl
         payload = client.get("/api/releases/history").json()
         # Existing Keycloak admin grants include ordinary modules, but never
         # local account management or MAX account linking.
-        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {"water-source-details", "water-ai-conclusions", "water-ai-retry-appearance", "omsu-rating"}
+        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {"water-source-details", "water-ai-conclusions", "water-ai-retry-appearance", "omsu-rating", "omsu-rating-methodology-restored"}
         assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
 
 
@@ -213,7 +213,7 @@ def test_disabled_bot_hides_presentations_notice_even_with_grant(app, deployed, 
 
 
 @pytest.mark.parametrize("module, expected", [("water-dashboard", {"water-source-details", "water-ai-conclusions", "water-ai-retry-appearance"}),
-                                              ("omsu-rating", {"omsu-rating"})])
+                                              ("omsu-rating", {"omsu-rating", "omsu-rating-methodology-restored"})])
 def test_v33_module_news_requires_current_module_grant(app, deployed, module, expected):
     with api(app, "1") as client:
         assert_general_only(client.get("/api/releases/history").json())

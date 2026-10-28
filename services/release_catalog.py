@@ -1,6 +1,17 @@
 """Reviewed release notes shipped with the application, never generated from Git."""
 
 RELEASES = ({
+    'id': '2026-10-28-omsu-rating-parity-v33',
+    'version': '3.3',
+    'title': 'Рейтинг ОМСУ: расчёты и наглядная детализация',
+    'published_at': '2026-10-28T18:00:00+03:00',
+    'entries': ({'id': 'omsu-rating-methodology-restored', 'audience': 'module',
+                 'module_id': 'omsu-rating', 'title': 'Правила исходного рейтинга в оформлении Нейроны',
+                 'text': 'Восстановлены цветовые зоны мест, динамика по периодам, факт и план, '
+                         'пояснения расчётов и подробности мероприятий. Сохранены исходные правила '
+                         'ранжирования. Excel и интерактивный HTML-снимок сохраняют '
+                         'детали рейтинга, включая неучаствующие ОМСУ.'},),
+}, {
     'id': '2026-10-26-dashboard-retry-v33',
     'version': '3.3',
     'title': 'Читаемая кнопка повторного анализа',

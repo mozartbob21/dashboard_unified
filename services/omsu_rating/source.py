@@ -2,9 +2,11 @@
 import io
 import time
 import zipfile
+from datetime import datetime, date, time as clock_time, timedelta
 from urllib.parse import urlsplit
 import httpx
 from openpyxl import load_workbook
+from openpyxl.utils.datetime import to_excel
 from .methodology import REDMINE_ORIGIN, GSHEET_ID
 
 class SourceError(Exception): pass
@@ -30,7 +32,9 @@ def fetch_redmine(query,key,client=None):
         all_rows=[];seen=set();expected_total=None;offset=0;deadline=time.monotonic()+150
         while offset<10000:
             if time.monotonic()>deadline:raise SourceError('Источник не успел передать все данные. Повторите обновление позднее.')
-            body,redirect=limited(client,REDMINE_ORIGIN+'/issues.json',headers={'X-Redmine-API-Key':key},params={'query_id':query,'status_id':'*','limit':100,'offset':offset,'sort':'id:asc'})
+            # The saved query defines ordering. Overriding it changes the original
+            # stable order of municipalities with equal indicator values.
+            body,redirect=limited(client,REDMINE_ORIGIN+'/issues.json',headers={'X-Redmine-API-Key':key},params={'query_id':query,'status_id':'*','limit':100,'offset':offset})
             if redirect is not None:raise SourceError('Источник перенаправил запрос. Проверьте доступ по API.')
             try:
                 result=json.loads(body);rows=result['issues'];total=result['total_count']
@@ -77,7 +81,15 @@ def fetch_sheet(client=None):
             rows=[]
             for row in book[name].iter_rows(min_row=2,max_col=22,values_only=True):
                 if len(rows)>=10000:raise SourceError('Слишком много строк в таблице дорожных карт.')
-                rows.append([v if isinstance(v,(int,float,bool)) or v is None else str(v)[:1000] for v in row])
+                # K7 recognises phrases anywhere in a response. Truncating cell
+                # text before classification silently changes the methodology.
+                # Compressed and expanded workbook size limits apply above.
+                # The EXE's online interface uses SheetJS raw cells (cellDates
+                # is false): date-formatted cells remain Excel serial numbers.
+                # openpyxl decodes them eagerly, so restore their raw numeric
+                # meaning before applying the original K7 text/number rules.
+                rows.append([to_excel(v,book.epoch) if isinstance(v,(datetime,date,clock_time,timedelta)) else
+                             v if isinstance(v,(int,float,bool)) or v is None else str(v) for v in row])
             return rows
         finally:book.close()
     except SourceError:raise
