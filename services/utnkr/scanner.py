@@ -2263,6 +2263,11 @@ async def start_scan(url: str | None = None) -> dict[str, Any]:
 
 
 async def main() -> None:
+    import sys
+    if '--require-live-source' in sys.argv[1:] and not SITE_TABLE_URL:
+        # Chat requested a new source check, not recomputation of cached rows.
+        print('Источник технадзора не настроен; проверка не выполнялась.', flush=True)
+        raise SystemExit(2)
     if SITE_TABLE_URL:
         result = await scan_planfix()
     else:

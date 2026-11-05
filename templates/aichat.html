@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="{{ url_for('static', path='aichat.css') }}?v=20261020-mobile">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-skills.css') }}?v=20261020-mobile">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-waiting.css') }}?v=20261020-mobile">
+<link rel="stylesheet" href="{{ url_for('static', path='aichat-jobs.css') }}?v=20261104">
 {% endblock %}
 {% block content %}
 <div class="container">
@@ -34,7 +35,7 @@
       <span><strong>Навыки</strong><small id="skillsEntryHint">Инструменты для ваших задач</small></span>
       <span class="ac-skills-entry-arrow" aria-hidden="true">↗</span>
     </button>
-    <div class="ac-history-heading">История диалогов<span>Общая для организации</span></div>
+    <div class="ac-history-heading">История диалогов<span>Общая история</span></div>
     <div class="ac-list" id="dlgList"></div>
   </aside>
 
@@ -44,6 +45,7 @@
       <div class="ac-team-strip-actions"><button type="button" id="teamEdit">Состав команды</button><button type="button" id="teamReset" aria-label="Переключиться в обычный чат">Обычный чат</button></div>
     </div>
     <div class="ac-chat" id="chat" role="log" aria-label="Сообщения чата" aria-live="polite" aria-relevant="additions"></div>
+    <div id="chatJobs" class="ac-jobs" aria-label="Задачи чата" hidden></div>
     <aside id="waitingFacts" class="ac-waiting-fact" aria-label="Интересные факты во время ожидания" hidden>
       <div class="ac-waiting-fact-heading"><strong>Пока Нейрона готовит ответ</strong><span data-fact-topic></span></div>
       <p data-fact-text></p><small>Подготовлено ИИ</small>
@@ -58,8 +60,8 @@
       <textarea id="ta" rows="1" aria-label="Сообщение Нейроне" placeholder="Задайте вопрос или опишите задачу…"></textarea>
       <button class="ac-send" id="sendBtn" type="button" title="Отправить сообщение" aria-label="Отправить сообщение"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>
     </div>
-    <p class="ac-report-note" id="contextNote" hidden></p>
-    <div class="ac-hint" id="sendHint"><span>Enter — отправить · Shift+Enter — новая строка</span><span>История доступна всем аккаунтам</span></div>
+    <p class="ac-report-note" id="contextNote" role="status" hidden></p>
+    <div class="ac-hint" id="sendHint"><span>Enter — отправить · Shift+Enter — новая строка</span><span>Общие диалоги · данные блоков доступны по вашим правам</span></div>
     </div>
   </main>
 </div>
@@ -86,6 +88,7 @@
       <div class="cap"><div class="cap-ic">⌨️</div><b>Код и формулы</b><span>Объяснит код, поможет с формулой или подскажет, как автоматизировать задачу.</span></div>
       <div class="cap"><div class="cap-ic">🏘</div><b>Отчёты по платформе</b><span>Соберёт отчёт по доступным блокам и муниципалитетам из сохранённых данных с датами источников.</span></div>
       <div class="cap"><div class="cap-ic">📎</div><b>Документы и таблицы</b><span>Разберёт текст документов, таблиц и презентаций. Для сканов и аудио приложите текстовую расшифровку.</span></div>
+      <div class="cap"><div class="cap-ic">↻</div><b>Запуск блоков</b><span>Попросите запустить доступный блок. Чат проверит права и параметры, затем запросит подтверждение. Если проверка уже запущена, покажет её статус без повторного запуска. В общих диалогах результаты доступны только с правом на соответствующий блок.</span></div>
       <div class="cap"><div class="cap-ic">✦</div><b>Навыки и инструменты</b><span>Включите нужные навыки для своей учётной записи: расчёты, анализ прикреплённых таблиц и другие задачи. Этапы выполнения появятся в ответе.</span></div>
     </div>
     <div class="cap-ex"><b>Попробуйте:</b><div class="cap-chips" id="capChips"></div></div>
@@ -141,11 +144,13 @@
 <script src="{{ url_for('static', path='aichat-teams.js') }}?v=20261007"></script>
 <script src="{{ url_for('static', path='aichat-skills.js') }}?v=20261008"></script>
 <script src="{{ url_for('static', path='aichat-waiting.js') }}?v=20261013"></script>
+<script src="{{ url_for('static', path='aichat-jobs.js') }}?v=20261104"></script>
 <script>
 var $=function(s){return document.querySelector(s)};
 var chatEl=$("#chat"),ta=$("#ta");
 var currentDid=null,pending=[],busy=false,draftVersion=0;
-var teamUI=null,skillsUI=null;
+var teamUI=null,skillsUI=null,jobsUI=null;
+var submissions=new Map(),lastSubmission=null,historyVersion=0;
 var waitingFacts={start:function(){},stop:function(){},warm:function(){}};
 try{
   if(window.NeuronaWaiting)waitingFacts=window.NeuronaWaiting.create(window,$("#waitingFacts"));
@@ -207,29 +212,37 @@ function showSkillActivity(run){
 function clearSkillActivity(){var w=$("#skillActivity");if(w)w.remove();}
 
 async function chatJson(url,options){
-  var r=await fetch(url,options);
-  if(r.status===401||(r.redirected&&new URL(r.url,location.href).pathname==="/login"))throw new Error("Сессия завершилась. Обновите страницу и войдите снова.");
-  var d;
-  try{d=await r.json();}catch(error){throw new Error("Не удалось прочитать ответ сервера. Попробуйте ещё раз.");}
-  if(!r.ok)throw new Error(typeof d.detail==="string"?d.detail:typeof d.error==="string"?d.error:"Не удалось выполнить запрос. Попробуйте ещё раз.");
-  return d;
+  var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},20000);
+  try{
+    var r=await fetch(url,Object.assign({},options||{},{signal:controller.signal,cache:"no-store"}));
+    if(r.status===401||(r.redirected&&new URL(r.url,location.href).pathname==="/login"))throw new Error("Сессия завершилась. Обновите страницу и войдите снова.");
+    var d;
+    try{d=await r.json();}catch(error){throw new Error("Не удалось прочитать ответ сервера. Попробуйте ещё раз.");}
+    if(!r.ok)throw new Error(typeof d.detail==="string"?d.detail:typeof d.error==="string"?d.error:"Не удалось выполнить запрос. Попробуйте ещё раз.");
+    return d;
+  }catch(error){
+    if(error.name==="AbortError")throw new Error("Сервер пока не ответил. Сохранённые задачи продолжат выполняться.");
+    throw error;
+  }finally{clearTimeout(timer);}
 }
 async function loadDialogs(){
   var d;
   try{d=await chatJson("/aichat/api/dialogs");}catch(error){$("#dlgList").innerHTML='<p class="ac-history-empty">'+esc(error.message)+'</p>';return;}
 
-  var list=$("#dlgList");list.innerHTML=(d.items||[]).length?"":'<p class="ac-history-empty">Здесь появятся ваши диалоги с Нейроной.</p>';
+  var list=$("#dlgList");list.innerHTML=(d.items||[]).length?"":'<p class="ac-history-empty">Здесь появятся общие диалоги с Нейроной.</p>';
   (d.items||[]).forEach(function(it){
     var el=document.createElement("div");
     el.className="dlg"+(it.id===currentDid?" active":"");
     el.innerHTML='<button class="dlg-open" type="button" title="'+esc(it.title)+'" aria-current="'+(it.id===currentDid?'true':'false')+'"><span class="t">'+esc(it.title)+'</span><span class="p">'+esc(it.preview||"Нет сообщений")+'</span></button><button class="del" type="button" title="Удалить диалог" aria-label="Удалить диалог: '+esc(it.title)+'">×</button>';
     el.querySelector(".dlg-open").addEventListener("click",function(){if(!busy)openDialog(it.id)});
-    el.querySelector(".del").addEventListener("click",function(ev){
-      ev.stopPropagation();if(busy)return;
-      fetch("/aichat/api/dialogs/"+it.id,{method:"DELETE"}).then(function(){
-        if(currentDid===it.id){currentDid=null;teamUI.restore(null);welcome();}
+    el.querySelector(".del").addEventListener("click",async function(ev){
+      ev.stopPropagation();if(busy)return;setBusy(true);
+      try{
+        await chatJson("/aichat/api/dialogs/"+encodeURIComponent(it.id),{method:"DELETE"});
+        if(currentDid===it.id){selectDialog(null);teamUI.restore(null);welcome();}
         loadDialogs();
-      });
+      }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
+      finally{setBusy(false);}
     });
     list.appendChild(el);
   });
@@ -237,19 +250,32 @@ async function loadDialogs(){
 function welcome(){chatEl.innerHTML=welcomeHTML();bindChips(chatEl);
   var wc=$("#wChips");if(wc){wc.innerHTML=EXAMPLES.map(function(e){return '<button class="chip" data-ex="'+esc(e)+'">'+esc(e)+"</button>"}).join("");bindChips(wc);}
 }
+function selectDialog(did){
+  currentDid=did;historyVersion++;
+  try{if(did)sessionStorage.setItem("neurona-active-dialog",did);else sessionStorage.removeItem("neurona-active-dialog");}catch(error){}
+  if(jobsUI)jobsUI.select(did);
+}
+async function refreshDialog(did){
+  if(!did||did!==currentDid)return;
+  var version=++historyVersion;
+  var d=await chatJson("/aichat/api/dialogs/"+encodeURIComponent(did));
+  if(currentDid!==did||version!==historyVersion)return;
+  var nearBottom=chatEl.scrollHeight-chatEl.scrollTop-chatEl.clientHeight<100,previousScroll=chatEl.scrollTop;
+  teamUI.restore(d.team||null);chatEl.innerHTML="";
+  var msgs=d.messages||[];
+  if(!msgs.length)welcome();
+  else msgs.forEach(function(m){
+    if(m.role==="user")appendUser(m.content,[],true);
+    else appendAssist(m.content,m.team,m.skill_run);
+  });
+  if(!nearBottom)chatEl.scrollTop=previousScroll;
+  loadDialogs();
+}
 async function openDialog(did){
   if(busy)return;
-  setBusy(true);$("#contextNote").hidden=true;
-  try{
-    var d=await chatJson("/aichat/api/dialogs/"+did);
-    currentDid=did;teamUI.restore(d.team||null);loadDialogs();chatEl.innerHTML="";
-    var msgs=(d.messages||[]);
-    if(!msgs.length){welcome();return;}
-    msgs.forEach(function(m){
-      if(m.role==="user")appendUser(m.content,[],true);
-      else appendAssist(m.content,m.team,m.skill_run);
-    });
-  }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
+  setBusy(true);$("#contextNote").hidden=true;selectDialog(did);
+  try{await refreshDialog(did);}
+  catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
   finally{setBusy(false);}
 }
 async function newChat(){
@@ -257,7 +283,7 @@ async function newChat(){
   setBusy(true);
   try{
     var d=await chatJson("/aichat/api/dialogs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({team:teamUI.get()})});
-    currentDid=d.id;teamUI.restore(d.team||null);loadDialogs();welcome();$("#contextNote").hidden=true;ta.focus();
+    selectDialog(d.id);teamUI.restore(d.team||null);loadDialogs();welcome();$("#contextNote").hidden=true;ta.focus();
   }catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
   finally{setBusy(false);}
 }
@@ -308,47 +334,36 @@ async function send(textOverride){
   var text=(typeof textOverride==="string"?textOverride:ta.value).trim();
   if(!text&&!pending.length)return;
   setBusy(true);$("#contextNote").hidden=true;
-  ta.value="";ta.style.height="auto";
-  var w=$("#welcome");if(w)w.remove();
-  appendUser(text,pending.map(function(p){return {url:p.url,name:(p.file?p.file.name:(p.name||'аудио'))}}));
-  var runTrace=window.NeuronaSkills.createTrace();
   try{
-  var fd=new FormData();
-  fd.append("dialog_id",currentDid||"");
-  fd.append("text",text);
-  fd.append("skills_mode","auto");
-  if(!currentDid)fd.append("team",JSON.stringify(teamUI.get()));
-  for(var pi=0;pi<pending.length;pi++){
-    var pp=pending[pi],pf=pp.file;
-    if(!pf&&pp.remote){
-      try{var pr=await fetch(pp.remote);var pb=await pr.blob();pf=new File([pb],pp.name||"диктовка.wav",{type:pb.type||"audio/wav"});}catch(e){}
+    // Repeating an uncertain submission retains its key and exact multipart body.
+    if(lastSubmission&&lastSubmission.text===text&&lastSubmission.dialog===currentDid&&
+       lastSubmission.files.length===pending.length&&lastSubmission.files.every(function(item,i){return item===pending[i]})){
+      await jobsUI.retry(lastSubmission.id);return;
     }
-    if(pf)fd.append("file",pf,pf.name);
-    if(pp.url)URL.revokeObjectURL(pp.url);
-  }
-  pending=[];renderPending();
-  showSkillActivity(runTrace.snapshot());
-    waitingFacts.start();
-    var response=await fetch("/aichat/api/send",{method:"POST",headers:{"Accept":"application/x-ndjson"},body:fd});
-    var d=await window.NeuronaSkills.readResponse(response,function(step){runTrace.update(step);showSkillActivity(runTrace.snapshot());});
-    clearSkillActivity();
-    if(d.dialog_id&&d.dialog_id!==currentDid){currentDid=d.dialog_id;}
-    loadDialogs();
-    if(Object.prototype.hasOwnProperty.call(d,"team"))teamUI.restore(d.team);
-    var finalRun=runTrace.finish(d.skill_run,d.ok===false||!!d.error);
-    appendAssist(d.error?"⚠️ "+d.error:d.answer||"…",d.team,finalRun);
-    if(d.ok!==false&&d.report_sources&&d.report_sources.length){$("#contextNote").textContent="Источников в отчёте: "+d.report_sources.length+" · Даты и полнота данных указаны в ответе.";$("#contextNote").hidden=false;}
-  }catch(e){
-    clearSkillActivity();
-    appendAssist("Не удалось получить ответ. "+(e instanceof TypeError?"Проверьте соединение с сервером. Перед повторной отправкой обновите историю чата.":e.message),null,runTrace.finish(null,true));
-  }
-  finally{waitingFacts.stop();clearSkillActivity();setBusy(false);}
+    var fd=new FormData(),files=pending.slice(),id=jobsUI.requestKey();
+    fd.append("dialog_id",currentDid||"");fd.append("text",text);fd.append("skills_mode","auto");
+    if(!currentDid)fd.append("team",JSON.stringify(teamUI.get()));
+    for(var pi=0;pi<files.length;pi++){
+      var pp=files[pi],pf=pp.file;
+      if(!pf&&pp.remote){
+        var pr=await fetch(pp.remote);
+        if(!pr.ok)throw new Error("Не удалось прикрепить диктовку. Попробуйте ещё раз.");
+        var pb=await pr.blob();pf=new File([pb],pp.name||"диктовка.wav",{type:pb.type||"audio/wav"});
+      }
+      if(pf)fd.append("file",pf,pf.name);
+    }
+    var submission={id:id,text:text,dialog:currentDid,files:files};
+    submissions.set(id,submission);lastSubmission=submission;
+    await jobsUI.submit(fd,id,text);
+  }catch(error){
+    $("#contextNote").textContent=error.message||"Не удалось отправить запрос. Введённые данные сохранены.";
+    $("#contextNote").hidden=false;
+  }finally{setBusy(false);}
 }
-
 function setBusy(value){
   busy=value;
   $("#sendBtn").disabled=value;
-  $("#sendBtn").setAttribute("aria-label",value?"Нейрона готовит ответ":"Отправить сообщение");
+  $("#sendBtn").setAttribute("aria-label",value?"Отправляем запрос":"Отправить сообщение");
   $("#newBtn").disabled=value;
   $("#plusBtn").disabled=value;
   chatEl.setAttribute("aria-busy",String(value));
@@ -450,7 +465,37 @@ skillsUI=window.NeuronaSkills.create({
   openModal:openChatModal,
   closeModal:closeChatModal
 });
+jobsUI=window.NeuronaChatJobs.create(window,{
+  onChange:function(state){window.NeuronaChatJobs.render(document,$("#chatJobs"),state,jobsUI,currentDid?null:openDialog);},
+  onActivity:function(active){if(active)waitingFacts.start();else waitingFacts.stop();},
+  onDismissed:function(id){submissions.delete(id);if(lastSubmission&&lastSubmission.id===id)lastSubmission=null;},
+  onAccepted:function(ticket,id){
+    var submission=submissions.get(id);
+    if(submission){
+      if(ta.value.trim()===submission.text){ta.value="";ta.style.height="auto";}
+      pending=pending.filter(function(item){
+        if(submission.files.indexOf(item)<0)return true;
+        if(item.url)URL.revokeObjectURL(item.url);return false;
+      });
+      renderPending();submissions.delete(id);if(lastSubmission&&lastSubmission.id===id)lastSubmission=null;
+    }
+    if(!currentDid||!submission||currentDid===submission.dialog)selectDialog(ticket.dialog_id);
+    refreshDialog(ticket.dialog_id).catch(function(){/* Task is accepted; polling will restore its answer. */});
+    if(ticket.already_running){
+      $("#contextNote").textContent=typeof ticket.message==="string"?ticket.message:"Проверка уже запущена. Показываем её состояние; повторный запуск не создан.";
+      $("#contextNote").hidden=false;
+    }
+    loadDialogs();
+  },
+  onTerminal:async function(completed){
+    if(completed.some(function(job){return job.dialog_id===currentDid})){
+      try{await refreshDialog(currentDid);}catch(error){$("#contextNote").textContent="Результат сохранён. Повторно получаем историю после восстановления связи.";$("#contextNote").hidden=false;throw error;}
+    }
+    loadDialogs();
+  }
+});
 loadDialogs();renderChips();welcome();
+try{var savedDialog=sessionStorage.getItem("neurona-active-dialog");if(savedDialog)openDialog(savedDialog);}catch(error){}
 if(!localStorage.getItem("neurona-caps-seen")&&!document.querySelector(".aichat-page .ovl:not([hidden])")){fillCapChips();openChatModal("#capsOvl","#capsClose");}
 </script>
 

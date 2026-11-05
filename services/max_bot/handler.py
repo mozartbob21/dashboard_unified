@@ -191,13 +191,27 @@ class BotHandler:
         else:
             lines.append("Первая проверка ещё не завершена.")
         if state.get("error_code"):
-            lines.append("Есть проблема проверки или доставки. Подробности и код для администратора: " + text(state["error_code"], 64))
+            explanations = {
+                "MAX_TLS_CERTIFICATE_FAILED": "Не удалось проверить защищённое соединение с MAX. Администратору нужно проверить доверенные сертификаты бота.",
+                "MAX_UPLOAD_TLS_CERTIFICATE_FAILED": "Файл не загружен в MAX: не удалось проверить сертификат файлового хранилища. Администратору нужно обновить бот и проверить доверенные сертификаты.",
+                "PRESENTATION_INVALID_PDF": "Источник вернул повреждённый PDF или содержимое другого формата. Такой файл не отправляется.",
+                "MAX_UPLOAD_UNAVAILABLE": "Файловое хранилище MAX временно недоступно. Состояние отправки указано ниже.",
+                "MAX_RESPONSE_INVALID": "MAX не подтвердил отправку. Проверьте чат перед повтором, чтобы не получить дубликат.",
+                "SOURCE_HTTP_FAILED": "Сервер источника временно не вернул данные. Проверка будет повторена позже.",
+            }
+            explanation = explanations.get(state["error_code"], "Есть проблема проверки или доставки. Администратору нужно проверить подключение.")
+            lines.append(explanation + "\nКод: " + text(state["error_code"], 64))
         if state.get("pending"):
             lines.append(f"Ожидают доставки: {state['pending']}.")
         if state.get("failed"):
-            lines.append(f"Не доставлено: {state['failed']}. Администратору нужно проверить источник или размер файла.")
+            lines.append(f"Не доставлено: {state['failed']}. После устранения причины можно повторить отправку кнопкой ниже.")
         if state.get("uncertain"):
             lines.append(f"Отправок без подтверждения: {state['uncertain']}. Автоповтор остановлен. Проверьте чат, прежде чем повторять отправку.")
+        if state.get("sent"):
+            lines.append(f"MAX подтвердил отправку файлов: {state['sent']}.")
+        for delivered in state.get("confirmed", []):
+            when = datetime.fromtimestamp(delivered["sent_at"], ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
+            lines.append(f"Отправка подтверждена: {text(delivered['name'], 160)}\n{when} МСК.")
         buttons = [self._button("Выключить подписку" if subscribed else "Получать новые презентации", identity, account,
                               {"kind": "presentations", "enabled": not subscribed}),
                    self._button("Обновить статус", identity, account, {"kind": "presentations"})]

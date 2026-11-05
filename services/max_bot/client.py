@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import certifi
 import httpx
 
 
@@ -209,11 +210,15 @@ class MaxClient:
             raise MaxAPIError("CONFIG_INVALID", "Токен MAX не настроен или имеет некорректный формат.")
         verify = True
         if ca_bundle is not None:
-            # Use only an explicitly supplied operator-managed trust bundle.
-            # Never download/install a CA and never disable verification.
+            # MAX API and its upload storage may use different public CAs.
+            # Add the approved CA to HTTPX's normal trust roots, rather than
+            # replacing all public roots with the one Russian root. Explicit
+            # certifi avoids SSL_CERT_FILE/SSL_CERT_DIR environment overrides.
+            # No OS trust store is modified and verification stays enabled.
             try:
                 path = Path(ca_bundle)
-                verify = ssl.create_default_context(cafile=str(path))
+                verify = ssl.create_default_context(cafile=certifi.where())
+                verify.load_verify_locations(cafile=str(path))
             except (OSError, ValueError, TypeError, ssl.SSLError):
                 raise MaxAPIError("TLS_CONFIG_INVALID", "Не удалось загрузить согласованный файл доверенных сертификатов.") from None
         self._http = httpx.Client(
@@ -279,8 +284,8 @@ class MaxClient:
     def upload_file(self, path: Path) -> str:
         """Upload a caller-authorized private file; this does not send a message.
 
-        No automatic retry or file removal. The worker persists the returned
-        token and handles delivery separately. Upload failures are safe to retry
+        No automatic retry or file removal. The worker keeps the returned token
+        through file-processing retries and handles delivery separately. Upload failures are safe to retry
         when marked retryable; message delivery has stricter uncertainty rules.
         """
         try:
@@ -319,7 +324,12 @@ class MaxClient:
         except MaxAPIError:
             raise
         except (httpx.HTTPError, ssl.SSLError) as error:
-            raise classify_network_error(error, write=False) from None
+            classified = classify_network_error(error, write=False)
+            if classified.code == "MAX_TLS_CERTIFICATE_FAILED":
+                raise MaxAPIError("MAX_UPLOAD_TLS_CERTIFICATE_FAILED",
+                    "Не удалось проверить TLS-сертификат файлового хранилища MAX. "
+                    "Файл не отправлен; администратору нужно проверить доверенные сертификаты MAX-бота.") from None
+            raise classified from None
         except (OSError, TypeError):
             raise MaxAPIError("MAX_FILE_UNAVAILABLE", "Не удалось прочитать сохранённый файл для отправки в MAX.") from None
         except (ValueError, UnicodeError, RecursionError, OverflowError):
@@ -374,7 +384,10 @@ class MaxClient:
         with self._send_lock:
             self._throttle()
             result = self._request("POST", "/messages", params={"user_id": user_id, "disable_link_preview": "true"}, body=body)
-        if not isinstance(result.get("message"), dict):
+        message = result.get("message")
+        message_body = message.get("body") if isinstance(message, dict) else None
+        mid = message_body.get("mid") if isinstance(message_body, dict) else None
+        if not isinstance(mid, str) or not 1 <= len(mid) <= 512 or any(ord(c) < 33 for c in mid):
             raise MaxAPIError("MAX_RESPONSE_INVALID", "MAX не подтвердил отправку сообщения. Повторите запрос в боте.", uncertain=True)
         return True
 

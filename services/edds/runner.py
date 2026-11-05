@@ -14,6 +14,10 @@ BASE=Path(__file__).resolve().parents[2]
 DATA=BASE/'data'/'edds'
 
 
+class AlreadyRunning(RuntimeError):
+    """The existing collector owns the queue slot; no new work was started."""
+
+
 def status():
     with get_db_connection() as conn:
         row=dict(conn.execute('SELECT * FROM edds_job WHERE id=1').fetchone())
@@ -68,14 +72,17 @@ def failure_message(output):
     return 'Сбор жалоб завершился с ошибкой на компьютере-сервере. Проверьте доступ к Доброделу.'
 
 
-def run(user='Авто-запуск'):
+def run(user='Авто-запуск', *, run_id=None, raise_on_busy=False):
     if not credentials('edds'): return False
     with get_db_connection() as conn:
         conn.execute('BEGIN IMMEDIATE')
         row=conn.execute('SELECT * FROM edds_job WHERE id=1').fetchone()
-        if row['running'] and time.time()-row['started_at']<1900: return False
+        if row['running'] and time.time()-row['started_at']<1900:
+            if raise_on_busy:
+                raise AlreadyRunning('Сбор жалоб уже выполняется.')
+            return False
         conn.execute("UPDATE edds_job SET running=1,started_at=?,message='Сбор жалоб выполняется' WHERE id=1",(time.time(),))
-    run_id=record_start('edds',user=user)
+    run_id=run_id or record_start('edds',user=user)
     ok=False
     started=time.time()
     message='Сбор жалоб не завершён.'

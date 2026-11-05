@@ -411,14 +411,14 @@ def _prepare_refresh():
     return process_lock
 
 
-def _refresh_worker(credentials, user, process_lock):
-    run_id, ok, error = None, False, ''
+def _refresh_worker(credentials, user, process_lock, run_id=None):
+    ok, error = False, ''
     expected_errors = (ValueError,)
     try:
         from services.edds.dobrodel import DobrodelClient, DobrodelError
         from services.run_history import record_start, record_finish
         expected_errors = (ValueError, DobrodelError)
-        run_id = record_start('mingkh-water-map', user=user)
+        run_id = run_id or record_start('mingkh-water-map', user=user)
         with DobrodelClient(**credentials) as client:
             client.deadline = time.monotonic() + MAX_REFRESH_SECONDS
             client.login()
@@ -442,10 +442,10 @@ def _refresh_worker(credentials, user, process_lock):
     return ok
 
 
-def run_refresh(credentials, *, user='Автозапуск'):
+def run_refresh(credentials, *, user='Автозапуск', run_id=None):
     """Synchronous scheduled collection shares the manual-update/import lock."""
     process_lock = _prepare_refresh()
-    return _refresh_worker(credentials, user, process_lock)
+    return _refresh_worker(credentials, user, process_lock, run_id=run_id)
 
 
 def start_refresh(credentials, *, user='Администратор'):

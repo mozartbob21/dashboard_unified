@@ -15,6 +15,12 @@ async function render(entries) {
   return {html:list.innerHTML,calls};
 }
 
+test('a skipped duplicate check is not displayed as a successful run', async () => {
+  const {html} = await render([{module_label:'ЕДДС — контроль заявок',status:'skipped'}]);
+  assert.match(html,/Пропущено/);
+  assert.doesNotMatch(html,/Успешно|status-success|status-error/);
+});
+
 test('history uses current Russian server labels and icons for every job, including the water map',async()=>{
   const data=[
     {module_id:'mingkh-water-map',module_label:'МИНЖКХ — карта жалоб',module_icon:'🗺️'},

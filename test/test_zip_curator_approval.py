@@ -99,18 +99,19 @@ def test_category_without_groups_can_be_approved(store):
     assert core.approve(0)
 
 
-def test_explicit_running_metre_and_quantity_edits_survive_reload_and_publication(store):
+@pytest.mark.parametrize(('unit', 'expected'), [('погонный метр', 'пог. м'), ('м2', 'м²'), ('м²', 'м²')])
+def test_explicit_unit_and_quantity_edits_survive_reload_and_publication(store, unit, expected):
     save(registry(items=[item(unit=None, unitRaw='', unitUnknown=True, qty=None)]))
-    assert core.edit_item(0, 0, 'Трубы', 'Труба электросварная', unit='погонный метр', qty='90,5')
+    assert core.edit_item(0, 0, 'Трубы', 'Труба электросварная', unit=unit, qty='90,5')
     current = core.load_state()['pending'][0]
     assert current['approval_issues'] == []
-    assert current['items'][0]['unit'] == current['items'][0]['unitRaw'] == 'пог. м'
+    assert current['items'][0]['unit'] == current['items'][0]['unitRaw'] == expected
     assert current['items'][0]['qty'] == 90.5
     assert core.approve(0, expected_revision=current['revision'])
     rows = json.loads(core.PUBLISHED_FILE.read_text())['rows']
-    assert rows[1][5:7] == [90.5, 'пог. м']
+    assert rows[1][5:7] == [90.5, expected]
     core.STATE_FILE.unlink()
-    assert core.load_state()['clean']['тестовое рсо']['items'][0]['unit'] == 'пог. м'
+    assert core.load_state()['clean']['тестовое рсо']['items'][0]['unit'] == expected
 
 
 def test_old_edit_contract_preserves_unit_and_quantity(store):

@@ -194,7 +194,7 @@ def record_finish(
     error_message: str = "",
 ) -> None:
     """Обновляет запись о завершении запуска."""
-    if status not in ("success", "error"):
+    if status not in ("success", "error", "skipped"):
         status = "success"
 
     finished_at = datetime.now(timezone.utc)

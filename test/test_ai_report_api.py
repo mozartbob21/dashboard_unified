@@ -15,14 +15,17 @@ def chat_client(tmp_path, monkeypatch):
     monkeypatch.setattr('services.auth.activity.track_response', lambda *args: None)
     with patch('services.scheduler.start'):
         app_module = importlib.import_module('app')
-    user = {'username': 'report-tester', 'role': 'user', 'modules': ['water-dashboard']}
+    with db.get_db_connection() as conn:
+        cursor = conn.execute("INSERT INTO users(username,password_hash,role,modules) VALUES (?,?,?,?)",
+                              ('report-tester', 'unused-test-hash', 'user', '["water-dashboard"]'))
+        user_id = cursor.lastrowid
+    user = {'id': user_id, 'username': 'report-tester', 'role': 'user', 'modules': ['water-dashboard']}
     monkeypatch.setattr(app_module, 'get_user_from_token', lambda *args: user)
     from services.auth import security
     monkeypatch.setattr(security, 'get_user_from_token', lambda *args: user)
-    from services.aichat import storage, report_context as reports
+    from services.aichat import private_storage, report_context as reports
     from services import water_ai_context as water
-    monkeypatch.setattr(storage, 'DATA_DIR', tmp_path / 'chat')
-    monkeypatch.setattr(storage, 'DIALOGS_FILE', tmp_path / 'chat/dialogs.json')
+    private_storage.initialize()
     monkeypatch.setattr(reports, 'DATA_DIR', tmp_path / 'results')
     monkeypatch.setattr(water, 'load_snapshot', lambda: {'schema_version': 2, 'sources': {'tasks': {
         'metric_schema': 1, 'ok': True, 'updated_at': '2026-10-01T20:00:00',
@@ -50,14 +53,19 @@ def test_chat_endpoint_supplies_real_filtered_context_and_preserves_scope(chat_c
     dialog = client.get('/aichat/api/dialogs/' + result['dialog_id']).json()
     assert dialog['messages'][0]['report_scope']['module'] == 'water-dashboard'
     assert 'platform_data' not in dialog['messages'][0]['content']
-    # History stays shared; revoke the source grant before the follow-up.
+    # The shared dialog stays accessible, but revoked source context must not
+    # survive as an implicit selection or model history in a follow-up.
     user['modules'] = []
-    assert client.get('/aichat/api/dialogs/' + result['dialog_id']).status_code == 200
+    hidden = client.get('/aichat/api/dialogs/' + result['dialog_id'])
+    assert hidden.status_code == 200
+    assert all(message.get('restricted') for message in hidden.json()['messages'])
+    assert all('report_scope' not in message for message in hidden.json()['messages'])
     with patch.object(app, 'aichat_ask') as ai:
         followup = client.post('/aichat/api/send', data={'dialog_id': result['dialog_id'], 'text': 'Подробнее', 'include_context': 'true'}).json()
     ai.assert_not_called()
     assert not followup['report_sources']
-    assert 'недоступ' in followup['answer']
+    assert followup['response_kind'] == 'clarification'
+    assert 'нет доступных источников' in followup['answer']
 
 
 def test_ordinary_chat_does_not_load_context(chat_client):

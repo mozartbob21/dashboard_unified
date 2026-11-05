@@ -33,7 +33,11 @@ class LocalForm(dict):
 class FinalModelCancellationTests(unittest.TestCase):
     def check_disconnect(self, *, provider_fails):
         import services.aichat as package
-        from services.aichat import storage
+        from services.aichat import private_storage as storage
+        import utils.db as db
+
+        def saved_dialogs():
+            return [storage.get_dialog(item["id"], "local:1") for item in storage.list_dialogs("local:1")]
         from services.aichat.teams import normalize_team
 
         started, released, ended = threading.Event(), threading.Event(), threading.Event()
@@ -67,8 +71,7 @@ class FinalModelCancellationTests(unittest.TestCase):
         context = types.ModuleType('services.aichat.report_context')
         context.wants_context = Mock(return_value=False)
         context.to_prompt = lambda value: ''
-        roles = types.ModuleType('core.roles')
-        roles.effective_modules = Mock(return_value=[])
+        # Use the real permission/provenance helpers with the synthetic account.
         source = (PROJECT_ROOT / 'app.py').read_text(encoding='utf-8-sig')
         route = next(node for node in ast.parse(source).body
                      if isinstance(node, ast.AsyncFunctionDef) and node.name == 'aichat_send')
@@ -97,18 +100,18 @@ class FinalModelCancellationTests(unittest.TestCase):
                 self.assertFalse(ended.is_set())
                 self.assertEqual(active, ['model'])
                 self.assertEqual(changes, ['begin'])
-                dialogs = json.loads(storage.DIALOGS_FILE.read_text(encoding='utf-8'))
+                dialogs = saved_dialogs()
                 self.assertEqual(len(dialogs), 1)
                 self.assertEqual([(message['role'], message['content']) for message in dialogs[0]['messages']],
                                  [('user', question)])
-                before = storage.DIALOGS_FILE.read_bytes()
+                before = saved_dialogs()
 
                 released.set()
                 self.assertTrue(await asyncio.to_thread(ended.wait, 5))
                 await asyncio.sleep(0)
                 self.assertEqual(changes, ['begin', 'end'])
                 self.assertEqual(active, [])
-                self.assertEqual(storage.DIALOGS_FILE.read_bytes(), before)
+                self.assertEqual(saved_dialogs(), before)
                 model.assert_called_once()
             finally:
                 released.set()
@@ -118,11 +121,11 @@ class FinalModelCancellationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix='aichat-model-cancel-') as directory, ExitStack() as stack:
             root = Path(directory)
-            stack.enter_context(patch.object(storage, 'DATA_DIR', root / 'chat'))
-            stack.enter_context(patch.object(storage, 'DIALOGS_FILE', root / 'chat/dialogs.json'))
+            stack.enter_context(patch.object(db, 'DB_FILE', root / 'chat.sqlite'))
+            stack.enter_context(patch.object(db, '_SCHEMA_READY', False))
+            stack.enter_context(patch.object(storage, 'LEGACY_FILE', root / 'absent-dialogs.json'))
             stack.enter_context(patch.dict(sys.modules, {'services.aichat.waiting_facts': facts,
-                                                         'services.aichat.report_context': context,
-                                                         'core.roles': roles}))
+                                                         'services.aichat.report_context': context}))
             # The package may already have a cached real waiting_facts attribute.
             stack.enter_context(patch.object(package, 'waiting_facts', facts, create=True))
             stack.enter_context(patch('socket.create_connection', side_effect=AssertionError('No network in this test')))

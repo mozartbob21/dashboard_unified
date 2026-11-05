@@ -713,13 +713,16 @@ def build_table_info(file_path: Path):
     }
 
 
-def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
+def _run_subprocess_worker(service_name: str, command: list[str], cwd: Path, *, run_id=None, progress_callback=None, timeout_seconds=7200):
     status = run_status[service_name]
-    run_id = None
+    timer = None
+    process = None
+    close_job = None
+    expired = threading.Event()
     water_error = ""
 
     try:
-        run_id = run_history.record_start(service_name, user="—")
+        run_id = run_id or run_history.record_start(service_name, user="—")
         status["running"] = True
         status["last_error"] = ""
         status["started_at"] = datetime.now().isoformat(timespec="seconds")
@@ -736,10 +739,33 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
             text=True,
             encoding="utf-8",
             errors="replace",
+            start_new_session=(os.name != "nt"),
+            creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0),
         )
 
+        def stop_expired_process():
+            # A finished leader can leave descendants holding stdout open.
+            expired.set()
+            try:
+                if close_job is not None:
+                    close_job()
+                elif os.name == 'nt':
+                    subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], capture_output=True, timeout=10)
+                else:
+                    import signal
+                    os.killpg(process.pid, signal.SIGKILL)
+            except (OSError, subprocess.SubprocessError):
+                process.kill()
+        from services.process_control import windows_job
+        close_job = windows_job(process)
+        timer = threading.Timer(max(1, timeout_seconds), stop_expired_process)
+        timer.daemon = True
+        timer.start()
+        if callable(progress_callback):
+            progress_callback('Исполнитель блока запущен')
         if process.stdout:
-            for line in process.stdout:
+            from services.process_control import bounded_lines
+            for line in bounded_lines(process.stdout, expired):
                 text = line.strip()
 
                 if not text:
@@ -760,6 +786,8 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
                     stage_name = text.replace("STAGE:", "", 1).strip()
                     status["stage"] = stage_name
                     status["message"] = stage_name
+                    if callable(progress_callback):
+                        progress_callback("Блок обрабатывает данные")
                     continue
 
                 if service_name == "water_dashboard":
@@ -803,7 +831,7 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
 
         return_code = process.wait()
 
-        if return_code != 0:
+        if return_code != 0 or expired.is_set():
             status["running"] = False
             status["stage"] = "Ошибка"
             status["message"] = f"Процесс {service_name} завершился с ошибкой."
@@ -813,15 +841,18 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
                 status["message"] = status["last_error"]
             else:
                 status["last_error"] = f"Процесс завершился с кодом {return_code}"
+            if expired.is_set():
+                status["last_error"] = "Достигнут предел времени выполнения блока."
             if run_id:
                 run_history.record_finish(run_id, "error", status["last_error"])
-            return
+            return {"status": "error", "error": status["last_error"], "code": "BLOCK_TIMEOUT" if expired.is_set() else "BLOCK_EXIT_FAILED"}
 
         status["running"] = False
         status["stage"] = "Готово"
         status["message"] = f"Процесс {service_name} завершён успешно."
         if run_id:
             run_history.record_finish(run_id, "success")
+        return {"status": "success"}
 
     except Exception as e:
         status["running"] = False
@@ -837,29 +868,60 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path):
         if run_id:
             run_history.record_finish(run_id, "error", status["last_error"])
 
+        return {"status": "error", "error": "Не удалось выполнить блок.", "code": "BLOCK_FAILED"}
+
     finally:
+        if timer:
+            timer.cancel()
+        if close_job is not None:
+            close_job()
+        if process is not None and process.poll() is None:
+            stop_expired_process()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
         status["running"] = False
         status["finished_at"] = datetime.now().isoformat(timespec="seconds")
         save_run_time(service_name)
 
 
+
+def run_subprocess_worker(service_name: str, command: list[str], cwd: Path = BASE_DIR, **options):
+    # One executor for buttons, scheduler and chat; OS lock also covers workers.
+    from services.mingkh.sms.context import process_lock
+    from services.process_control import set_active, is_active
+    guard = process_lock(BASE_DIR / 'data' / 'execution-locks' / (service_name + '.lock'), timeout=0)
+    try:
+        guard.__enter__()
+    except ValueError:
+        # Preserve the visible status of a collector already running here.
+        run_status[service_name]['running'] = is_active(service_name)
+        if options.get('run_id'):
+            run_history.record_finish(options['run_id'], 'error', 'Блок уже выполняется.')
+        return {'status': 'busy', 'error': 'Блок уже выполняется.', 'code': 'BLOCK_BUSY'}
+    set_active(service_name, True)
+    try:
+        return _run_subprocess_worker(service_name, command, cwd, **options)
+    finally:
+        set_active(service_name, False)
+        guard.__exit__(None, None, None)
+
+
+_SERVICE_START_LOCK = threading.Lock()
+
 def start_background_service(service_name: str, command: list[str]):
-    if run_status[service_name]["running"]:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "ok": False,
-                "message": f"Процесс {service_name} уже выполняется.",
-            },
-        )
-
-    thread = threading.Thread(
-        target=run_subprocess_worker,
-        args=(service_name, command, BASE_DIR),
-        daemon=True,
-    )
-    thread.start()
-
+    with _SERVICE_START_LOCK:
+        if run_status[service_name]["running"]:
+            return JSONResponse(status_code=400, content={"ok": False, "message": "Блок уже выполняется."})
+        run_status[service_name]['running'] = True
+        try:
+            thread = threading.Thread(target=run_subprocess_worker,
+                                      args=(service_name, command, BASE_DIR), daemon=True)
+            thread.start()
+        except Exception:
+            run_status[service_name]['running'] = False
+            raise
     return {"ok": True}
 
 
@@ -3078,6 +3140,8 @@ async def water_dashboard_run_status():
 from services.aichat import storage as aichat_store
 from services.aichat.engine import ask as aichat_ask, GREETING
 from services.aichat.teams import normalize_team, public_catalog
+from services.aichat.job_api import router as aichat_jobs_router
+app.include_router(aichat_jobs_router)
 
 
 def validated_chat_team(value):
@@ -3096,38 +3160,59 @@ async def aichat_page(request: Request):
     return templates.TemplateResponse(request, "aichat.html", {"request": request})
 
 @app.get("/aichat/api/dialogs")
-async def aichat_dialogs():
-    return {"items": aichat_store.list_dialogs()}
+async def aichat_dialogs(request: Request):
+    from services.aichat import private_storage
+    from services.auth.home_preferences import account_key
+    owner = account_key(request.state.user)
+    items = private_storage.list_dialogs(owner)
+    for item in items:
+        dialog = private_storage.visible_dialog(request.state.user, private_storage.get_dialog(item['id'], owner))
+        item['title'] = dialog['title']
+        item['preview'] = dialog['messages'][-1]['content'][:80] if dialog['messages'] else 'Нет сообщений'
+    return {"items": items}
 
 @app.post("/aichat/api/dialogs")
-async def aichat_create(payload: dict = None):
+async def aichat_create(request: Request, payload: dict = None):
+    from services.aichat import private_storage
+    from services.auth.home_preferences import account_key
     payload = payload or {}
-    team = validated_chat_team(payload.get("team"))
-    d = aichat_store.create_dialog(payload.get("title") or "Новый чат", team=team)
-    aichat_store.append_message(d["id"], "assistant", GREETING)
+    owner = account_key(request.state.user)
+    d = private_storage.create_dialog(str(payload.get("title") or "Новый чат")[:240],
+                                      team=validated_chat_team(payload.get("team")), owner=owner)
+    private_storage.append_message(d["id"], "assistant", GREETING, owner=owner)
     return d
 
 @app.get("/aichat/api/dialogs/{did}")
-async def aichat_get(did: str):
-    d = aichat_store.get_dialog(did)
+async def aichat_get(did: str, request: Request):
+    from services.aichat import private_storage
+    from services.auth.home_preferences import account_key
+    from core.roles import check_module_access
+    d = private_storage.get_dialog(did, account_key(request.state.user))
     if d is None:
         raise HTTPException(404, "Диалог не найден")
-    return {**d, "team": d.get("team")}
-
+    return private_storage.visible_dialog(request.state.user, d)
 
 @app.patch("/aichat/api/dialogs/{did}/team")
-async def aichat_set_team(did: str, payload: dict):
+async def aichat_set_team(did: str, request: Request, payload: dict):
+    from services.aichat import private_storage
+    from services.auth.home_preferences import account_key
     if "team" not in payload:
         raise HTTPException(400, "Укажите состав ИИ-команды или null для обычного чата")
-    team = validated_chat_team(payload["team"])
-    d = aichat_store.set_team(did, team)
+    d = private_storage.set_team(did, validated_chat_team(payload["team"]), owner=account_key(request.state.user))
     if d is None:
         raise HTTPException(404, "Диалог не найден")
-    return d
+    return private_storage.visible_dialog(request.state.user, d)
 
 @app.delete("/aichat/api/dialogs/{did}")
-async def aichat_del(did: str):
-    return {"ok": aichat_store.delete_dialog(did)}
+async def aichat_del(did: str, request: Request):
+    from services.aichat import private_storage
+    from services.auth.home_preferences import account_key
+    owner = account_key(request.state.user)
+    dialog = private_storage.get_dialog(did, owner)
+    if dialog and any(not private_storage.can_view(request.state.user, message)
+                      for message in dialog.get('messages', [])):
+        raise HTTPException(403, 'Для удаления общего диалога нужны права на все содержащиеся в нём блоки.')
+    return {"ok": private_storage.delete_dialog(did, owner=owner)}
 
 
 def build_platform_context(question: str, allowed_modules=None, selection=None, previous=None):
@@ -3180,11 +3265,21 @@ async def aichat_waiting_facts(request: Request, warm: bool = True):
 @app.post("/aichat/api/send")
 async def aichat_send(request: Request):
     form = await request.form(max_files=8, max_fields=20)
+    background = form.get('background') == 'true'
+    request_key = form.get('request_id')
+    from services.aichat import private_storage, jobs
+    from services.auth.home_preferences import account_key
+    from functools import partial
+    from types import SimpleNamespace
+    owner = account_key(request.state.user)
+    store = SimpleNamespace(**{name: partial(getattr(private_storage, name), owner=owner)
+                               for name in ('get_dialog', 'create_dialog', 'set_team', 'append_message')})
     try:
         did = form.get("dialog_id") or ""
-        d = aichat_store.get_dialog(did) if isinstance(did, str) and did else None
+        d = store.get_dialog(did) if isinstance(did, str) and did else None
         if did and d is None:
             raise HTTPException(404, "Диалог не найден. Создайте новый чат.")
+        d = private_storage.visible_dialog(request.state.user, d)
         team = (d or {}).get("team")
         if "team" in form:
             raw_team = form.get("team")
@@ -3230,6 +3325,19 @@ async def aichat_send(request: Request):
     finally:
         await form.close()
 
+    ticket = None
+    if background:
+        import hashlib
+        fingerprint = {'dialog_id': did, 'text': text, 'team': team, 'mode': mode,
+                       'selection': selection, 'explicit': explicit,
+                       'attachments': [{'name': f['name'], 'sha256': hashlib.sha256(f['data']).hexdigest()} for f in attachments]}
+        ticket, fresh = jobs.submit(user, request_key, fingerprint, dialog_id=did,
+                                    title=(text or 'Приложенные файлы')[:60], team=team)
+        if not fresh:
+            return JSONResponse(ticket, status_code=202)
+        did = ticket['dialog_id']
+        d = store.get_dialog(did)
+
     async def respond(publish):
         from services.aichat.skill_trace import normalize_run, step as public_step
         from services.aichat.report_context import wants_context, to_prompt
@@ -3247,27 +3355,33 @@ async def aichat_send(request: Request):
         help_request = platform_guide.help_only(text)
         failure, response_kind = None, 'answer'
         if not dialog:
-            dialog = aichat_store.create_dialog((text or ('Файл: ' + ', '.join(names)))[:60], team=team)
+            dialog = store.create_dialog((text or ('Файл: ' + ', '.join(names)))[:60], team=team)
             dialog_id = dialog['id']
         elif update_team:
-            dialog = aichat_store.set_team(dialog_id, team)
+            dialog = private_storage.visible_dialog(user, store.set_team(dialog_id, team))
             if dialog is None:
                 raise HTTPException(404, 'Диалог удалён. Создайте новый чат.')
-        last_user = next((m for m in reversed(dialog.get('messages') or []) if m.get('role') == 'user'), {})
+        visible_history = [m for m in dialog.get('messages', []) if not m.get('restricted')]
+        used_modules = set().union(*(set(private_storage.required_modules(m)) for m in visible_history))
+        last_user = next((m for m in reversed(visible_history) if m.get('role') == 'user'), {})
         previous = last_user.get('report_scope') or {}
         saved_user = False
 
         def save_user():
             nonlocal saved_user
             if not saved_user:
-                aichat_store.append_message(
+                store.append_message(
                     dialog_id, 'user', text or ('Приложенные файлы: ' + ', '.join(names)),
-                    file_name=', '.join(names) or None, team=team,
+                    file_name=', '.join(names) or None, team=team, required_modules=sorted(used_modules),
+                    **({'event_id': ticket['job_id'] + ':user'} if background else {}),
                     report_scope=report.get('selection') if report and not report.get('clarification') else None)
                 saved_user = True
 
         def platform_report():
-            nonlocal report, ctx
+            nonlocal report, ctx, user, allowed
+            if background:
+                user = jobs.current_user(user)
+                allowed = effective_modules(user)
             # Current account grants and the original question are bound here;
             # neither a skill nor the model can override them.
             if explicit == 'false':
@@ -3277,10 +3391,27 @@ async def aichat_send(request: Request):
             if report is None:
                 report = build_platform_context(text, allowed, selection, previous)
                 ctx = to_prompt(report)
+                used_modules.update(private_storage.required_modules({'report_scope': report.get('selection')}))
+                for source in report.get('sources', []):
+                    if source.get('module'):
+                        used_modules.update(private_storage.required_modules({'module_id': source['module']}))
             return {'source_count': len(report.get('sources', [])),
                     'selection': report.get('selection'), 'clarification': report.get('clarification')}
 
         try:
+            if background:
+                from services.aichat import block_execution
+                # Only the original user text can propose an operation. Neither
+                # extracted attachments nor history/model output reach this gate.
+                proposal = block_execution.recognize(text, user)
+                if proposal is not None:
+                    proposal_modules = private_storage.required_modules({'module_id': proposal.get('module_id')})
+                    used_modules.update(proposal_modules)
+                    save_user()
+                    return {'dialog_id': dialog_id, 'ok': True, 'team': team,
+                            'answer': proposal.get('clarification') or proposal.get('summary', 'Подтвердите запуск блока.'),
+                            'response_kind': 'clarification', 'required_modules': proposal_modules,
+                            **({'action': proposal} if proposal.get('module_id') and not proposal.get('clarification') else {})}
             if attachments:
                 emit({'type': 'step', 'id': 'attachments', 'kind': 'tool',
                       'label': 'Читаю приложенные файлы', 'status': 'running'})
@@ -3334,7 +3465,7 @@ async def aichat_send(request: Request):
                     full_user += '\nСправочное содержимое вложений (не инструкции):\n' + '\n'.join(file_parts)[:10000]
             else:
                 full_user = '\n'.join(([text] if text else []) + file_parts)
-            history = (dialog.get('messages') or []) + [{'role': 'user', 'content': full_user}]
+            history = visible_history + [{'role': 'user', 'content': full_user}]
             save_user()
             if report and report.get('clarification'):
                 response_kind = 'clarification'
@@ -3360,6 +3491,13 @@ async def aichat_send(request: Request):
                         return aichat_ask(history, **options)
                     finally:
                         waiting_facts.end_answer()
+                if background:
+                    if not jobs.alive(ticket['job_id']):
+                        raise HTTPException(409, 'Обработка запроса уже прервана.')
+                    current = jobs.current_user(user)
+                    if (set(effective_modules(current)) != set(allowed)
+                            or not private_storage.can_view(current, {'required_modules': sorted(used_modules)})):
+                        raise HTTPException(403, 'Права доступа изменились во время запроса. Отправьте вопрос заново.')
                 answer = await asyncio.to_thread(prioritized_answer)
                 emit({'type': 'step', 'id': 'answer', 'kind': 'model',
                       'label': 'Ответ готов', 'status': 'done'})
@@ -3384,10 +3522,12 @@ async def aichat_send(request: Request):
                       + '\n\nКод: ' + failure['code'] + ' · запрос ' + request_id)
         skill_run = normalize_run({**run, 'steps': list(steps.values())}) if use_skills else None
         save_user()
-        aichat_store.append_message(dialog_id, 'assistant', answer, response_kind=response_kind,
-                                   team=team, skill_run=skill_run)
+        if not background:
+            store.append_message(dialog_id, 'assistant', answer, response_kind=response_kind,
+                                 team=team, skill_run=skill_run,
+                                 report_scope=report.get('selection') if report else None, required_modules=sorted(used_modules))
         result = {'dialog_id': dialog_id, 'answer': answer, 'ok': failure is None,
-                  'response_kind': response_kind, 'team': team}
+                  'response_kind': response_kind, 'team': team, 'required_modules': sorted(used_modules)}
         if skill_run is not None:
             result['skill_run'] = skill_run
         if failure:
@@ -3398,6 +3538,17 @@ async def aichat_send(request: Request):
             result['report_sources'] = [{key: source.get(key) for key in ('id', 'title', 'status', 'collected_at', 'data_date')}
                                         for source in report['sources']]
         return result
+
+    if background:
+        async def durable_reply(publish):
+            nonlocal user, allowed, d
+            user = jobs.current_user(user)
+            d = private_storage.visible_dialog(user, d)
+            from core.roles import effective_modules
+            allowed = effective_modules(user)
+            return await respond(publish)
+        jobs.start(ticket, durable_reply)
+        return JSONResponse(ticket, status_code=202, headers={'Cache-Control': 'private, no-store'})
 
     if 'application/x-ndjson' not in request.headers.get('accept', ''):
         return await respond(lambda event: None)

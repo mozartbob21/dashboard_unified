@@ -274,56 +274,42 @@ test('controller reverses a native optimistic toggle, locks while saving and res
   assert.equal(doc.getElementById('skillsError').textContent, 'Не удалось сохранить');
 });
 
-function sendHarness(response) {
-  const calls = [], assistants = [], activity = [], busyValues = [], waitingEvents = [];
-  const fields = new Map();
+function sendHarness() {
+  const calls = [], busyValues = [], fields = new Map();
   const ctx = vm.createContext({
-    window: {NeuronaSkills: skills}, busy: false, currentDid: null, pending: [],
-    waitingFacts: {start() {waitingEvents.push('start');}, stop() {waitingEvents.push('stop');}},
-    ta: {value: 'Посчитай 18% от 245 000', style: {}}, teamUI: {get: () => null, restore() {}},
-    $: selector => selector === '#welcome' ? null : {hidden: true, textContent: ''},
-    setBusy(value) {
-      if (!value) assert.equal(waitingEvents.at(-1), 'stop', 'Facts stop before the composer is unlocked');
-      ctx.busy = value; busyValues.push(value);
-    },
-    appendUser() {}, renderPending() {}, loadDialogs() {},
-    showSkillActivity(run) { activity.push(plain(run)); }, clearSkillActivity() {},
-    appendAssist(answer, team, run) { assistants.push({answer, team, run: plain(run)}); },
-    fetch: async (url, options) => { calls.push({url, options}); return response; },
-    FormData: class {append(key, value) { fields.set(key, value); }},
-    TypeError, URL
+    busy: false, currentDid: null, pending: [], lastSubmission:null, submissions:new Map(),
+    ta: {value: 'Посчитай 18% от 245 000', style: {}}, teamUI: {get: () => null},
+    $: () => ({hidden: true, textContent: ''}),
+    setBusy(value) { ctx.busy = value;busyValues.push(value); },
+    jobsUI:{requestKey:()=> 'stable-request-key',
+      submit:async (...args) => {calls.push({method:'submit', args});return null;},
+      retry:async (...args) => {calls.push({method:'retry', args});return null;}},
+    FormData: class {append(key, value) { fields.set(key, value); }}, URL
   });
   const start = template.indexOf('async function send(textOverride){');
   const end = template.indexOf('\nfunction setBusy(', start);
   assert.ok(start !== -1 && end > start);
   vm.runInContext(template.slice(start, end), ctx);
-  return {send: ctx.send, ctx, calls, assistants, activity, busyValues, waitingEvents, fields};
+  return {send:ctx.send, ctx, calls, busyValues, fields};
 }
 
-test('real template send performs one streaming POST and renders the persisted trace', async () => {
-  const skillRun = {skills: [{id: 'calculation', title: 'Точные расчёты'}], tools: [{name: 'calculate', title: 'Вычисление', status: 'done'}], steps: [step('done')], warnings: []};
-  const run = sendHarness(responseFromChunks([bytes(ndjson([step(), step('done'), {...result, skill_run: skillRun}]))]));
+test('real template hands work to durable jobs and unlocks composer after acceptance request', async () => {
+  const run = sendHarness();
   await run.send();
   assert.equal(run.calls.length, 1);
-  assert.equal(run.calls[0].url, '/aichat/api/send');
-  assert.equal(run.calls[0].options.method, 'POST');
-  assert.equal(run.calls[0].options.headers.Accept, 'application/x-ndjson');
+  assert.equal(run.calls[0].method, 'submit');
+  assert.equal(run.calls[0].args[1], 'stable-request-key');
   assert.equal(run.fields.get('skills_mode'), 'auto');
-  assert.equal(run.ctx.currentDid, 'saved');
-  assert.equal(run.assistants[0].answer, result.answer);
-  assert.equal(run.assistants[0].run.skills[0].title, 'Точные расчёты');
-  assert.equal(run.activity.length, 3);
   assert.deepEqual(run.busyValues, [true, false]);
-  assert.deepEqual(run.waitingEvents, ['start', 'stop']);
+  assert.equal(run.ctx.ta.value, 'Посчитай 18% от 245 000', 'Unconfirmed request must keep the draft');
 });
 
-test('real template send never resubmits a broken stream and ends its running activity', async () => {
-  const run = sendHarness(responseFromChunks([bytes(JSON.stringify(step()) + '\n{broken')]));
-  await run.send();
-  assert.equal(run.calls.length, 1);
-  assert.equal(run.assistants.length, 1);
-  assert.match(run.assistants[0].answer, /Не удалось получить ответ/);
-  assert.equal(run.assistants[0].run.steps[0].status, 'error');
-  assert.deepEqual(run.busyValues, [true, false]);
-  assert.deepEqual(run.waitingEvents, ['start', 'stop']);
+test('real template resubmits unchanged uncertain draft using same id instead of new command', async () => {
+  const run = sendHarness();
+  await run.send();await run.send();
+  assert.deepEqual(run.calls.map(call=>call.method), ['submit','retry']);
+  assert.equal(run.calls[1].args[0], 'stable-request-key');
+  run.ctx.ta.value = 'Другая задача';await run.send();
+  assert.equal(run.calls[2].method, 'submit');
+  assert.deepEqual(run.busyValues, [true,false,true,false,true,false]);
 });

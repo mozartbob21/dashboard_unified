@@ -45,7 +45,17 @@ class AccessControlTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         from services.auth.accounts import initialize_access_control, provision_manager
         from services.auth.security import hash_password
+        from services.aichat import jobs, private_storage
+        # Shared history must not leak fixtures across cases or import a real archive.
+        self.legacy_chat = patch.object(private_storage, 'LEGACY_FILE', Path(self.temp.name) / 'absent-dialogs.json')
+        self.legacy_chat.start()
+        self.addCleanup(self.legacy_chat.stop)
+        jobs.initialize()
         with self.db.get_db_connection() as conn:
+            conn.execute("DELETE FROM aichat_confirmations")
+            conn.execute("DELETE FROM aichat_request_receipts")
+            conn.execute("DELETE FROM aichat_jobs")
+            conn.execute("DELETE FROM aichat_dialogs")
             conn.execute("UPDATE account_control SET manager_user_id=NULL, grants_migrated=0")
             conn.execute("DELETE FROM users")
             conn.execute("DELETE FROM scheduler_jobs")
@@ -295,22 +305,94 @@ class AccessControlTests(unittest.TestCase):
                 self.assertNotIn('saved-secret', response.text)
                 portal.return_value.__exit__.assert_called_once()
 
-    def test_ai_chat_history_remains_shared_without_implicit_restricted_context(self):
-        store=self.module.aichat_store
-        chat_dir=Path(self.temp.name)/'shared-chat-test'
-        with patch.object(store,'DATA_DIR',chat_dir), patch.object(store,'DIALOGS_FILE',chat_dir/'dialogs.json'):
-            self.login()
-            dialog=self.client.post('/aichat/api/dialogs',json={'title':'Shared test chat'}).json()
-            self.manager_login()
-            self.assertEqual(self.client.get('/aichat/api/dialogs/'+dialog['id']).json()['title'],'Shared test chat')
-            with patch.object(self.module,'aichat_ask',return_value='Synthetic answer') as ai, patch.object(self.module,'build_platform_context') as context:
-                reply=self.client.post('/aichat/api/send',data={'dialog_id':dialog['id'],'text':'Проверь воду в тестовом примере'})
-                self.assertEqual(reply.status_code,200)
-                context.assert_not_called()
-                self.assertIn('Проверь воду',str(ai.call_args))
-            self.login()
-            ids=[d['id'] for d in self.client.get('/aichat/api/dialogs').json()['items']]
-            self.assertIn(dialog['id'],ids)
+    def test_ai_chat_history_is_shared_without_implicit_restricted_context(self):
+        self.login()
+        dialog = self.client.post('/aichat/api/dialogs', json={'title': 'Общий диалог коллег'}).json()
+        self.manager_login()
+        self.assertEqual(self.client.get('/aichat/api/dialogs/' + dialog['id']).status_code, 200)
+        self.assertIn(dialog['id'], [d['id'] for d in self.client.get('/aichat/api/dialogs').json()['items']])
+        with patch.object(self.module, 'aichat_ask', return_value='Synthetic answer') as ai, \
+                patch.object(self.module, 'build_platform_context') as context:
+            reply = self.client.post('/aichat/api/send', data={
+                'dialog_id': dialog['id'], 'text': 'Проверь воду в тестовом примере'})
+            self.assertEqual(reply.status_code, 200)
+            context.assert_not_called()
+            self.assertIn('Проверь воду', str(ai.call_args))
+            self.assertEqual(self.client.patch('/aichat/api/dialogs/' + dialog['id'] + '/team',
+                                               json={'team': None}).status_code, 200)
+            other = self.client.post('/aichat/api/dialogs', json={'title': 'Ещё один общий диалог'}).json()
+        self.login()
+        ids = [d['id'] for d in self.client.get('/aichat/api/dialogs').json()['items']]
+        self.assertIn(dialog['id'], ids)
+        self.assertIn(other['id'], ids)
+        common = self.client.get('/aichat/api/dialogs/' + dialog['id']).json()
+        self.assertEqual(common['title'], 'Общий диалог коллег')
+        self.assertEqual(common['messages'][-1]['content'], 'Synthetic answer')
+        self.assertEqual(self.client.get('/aichat/api/dialogs/' + other['id']).status_code, 200)
+
+    def test_shared_chat_redacts_block_results_and_model_context_by_current_permissions(self):
+        from services.aichat import private_storage
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules=? WHERE username=?",
+                         ('["edo","cameras"]', self.credentials['username']))
+            manager_id = conn.execute("SELECT id FROM users WHERE username=?",
+                                      (self.credentials['username'],)).fetchone()['id']
+        self.manager_login()
+        dialog = self.client.post('/aichat/api/dialogs', json={'title': 'Общие проверки'}).json()
+        owner = 'local:' + str(manager_id)
+        private_storage.append_message(dialog['id'], 'user', 'Общий вопрос', owner=owner)
+        private_storage.append_message(dialog['id'], 'assistant', 'EDO_SYNTHETIC_RESULT', owner=owner,
+                                       report_scope={'modules': ['edo']})
+        private_storage.append_message(dialog['id'], 'assistant', 'CAMERA_SYNTHETIC_RESULT', owner=owner,
+                                       module_id='camera_prescriptions', file_name='restricted.pdf',
+                                       report_sources=[{'title': 'CAMERA_SOURCE_SECRET'}])
+        manager_view = self.client.get('/aichat/api/dialogs/' + dialog['id']).json()
+        self.assertIn('CAMERA_SYNTHETIC_RESULT', json.dumps(manager_view))
+        self.login()
+        for response in [self.client.get('/aichat/api/dialogs/' + dialog['id']),
+                         self.client.patch('/aichat/api/dialogs/' + dialog['id'] + '/team', json={'team': None})]:
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('EDO_SYNTHETIC_RESULT', response.text)
+            self.assertNotIn('CAMERA_SYNTHETIC_RESULT', response.text)
+            self.assertNotIn('CAMERA_SOURCE_SECRET', response.text)
+            self.assertNotIn('restricted.pdf', response.text)
+            self.assertTrue(response.json()['messages'][-1]['restricted'])
+        preview = self.client.get('/aichat/api/dialogs').json()['items'][0]['preview']
+        self.assertNotIn('CAMERA_SYNTHETIC_RESULT', preview)
+        self.assertIn('правами', preview)
+        with patch.object(self.module, 'aichat_ask', return_value='Visible follow-up') as ai, \
+                patch.object(self.module, 'build_platform_context') as context:
+            reply = self.client.post('/aichat/api/send', data={
+                'dialog_id': dialog['id'], 'text': 'Объясни предыдущие ответы', 'include_context': 'false'})
+            self.assertEqual(reply.status_code, 200)
+            self.assertIn('EDO_SYNTHETIC_RESULT', str(ai.call_args))
+            self.assertNotIn('CAMERA_SYNTHETIC_RESULT', str(ai.call_args))
+            context.assert_not_called()
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[]' WHERE username='legacy'")
+        self.login('legacy')
+        no_modules = self.client.get('/aichat/api/dialogs/' + dialog['id'])
+        self.assertEqual(no_modules.status_code, 200)
+        self.assertIn('Общий вопрос', no_modules.text)
+        for restricted in ['EDO_SYNTHETIC_RESULT', 'CAMERA_SYNTHETIC_RESULT', 'Visible follow-up']:
+            self.assertNotIn(restricted, no_modules.text)
+
+    def test_shared_chat_block_permission_revocation_masks_title_and_preview(self):
+        from services.aichat import private_storage
+        self.login()
+        dialog = self.client.post('/aichat/api/dialogs', json={'title': 'EDO_PRIVATE_TITLE'}).json()
+        with self.db.get_db_connection() as conn:
+            ordinary_id = conn.execute("SELECT id FROM users WHERE username='ordinary'").fetchone()['id']
+        private_storage.append_message(dialog['id'], 'user', 'EDO_PRIVATE_QUESTION',
+                                       owner='local:' + str(ordinary_id), required_modules=['edo'])
+        with self.db.get_db_connection() as conn:
+            conn.execute("UPDATE users SET modules='[]' WHERE id=?", (ordinary_id,))
+        for response in [self.client.get('/aichat/api/dialogs'),
+                         self.client.get('/aichat/api/dialogs/' + dialog['id']),
+                         self.client.patch('/aichat/api/dialogs/' + dialog['id'] + '/team', json={'team': None})]:
+            self.assertEqual(response.status_code, 200)
+            self.assertNotIn('EDO_PRIVATE_TITLE', response.text)
+            self.assertNotIn('EDO_PRIVATE_QUESTION', response.text)
 
     def test_mingkh_grant_and_missing_credentials(self):
         self.login()

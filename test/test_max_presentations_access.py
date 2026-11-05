@@ -97,3 +97,23 @@ def test_uncertain_delivery_requires_explicit_confirmation_before_retry(handler)
     assert handler.presentations.calls == 1
     handler.handle(callback(button(confirm)))
     assert handler.presentations.calls == 1
+
+
+def test_pdf_delivery_status_distinguishes_certificate_failure_and_confirmation(handler):
+    class Subscription:
+        def status(self, account):
+            return {'subscribed': True, 'failed': 1, 'sent': 1,
+                    'error_code': 'MAX_UPLOAD_TLS_CERTIFICATE_FAILED',
+                    'confirmed': [{'name': 'Успешный.pdf', 'sent_at': 1_800_000_000}],
+                    'issues': [{'id': 7, 'name': 'Неотправленный.pdf', 'state': 'failed',
+                                'code': 'MAX_UPLOAD_TLS_CERTIFICATE_FAILED', 'retryable': True}]}
+    grant(handler.store.accounts_path, ['presentations'])
+    link(handler)
+    handler.presentations = Subscription()
+    page = handler.handle(event('/presentations'))
+    message = page['body']['text']
+    assert 'сертификат файлового хранилища' in message
+    assert 'проверить источник или размер' not in message
+    assert 'Отправка подтверждена: Успешный.pdf' in message
+    assert 'Не доставлено или не подтверждено: Неотправленный.pdf' in message
+    assert 'Отправка подтверждена: Неотправленный.pdf' not in message

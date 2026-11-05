@@ -14,10 +14,15 @@ from utils import db
 
 
 RELEASE_ID = "2026-10-15-v3"
-CURRENT_RELEASE_ID = "2026-10-26-v33"
+BASE_RELEASE_ID = "2026-10-26-v33"
+CHAT_JOBS_RELEASE_ID = "2026-11-04-chat-jobs-v33"
+CURRENT_RELEASE_ID = "2026-11-04-shared-chat-v33"
+ZIP_RELEASE_ID = "2026-11-05-zip-area-unit-v33"
+ZIP_ENTRY_ID = "zip-area-unit"
 OLD_RELEASE_IDS = {"2026-10-23-max-permanent-link-v32", "2026-10-23-presentations-max-v32",
                    "2026-10-23-account-access-v32", "2026-10-22-max-lan-v32", "2026-10-22-max-v32"}
-GENERAL_ENTRY_IDS = {"login-appearance", "survey-without-interruption"}
+GENERAL_ENTRY_IDS = {"login-appearance", "survey-without-interruption", "chat-durable-private", "chat-shared-history"}
+PRESENTATION_ENTRY_IDS = {"max-presentations-button", "max-pdf-confirmed-delivery"}
 CATALOG = (
     {"id": "2026-10-15-test", "version": "15.10.2026", "title": "Обновление сервиса",
      "published_at": "2026-10-15T00:00:00+03:00", "entries": (
@@ -82,38 +87,40 @@ def entry_ids(payload):
     return {entry["id"] for note in payload["releases"] for entry in note["entries"]}
 
 
-def assert_general_only(payload):
-    assert len(payload["releases"]) == 1
-    note = payload["releases"][0]
-    assert note["id"] == CURRENT_RELEASE_ID and note["version"] == "3.3"
-    assert entry_ids(payload) == GENERAL_ENTRY_IDS
+def assert_ordinary_news(payload, *, zips=False):
+    expected = [CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID]
+    if zips:
+        expected.insert(0, ZIP_RELEASE_ID)
+    assert [note["id"] for note in payload["releases"]] == expected
+    assert all(note["version"] == "3.3" for note in payload["releases"])
+    assert entry_ids(payload) == GENERAL_ENTRY_IDS | ({ZIP_ENTRY_ID} if zips else set())
     assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
 
 
 def test_deployed_v33_catalog_replaces_previous_versions(app, deployed):
     releases._validate_catalog()
-    assert len(DEPLOYED_RELEASES) == 3
-    assert {note["id"] for note in DEPLOYED_RELEASES} == {CURRENT_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
+    assert len(DEPLOYED_RELEASES) == 6
+    assert {note["id"] for note in DEPLOYED_RELEASES} == {ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
     assert {note["version"] for note in DEPLOYED_RELEASES} == {"3.3"}
     with api(app, "4") as client:
         response = client.get("/api/releases/pending")
         assert response.status_code == 200
         assert response.headers["cache-control"] == "private, no-store"
         payload = response.json()
-        assert payload["pending_count"] == 1
-        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {"admin-ai-credentials", "max-stocks-button"}
+        assert payload["pending_count"] == 4
+        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {ZIP_ENTRY_ID, "admin-ai-credentials", "max-stocks-button"}
         for old_id in OLD_RELEASE_IDS:
             assert client.post(f"/api/releases/{old_id}/read").status_code == 404
     for actor in ("1", "2"):
         with api(app, actor) as client:
-            assert_general_only(client.get("/api/releases/pending").json())
+            assert_ordinary_news(client.get("/api/releases/pending").json(), zips=(actor == "1"))
 
 
 @pytest.mark.parametrize("change", ["module", "manager"])
 def test_max_news_disappears_immediately_after_permission_revoked(app, deployed, change):
     with api(app, "4") as client:
         assert "max-stocks-button" in entry_ids(client.get("/api/releases/pending").json())
-        assert client.post(f"/api/releases/{CURRENT_RELEASE_ID}/read").status_code == 200
+        assert client.post(f"/api/releases/{BASE_RELEASE_ID}/read").status_code == 200
         with db.get_db_connection() as conn:
             if change == "module":
                 conn.execute("UPDATE users SET modules='[]' WHERE id=4")
@@ -121,7 +128,8 @@ def test_max_news_disappears_immediately_after_permission_revoked(app, deployed,
                 conn.execute("DELETE FROM account_managers WHERE user_id=4")
         history = client.get("/api/releases/history").json()
         assert "max-stocks-button" not in entry_ids(history)
-        assert history["pending_count"] == 0
+        assert history["pending_count"] == (2 if change == "module" else 3)
+        assert (ZIP_ENTRY_ID in entry_ids(history)) == (change == "manager")
         assert bool("admin-ai-credentials" in entry_ids(history)) == (change == "module")
 
 
@@ -143,7 +151,7 @@ def test_unavailable_bot_hides_max_but_keeps_general_and_admin_news(app, deploye
     else:
         monkeypatch.setattr(releases, "max_bot_enabled", lambda: False)
     with api(app, "4") as client:
-        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | {"admin-ai-credentials"}
+        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | {ZIP_ENTRY_ID, "admin-ai-credentials"}
 
 
 def test_old_32_receipts_do_not_hide_new_33_notice_across_devices(app, deployed):
@@ -153,8 +161,11 @@ def test_old_32_receipts_do_not_hide_new_33_notice_across_devices(app, deployed)
             ("local:4", old_id, "2026-10-23T21:00:00Z") for old_id in OLD_RELEASE_IDS])
     with api(app, "4") as client:
         payload = client.get("/api/releases/pending").json()
-        assert payload["pending_count"] == 1
-        assert [note["id"] for note in payload["releases"]] == [CURRENT_RELEASE_ID]
+        assert payload["pending_count"] == 4
+        assert [note["id"] for note in payload["releases"]] == [ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID]
+        assert client.post(f"/api/releases/{ZIP_RELEASE_ID}/read").status_code == 200
+        assert client.post(f"/api/releases/{BASE_RELEASE_ID}/read").status_code == 200
+        assert client.post(f"/api/releases/{CHAT_JOBS_RELEASE_ID}/read").status_code == 200
         assert client.post(f"/api/releases/{CURRENT_RELEASE_ID}/read").status_code == 200
     with api(app, "4") as another_device:
         assert another_device.get("/api/releases/pending").json() == {"releases": [], "pending_count": 0}
@@ -169,7 +180,7 @@ def test_keycloak_cannot_receive_local_max_news_even_with_admin_claims(app, depl
         payload = client.get("/api/releases/history").json()
         # Existing Keycloak admin grants include ordinary modules, but never
         # local account management or MAX account linking.
-        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {"water-source-details", "water-ai-conclusions", "water-ai-retry-appearance", "omsu-rating", "omsu-rating-methodology-restored"}
+        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {ZIP_ENTRY_ID, "water-source-details", "water-ai-conclusions", "water-ai-retry-appearance", "omsu-rating", "omsu-rating-methodology-restored"}
         assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
 
 
@@ -177,31 +188,31 @@ def test_each_max_entry_uses_current_grants_and_management_rights(app, deployed)
     with db.get_db_connection() as conn:
         conn.execute("UPDATE users SET modules=? WHERE id=4", ('["zips","presentations"]',))
     with api(app, "4") as client:
-        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | {
-            "max-stocks-button", "max-presentations-button", "admin-ai-credentials"}
+        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | PRESENTATION_ENTRY_IDS | {
+            "max-stocks-button", "admin-ai-credentials", ZIP_ENTRY_ID}
         with db.get_db_connection() as conn:
             conn.execute("DELETE FROM account_managers WHERE user_id=4")
-        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | {"max-presentations-button"}
+        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | PRESENTATION_ENTRY_IDS | {ZIP_ENTRY_ID}
         with db.get_db_connection() as conn:
             conn.execute("UPDATE users SET modules=? WHERE id=4", ('["zips"]',))
-        assert_general_only(client.get("/api/releases/history").json())
+        assert_ordinary_news(client.get("/api/releases/history").json(), zips=True)
 
 
 def test_ordinary_presentations_subscriber_sees_own_max_entry_only(app, deployed):
     with db.get_db_connection() as conn:
         conn.execute("UPDATE users SET modules=? WHERE id=1", ('["presentations"]',))
     with api(app, "1") as client:
-        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | {"max-presentations-button"}
-        client.post(f"/api/releases/{CURRENT_RELEASE_ID}/read")
+        assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | PRESENTATION_ENTRY_IDS
+        client.post(f"/api/releases/{BASE_RELEASE_ID}/read")
         with db.get_db_connection() as conn:
             conn.execute("UPDATE users SET modules='[]' WHERE id=1")
-        assert_general_only(client.get("/api/releases/history").json())
+        assert_ordinary_news(client.get("/api/releases/history").json())
 
 
 @pytest.mark.parametrize("actor", ["1", "2", "3", "4"])
 def test_presentations_notice_requires_current_grant_even_for_managers(app, deployed, actor):
     with api(app, actor) as client:
-        assert "max-presentations-button" not in entry_ids(client.get("/api/releases/history").json())
+        assert not (PRESENTATION_ENTRY_IDS & entry_ids(client.get("/api/releases/history").json()))
 
 
 def test_disabled_bot_hides_presentations_notice_even_with_grant(app, deployed, monkeypatch):
@@ -209,20 +220,23 @@ def test_disabled_bot_hides_presentations_notice_even_with_grant(app, deployed, 
     with db.get_db_connection() as conn:
         conn.execute("UPDATE users SET modules=? WHERE id=1", ('["presentations"]',))
     with api(app, "1") as client:
-        assert_general_only(client.get("/api/releases/history").json())
+        assert_ordinary_news(client.get("/api/releases/history").json())
 
 
-@pytest.mark.parametrize("module, expected", [("water-dashboard", {"water-source-details", "water-ai-conclusions", "water-ai-retry-appearance"}),
+@pytest.mark.parametrize("module, expected", [("zips", {ZIP_ENTRY_ID}),
+                                              ("water-dashboard", {"water-source-details", "water-ai-conclusions", "water-ai-retry-appearance"}),
                                               ("omsu-rating", {"omsu-rating", "omsu-rating-methodology-restored"})])
 def test_v33_module_news_requires_current_module_grant(app, deployed, module, expected):
+    with db.get_db_connection() as conn:
+        conn.execute("UPDATE users SET modules='[]' WHERE id=1")
     with api(app, "1") as client:
-        assert_general_only(client.get("/api/releases/history").json())
+        assert_ordinary_news(client.get("/api/releases/history").json())
         with db.get_db_connection() as conn:
             conn.execute("UPDATE users SET modules=? WHERE id=1", (json.dumps([module]),))
         assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | expected
         with db.get_db_connection() as conn:
             conn.execute("UPDATE users SET modules='[]' WHERE id=1")
-        assert_general_only(client.get("/api/releases/history").json())
+        assert_ordinary_news(client.get("/api/releases/history").json())
 
 
 @pytest.mark.parametrize("path", ["/api/releases/pending", "/api/releases/history"])
@@ -411,8 +425,8 @@ def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
         monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
         history = client.get("/api/releases/history").json()
-        assert history["pending_count"] == 1
-        assert_general_only(history)
+        assert history["pending_count"] == 4
+        assert_ordinary_news(history, zips=True)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404
 
 
@@ -447,3 +461,55 @@ def test_special_audience_validation_fails_closed(isolated, monkeypatch, entry):
     monkeypatch.setattr(releases, "RELEASES", broken)
     with pytest.raises(ValueError):
         releases.pending(isolated["1"])
+
+
+@pytest.mark.parametrize("grants", [[], ["presentations"]])
+def test_seen_v33_releases_do_not_hide_new_chat_notice_and_pdf_details_follow_rights(app, deployed, grants):
+    releases.initialize()
+    with db.get_db_connection() as conn:
+        conn.execute("UPDATE users SET modules=? WHERE id=1", (json.dumps(grants),))
+        conn.executemany("INSERT INTO release_note_receipts(account_key,release_id,read_at) VALUES (?,?,?)", [
+            ("local:1", note["id"], "2026-11-01T10:00:00Z") for note in DEPLOYED_RELEASES if note["id"] != CHAT_JOBS_RELEASE_ID])
+    with api(app, "1") as first:
+        payload = first.get("/api/releases/pending").json()
+        assert payload["pending_count"] == 1
+        assert [note["id"] for note in payload["releases"]] == [CHAT_JOBS_RELEASE_ID]
+        assert entry_ids(payload) == {"chat-durable-private"} | ({"max-pdf-confirmed-delivery"} if grants else set())
+        assert payload["releases"][0]["title"] == "ИИ-чат: сохраняемые задачи"
+        if not grants:
+            assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
+        assert first.post(f"/api/releases/{CHAT_JOBS_RELEASE_ID}/read").status_code == 200
+    with api(app, "1") as another_device:
+        assert another_device.get("/api/releases/pending").json() == {"releases": [], "pending_count": 0}
+        if grants:
+            with db.get_db_connection() as conn:
+                conn.execute("UPDATE users SET modules='[]' WHERE id=1")
+            history = another_device.get("/api/releases/history").json()
+            assert "max-pdf-confirmed-delivery" not in entry_ids(history)
+            assert history["pending_count"] == 0
+
+
+def test_shared_chat_notice_is_new_after_prior_chat_release_was_read(app, deployed):
+    releases.initialize()
+    with db.get_db_connection() as conn:
+        conn.execute("UPDATE users SET modules='[]' WHERE id=1")
+        conn.executemany("INSERT INTO release_note_receipts(account_key,release_id,read_at) VALUES (?,?,?)", [
+            ("local:1", note["id"], "2026-11-04T16:30:00Z")
+            for note in DEPLOYED_RELEASES if note["id"] != CURRENT_RELEASE_ID])
+    with api(app, "1") as first:
+        payload = first.get("/api/releases/pending").json()
+        assert payload["pending_count"] == 1
+        assert [note["id"] for note in payload["releases"]] == [CURRENT_RELEASE_ID]
+        assert entry_ids(payload) == {"chat-shared-history"}
+        note = payload["releases"][0]
+        assert note["version"] == "3.3"
+        assert "общая" in note["title"].lower()
+        assert "прав" in note["entries"][0]["text"]
+        assert "без повторного запуска" in note["entries"][0]["text"]
+        assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
+        assert first.post(f"/api/releases/{CURRENT_RELEASE_ID}/read").status_code == 200
+        all_text = json.dumps(first.get("/api/releases/history").json(), ensure_ascii=False)
+        assert "доступны только их владельцу" not in all_text
+        assert "не назначается произвольному аккаунту" not in all_text
+    with api(app, "1") as another_device:
+        assert another_device.get("/api/releases/pending").json() == {"releases": [], "pending_count": 0}

@@ -2,7 +2,7 @@
 
 Run with: python -m unittest test.test_aichat_stream_cancel
 The production handler is compiled directly from app.py without importing app
-or starting its scheduler. Request, StreamingResponse and JSON storage are real;
+or starting its scheduler. Request, StreamingResponse and shared SQLite storage are real;
 preparation, platform context and all network connections are mocked or denied.
 """
 import ast
@@ -38,7 +38,11 @@ class LocalForm(dict):
 
 class StreamingCancellationTests(unittest.TestCase):
     def check_disconnect(self, *, explicit_report):
-        from services.aichat import storage
+        from services.aichat import private_storage as storage
+        import utils.db as db
+
+        def saved_dialogs():
+            return [storage.get_dialog(item["id"], "local:1") for item in storage.list_dialogs("local:1")]
         from services.aichat.teams import normalize_team
 
         question = 'Подготовь краткий итог по предоставленным данным'
@@ -66,8 +70,7 @@ class StreamingCancellationTests(unittest.TestCase):
         context = types.ModuleType('services.aichat.report_context')
         context.wants_context = Mock(return_value=False)
         context.to_prompt = lambda value: json.dumps(value, ensure_ascii=False)
-        roles = types.ModuleType('core.roles')
-        roles.effective_modules = Mock(return_value=['edo'])
+        # Use the real permission/provenance helpers with the synthetic account.
         model = Mock(side_effect=AssertionError('The model must not run after preparation is cancelled'))
         platform = Mock(return_value=report)
 
@@ -114,7 +117,7 @@ class StreamingCancellationTests(unittest.TestCase):
                 await asyncio.wait_for(response.body_iterator.aclose(), 5)
 
                 # Read the real persisted file, before letting preparation exit.
-                dialogs = json.loads(storage.DIALOGS_FILE.read_text(encoding='utf-8'))
+                dialogs = saved_dialogs()
                 self.assertEqual(len(dialogs), 1)
                 self.assertEqual(len(dialogs[0]['messages']), 1)
                 message = dialogs[0]['messages'][0]
@@ -128,16 +131,16 @@ class StreamingCancellationTests(unittest.TestCase):
                     platform.assert_called_once()
                     self.assertEqual(platform.call_args.args[1], ['edo'])
                 else:
-                    self.assertNotIn('report_scope', message)
+                    self.assertIsNone(message.get('report_scope'))
                     platform.assert_not_called()
 
                 # Finishing the already running local thread must not resume
                 # the cancelled coroutine, duplicate the user or save an answer.
-                before = storage.DIALOGS_FILE.read_bytes()
+                before = saved_dialogs()
                 released.set()
                 self.assertTrue(await asyncio.to_thread(finished.wait, 5))
                 await asyncio.sleep(0)
-                self.assertEqual(storage.DIALOGS_FILE.read_bytes(), before)
+                self.assertEqual(saved_dialogs(), before)
                 model.assert_not_called()
             finally:
                 released.set()
@@ -147,11 +150,11 @@ class StreamingCancellationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix='aichat-cancel-offline-') as directory, ExitStack() as stack:
             root = Path(directory)
-            stack.enter_context(patch.object(storage, 'DATA_DIR', root / 'chat'))
-            stack.enter_context(patch.object(storage, 'DIALOGS_FILE', root / 'chat/dialogs.json'))
+            stack.enter_context(patch.object(db, 'DB_FILE', root / 'chat.sqlite'))
+            stack.enter_context(patch.object(db, '_SCHEMA_READY', False))
+            stack.enter_context(patch.object(storage, 'LEGACY_FILE', root / 'absent-dialogs.json'))
             stack.enter_context(patch.dict(sys.modules, {'services.aichat.skills.runtime': runtime,
-                                                         'services.aichat.report_context': context,
-                                                         'core.roles': roles}))
+                                                         'services.aichat.report_context': context}))
             stack.enter_context(patch('socket.create_connection', side_effect=AssertionError('Network disabled in this test')))
             stack.enter_context(patch('socket.socket.connect', side_effect=AssertionError('Network disabled in this test')))
             try:

@@ -121,12 +121,13 @@ class TeamAPITests(unittest.TestCase):
 
     def setUp(self):
         access_fixture.AccessControlTests.setUp(self)
-        from services.aichat import storage, teams, report_context
-        self.store, self.teams = storage, teams
+        from services.aichat import private_storage, teams, report_context
+        self.store, self.teams = private_storage, teams
+        with self.db.get_db_connection() as conn:
+            user_id = conn.execute("SELECT id FROM users WHERE username='ordinary'").fetchone()[0]
+        self.owner = "local:" + str(user_id)
         directory = Path(self.temp.name) / self._testMethodName
         for obj, name, value in [
-            (storage, 'DATA_DIR', directory / 'chat'),
-            (storage, 'DIALOGS_FILE', directory / 'chat/dialogs.json'),
             (report_context, 'DATA_DIR', directory / 'reports'),
         ]:
             guard = patch.object(obj, name, value)
@@ -141,6 +142,13 @@ class TeamAPITests(unittest.TestCase):
 
     def login(self, username='ordinary', password='Test-password-123'):
         return access_fixture.AccessControlTests.login(self, username, password)
+
+    def persisted(self):
+        # Read through a fresh SQLite connection, independently of route responses.
+        self.store.initialize()
+        with self.db.get_db_connection() as conn:
+            rows = conn.execute('SELECT body FROM aichat_dialogs WHERE owner=? ORDER BY id', (self.owner,)).fetchall()
+        return [json.loads(row['body']) for row in rows]
 
     def create(self, team=None):
         response = self.client.post('/aichat/api/dialogs', json={'title': 'Проверка команды', 'team': team})
@@ -165,8 +173,8 @@ class TeamAPITests(unittest.TestCase):
         self.assertEqual(self.dialog(did)['team'], self.team)
         item = next(item for item in self.client.get('/aichat/api/dialogs').json()['items'] if item['id'] == did)
         self.assertEqual(item['team'], self.team)
-        # Read a fresh copy from the persisted JSON, not only the response object.
-        disk_dialog = next(item for item in json.loads(self.store.DIALOGS_FILE.read_text()) if item['id'] == did)
+        # Read a fresh copy from SQLite, not only the response object.
+        disk_dialog = next(item for item in self.persisted() if item['id'] == did)
         self.assertEqual(disk_dialog['team'], self.team)
 
     def test_patch_changes_selection_and_off_without_rewriting_history(self):
@@ -194,12 +202,15 @@ class TeamAPITests(unittest.TestCase):
 
     def test_legacy_dialog_without_team_field_still_opens_and_sends_normally(self):
         did = self.create()
-        stored = json.loads(self.store.DIALOGS_FILE.read_text())
+        stored = self.persisted()
         for item in stored:
             item.pop('team', None)
             for message in item['messages']:
                 message.pop('team', None)
-        self.store.DIALOGS_FILE.write_text(json.dumps(stored), encoding='utf-8')
+        with self.db.get_db_connection() as conn:
+            for item in stored:
+                conn.execute('UPDATE aichat_dialogs SET body=? WHERE id=? AND owner=?',
+                             (json.dumps(item), item['id'], self.owner))
         self.assertIsNone(self.dialog(did)['team'])
         listing = self.client.get('/aichat/api/dialogs').json()['items']
         self.assertIsNone(next(item for item in listing if item['id'] == did)['team'])
@@ -246,7 +257,7 @@ class TeamAPITests(unittest.TestCase):
 
     def test_invalid_selection_rejects_before_any_dialog_or_message_write(self):
         did = self.create(self.team)
-        before = self.store.DIALOGS_FILE.read_bytes()
+        before = self.persisted()
         invalid = [
             {'preset': 'custom', 'roles': ['unknown']},
             {'preset': 'custom', 'roles': ['critic', 'critic']},
@@ -264,18 +275,18 @@ class TeamAPITests(unittest.TestCase):
                         self.client.post('/aichat/api/send', data={'text': 'Привет', 'team': json.dumps(team)}),
                     ]
                     self.assertEqual([r.status_code for r in responses], [400] * 4)
-                    self.assertEqual(self.store.DIALOGS_FILE.read_bytes(), before)
+                    self.assertEqual(self.persisted(), before)
             for malformed in ['{broken', '[]', '"council"', 'false']:
                 with self.subTest(malformed=malformed):
                     response = self.client.post('/aichat/api/send', data={'dialog_id': did, 'text': 'Привет', 'team': malformed})
                     self.assertEqual(response.status_code, 400)
-                    self.assertEqual(self.store.DIALOGS_FILE.read_bytes(), before)
+                    self.assertEqual(self.persisted(), before)
         ai.assert_not_called()
         context.assert_not_called()
 
     def test_unknown_dialog_does_not_create_an_unexpected_replacement(self):
         self.create(self.team)
-        before = self.store.DIALOGS_FILE.read_bytes()
+        before = self.persisted()
         with patch.object(self.module, 'aichat_ask') as ai:
             self.assertEqual(self.client.get('/aichat/api/dialogs/missing-dialog').status_code, 404)
             self.assertEqual(self.client.patch('/aichat/api/dialogs/missing-dialog/team', json={'team': self.team}).status_code, 404)
@@ -284,7 +295,7 @@ class TeamAPITests(unittest.TestCase):
             })
             self.assertEqual(response.status_code, 404)
         ai.assert_not_called()
-        self.assertEqual(self.store.DIALOGS_FILE.read_bytes(), before)
+        self.assertEqual(self.persisted(), before)
 
     def test_team_does_not_expand_report_permissions(self):
         from services.aichat import report_context

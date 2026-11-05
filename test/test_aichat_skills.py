@@ -18,12 +18,13 @@ class SkillAPITests(unittest.TestCase):
 
     def setUp(self):
         access_fixture.AccessControlTests.setUp(self)
-        from services.aichat import storage, report_context
-        self.store = storage
+        from services.aichat import private_storage, report_context
+        self.store = private_storage
+        with self.db.get_db_connection() as conn:
+            user_id = conn.execute("SELECT id FROM users WHERE username='ordinary'").fetchone()[0]
+        self.owner = "local:" + str(user_id)
         directory = Path(self.temp.name) / self._testMethodName
-        for obj, attr, value in [(storage, 'DATA_DIR', directory / 'chat'),
-                                 (storage, 'DIALOGS_FILE', directory / 'chat/dialogs.json'),
-                                 (report_context, 'DATA_DIR', directory / 'reports')]:
+        for obj, attr, value in [(report_context, 'DATA_DIR', directory / 'reports')]:
             guard = patch.object(obj, attr, value)
             guard.start(); self.addCleanup(guard.stop)
         # Any unmocked model network attempt is a test failure, never a live call.
@@ -135,7 +136,7 @@ class SkillAPITests(unittest.TestCase):
             result = self.events(self.send(include_context='true', context_module='edo'))[-1]
         read.assert_called_once()
         self.assertTrue(answer.call_args.kwargs['platform_context'])
-        saved = self.store.get_dialog(result['dialog_id'])['messages'][0]
+        saved = self.store.get_dialog(result['dialog_id'], self.owner)['messages'][0]
         self.assertEqual(saved['report_scope']['modules'], ['edo'])
 
     def test_failure_closes_running_step_and_never_exposes_exception(self):
@@ -158,7 +159,7 @@ class SkillAPITests(unittest.TestCase):
                 response = self.send(**data)
             self.assertEqual(response.status_code, status)
             answer.assert_not_called()
-        self.assertFalse(self.store.DIALOGS_FILE.exists())
+        self.assertEqual(self.store.list_dialogs(self.owner), [])
 
     def test_attachment_contents_are_not_sent_to_router_and_are_read_by_tool(self):
         from services.aichat.skills import runtime

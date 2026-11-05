@@ -1,0 +1,18 @@
+.aichat-page .ac-jobs { flex:none;max-height:240px;overflow:auto;padding:10px 22px;border-top:1px solid var(--border);background:var(--bg-soft);scrollbar-width:thin; }
+.aichat-page .ac-jobs[hidden] { display:none; }
+.aichat-page .ac-job-card { position:relative;margin:6px 0;padding:14px 16px;border:1px solid var(--ac-focus);border-radius:14px;background:var(--card-strong);color:var(--text);overflow-wrap:anywhere; }
+.aichat-page .ac-job-title { display:block;color:var(--text);font-size:13px;line-height:1.5; }
+.aichat-page .ac-job-card p { margin:5px 0 8px;font-size:12px;line-height:1.65;white-space:pre-wrap; }
+.aichat-page .ac-job-meta,.aichat-page .ac-job-updated { color:var(--muted);font-size:11px;line-height:1.5; }
+.aichat-page .ac-job-meta { margin:0 0 8px; }
+.aichat-page .ac-job-button { min-height:44px;padding:9px 13px;margin:4px 7px 0 0;border:1px solid var(--ac-focus);border-radius:10px;background:var(--ac-soft);color:var(--text);font-size:12px;font-weight:600;line-height:1.5;text-align:center;cursor:pointer; }
+.aichat-page .ac-job-button:hover { border-color:var(--ac-accent); }
+.aichat-page .ac-job-button:focus-visible { outline:3px solid var(--ac-accent);outline-offset:3px; }
+.aichat-page .ac-job-button:disabled { cursor:wait;opacity:.65; }
+.aichat-page .ac-job-connection,.aichat-page .ac-job-error { color:var(--text);font-size:12px;line-height:1.6; }
+.aichat-page .ac-job-pending { border-style:dashed; }
+@media(max-width:760px) {
+ .aichat-page .ac-jobs { padding:8px 12px;max-height:210px; }
+ .aichat-page .ac-job-card { padding:11px 12px; }
+ .aichat-page .ac-job-button { max-width:100%;white-space:normal; }
+}

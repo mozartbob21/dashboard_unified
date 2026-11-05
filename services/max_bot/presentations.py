@@ -34,6 +34,23 @@ def _uid(user):
     return int(_identifier(user["id"] if isinstance(user, dict) else user))
 
 
+def _pdf_details(path, source_name):
+    """Inspect downloaded bytes, never infer a valid PDF from its filename."""
+    if not source_name.casefold().endswith(".pdf"):
+        return ""
+    try:
+        with path.open("rb") as file:
+            if not file.read(1024).lstrip(b"\xef\xbb\xbf \r\n\t").startswith(b"%PDF-"):
+                raise ValueError("not a PDF")
+        import fitz
+        with fitz.open(path, filetype="pdf") as document:
+            if document.page_count < 1:
+                raise ValueError("empty PDF")
+            return f"PDF: {document.page_count} стр. · {path.stat().st_size:,} байт".replace(",", " ")
+    except (OSError, ValueError, RuntimeError):
+        raise StoreError("PRESENTATION_INVALID_PDF", "Источник вернул повреждённый PDF или содержимое другого формата. Файл не отправлен.", 422) from None
+
+
 class PresentationService:
     def __init__(self, store, *, source_factory=None, client=None, interval=3600, clock=time.time, waiter=None):
         if not 60 <= interval <= 86400:
@@ -100,6 +117,10 @@ class PresentationService:
                 "SELECT d.id,f.name,d.state,d.last_error AS code,d.generation FROM max_presentations_deliveries d "
                 "JOIN max_presentations_files f ON f.attachment_id=d.attachment_id WHERE d.user_id=? "
                 "AND d.state IN ('failed','uncertain') ORDER BY d.updated_at DESC,d.id DESC LIMIT 5", (user_id,))]
+            confirmed = [dict(row) for row in conn.execute(
+                "SELECT f.name,d.updated_at AS sent_at FROM max_presentations_deliveries d "
+                "JOIN max_presentations_files f ON f.attachment_id=d.attachment_id WHERE d.user_id=? "
+                "AND d.state='sent' ORDER BY d.updated_at DESC,d.id DESC LIMIT 3", (user_id,))]
         active = bool(sub and sub["enabled"])
         if active:
             try:
@@ -115,6 +136,7 @@ class PresentationService:
         return {"enabled": active, "subscribed": active, "issues": issues, "baseline_ready": state["baseline_at"] is not None,
                 "last_checked": state["last_checked"], "last_new": state["last_new"],
                 "last_error": error, "error_code": error,
+                "sent": counts.get("sent", 0), "confirmed": confirmed,
                 "pending": sum(counts.get(key, 0) for key in ("pending", "retry", "uploading", "sending")),
                 "uncertain": counts.get("uncertain", 0), "failed": counts.get("failed", 0)}
 
@@ -301,12 +323,15 @@ class PresentationService:
                 path.chmod(0o600)
                 if path.stat().st_size > MAX_FILE_BYTES:
                     raise StoreError("PRESENTATION_TOO_LARGE", "Файл превышает допустимый размер отправки.", 413)
+                pdf_details = _pdf_details(path, row["name"])
                 self._owned(owner)
                 self._validate_subscription(sub)
                 if self._defer_if_stopped(row["id"], owner):
                     return False
                 token = self.client.upload_file(path)
                 caption = "Новая еженедельная презентация\n" + row["name"][:500]
+                if pdf_details:
+                    caption += "\n" + pdf_details
                 if row["created_at_source"]:
                     caption += "\nДата в источнике: " + row["created_at_source"][:128]
                 if row["description"]:
@@ -343,11 +368,12 @@ class PresentationService:
             if exc.code == "MONITOR_LEASE_LOST":
                 return False
             self._pause_source(exc.code, owner)
-            if exc.status_code < 500 and exc.code != "PRESENTATION_TOO_LARGE":
+            file_error = exc.code in {"PRESENTATION_TOO_LARGE", "PRESENTATION_INVALID_PDF"}
+            if exc.status_code < 500 and not file_error:
                 self._disable(sub, exc.code, owner)
                 self._record(row["id"], "cancelled", owner=owner, code=exc.code)
             else:
-                self._record(row["id"], "uncertain" if sending else "failed" if exc.code == "PRESENTATION_TOO_LARGE" else "retry",
+                self._record(row["id"], "uncertain" if sending else "failed" if file_error else "retry",
                     owner=owner, code=exc.code, retry_after=300)
         except Exception as exc:
             code = _error_code(exc, "PRESENTATION_DELIVERY_FAILED")

@@ -23,6 +23,15 @@ function editor(f,ii=0,values={}){
  f.run(`zipReviewEditors.set(PENDING[0].items[${ii}],{record:PENDING[0],values:editorValues,row:editorRow,error:''})`);
  return {row,note,controls};
 }
+test('square metres are selectable before and after loading the server dictionary',()=>{
+ const embedded=JSON.parse(template.match(/<script>const D=(.*?);<\/script>/s)[1]);
+ const server=JSON.parse(fs.readFileSync(path.join(root,'services/zip_curator/zip_dict.json'),'utf8'));
+ for(const dictionary of [embedded,server]){
+  const f=fixture();Object.assign(f.D,dictionary);
+  assert.equal(dictionary.umap['м2'],'м²');
+  assert.match(f.run('zipUnitSelect("м²")'),/<option value="м²" selected>м²<\/option>/);
+ }
+});
 test('complete registry accepts zero and running metres; missing OMSU, units and quantity have concrete blockers',()=>{
  const f=fixture();assert.equal(f.run('zipApprovalIssues(PENDING[0]).length'),0);
  f.PENDING[0].okrug=' ';f.PENDING[0].items[0].qty=null;f.PENDING[0].items[0].unit=null;

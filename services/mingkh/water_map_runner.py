@@ -6,7 +6,7 @@ from services.mingkh import water_map
 MODULE_ID = 'mingkh-water-map'
 
 
-def run(user='Автозапуск'):
+def run(user='Автозапуск', *, run_id=None):
     """Return a safe scheduler outcome; collection never runs in a subprocess."""
     try:
         account = credentials('edds')
@@ -16,16 +16,16 @@ def run(user='Автозапуск'):
                                                for key in ('username', 'password')):
         error = 'Для обновления карты администратору нужно сохранить доступ к Доброделу.'
         from services.run_history import record_start, record_finish
-        record_finish(record_start(MODULE_ID, user=user), status='error', error_message=error)
+        record_finish(run_id or record_start(MODULE_ID, user=user), status='error', error_message=error)
         return {'status': 'error', 'error': error}
     try:
-        ok = water_map.run_refresh({'username': account['username'], 'password': account['password']}, user=user)
+        ok = water_map.run_refresh({'username': account['username'], 'password': account['password']}, user=user, **({'run_id': run_id} if run_id else {}))
     except water_map.StoreBusy:
         return {'status': 'skipped', 'error': 'Карта уже обновляется.'}
     except ValueError as exc:
         error = str(exc)
         from services.run_history import record_start, record_finish
-        record_finish(record_start(MODULE_ID, user=user), status='error', error_message=error)
+        record_finish(run_id or record_start(MODULE_ID, user=user), status='error', error_message=error)
         return {'status': 'error', 'error': error}
     return {'status': 'success' if ok else 'error',
             'error': '' if ok else water_map.status().get('error') or 'Не удалось обновить карту МИНЖКХ.'}
