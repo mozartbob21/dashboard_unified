@@ -136,6 +136,8 @@ def project_mingkh_dataset(data):
         out['unknown_dates'][key] = _integer((data.get('unknown_dates') or {}).get(key))
     if 'curr' not in out['periods']:
         raise ValueError('No current period')
+    from services.aichat.complaint_causes import project_dashboard
+    out['causes_v1'] = project_dashboard(data)
     return out
 
 

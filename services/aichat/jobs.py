@@ -132,6 +132,7 @@ def _finish(ident, status, result, *, stale_check=False):
                                      'ts': now, 'event_id': ident, 'team': result.get('team'),
                                      'response_kind': result.get('response_kind', 'answer'),
                                      'skill_run': result.get('skill_run'), 'module_id': row['module_id'],
+                                     'report_sources': result.get('report_sources', []),
                                      'report_scope': result.get('report_scope'), 'required_modules': requirements})
             body['updated_at'] = now
             conn.execute('UPDATE aichat_dialogs SET body=?,updated_at=? WHERE id=?', (json.dumps(body, ensure_ascii=False), now, row['dialog_id']))

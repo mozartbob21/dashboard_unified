@@ -185,9 +185,21 @@ function bindChips(root){
     b.addEventListener("click",function(){if(!$("#capsOvl").hidden)closeChatModal("#capsOvl");prepareDraft(b.getAttribute("data-ex"))});
   });
 }
-function appendAssist(content,team,skillRun){
+const readableSourcePaths=new Set(['/mingkh','/mingkh/water-map','/mingkh/treatment','/mingkh/collective',
+  '/edds','/ecur','/cds','/water-dashboard','/water-rm','/mgkh-rm','/zips','/cameras','/overdue','/watercontrol','/utnkr','/edo']);
+function appendAssist(content,team,skillRun,sources){
   var w=document.createElement("div");w.className="ac-msg assist";
   w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона '+window.NeuronaTeams.messageBadge(team)+'</div>'+window.NeuronaSkills.traceHTML(skillRun)+'<div class="bubble">'+fmt(content)+"</div></div>";
+  const used=new Set(), links=document.createElement('div');
+  links.className='ac-source-links';
+  for(const source of Array.isArray(sources)?sources:[]){
+    if(!source || !readableSourcePaths.has(source.source_url) || used.has(source.source_url))continue;
+    used.add(source.source_url);
+    const link=document.createElement('a'); link.href=source.source_url;
+    link.textContent='Открыть: '+source.title;
+    links.append(link);
+  }
+  if(links.childElementCount)w.querySelector('.ac-message-body').append(links);
   chatEl.appendChild(w);scroll();
 }
 function appendUser(text,atts,fromHistory){
@@ -267,7 +279,7 @@ async function refreshDialog(did){
   if(!msgs.length)welcome();
   else msgs.forEach(function(m){
     if(m.role==="user")appendUser(m.content,[],true);
-    else appendAssist(m.content,m.team,m.skill_run);
+    else appendAssist(m.content,m.team,m.skill_run,m.report_sources);
   });
   if(!nearBottom)chatEl.scrollTop=previousScroll;
   loadDialogs();

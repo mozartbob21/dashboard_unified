@@ -280,3 +280,8 @@ html[data-glass="on"] .aichat-page :is(.ac-main.card,.ac-side.card) { background
   .aichat-page .ac-chat { flex:none;max-height:65dvh;min-height:120px; }
 }
 @media(hover:none) { .aichat-page .dlg .del { opacity:1; } }
+
+.aichat-page .ac-source-links { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.aichat-page .ac-source-links a { display:inline-flex; align-items:center; min-height:36px; padding:3px 10px;
+  max-width:100%; overflow-wrap:anywhere; color:inherit; border:1px solid currentColor; border-radius:10px; }
+.aichat-page .ac-source-links a:focus-visible { outline:2px solid currentColor; outline-offset:2px; }

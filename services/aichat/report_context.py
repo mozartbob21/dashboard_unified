@@ -471,11 +471,13 @@ def _matrix(rows):
     return {'columns': columns, 'rows': [[row.get(key) for key in columns] for row in rows], 'omitted_rows': 0}
 
 
-def prepare(question, allowed_modules, requested=None, previous=None):
+def prepare(question, allowed_modules, requested=None, previous=None, *, period_constraint=None):
     from services.aichat.local_sources import reset_comparisons
     reset_comparisons()
     allowed = set(allowed_modules or [])
     scope = resolve_scope(question, allowed, requested, previous)
+    if period_constraint and not scope.get('error'):
+        scope['requested_period'] = report_periods.normalize(period_constraint)
     bundle = {'schema_version': 2, 'assembled_at': datetime.now(timezone.utc).isoformat(timespec='seconds'),
               'selection': scope, 'sources': [],
               'limitations': ['Это сохранённые результаты, а не онлайн-проверка порталов. Дата сбора и дата данных могут различаться.',

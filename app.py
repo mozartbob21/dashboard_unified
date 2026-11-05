@@ -3423,22 +3423,35 @@ async def aichat_send(request: Request):
                             'response_kind': 'clarification', 'required_modules': proposal_modules,
                             **({'action': proposal} if proposal.get('module_id') and not proposal.get('clarification') else {})}
             if not attachments and explicit != 'false':
-                from services.aichat.check_dynamics import resolve as resolve_dynamics
-                dynamics = await asyncio.to_thread(resolve_dynamics, text, user, selection, previous)
-                if dynamics is None:
-                    from services.aichat.data_lookup import resolve as search_saved_data
-                    dynamics = await asyncio.to_thread(search_saved_data, text, user, selection, previous)
-                if dynamics is not None:
-                    scope = dynamics['scope']
+                from services.aichat import read_agent
+                def current_actor():
+                    return jobs.current_user(user) if background else get_user_from_token(request.cookies.get('access_token'))
+                def narrate_facts(context, source_modules):
+                    requirements = sorted(used_modules.union(source_modules))
+                    if not private_storage.can_view(current_actor(), {'required_modules': requirements}):
+                        raise HTTPException(403, 'Права на данные изменились.')
+                    return aichat_ask([{'role':'user','content':text}], platform_context=context,team=team)
+                agent_reply = await asyncio.to_thread(
+                    read_agent.resolve, text, user, selection, previous, automatic_skills=use_skills, explicit=explicit,
+                    refresh=current_actor, emit=emit, narrate=narrate_facts)
+                if agent_reply is not None:
+                    scope = agent_reply['scope']
                     used_modules.update(private_storage.required_modules({'report_scope': scope}))
-                    report = {'selection': scope, 'sources': []}
+                    for source in agent_reply.get('sources', []):
+                        used_modules.update(private_storage.required_modules({'module_id':source['module']}))
+                    if not private_storage.can_view(current_actor(), {'required_modules':sorted(used_modules)}):
+                        raise HTTPException(403, 'Права на данные изменились. Повторите запрос.')
+                    report = {'selection': scope, 'sources':agent_reply.get('sources',[])}
                     save_user()
+                    trace = normalize_run({**run,'steps':list(steps.values())}) if steps else None
                     if not background:
-                        store.append_message(dialog_id, 'assistant', dynamics['answer'], team=team,
-                                             response_kind=dynamics['kind'], report_scope=scope,
+                        store.append_message(dialog_id, 'assistant', agent_reply['answer'], team=team,
+                                             response_kind=agent_reply['kind'], report_scope=scope, skill_run=trace,
+                                             report_sources=report['sources'],
                                              required_modules=sorted(used_modules))
-                    return {'dialog_id': dialog_id, 'ok': True, 'team': team, 'answer': dynamics['answer'],
-                            'response_kind': dynamics['kind'], 'report_scope': scope, 'required_modules': sorted(used_modules)}
+                    return {'dialog_id': dialog_id, 'ok': True, 'team': team, 'answer': agent_reply['answer'],
+                            'response_kind': agent_reply['kind'], 'report_scope': scope, 'skill_run':trace,
+                            'required_modules': sorted(used_modules), 'report_sources':report['sources']}
             if attachments:
                 emit({'type': 'step', 'id': 'attachments', 'kind': 'tool',
                       'label': 'Читаю приложенные файлы', 'status': 'running'})

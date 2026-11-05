@@ -124,6 +124,8 @@ def project_ecur(rows, meta=None, *, today=None):
                 raise ValueError('Слишком много муниципалитетов в результате ЕЦУР')
             result['municipalities'][key] = {'name': name, **_ecur_counts()}
         _count_ecur(result['municipalities'][key], row, indices, current)
+    from services.aichat.other_complaint_causes import project_ecur_causes
+    result['causes_v1'] = project_ecur_causes(rows)
     return result
 
 
