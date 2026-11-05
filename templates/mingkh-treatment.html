@@ -1,0 +1,45 @@
+{% extends "base_module.html" %}
+{% block title %}Жалобы по очистным — Нейрона ИИ{% endblock %}
+{% block body_class %}module-mingkh{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/mingkh-water-map.css">
+<link rel="stylesheet" href="/static/map-basemap.css">
+<link rel="stylesheet" href="/static/mingkh-treatment.css?v=20261105">
+{% endblock %}
+{% block content %}
+<div class="container">
+<header class="topbar"><div class="brand"><img src="/static/logo.svg" alt="" class="brand-logo"><div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">Жалобы МинЖКХ</div></div></div><div class="top-actions"><a class="secondary-button" href="/mingkh">← Дашборд по жалобам МинЖКХ</a></div></header>
+<main id="treatmentDashboard" class="treatment-page">
+  <header class="tr-heading"><div><h1>Жалобы по очистным сооружениям и изливам</h1><p id="trSource">Загрузка сведений о снимке…</p></div>
+  {% if can_import %}<form id="trImport"><label>Снимок ZIP<input id="trZip" type="file" accept=".zip,application/zip" required></label><button type="submit">Загрузить снимок</button></form>{% endif %}</header>
+  <section data-check-analysis="mingkh" data-check-operation="treatment"></section>
+  <p id="trStatus" role="status" aria-live="polite"></p>
+  <div id="trWorkspace" hidden>
+    <form id="trFilters" class="tr-panel tr-filters">
+      <label>Поиск по номеру, ОМСУ, факту или объекту<input name="q" type="search"></label>
+      <label>ОМСУ<select name="omsu"></select></label><label>Объект КОС<select name="obj"></select></label>
+      <label>Куратор<select name="cur"></select></label><label>Тематика<select name="topic"></select></label>
+      <label>Статус<select name="sg"><option value="">Все статусы</option><option value="work">В работе</option><option value="closed">Закрытые</option></select></label>
+      <label>Период по дате<select name="field"><option value="created">Поступления</option><option value="answered">Ответа</option></select></label>
+      <label>С<input type="date" name="start"></label><label>По<input type="date" name="end"></label>
+      <label class="tr-check"><input name="linked" type="checkbox" checked>Только привязанные к КОС</label>
+      <button type="reset">Сбросить</button>
+    </form>
+    <section id="trMetrics" aria-label="Показатели по фильтрам"></section>
+    <nav id="trTabs" aria-label="Представление данных">
+      {% for key, label in [('objects','Объекты'),('appeals','Жалобы'),('rating','Рейтинг ОМСУ'),('stats','Статистика'),('map','Карта'),('operators','Эксплуатанты'),('records','Справочник'),('coordinates','Координаты КОС')] %}<button type="button" data-view="{{ key }}">{{ label }}</button>{% endfor %}
+      {% if can_edds %}<button type="button" data-view="edds">События ЕДДС</button>{% endif %}
+    </nav>
+    <section class="tr-panel" aria-labelledby="trTitle"><div class="tr-table-head"><h2 id="trTitle"></h2><button id="trExport" type="button">Скачать таблицу Excel</button></div><p id="trNote"></p>
+      <div id="trMap" hidden><div id="trCanvas" aria-label="Карта объектов и жалоб"></div><p id="trMapStatus" role="status"></p></div>
+      <div id="trTable" class="tr-scroll"></div><nav id="trPages" aria-label="Страницы таблицы"></nav>
+    </section>
+  </div>
+  <dialog id="trDetail" aria-labelledby="trDetailTitle"><form method="dialog"><button aria-label="Закрыть">Закрыть</button></form><h2 id="trDetailTitle"></h2><div id="trDetailBody"></div></dialog>
+</main></div>
+<script id="neurona-map-config" type="application/json">{{ map_config | tojson }}</script>
+<script src="/static/vendor/leaflet.min.js" defer></script>
+<script src="/static/map-basemap.js" defer></script>
+<script src="/static/vendor/xlsx.full.min.js" defer></script>
+<script src="/static/mingkh-treatment.js?v=20261105" defer></script>
+{% endblock %}

@@ -409,7 +409,10 @@ class PresentationService:
                     self._disable(sub, exc.code, owner)
             if state["next_scan"] <= self.clock():
                 try:
-                    result["new"] = self._scan(owner)
+                    from services.check_capture import capture
+                    with capture('presentations', params={'operation': 'presentations'}) as check:
+                        result["new"] = self._scan(owner)
+                        check.metrics = {'new_files': result["new"]}
                     result["scanned"] = True
                 except Exception as exc:
                     code = _error_code(exc, "PRESENTATION_SOURCE_FAILED")

@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,8 @@ MAX_RECORDS = 500  # в БД можно хранить больше, чем в J
 # ─── Человекочитаемые названия модулей для UI ──────────────────────
 
 MODULE_LABELS = {
+    "presentations": "Еженедельные презентации",
+    "omsu-rating": "Рейтинг ОМСУ",
     "mingkh-water-map": "МИНЖКХ — карта жалоб",
     "edds": "ЕДДС — контроль заявок",
     "edo":                  "Заполненность данных",
@@ -53,6 +56,8 @@ MODULE_LABELS = {
 }
 
 MODULE_ICONS = {
+    "presentations": "📄",
+    "omsu-rating": "📊",
     "edds":                 "🚨",
     "mingkh-water-map": "🗺️",
     "edo":                  "📋",
@@ -105,9 +110,8 @@ def _migrate_json_if_exists() -> None:
 
     try:
         raw = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
-        if not isinstance(raw, list) or len(raw) == 0:
-            # Пустой или битый файл — просто переименовываем
-            HISTORY_FILE.rename(HISTORY_FILE.with_suffix(".json.bak"))
+        if not isinstance(raw, list) or not raw or any(not isinstance(rec, dict) for rec in raw):
+            # An unfamiliar archive must stay intact for the operator.
             return
     except Exception as e:
         print(f"[run_history] Ошибка чтения JSON для миграции: {e}")
@@ -144,14 +148,19 @@ def _migrate_json_if_exists() -> None:
                     rec.get("finished_at"),
                     rec.get("duration_seconds"),
                     rec.get("status", "success"),
-                    rec.get("error_message", ""),
+                    "Проверка завершилась ошибкой." if rec.get("status") == "error" else "",
                 ),
             )
             migrated += 1
 
     # Переименовываем, чтобы больше не мигрировать
     backup_path = HISTORY_FILE.with_suffix(".json.bak")
-    HISTORY_FILE.rename(backup_path)
+    if backup_path.exists():
+        return  # Preserve any previous backup; replay is idempotent by run ID.
+    try:
+        HISTORY_FILE.rename(backup_path)
+    except OSError:
+        return  # Committed rows are durable; keep the source if it cannot move.
     print(f"[run_history] Мигрировано {migrated} записей из JSON → SQLite")
     print(f"[run_history] Старый файл: {backup_path}")
 
@@ -162,86 +171,76 @@ _migrate_json_if_exists()
 
 # ─── Публичный API (сигнатуры НЕ изменились) ───────────────────────
 
-def record_start(module_id: str, user: str = "—") -> str:
+def record_start(module_id: str, user: str = "—", *, params=None, private_owner=None) -> str:
     """Записывает старт запуска. Возвращает run_id."""
     run_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     module_label, module_icon = _module_presentation(module_id)
 
-    with get_db_connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO run_history
-                (run_id, module_id, module_label, module_icon,
-                 user, started_at, status, error_message)
-            VALUES (?, ?, ?, ?, ?, ?, 'running', '')
-            """,
-            (
-                run_id,
-                module_id,
-                module_label,
-                module_icon,
-                user or "—",
-                now,
-            ),
-        )
+    from services import check_history
+    check_history.claim(run_id)
+    try:
+        with get_db_connection() as conn:
+            check_history.initialize(conn)
+            conn.execute('BEGIN IMMEDIATE')
+            conn.execute(
+                """INSERT INTO run_history
+                   (run_id,module_id,module_label,module_icon,user,started_at,status,error_message)
+                   VALUES (?,?,?,?,?,?,'running','')""",
+                (run_id,module_id,module_label,module_icon,
+                 user if isinstance(user,str) and (user == '—' or re.fullmatch(r'[\w.-]{1,64}',user))
+                 else 'Пользователь',now))
+            check_history.begin(conn,run_id,module_id,params,private_owner)
+    except BaseException:
+        check_history.release(run_id)
+        raise
     return run_id
 
 
-def record_finish(
-    run_id: str,
-    status: str = "success",
-    error_message: str = "",
-) -> None:
-    """Обновляет запись о завершении запуска."""
-    if status not in ("success", "error", "skipped"):
-        status = "success"
-
+def record_finish(run_id: str, status: str = "success", error_message: str = "",
+                  *, metrics=None, result_code=None, result_params=None) -> None:
+    """Finalize once. The journal stores fixed diagnostics instead of remote text."""
+    from services import check_history
+    if status not in ("success", "partial", "error", "skipped", "interrupted"):
+        status = "error"
     finished_at = datetime.now(timezone.utc)
-
-    with get_db_connection() as conn:
-        # Читаем started_at для вычисления duration
-        row = conn.execute(
-            "SELECT started_at FROM run_history WHERE run_id = ?",
-            (run_id,),
-        ).fetchone()
-
-        duration = None
-        if row and row["started_at"]:
+    try:
+        with get_db_connection() as conn:
+            check_history.initialize(conn)
+            conn.execute('BEGIN IMMEDIATE')
+            row = conn.execute("SELECT started_at,status FROM run_history WHERE run_id=?", (run_id,)).fetchone()
+            if not row or row['status'] != 'running':
+                return
+            status = check_history.finish(conn,run_id,status,metrics,result_code,result_params)
+            reason = {'partial':'Данные подтверждены частично.', 'error':'Проверка завершилась ошибкой.','interrupted':'Результат не подтверждён.',
+                      'skipped':'Повторная проверка не выполнялась.'}.get(status,'')
+            if status == 'error' and error_message:
+                from services.water_dashboard.diagnostics import MESSAGES
+                if error_message in MESSAGES.values():
+                    reason = error_message
             try:
-                started = datetime.fromisoformat(row["started_at"])
-                duration = round((finished_at - started).total_seconds(), 1)
-            except Exception:
-                pass
-
-        conn.execute(
-            """
-            UPDATE run_history
-               SET finished_at = ?,
-                   duration_seconds = ?,
-                   status = ?,
-                   error_message = ?
-             WHERE run_id = ?
-            """,
-            (
-                finished_at.isoformat(),
-                duration,
-                status,
-                (error_message or "")[:500],
-                run_id,
-            ),
-        )
+                duration = round((finished_at - datetime.fromisoformat(row['started_at'])).total_seconds(), 1)
+            except (TypeError,ValueError):
+                duration = None
+            conn.execute("""UPDATE run_history SET finished_at=?,duration_seconds=?,status=?,error_message=?
+                             WHERE run_id=?""", (finished_at.isoformat(),duration,status,reason,run_id))
+    finally:
+        check_history.release(run_id)
 
 
 def get_recent(limit: int = 5, modules: list[str] | None = None) -> list[dict]:
     """Возвращает последние N запусков с человекочитаемыми полями."""
     if modules is not None and not modules:
         return []
-    where = "" if modules is None else " WHERE module_id IN (" + ",".join("?" for _ in modules) + ")"
+    from services import check_history
+    check_history.recover()
+    where = " WHERE c.private_subject IS NULL"
+    if modules is not None:
+        where += " AND r.module_id IN (" + ",".join("?" for _ in modules) + ")"
     params = [] if modules is None else list(modules)
     with get_db_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM run_history" + where + " ORDER BY started_at DESC LIMIT ?",
+            "SELECT r.* FROM run_history r LEFT JOIN check_results c USING(run_id)" + where + " ORDER BY r.started_at DESC LIMIT ?",
             [*params, max(1, min(int(limit), MAX_RECORDS))],
         ).fetchall()
     return [_enrich(_row_to_dict(r)) for r in rows]

@@ -1,6 +1,7 @@
 ﻿<!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
+    <script src="/static/account-presence.js?v=20261105" defer></script>
     <link rel="stylesheet" href="/static/release-notes.css?v=20261015">
     <script src="/static/release-notes.js?v=20261020" defer></script>
     <script src="/static/appearance-menu.js?v=20261020" ></script>
@@ -1525,7 +1526,8 @@
 
         const STATUS_LABELS = {
             "running": "Выполняется", "success": "Успешно",
-            "error":   "Ошибка",      "skipped": "Пропущено", "unknown": "—"
+            "error": "Ошибка", "partial": "Частично", "interrupted": "Прервано",
+            "skipped": "Пропущено", "unknown": "—"
         };
 
         function timeAgo(isoString) {

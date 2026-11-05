@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_v
 from core.web import templates
 from services import ux_survey as survey
 from services.auth.accounts import require_account_manager
+from services.auth.admin_directory import can_inspect
 from services.auth.security import get_user_from_token
 
 def private_response(response: Response):
@@ -128,5 +129,5 @@ def survey_page(request: Request):
 def admin_page(request: Request):
     from core.roles import MODULE_NAMES
     return templates.TemplateResponse(request=request, name="users.html",
-        context={"module_names": MODULE_NAMES, "initial_admin_section": "feedback"},
+        context={"module_names": MODULE_NAMES, "initial_admin_section": "feedback", "can_inspect": can_inspect(request.state.user)},
         headers={"Cache-Control": "no-store"})

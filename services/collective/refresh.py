@@ -137,6 +137,16 @@ def _worker():
                 _thread = None
 
 
+def _metrics(snapshot):
+    from services.aichat.collective_source import _signatures
+    rows = snapshot['rows']
+    signatures = [_signatures(row[10]) for row in rows]
+    result = {'appeals': len(rows)}
+    if all(n is not None for n in signatures):
+        result['signatures'] = sum(signatures)
+    return result
+
+
 def _drain():
     try:
         with _collector_lock():
@@ -153,12 +163,16 @@ def _drain():
                     conn.execute("UPDATE collective_refresh_jobs SET status='running',updated_at=? WHERE id=?", (time.time(), row['id']))
                 error = ''
                 try:
-                    access = credentials('mingkh')
-                    if not access:
-                        raise PortalError('Администратору нужно сохранить доступ к МинЖКХ в разделе «Пароли».')
-                    a, b = period(row['start'], row['end'])
-                    kurators, rows = CollectivePortal(**access).fetch(a, b)
-                    store.save_snapshot(row['start'], row['end'], kurators, rows)
+                    from services.check_capture import capture
+                    params = {'operation': 'collective', 'start': row['start'], 'end': row['end']}
+                    with capture('collective', params=params) as check:
+                        access = credentials('mingkh')
+                        if not access:
+                            raise PortalError('Администратору нужно сохранить доступ к МинЖКХ в разделе «Пароли».')
+                        a, b = period(row['start'], row['end'])
+                        kurators, rows = CollectivePortal(**access).fetch(a, b)
+                        saved = store.save_snapshot(row['start'], row['end'], kurators, rows)
+                        check.metrics = _metrics(saved)
                 except PortalError as exc:
                     error = str(exc)[:500]
                     _logger.warning('Collective refresh failed type=%s code=COLLECTIVE_SOURCE', type(exc).__name__)

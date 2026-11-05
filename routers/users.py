@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
 from typing import Literal
@@ -9,6 +9,8 @@ from services.auth.accounts import require_account_manager, list_accounts, save_
 from services.auth.accounts import list_notifications, read_notifications
 from services.auth.accounts import is_parent_manager
 from services.auth.accounts import archive_account
+from services.auth.service_center import snapshot
+from services.auth.admin_directory import can_inspect, directory, require_inspector
 from services.auth.activity import account_activity, account_summaries, module_popularity
 
 router = APIRouter(dependencies=[Depends(require_account_manager)])
@@ -193,7 +195,36 @@ async def notifications_read(payload: ReadNotificationsPayload):
 @router.get("/users", response_class=HTMLResponse)
 async def users_page(request: Request):
     return templates.TemplateResponse(request, "users.html", {"request": request, "module_names": MODULE_NAMES,
-                                     "initial_admin_section": "users"}, headers={"Cache-Control": "no-store"})
+                                     "initial_admin_section": "users", "can_inspect": can_inspect(request.state.user)}, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/api/users/page")
+def users_page_basic(q: str = Query("", max_length=128), archive: Literal["current", "archived", "all"] = "current",
+                     page: int = Query(1, ge=1), size: int = Query(25, ge=1, le=100),
+                     actor=Depends(require_account_manager)):
+    return JSONResponse(directory(actor, q=q, archive=archive, page=page, size=size, inspector=False),
+                        headers={"Cache-Control": "private, no-store"})
+
+
+@router.get("/api/users/record")
+def users_record(username: str = Query(..., min_length=1, max_length=32), actor=Depends(require_account_manager)):
+    page = directory(actor, q="", archive="all", page=1, size=1, inspector=False, exact_login=username)
+    if not page["users"]:
+        raise HTTPException(404, "Учётная запись не найдена")
+    return JSONResponse(page["users"][0], headers={"Cache-Control": "private, no-store"})
+
+
+@router.get("/api/users/admin-directory")
+def users_admin_directory(q: str = Query("", max_length=128), archive: Literal["current", "archived", "all"] = "current",
+                          page: int = Query(1, ge=1), size: int = Query(25, ge=1, le=100),
+                          actor=Depends(require_inspector)):
+    return JSONResponse(directory(actor, q=q, archive=archive, page=page, size=size, inspector=True),
+                        headers={"Cache-Control": "private, no-store"})
+
+
+@router.get("/api/users/service-center", dependencies=[Depends(require_inspector)])
+def users_service_center():
+    return JSONResponse(snapshot(), headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/api/users")

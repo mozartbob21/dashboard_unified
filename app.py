@@ -147,6 +147,10 @@ from routers.edds import router as edds_router
 app.include_router(edds_router)
 from routers.mingkh import router as mingkh_router
 app.include_router(mingkh_router)
+from routers.treatment import router as treatment_router
+from routers.check_history import router as check_history_router
+app.include_router(treatment_router)
+app.include_router(check_history_router)
 from routers.mingkh_sms import router as mingkh_sms_router
 app.include_router(mingkh_sms_router)
 from routers.collective import router as collective_router
@@ -722,7 +726,9 @@ def _run_subprocess_worker(service_name: str, command: list[str], cwd: Path, *, 
     water_error = ""
 
     try:
-        run_id = run_id or run_history.record_start(service_name, user="—")
+        if not run_id:
+            from services.check_metrics import command_params
+            run_id = run_history.record_start(service_name, user="—", params=command_params(service_name, command))
         status["running"] = True
         status["last_error"] = ""
         status["started_at"] = datetime.now().isoformat(timespec="seconds")
@@ -898,7 +904,7 @@ def run_subprocess_worker(service_name: str, command: list[str], cwd: Path = BAS
         # Preserve the visible status of a collector already running here.
         run_status[service_name]['running'] = is_active(service_name)
         if options.get('run_id'):
-            run_history.record_finish(options['run_id'], 'error', 'Блок уже выполняется.')
+            run_history.record_finish(options['run_id'], 'skipped', 'Блок уже выполняется.')
         return {'status': 'busy', 'error': 'Блок уже выполняется.', 'code': 'BLOCK_BUSY'}
     set_active(service_name, True)
     try:
@@ -1255,7 +1261,7 @@ async def security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
     image_sources = "'self' data: blob:"
-    if request.url.path.rstrip("/") in {"/edds", "/mingkh/water-map"}:
+    if request.url.path.rstrip("/") in {"/edds", "/mingkh/water-map", "/mingkh/treatment"}:
         # Basemap tiles only: no external scripts, API calls or arbitrary images.
         from core.map_tiles import image_origin
         image_sources += " " + image_origin()
@@ -2206,6 +2212,7 @@ async def api_cds_export(payload: dict):
             content={"success": False, "error": "Не указан период (date_from, date_to)."},
         )
 
+    run_id = run_history.record_start("cds", params={'start':date_from,'end':date_to})
     run_status["cds"]["running"] = True
     run_status["cds"]["stage"] = "Выполняется"
     run_status["cds"]["message"] = f"Выгрузка за период {date_from} — {date_to}..."
@@ -2217,6 +2224,7 @@ async def api_cds_export(payload: dict):
         result = await scrape_cds_appeals(date_from, date_to, headless=True)
 
         if not result.get("success"):
+            run_history.record_finish(run_id, 'error')
             error = result.get("error", "Неизвестная ошибка")
             run_status["cds"].update(
                 running=False, stage="Ошибка", message=error, last_error=error
@@ -2251,6 +2259,7 @@ async def api_cds_export(payload: dict):
                 "executor":     r.get("executor") or r.get("Исполнитель") or "",
             })
 
+        run_history.record_finish(run_id, 'success', metrics={'appeals':len(norm_rows)})
         return {
             "success": True,
             "total": len(norm_rows),
@@ -2258,6 +2267,7 @@ async def api_cds_export(payload: dict):
             "download_url": "/data/cds/appeals.xlsx",
         }
     except Exception as e:
+        run_history.record_finish(run_id, "error")
         import traceback
         run_status["cds"].update(
             running=False, stage="Ошибка",
@@ -3018,7 +3028,7 @@ async def ecur_api_refresh():
                     message=f"Загружено жалоб: {result}",
                 )
                 if run_id:
-                    run_history.record_finish(run_id, "success")
+                    run_history.record_finish(run_id, "success", metrics={"appeals": result})
             else:
                 run_status["ecur"].update(
                     running=False,
@@ -3412,6 +3422,23 @@ async def aichat_send(request: Request):
                             'answer': proposal.get('clarification') or proposal.get('summary', 'Подтвердите запуск блока.'),
                             'response_kind': 'clarification', 'required_modules': proposal_modules,
                             **({'action': proposal} if proposal.get('module_id') and not proposal.get('clarification') else {})}
+            if not attachments and explicit != 'false':
+                from services.aichat.check_dynamics import resolve as resolve_dynamics
+                dynamics = await asyncio.to_thread(resolve_dynamics, text, user, selection, previous)
+                if dynamics is None:
+                    from services.aichat.data_lookup import resolve as search_saved_data
+                    dynamics = await asyncio.to_thread(search_saved_data, text, user, selection, previous)
+                if dynamics is not None:
+                    scope = dynamics['scope']
+                    used_modules.update(private_storage.required_modules({'report_scope': scope}))
+                    report = {'selection': scope, 'sources': []}
+                    save_user()
+                    if not background:
+                        store.append_message(dialog_id, 'assistant', dynamics['answer'], team=team,
+                                             response_kind=dynamics['kind'], report_scope=scope,
+                                             required_modules=sorted(used_modules))
+                    return {'dialog_id': dialog_id, 'ok': True, 'team': team, 'answer': dynamics['answer'],
+                            'response_kind': dynamics['kind'], 'report_scope': scope, 'required_modules': sorted(used_modules)}
             if attachments:
                 emit({'type': 'step', 'id': 'attachments', 'kind': 'tool',
                       'label': 'Читаю приложенные файлы', 'status': 'running'})
@@ -3715,16 +3742,25 @@ async def zc_scan(payload: dict = None):
 @app.post("/zip_curator/api/upload")
 async def zc_upload(request: Request):
     form = await request.form()
+    from services.check_capture import capture
+    files = form.getlist("file")
     parsed = []
-    for up in form.getlist("file"):
-        try:
-            rows = zc.read_xlsx_rows(await up.read())
-            p = zc.parse_reestr(rows, up.filename)
-            p["fname"] = up.filename; p["uploaded"] = 0
-            parsed.append(p)
-        except Exception:
-            continue
-    return {"added": zc.ingest(parsed), "state": zc.load_state()}
+    with capture("zips", params={"operation": "upload"}) as check:
+        for up in files:
+            try:
+                rows = zc.read_xlsx_rows(await up.read())
+                registry = zc.parse_reestr(rows, up.filename)
+                if not registry.get("items"):
+                    continue
+                registry.update(fname=up.filename, uploaded=0)
+                parsed.append(registry)
+            except Exception:
+                continue
+        added = zc.ingest(parsed)
+        check.status = "error" if not parsed else "partial" if len(parsed) != len(files) else "success"
+        check.metrics = {"files": len(files), "added_registries": added}
+        return {"added": added, "state": zc.load_state()}
+
 
 @app.post("/zip_curator/api/approve")
 async def zc_approve(payload: dict = None):

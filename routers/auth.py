@@ -18,6 +18,12 @@ from core.web import templates
 
 router = APIRouter()
 
+@router.post("/api/me/presence", status_code=204)
+def account_presence(request: Request):
+    from services.auth.admin_directory import heartbeat
+    heartbeat(getattr(request.state, "user", None))
+
+
 # ── Keycloak OIDC (активируется через AUTH_PROVIDER=keycloak в .env) ──
 KC_SERVER_URL = os.getenv("KC_SERVER_URL", "http://localhost:8080")
 KC_REALM = os.getenv("KC_REALM", "neurona")

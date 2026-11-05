@@ -78,6 +78,8 @@ def record_activity(user, module_id, event, *, now=None):
             (user["id"],),
         ).fetchone():
             return
+        from services.auth.admin_directory import touch
+        touch(conn, user["id"], instant.timestamp())
         for scope in [PLATFORM] + ([module_id] if module_id else []):
             conn.execute(
                 """INSERT INTO user_activity

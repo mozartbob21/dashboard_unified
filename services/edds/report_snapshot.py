@@ -91,7 +91,7 @@ def project(grid, start, end):
             'source_rows': source_rows, 'unknown_municipality': unknown_municipality}
 
 
-def persist(grid, start, end):
+def persist(grid, start, end, *, metrics=None):
     """Snapshot failure must not break the existing browser report route."""
     temporary = None
     try:
@@ -101,6 +101,8 @@ def persist(grid, start, end):
         with os.fdopen(fd, 'w', encoding='utf-8') as out:
             json.dump(payload, out, ensure_ascii=False, allow_nan=False)
         os.replace(temporary, TARGET)
+        if metrics is not None:
+            metrics.update({key:payload['totals'][key] for key in ('incidents','closed','active')})
         return True
     except (OSError, ValueError, TypeError):
         return False

@@ -5,10 +5,11 @@
 <link rel="stylesheet" href="/static/ux-survey.css?v=20261020-mobile">
 <script src="/static/ux-survey.js?v=20261026-v33" defer></script>
 <link rel="stylesheet" href="/static/module-popularity.css?v=20261013">
-<link rel="stylesheet" href="/static/users.css?v=20261026-ai-tokens">
+<link rel="stylesheet" href="/static/users.css?v=20261105-directory">
 <link rel="stylesheet" href="/static/admin-feedback.css?v=20261014-admin">
-<script src="/static/admin-navigation.js?v=20261026-ai-tokens" defer></script>
-<script src="/static/users.js?v=20261026-ai-tokens" defer></script>
+<script src="/static/admin-navigation.js?v=20261105-service" defer></script>
+{% if can_inspect %}<script src="/static/admin-service.js?v=20261105" defer></script>{% endif %}
+<script src="/static/users.js?v=20261105-last-online" defer></script>
 <script src="/static/module-popularity.js?v=20261014-admin" defer></script>
 <script src="/static/ux-survey-admin.js?v=20261014-admin" defer></script>
 {% endblock %}
@@ -18,7 +19,7 @@
     <div class="brand"><a href="/" class="brand-link"><img class="brand-logo" src="/static/logo.svg" alt=""><span class="system-shell-brand-copy"><strong class="brand-title">Нейрона ИИ</strong><span class="brand-subtitle">Администрирование сервиса</span></span></a></div>
     <div class="system-shell-actions"><a href="/" class="system-link">← К модулям</a><a href="/logout">Выйти</a></div>
   </header>
-  <div class="admin-layout" id="adminConsole" data-initial-section="{{ initial_admin_section|default('users') }}">
+  <div class="admin-layout" id="adminConsole" data-inspector="{{ 'true' if can_inspect else 'false' }}" data-initial-section="{{ initial_admin_section|default('users') }}">
     <aside class="admin-sidebar">
       <p class="admin-nav-caption">ПАНЕЛЬ УПРАВЛЕНИЯ</p>
       <nav class="admin-navigation" aria-label="Разделы админ-панели">
@@ -26,6 +27,7 @@
         <a href="#statistics" data-admin-link="statistics" {% if initial_admin_section|default('users') == 'statistics' %}aria-current="page"{% endif %}><span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16M8 16v-4m5 4V7m5 9v-6"/></svg></span><span><strong>Статистика</strong><small>Посещаемость всех блоков</small></span></a>
         <a href="#feedback" data-admin-link="feedback" {% if initial_admin_section|default('users') == 'feedback' %}aria-current="page"{% endif %}><span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0Z"/><path d="M7 10h10M7 14h6"/></svg></span><span><strong>Обратная связь</strong><small>Результаты опроса</small></span></a>
         <a href="#integrations" data-admin-link="integrations" {% if initial_admin_section|default('users') == 'integrations' %}aria-current="page"{% endif %}><span class="admin-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></svg></span><span><strong>Логины и пароли</strong><small>Подключение источников</small></span></a>
+        {% if can_inspect %}<a href="#service" data-admin-link="service"><span class="admin-nav-icon" aria-hidden="true">▤</span><span><strong>Сервисный центр</strong><small>Состояние приложения и ресурсов</small></span></a>{% endif %}
       </nav>
       <div class="admin-sidebar-note"><span class="admin-status-dot" aria-hidden="true"></span><p>Рабочее пространство<br><strong>администратора</strong></p></div>
     </aside>
@@ -41,10 +43,16 @@
     <div class="workspace">
       <section class="panel user-directory" aria-label="Список пользователей">
         <div class="panel-heading"><h2>Учётные записи</h2><span class="admin-tag" id="directoryTotal">—</span></div>
-        <label for="userSearch">Поиск по логину или почте</label><input id="userSearch" type="search" placeholder="Найти пользователя…">
+        <div class="presence-counts" aria-label="Присутствие всех локальных пользователей">
+          <span>Онлайн <b data-presence-count="online">—</b></span><span>Оффлайн <b data-presence-count="offline">—</b></span>
+        </div>
+        <p class="muted presence-rule">Онлайн — была активность или сигнал видимой вкладки за последние 90 секунд. Счётчики по всем локальным учётным записям, включая архив. Время последнего появления — московское.</p>
+        <label for="userSearch">Поиск по логину, почте{% if can_inspect %} или роли{% endif %}</label><input id="userSearch" type="search" maxlength="128" placeholder="Найти пользователя…">
         <label for="userArchiveFilter">Показать</label><select id="userArchiveFilter"><option value="current">Текущие пользователи</option><option value="archived">Архив</option><option value="all">Все пользователи</option></select>
         <button id="myModules" type="button" class="secondary" disabled>Мои блоки</button>
         <p id="userCount" class="muted"></p><div id="userList"></div>
+        <nav class="directory-pages" aria-label="Страницы списка"><button id="directoryPrev" class="secondary" type="button" disabled>← Назад</button>
+          <span id="directoryPage" aria-live="polite"></span><button id="directoryNext" class="secondary" type="button" disabled>Далее →</button></nav>
       </section>
       <section class="panel editor" aria-labelledby="editorTitle">
         <div id="editorEmpty" class="editor-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M18 8v6m-3-3h6"/></svg></div>
@@ -210,6 +218,14 @@
       </div>
 
       </section>
+      {% if can_inspect %}<section data-admin-panel="service" aria-label="Сервисный центр" hidden>
+        <div class="panel">
+          <div class="panel-heading"><h2>Состояние сервера</h2><button type="button" id="serviceRefresh" class="secondary">Обновить</button></div>
+          <p id="serviceStamp" role="status" class="muted"></p>
+          <dl id="serviceMetrics" class="service-metrics"></dl>
+          <p id="serviceScope" class="muted"></p>
+        </div>
+      </section>{% endif %}
     </main>
   </div>
 {% endblock %}

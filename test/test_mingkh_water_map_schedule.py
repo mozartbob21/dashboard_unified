@@ -1,5 +1,6 @@
 """Offline integration of incremental map refresh with persisted scheduling."""
 from datetime import date, datetime, timedelta, timezone
+import gzip
 import json
 import threading
 from types import SimpleNamespace
@@ -44,7 +45,10 @@ def seed_map():
               '2': {'id': 2, 'created': '2024-01-01 10:00', 'omsu': 'Округ', 'kind': 'hvs',
                     'address': 'Старая жалоба', 'fact': 'Водоснабжение', 'status': 'Решено',
                     'lat': 55.8, 'lon': 37.7, 'geo': 'ok'}}
-    maps.import_upload(json.dumps({'updated': '12.10.2026 10:00', 'points': points}).encode())
+    # Exercise a deployment seed, distinct from an administrator's audited upload.
+    with gzip.open(maps.SEED_FILE, 'wt', encoding='utf-8') as out:
+        json.dump(maps.compact(points, {'updated':'12.10.2026 10:00'}), out)
+    assert maps.ensure_seed()
 
 
 def test_new_job_is_enabled_once_and_existing_admin_settings_survive_seed(isolated):

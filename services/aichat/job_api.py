@@ -69,7 +69,7 @@ def run_block(user, module_id, params, ticket, publish, *, runner=None, model=No
     if runner is None:
         from app import run_subprocess_worker
         runner = run_subprocess_worker
-    run_id = run_history.record_start(module_id, user='ИИ-чат')
+    run_id = run_history.record_start(module_id, user='ИИ-чат', params=params)
     try:
         outcome = block_execution.execute(user, module_id, params, run_id=run_id,
                                           on_progress=stage, run_subprocess=runner)

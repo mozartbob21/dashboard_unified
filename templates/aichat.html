@@ -88,6 +88,7 @@
       <div class="cap"><div class="cap-ic">⌨️</div><b>Код и формулы</b><span>Объяснит код, поможет с формулой или подскажет, как автоматизировать задачу.</span></div>
       <div class="cap"><div class="cap-ic">🏘</div><b>Отчёты по платформе</b><span>Соберёт отчёт по доступным блокам и муниципалитетам из сохранённых данных с датами источников.</span></div>
       <div class="cap"><div class="cap-ic">📎</div><b>Документы и таблицы</b><span>Разберёт текст документов, таблиц и презентаций. Для сканов и аудио приложите текстовую расшифровку.</span></div>
+      <div class="cap"><div class="cap-ic">⌕</div><b>Поиск по данным блоков</b><span>Назовите блок и укажите, что искать: номер обращения, ОМСУ или материал. Чат покажет найденные записи, источник и дату сохранённых данных. Для динамики попросите сравнить последние проверки.</span></div>
       <div class="cap"><div class="cap-ic">↻</div><b>Запуск блоков</b><span>Попросите запустить доступный блок. Чат проверит права и параметры, затем запросит подтверждение. Если проверка уже запущена, покажет её статус без повторного запуска. В общих диалогах результаты доступны только с правом на соответствующий блок.</span></div>
       <div class="cap"><div class="cap-ic">✦</div><b>Навыки и инструменты</b><span>Включите нужные навыки для своей учётной записи: расчёты, анализ прикреплённых таблиц и другие задачи. Этапы выполнения появятся в ответе.</span></div>
     </div>
@@ -429,6 +430,15 @@ document.addEventListener("keydown",function(e){
 // Links from modules suggest a question; the next message always defines its own scope.
 async function prefillReportQuestion(){
   var params=new URLSearchParams(location.search),initialDraftVersion=draftVersion;
+  if(params.has("history")){
+    var id=params.get("history"), op=params.get("operation");
+    if(!ta.value && /^[a-z][a-z0-9_-]{0,39}$/.test(id)){
+      var terms={treatment:"жалобы по очистным сооружениям",sms:"СМС",zips_scan:"сканирование остатков"};
+      ta.value="Сравни последние проверки блока "+id+(Object.hasOwn(terms,op)?" ("+terms[op]+")":"")+".";
+      ta.dispatchEvent(new Event("input"));
+    }
+    return;
+  }
   if(!params.has("module")&&!params.has("source")&&!params.has("municipality"))return;
   if(params.get("question")){ta.value=params.get("question");ta.dispatchEvent(new Event("input"));return;}
   var target="";

@@ -17,6 +17,7 @@
     </div>
     <div class="top-actions"><a href="/" class="secondary-button">← На главную</a>{% if max_stocks %}<a href="/zips" class="secondary-button">Остатки ЗиП РСО</a>{% endif %}</div>
   </header>
+  {% if max_presentations %}<section data-check-analysis="presentations" data-check-operation="presentations"></section>{% endif %}
   <main class="max-bot-main" id="max-bot-main">
     <section class="max-bot-hero">
       <div class="max-bot-eyebrow">Нейрона в вашем мессенджере</div>

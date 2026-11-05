@@ -1,0 +1,21 @@
+.check-analysis-card { box-sizing:border-box; width:auto; max-width:100%; min-width:0; margin:14px 0; padding:clamp(14px,2vw,22px);
+  color:var(--text,#192b42); background:var(--card,var(--panel,#fff)); border:1px solid var(--border,var(--line,#dce3ee));
+  border-inline-start:4px solid #6b73c4; border-radius:16px; text-align:start; }
+.check-analysis-card[data-state=error] { border-inline-start-color:#b06b44; }
+.check-analysis-card .check-analysis-heading { display:flex; align-items:center; flex-wrap:wrap; gap:4px 20px; justify-content:space-between; }
+.check-analysis-card .check-analysis-title { color:inherit; line-height:1.4; font-family:inherit; font-size:1.05rem; font-weight:650; margin:0; }
+.check-analysis-card .check-analysis-link { min-height:36px; display:inline-flex; align-items:center; color:inherit; font-size:.86rem; text-decoration:underline; text-underline-offset:3px; }
+.check-analysis-card .check-analysis-link:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+.check-analysis-card p, .check-analysis-card dd, .check-analysis-card dt { overflow-wrap:anywhere; }
+.check-analysis-card .check-analysis-summary { margin:.45rem 0; line-height:1.5; white-space:pre-line; color:inherit; font-size:.95rem; }
+.check-analysis-card .check-analysis-date, .check-analysis-card .check-analysis-notice { margin:.25rem 0; font-size:.83rem; line-height:1.5; color:var(--muted,var(--ink2,inherit)); }
+.check-analysis-card .check-analysis-metrics { margin:.6rem 0 0; display:flex; flex-wrap:wrap; gap:.45rem 1.5rem; }
+.check-analysis-card .check-analysis-metric { min-width:0; }
+.check-analysis-card .check-analysis-metrics dt { font-size:.78rem; line-height:1.45; color:var(--muted,var(--ink2,inherit)); }
+.check-analysis-card .check-analysis-metrics dd { margin:0; color:inherit; font-size:.99rem; font-weight:650; }
+.check-analysis-card p:empty, .check-analysis-card dl:empty { display:none; }
+html[data-theme=dark] .check-analysis-card { color:var(--text,#eff3ff); background:var(--card,var(--panel,#202c3e)); }
+@media(max-width:600px){
+  .check-analysis-card { margin:10px 0; }
+  .check-analysis-card .check-analysis-link { min-height:44px; }
+}

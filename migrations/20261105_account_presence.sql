@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS account_presence (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    last_seen INTEGER NOT NULL
+);

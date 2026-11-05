@@ -268,16 +268,28 @@ def load(*, prepare=True):
 
 
 def import_upload(content):
-    if not LOCK.acquire(blocking=False):
-        raise StoreBusy('Карта уже обновляется. Дождитесь завершения.')
+    from services import run_history
+    run_id = run_history.record_start('mingkh-water-map', params={'operation':'upload'})
     try:
-        with _process_lock():
-            dataset = parse_upload(content)
-            dataset['meta']['seed_version'] = SEED_VERSION
-            save(dataset)
-            return dataset['meta']
-    finally:
-        LOCK.release()
+        if not LOCK.acquire(blocking=False):
+            raise StoreBusy('Карта уже обновляется. Дождитесь завершения.')
+        try:
+            with _process_lock():
+                dataset = parse_upload(content)
+                dataset['meta']['seed_version'] = SEED_VERSION
+                save(dataset)
+                meta = dataset['meta']
+        finally:
+            LOCK.release()
+    except StoreBusy:
+        run_history.record_finish(run_id, 'skipped')
+        raise
+    except Exception:
+        run_history.record_finish(run_id, 'error')
+        raise
+    run_history.record_finish(run_id,'success',metrics={'appeals':meta['count']},
+                              result_params={'start':meta['from'],'end':meta['to']})
+    return meta
 
 
 def _expand(dataset):
@@ -438,7 +450,9 @@ def _refresh_worker(credentials, user, process_lock, run_id=None):
         finally:
             LOCK.release()
         if run_id:
-            record_finish(run_id, status='success' if ok else 'error', error_message=error)
+            record_finish(run_id, status='success' if ok else 'error', error_message=error,
+                          metrics={'appeals':result['count']} if ok else None,
+                          result_params={'operation':'water_map','start':result.get('from'),'end':result.get('to')} if ok else None)
     return ok
 
 

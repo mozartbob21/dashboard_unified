@@ -1,4 +1,4 @@
-/* Keep the four work areas mounted so switching sections never discards form input. */
+/* Keep the work areas mounted so switching sections never discards form input. */
 (function (root, factory) {
   'use strict';
   const api = factory();
@@ -7,6 +7,7 @@
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const sections = {
+    service: {title:'Сервисный центр', description:'Состояние приложения и использование ресурсов.'},
     users: {title:'Пользователи и права', description:'Управляйте доступом к сервису и смотрите активность каждого пользователя.'},
     statistics: {title:'Статистика', description:'Какие блоки востребованы, а какие пока остаются без посещений.'},
     feedback: {title:'Обратная связь', description:'Результаты опроса об удобстве и оформлении сервиса, оценки и предложения пользователей.'},
@@ -17,14 +18,15 @@
     const shell = doc.getElementById('adminConsole');
     const panels = [...shell.querySelectorAll('[data-admin-panel]')];
     const links = [...shell.querySelectorAll('[data-admin-link]')];
-    const fallback = Object.hasOwn(sections, shell.dataset.initialSection) ? shell.dataset.initialSection : 'users';
+    const available = section => Object.hasOwn(sections, section) && panels.some(panel => panel.dataset.adminPanel === section);
+    const fallback = available(shell.dataset.initialSection) ? shell.dataset.initialSection : 'users';
     let started = false;
     function requested() {
       const hash = env.location.hash.slice(1);
-      return Object.hasOwn(sections, hash) ? hash : fallback;
+      return available(hash) ? hash : fallback;
     }
     function show(section, focus = false) {
-      if (!Object.hasOwn(sections, section)) section = fallback;
+      if (!available(section)) section = fallback;
       for (const panel of panels) panel.hidden = panel.dataset.adminPanel !== section;
       for (const link of links) {
         if (link.dataset.adminLink === section) link.setAttribute('aria-current','page');

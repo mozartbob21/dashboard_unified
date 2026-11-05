@@ -1069,6 +1069,22 @@ def _safe_sync_error(error, account=None):
 
 def sync_and_scan_sources(sources):
     """Refresh independent sources under one lock, then ingest their fresh union."""
+    from services.check_capture import capture
+    providers = {source.get('provider') for source in sources}
+    provider = 'both' if providers == {'yandex', 'mosreg'} else next(iter(providers), '')
+    with capture('zips', params={'operation': 'zips_scan', 'source': provider}) as check:
+        try:
+            result = _scan_sources(sources)
+        except FolderSyncBusy:
+            check.status = 'skipped'
+            raise
+        check.status = ('error' if not result['ok'] else 'partial' if result['partial'] else 'success')
+        check.metrics = {'files': result['files'], 'failed_sources': result['failed_sources'],
+                         'sources': len(sources), 'added_registries': result['added']}
+        return result
+
+
+def _scan_sources(sources):
     with _folder_sync_lock(), _owned_curator_mutation():
         result = {"ok": False, "partial": False, "files": 0, "downloaded": 0,
                   "reused": 0, "removed": 0, "failed": 0, "errors": [], "sources": [],

@@ -25,6 +25,8 @@
   const message = document.getElementById('message');
   const list = document.getElementById('userList');
   const search = document.getElementById('userSearch');
+  const inspector = document.getElementById('adminConsole').dataset.inspector === 'true';
+  let page = 1, pages = 1, total = 0, matched = 0, directoryRequest = 0, searchTimer, currentUsername;
   let users = [], selected = null, isParentManager = false, currentUserId = null;
   const names={username:'Логин',email:'Почта',password:'Новый пароль',modules:'Доступные блоки',is_active:'Учётная запись активна'};
   let sessionExpired=false;
@@ -76,10 +78,12 @@
   }
   function renderList() {
     const query=search.value.trim().toLowerCase();
-    const mode=document.getElementById('userArchiveFilter').value;
-    const shown=users.filter(u=>(mode==='all'||(mode==='archived'?!!u.archived_at:!u.archived_at))&&[u.username,u.email||''].some(s=>s.toLowerCase().includes(query)));
-    document.getElementById('userCount').textContent=`Показано ${shown.length} из ${users.length}`;
-    document.getElementById('directoryTotal').textContent=users.length;
+    const shown=users;
+    document.getElementById('userCount').textContent=`Найдено: ${matched}. На странице: ${shown.length}`;
+    document.getElementById('directoryTotal').textContent=total;
+    document.getElementById('directoryPage').textContent=`${page} из ${pages}`;
+    document.getElementById('directoryPrev').disabled=page<=1;
+    document.getElementById('directoryNext').disabled=page>=pages;
     list.replaceChildren();
     if(!shown.length) {
       const empty=document.createElement('p'); empty.className='user-list-empty';
@@ -97,7 +101,17 @@
       const email=document.createElement('small'); email.textContent=user.email||'Почта не указана';
       const activity=document.createElement('small');
       activity.textContent=user.activity?.last_seen_at ? `Активность: ${activityDate(user.activity.last_seen_at)}` : 'Активность ещё не учтена';
-      button.append(name,details,email,activity); button.addEventListener('click',()=>openUser(user)); list.append(button);
+      const heading=document.createElement('span'); heading.className='user-item-heading'; heading.append(name);
+      if(typeof user.online==='boolean'){
+        const status=document.createElement('span'); status.className='user-presence '+(user.online?'online':'offline');
+        status.textContent=user.online?'Онлайн':'Оффлайн'; heading.append(status);
+        if(!user.online){
+          const seen=user.last_online_at && new Date(user.last_online_at);
+          activity.textContent='Последний раз в сети: '+(seen && Number.isFinite(seen.getTime()) ?
+            seen.toLocaleString('ru-RU',{timeZone:'Europe/Moscow',dateStyle:'short',timeStyle:'short'})+' МСК' : 'Нет данных');
+        }
+      }
+      button.append(heading,details,email,activity); button.addEventListener('click',()=>openUser(user)); list.append(button);
     }
   }
   function openUser(user=null) {
@@ -134,9 +148,15 @@
     document.getElementById('moduleSelectionCount').textContent=`· выбрано ${form.querySelectorAll('[name=modules]:checked').length}`;
   }
   async function loadUsers() {
-    const data=await api('/api/users'); users=data.users; isParentManager=data.is_parent_manager;
-    currentUserId=data.current_user_id;
-    document.getElementById('myModules').disabled=!users.some(user=>user.id===currentUserId);
+    const request=++directoryRequest;
+    const params=new URLSearchParams({page:String(page),size:'25',q:search.value.trim(),archive:document.getElementById('userArchiveFilter').value});
+    const data=await api((inspector?'/api/users/admin-directory?':'/api/users/page?')+params);
+    if(request!==directoryRequest) return;
+    users=data.users; isParentManager=data.is_parent_manager;
+    currentUserId=data.current_user_id; currentUsername=data.current_username;
+    page=data.page; pages=data.pages; total=data.total; matched=data.matched;
+    for(const node of document.querySelectorAll('[data-presence-count]')) node.textContent=data[node.dataset.presenceCount];
+    document.getElementById('myModules').disabled=!currentUsername;
     renderList();
   }
   const activityPanel=document.getElementById('userActivity');
@@ -188,24 +208,31 @@
   }
   document.getElementById('activityUsedOnly').addEventListener('change',renderActivityRows);
   document.getElementById('refreshActivity').addEventListener('click',()=>loadActivity(selected));
-  search.addEventListener('input',renderList);
-  document.getElementById('userArchiveFilter').addEventListener('change',renderList);
+  function refreshDirectory(){ loadUsers().catch(error=>notify(error.message,true)); }
+  search.addEventListener('input',()=>{++directoryRequest;page=1; clearTimeout(searchTimer); searchTimer=setTimeout(refreshDirectory,200);});
+  document.getElementById('userArchiveFilter').addEventListener('change',()=>{page=1; refreshDirectory();});
+  document.getElementById('directoryPrev').addEventListener('click',()=>{page=Math.max(1,page-1);refreshDirectory();});
+  document.getElementById('directoryNext').addEventListener('click',()=>{page=Math.min(pages,page+1);refreshDirectory();});
+  setInterval(()=>{if(!document.hidden && document.body.dataset.adminSection==='users') refreshDirectory();},30000);
+  async function accountByLogin(username){
+    return users.find(item=>item.username===username)||await api('/api/users/record?'+new URLSearchParams({username}));
+  }
   document.getElementById('archiveUser').addEventListener('click',async()=>{
     if(!selected) return;
     const restore=!!selected.archived_at;
     if(!confirm(restore?'Восстановить из архива? Вход останется отключённым до отдельного включения.':'Переместить пользователя в архив? Вход будет запрещён, данные сохранятся. Несохранённые изменения формы не применятся.'))return;
-    const id=selected.id;
+    const {id,username}=selected;
     try{
       await api(`/api/users/${id}/${restore?'restore':'archive'}`,{method:'POST'});
-      form.dataset.dirty='false'; await loadUsers(); openUser(users.find(u=>u.id===id));
+      form.dataset.dirty='false'; await loadUsers(); openUser(await accountByLogin(username));
       notify(restore?'Пользователь восстановлен. При необходимости включите учётную запись.':'Пользователь в архиве. Доступ к системе закрыт.');
       loadNotifications().catch(()=>{});
     }catch(e){notify(e.message,true);}
   });
   document.getElementById('newUser').addEventListener('click',()=>openUser());
-  document.getElementById('myModules').addEventListener('click',()=>{
-    const user=users.find(item=>item.id===currentUserId);
-    if(user){openUser(user);document.getElementById('moduleChoices').scrollIntoView({block:'nearest'});}
+  document.getElementById('myModules').addEventListener('click',async()=>{
+    try{openUser(await accountByLogin(currentUsername));document.getElementById('moduleChoices').scrollIntoView({block:'nearest'});}
+    catch(error){notify(error.message,true);}
   });
   form.addEventListener('input',()=>{form.dataset.dirty='true';updateModuleSelection();});
   form.addEventListener('invalid',event=>{
@@ -227,7 +254,7 @@
       await api(request.url,{method:request.method,headers:{'Content-Type':'application/json'},body:JSON.stringify(request.payload)});
       committed=true;
       form.dataset.dirty='false'; form.elements.password.value='';
-      await loadUsers(); openUser(users.find(u=>u.username.toLowerCase()===payload.username.trim().toLowerCase()));
+      await loadUsers(); openUser(await accountByLogin(payload.username.trim().toLowerCase()));
       notify('Учётная запись сохранена. Права обновлены.');
       loadNotifications().catch(()=>{});
     } catch(error) {

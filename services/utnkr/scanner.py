@@ -2118,6 +2118,7 @@ def build_violators_from_debug_rows_file(
     violators = analyze_rows_by_traffic_light(normalized_rows)
     result_payload = build_scan_result(violators=violators, rows_count=len(normalized_rows))
 
+    result_payload['source_mode'] = 'local_rows'
     save_json(output_path, result_payload)
 
     meta = {

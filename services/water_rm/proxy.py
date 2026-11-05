@@ -118,7 +118,10 @@ async def save_history(request: Request):
         chunks.append(chunk)
     try:
         payload = json.loads(b"".join(chunks))
-        result = save_water_check(payload, data_dir=DATA_DIR.parent)
+        from services.check_capture import capture
+        with capture('water_rm', params={'operation': 'water_rm'}) as check:
+            result = save_water_check(payload, data_dir=DATA_DIR.parent)
+            check.metrics = {'tasks': result['total_tasks'], 'unclassified_tasks': result['unclassified_tasks']}
     except (ValueError, TypeError, UnicodeDecodeError):
         raise HTTPException(status_code=422, detail="Некорректный результат проверки задач")
     except OSError:

@@ -151,13 +151,22 @@ def _drain():
                     conn.execute("UPDATE mingkh_sms_jobs SET status='running',updated_at=? WHERE id=?", (time.time(), row['id']))
                 try:
                     from .operations import execute
-                    result = execute(row['action'], json.loads(row['payload']))
-                    encoded = json.dumps(result, ensure_ascii=False, allow_nan=False).encode()
-                    if len(encoded) > MAX_RESULT:
-                        raise ValueError('Результат слишком большой. Сократите период.')
-                    context.atomic_json(context.DATA / 'jobs' / (row['id'] + '.json'), result)
-                    with get_db_connection() as conn:
-                        conn.execute("UPDATE mingkh_sms_jobs SET status='success',payload='{}',updated_at=? WHERE id=?", (time.time(), row['id']))
+                    from services.check_capture import capture
+                    payload = json.loads(row['payload'])
+                    # fingerprint covers the validated operation, dates and filters, not the generated SMS.
+                    params = {'operation':'sms','start':payload['from'],'end':payload.get('to') or payload['date'],
+                              'config_hash':row['fingerprint']}
+                    with capture('mingkh',params=params,private_owner=row['owner']) as check:
+                        result = execute(row['action'],payload)
+                        encoded = json.dumps(result, ensure_ascii=False, allow_nan=False).encode()
+                        if len(encoded) > MAX_RESULT:
+                            raise ValueError('Результат слишком большой. Сократите период.')
+                        context.atomic_json(context.DATA / 'jobs' / (row['id'] + '.json'), result)
+                        with get_db_connection() as conn:
+                            conn.execute("UPDATE mingkh_sms_jobs SET status='success',payload='{}',updated_at=? WHERE id=?", (time.time(), row['id']))
+                        for key,metric in [('rows','rows'), ('current','appeals'), ('measures','items')]:
+                            if isinstance(result.get(key),list):
+                                check.metrics[metric] = len(result[key])
                 except Exception as exc:
                     with get_db_connection() as conn:
                         conn.execute("UPDATE mingkh_sms_jobs SET status='error',error=?,payload='{}',updated_at=? WHERE id=?", (_error(exc), time.time(), row['id']))

@@ -56,17 +56,27 @@ async def status():
 def arm_report(from_date: date, to_date: date, coordinates: bool = False):
     # A sync route runs blocking portal requests in FastAPI's worker thread pool.
     from fastapi.responses import JSONResponse
+    from services import run_history
+    run_id = run_history.record_start('edds', params={'operation':'arm_coordinates' if coordinates else 'arm',
+                                                      'start':from_date.isoformat(),'end':to_date.isoformat()})
     try:
         grid = arm.fetch_report(from_date, to_date, coordinates)
+        metrics = {}
         if not coordinates:
             from services.edds.report_snapshot import persist
-            persist(grid, from_date, to_date)
+            persist(grid, from_date, to_date, metrics=metrics)
+        run_history.record_finish(run_id, 'success', metrics=metrics)
         return JSONResponse({'grid': grid}, headers={'Cache-Control': 'no-store'})
     except arm.ArmError as error:
+        run_history.record_finish(run_id,'error')
         payload = {'detail': str(error)}
         if error.code:
             payload['code'] = error.code
         return JSONResponse(payload, status_code=error.status, headers={'Cache-Control': 'no-store'})
+    except Exception:
+        run_history.record_finish(run_id,'error')
+        raise
+
 
 
 @router.post('/refresh',status_code=202)

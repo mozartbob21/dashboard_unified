@@ -134,7 +134,7 @@ def test_shared_process_lock_refuses_a_second_executor(executor, tmp_path):
         result = executor.run("raise AssertionError('must not start')")
     assert result['status'] == 'busy'
     assert not executor.processes
-    executor.history.record_finish.assert_called_once_with('synthetic-run-id-12345', 'error', 'Блок уже выполняется.')
+    executor.history.record_finish.assert_called_once_with('synthetic-run-id-12345', 'skipped', 'Блок уже выполняется.')
     # Once released, the same regular executor becomes usable again.
     assert executor.run("print('ok')")['status'] == 'success'
 

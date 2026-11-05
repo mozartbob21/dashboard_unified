@@ -52,29 +52,35 @@ def claim():
 
 def refresh(token):
     try:
-        from services.auth.source_api_keys import get_source_api_key
-        key=get_source_api_key('omsu_rating')
-        with connection() as conn: previous=json.loads(conn.execute('SELECT sources FROM state WHERE id=1').fetchone()[0])
-        sources=dict(previous);success=0;stamp=now_iso()
-        for ind in (4,5,6,7):
-            try:
-                if ind<7 and not key:raise source.SourceError('API-ключ не настроен. Администратор может добавить его в разделе «Пароли».')
-                values=source.fetch_redmine(calculate.CONFIG[ind]['query'],key) if ind<7 else source.fetch_sheet()
-                sources[str(ind)]={'data':values,'updated_at':stamp,'error':None};success+=1
-            except source.SourceError as exc:
-                sources[str(ind)]={**sources.get(str(ind),{}),'error':str(exc)}
-        # Calculations must succeed before committing the replacement snapshot.
-        calculate.build(sources)
-        with connection() as conn:
-            conn.execute('BEGIN IMMEDIATE')
-            active=conn.execute('SELECT token,until FROM refresh WHERE id=1').fetchone()
-            if active['token']!=token or active['until']<=time.time():return
-            encoded=json.dumps(sources,ensure_ascii=False,allow_nan=False)
-            conn.execute('UPDATE state SET sources=?,updated_at=CASE WHEN ? THEN ? ELSE updated_at END WHERE id=1',(encoded,success,stamp))
-            if success:
-                conn.execute('INSERT INTO snapshots(sources,created_at) VALUES(?,?)',(encoded,stamp))
-                conn.execute('DELETE FROM snapshots WHERE id NOT IN (SELECT id FROM snapshots ORDER BY id DESC LIMIT 12)')
-            conn.execute('UPDATE refresh SET status=?,error=?,until=0,finished_at=? WHERE id=1',('success' if success==4 else 'partial' if success else 'error',None if success==4 else 'Не все источники обновлены. Причины указаны в показателях; ранее полученные данные сохранены.',stamp))
+        from services.check_capture import capture
+        with capture('omsu-rating', params={'operation': 'rating'}) as check:
+            from services.auth.source_api_keys import get_source_api_key
+            key=get_source_api_key('omsu_rating')
+            with connection() as conn: previous=json.loads(conn.execute('SELECT sources FROM state WHERE id=1').fetchone()[0])
+            sources=dict(previous);success=0;stamp=now_iso()
+            for ind in (4,5,6,7):
+                try:
+                    if ind<7 and not key:raise source.SourceError('API-ключ не настроен. Администратор может добавить его в разделе «Пароли».')
+                    values=source.fetch_redmine(calculate.CONFIG[ind]['query'],key) if ind<7 else source.fetch_sheet()
+                    sources[str(ind)]={'data':values,'updated_at':stamp,'error':None};success+=1
+                except source.SourceError as exc:
+                    sources[str(ind)]={**sources.get(str(ind),{}),'error':str(exc)}
+            # Calculations must succeed before committing the replacement snapshot.
+            calculate.build(sources)
+            with connection() as conn:
+                conn.execute('BEGIN IMMEDIATE')
+                active=conn.execute('SELECT token,until FROM refresh WHERE id=1').fetchone()
+                if active['token']!=token or active['until']<=time.time():
+                    check.status='interrupted'
+                    return
+                encoded=json.dumps(sources,ensure_ascii=False,allow_nan=False)
+                conn.execute('UPDATE state SET sources=?,updated_at=CASE WHEN ? THEN ? ELSE updated_at END WHERE id=1',(encoded,success,stamp))
+                if success:
+                    conn.execute('INSERT INTO snapshots(sources,created_at) VALUES(?,?)',(encoded,stamp))
+                    conn.execute('DELETE FROM snapshots WHERE id NOT IN (SELECT id FROM snapshots ORDER BY id DESC LIMIT 12)')
+                conn.execute('UPDATE refresh SET status=?,error=?,until=0,finished_at=? WHERE id=1',('success' if success==4 else 'partial' if success else 'error',None if success==4 else 'Не все источники обновлены. Причины указаны в показателях; ранее полученные данные сохранены.',stamp))
+            check.status = 'success' if success == 4 else 'partial' if success else 'error'
+            check.metrics = {'sources': 4, 'failed_sources': 4 - success}
     except Exception:
         with connection() as conn:
             conn.execute("UPDATE refresh SET status='error',error=?,until=0,finished_at=? WHERE id=1 AND token=?",('Не удалось завершить обновление. Сохранённые данные доступны; повторите попытку.',now_iso(),token))
