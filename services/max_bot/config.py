@@ -6,6 +6,7 @@ import re
 import ipaddress
 import sqlite3
 
+from services.zip_curator import paths as zip_paths
 from .access import read_account, denial
 from urllib.parse import urlsplit
 
@@ -55,8 +56,8 @@ class Settings:
     bot_public_name: str = ""
     accounts_path: Path = ROOT / "data/dashboard.db"
     db_path: Path = ROOT / "data/max_bot.sqlite"
-    published_path: Path = ROOT / "data/zip_curator/published.json"
-    contacts_path: Path = ROOT / "data/zip_curator/contacts.json"
+    published_path: Path = zip_paths.PUBLISHED_FILE
+    contacts_path: Path = field(default_factory=zip_paths.contacts_path)
     link_ttl: int = 300
     audit_days: int = 30
     ca_file: Path | None = BUNDLED_CA_FILE
@@ -89,7 +90,7 @@ class Settings:
         if len(http_origins) > 16:
             raise ValueError("В MAX_ZIP_BOT_HTTP_ORIGINS допускается не более 16 адресов.")
         return cls(enabled=enabled, mode=mode, bot_token=token, bot_public_name=name,
-                   db_path=db, ca_file=ca, http_origins=http_origins)
+                   db_path=db, contacts_path=zip_paths.contacts_path(env), ca_file=ca, http_origins=http_origins)
 
     def validate_polling(self):
         if not self.enabled or self.mode != "development-polling":

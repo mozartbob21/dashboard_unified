@@ -25,7 +25,7 @@ def test_user_directory_and_service_center(app,browser,width):
             if url.netloc!='testserver':
                 return route.abort()
             path=url.path+('?' + url.query if url.query else '')
-            if (url.path in ['/users','/api/users/admin-directory','/api/users/service-center','/api/me/presence']
+            if (url.path in ['/users','/api/users/admin-directory','/api/users/service-center','/api/me/presence','/api/users/record']
                     or url.path.startswith('/static/')):
                 response=api.request(route.request.method,path)
                 route.fulfill(status=response.status_code,body=response.content,
@@ -38,11 +38,27 @@ def test_user_directory_and_service_center(app,browser,width):
         page.goto('http://testserver/users')
         page.wait_for_function("document.querySelectorAll('#userList button').length === 25")
         assert page.locator('.user-presence').count()==25
+        directory=page.locator('.user-directory')
+        workspace=page.locator('#userWorkspace')
+        assert abs(directory.bounding_box()['width']-workspace.bounding_box()['width'])<2
+        assert not page.locator('#userEditor').is_visible()
         page.locator('#directoryNext').click()
         page.wait_for_function("document.querySelector('#directoryPage').textContent.startsWith('2 из')")
         page.locator('#userSearch').fill('сотрудник21')
         page.wait_for_function("document.querySelectorAll('#userList button').length === 1")
         assert 'сотрудник21' in page.locator('#userList button').inner_text()
+        page.locator('#userList button').press('Enter')
+        page.wait_for_function("document.querySelector('#userEditor').hidden === false")
+        assert directory.is_visible()==(width>780)
+        if width>780: assert directory.bounding_box()['width']>320
+        page.locator('#closeUserEditor').click()
+        assert directory.is_visible() and page.locator('#userSearch').input_value()=='сотрудник21'
+        page.locator('#userSearch').fill('неизвестный')
+        page.wait_for_function("document.querySelector('.user-list-empty')")
+        page.locator('#clearUserSearch').click()
+        page.wait_for_function("document.querySelectorAll('#userList button').length === 25")
+        page.locator('#userPresenceFilter').select_option('offline')
+        page.wait_for_function("document.querySelectorAll('.user-presence.online').length === 0")
         page.locator('#myModules').click()
         page.wait_for_function("document.querySelector('#userForm input[name=username]').value === 'parent'")
         page.locator('[data-admin-link=service]').click()

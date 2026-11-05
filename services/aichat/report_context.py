@@ -11,7 +11,7 @@ from pathlib import Path
 
 from services import water_ai_context as water
 from services.aichat import report_periods
-from services.report_municipalities import key as municipality_key, display as municipality_display, is_municipality
+from services.report_municipalities import key as municipality_key, display as municipality_display, is_municipality, word_variants as _word_variants
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / 'data'
@@ -113,31 +113,6 @@ def _safe_row(row):
         if value is not None and isinstance(value, (str, int, float)):
             result[label] = water.finite_number(value) if type(value) in (int, float) else water.text(value, 320)
     return result
-
-
-def _word_variants(word):
-    variants = {word}
-    if word.endswith(('ий', 'ый', 'ой')):
-        variants.update(word[:-2] + e for e in ('ого', 'ому', 'ом', 'им', 'ым'))
-    elif word.endswith(('ая', 'яя')):
-        variants.update(word[:-2] + e for e in ('ой', 'ей', 'ую', 'юю'))
-    elif word.endswith(('ые', 'ие')):
-        variants.update(word[:-2] + e for e in ('ых', 'их', 'ым', 'им', 'ыми', 'ими'))
-    elif word.endswith('а'):
-        variants.update(word[:-1] + e for e in ('ы', 'е', 'у', 'ой'))
-    elif word.endswith('я'):
-        variants.update(word[:-1] + e for e in ('и', 'е', 'ю', 'ей'))
-    elif word.endswith(('ово', 'ево', 'ино')):
-        variants.update(word[:-1] + e for e in ('а', 'у', 'е', 'ом'))
-    elif word.endswith('ое'):
-        variants.update(word[:-2] + e for e in ('ого', 'ому', 'ом', 'ым'))
-    elif word.endswith(('ы', 'и')):
-        variants.update(word[:-1] + e for e in ('ах', 'ам', 'ами'))
-    elif word.endswith('ь'):
-        variants.update(word[:-1] + e for e in ('и', 'ью', 'я', 'ю', 'ем'))
-    elif re.search(r'[бвгджзклмнпрстфхцчшщ]$', word):
-        variants.update(word + e for e in ('а', 'у', 'е', 'ом'))
-    return sorted(variants)
 
 
 def _variants(name):

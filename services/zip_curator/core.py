@@ -7,14 +7,13 @@ from xml.etree import ElementTree as ET
 
 import requests
 from services.zip_curator import dictionary
+from services.zip_curator.paths import DATA, PUBLISHED_FILE
 from services.zip_curator.yandex_disk import DiskClient, DiskSyncError, MAX_FILE_BYTES, validate_workbook
 
 BASE = Path(__file__).resolve().parents[2]
-DATA = BASE / "data" / "zip_curator"
 INPUT_DIR = Path(__import__("os").getenv("ZIP_INPUT_DIR", str(DATA / "input")))
 FOLDER_A_DIR = INPUT_DIR / "folder_a"
 STATE_FILE = DATA / "state.json"
-PUBLISHED_FILE = DATA / "published.json"
 FOLDER_A_MANIFEST_FILE = DATA / "folder_a_manifest.json"
 MUNICIPALITY_OVERRIDES_FILE = DATA / "municipality_overrides.json"
 DICT_JSON = Path(__file__).with_name("zip_dict.json")

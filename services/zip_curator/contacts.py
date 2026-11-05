@@ -15,10 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from services.zip_curator.core import DATA, norm, read_xlsx_rows
+from services.zip_curator.core import norm, read_xlsx_rows
+from services.zip_curator.paths import CONTACTS_FILE, contacts_path
 
 
-CONTACTS_FILE = DATA / "contacts.json"
 IMPORT_VERSION = 2
 
 FIELD_ALIASES = {
@@ -30,9 +30,12 @@ FIELD_ALIASES = {
         "организация",
         "предприятие",
         "наименование организации",
+        "ресурсоснабжающая организация",
+        "ресурсоснабжающей организации",
+        "organization",
     ),
-    "municipality": ("municipality", "муниципалитет", "омсу", "округ", "городской округ"),
-    "person": ("person", "name", "фио", "ф и о", "ответственный", "контактное лицо", "представитель"),
+    "municipality": ("municipality", "муниципалитет", "омсу", "округ", "городской округ", "муниципальное образование"),
+    "person": ("person", "name", "фио", "ф и о", "фамилия имя отчество", "ответственный", "контактное лицо", "представитель"),
     "position": ("position", "должность", "роль"),
     "phone": ("phone", "mobile", "телефон", "мобильный", "мобильный телефон", "номер телефона", "тел."),
     "email": ("электронная почта", "email", "e-mail", "почта"),
@@ -49,27 +52,35 @@ ROLE_PATTERNS = (
 
 
 def _atomic_write(payload):
-    CONTACTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = CONTACTS_FILE.with_name(CONTACTS_FILE.name + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, CONTACTS_FILE)
+    target = contacts_path(default=CONTACTS_FILE)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".contacts-", suffix=".tmp", dir=target.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump(payload, out, ensure_ascii=False, indent=2)
+        os.replace(temporary, target)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
-def load_contacts():
-    if CONTACTS_FILE.exists():
+def load_contacts(*, for_update=False):
+    target = contacts_path(default=CONTACTS_FILE)
+    if target.exists():
         try:
-            payload = json.loads(CONTACTS_FILE.read_text(encoding="utf-8"))
+            payload = json.loads(target.read_text(encoding="utf-8-sig"))
             if isinstance(payload, dict) and isinstance(payload.get("items"), list):
                 payload.setdefault("updated_at", None)
                 payload.setdefault("source_file", None)
-                payload["items"] = _prepare_stored_contacts(payload["items"])
+                payload["items"] = prepare_stored_contacts(payload["items"])
                 payload["needs_reimport"] = (
                     payload.get("import_version", 0) < IMPORT_VERSION
                     and any(not item.get("phone") for item in payload["items"])
                 )
                 return payload
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError, TypeError):
             pass
+        if for_update:
+            raise ValueError("Не удалось прочитать прежний справочник. Загрузка остановлена, контакты сохранены.")
     return {"items": [], "updated_at": None, "source_file": None}
 
 
@@ -100,7 +111,7 @@ def _normalize_contact(contact):
     return contact
 
 
-def _prepare_stored_contacts(items):
+def prepare_stored_contacts(items):
     prepared = []
     for original in items:
         item = dict(original)
@@ -120,14 +131,12 @@ def _prepare_stored_contacts(items):
 
 
 def _deduplicate_contacts(items):
-    result = []
+    seen, result = set(), []
     for item in items:
-        # Deduplicate identical records only; shared switchboard numbers are not identity.
-        existing = next((other for other in result if all(
-            norm(other.get(key)) == norm(item.get(key))
-            for key in FIELD_ALIASES
-        )), None)
-        if existing is None:
+        # A shared switchboard number does not identify a person.
+        identity = tuple(norm(item.get(key)) for key in FIELD_ALIASES)
+        if identity not in seen:
+            seen.add(identity)
             result.append(item)
     return result
 
@@ -388,7 +397,14 @@ def import_contacts(filename, content):
     incoming = parse_contacts(filename, content)
     if not incoming:
         raise ValueError("В файле не найдены контакты. Проверьте заголовки и строки таблицы.")
-    payload = load_contacts()
+    target = contacts_path(default=CONTACTS_FILE)
+    from services.mingkh.sms.context import process_lock
+    with process_lock(target.with_name(".contacts.lock")):
+        return _merge_contacts(filename, incoming)
+
+
+def _merge_contacts(filename, incoming):
+    payload = load_contacts(for_update=True)
     items = payload["items"]
     added = updated = 0
     now = datetime.now().isoformat(timespec="seconds")
@@ -409,17 +425,25 @@ def import_contacts(filename, content):
     items.sort(key=lambda item: (norm(item.get("rso")), norm(item.get("position")), norm(item.get("person"))))
     payload.update({"items": items, "updated_at": now, "source_file": Path(filename or "").name,
                     "import_version": IMPORT_VERSION, "needs_reimport": False})
-    if CONTACTS_FILE.exists():
+    target = contacts_path(default=CONTACTS_FILE)
+    if target.exists():
         # Keep the original JSON before applying migration/import to legacy data.
-        backup = CONTACTS_FILE.with_name(CONTACTS_FILE.name + ".before-import.bak")
+        backup = target.with_name(target.name + ".before-import.bak")
         if not backup.exists():
-            shutil.copy2(CONTACTS_FILE, backup)
+            shutil.copy2(target, backup)
     _atomic_write(payload)
     return {"added": added, "updated": updated, "total": len(items), "payload": payload}
 
 
 def delete_contact(contact_id):
-    payload = load_contacts()
+    target = contacts_path(default=CONTACTS_FILE)
+    from services.mingkh.sms.context import process_lock
+    with process_lock(target.with_name(".contacts.lock")):
+        return _delete_contact(contact_id)
+
+
+def _delete_contact(contact_id):
+    payload = load_contacts(for_update=True)
     before = len(payload["items"])
     payload["items"] = [item for item in payload["items"] if item.get("id") != contact_id]
     if len(payload["items"]) == before:

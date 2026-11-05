@@ -18,7 +18,7 @@ def app(tmp_path, monkeypatch):
     monkeypatch.setattr(db, 'DB_FILE', tmp_path / 'admin.sqlite')
     monkeypatch.setattr(db, '_SCHEMA_READY', False)
     ensure_registration_tables()
-    from routers import users, auth
+    from routers import users, auth, ux_survey
     from services.auth import security
     monkeypatch.setattr(security, 'get_jwt_secret', lambda: 'synthetic-test-secret-32-characters')
     with db.get_db_connection() as conn:
@@ -39,6 +39,7 @@ def app(tmp_path, monkeypatch):
         return await handler(request)
     app.include_router(auth.router)
     app.include_router(users.router)
+    app.include_router(ux_survey.router)
     return app
 
 
@@ -58,6 +59,27 @@ def test_search_pagination_and_counts(app):
         assert c.get('/api/users/admin-directory?q=%25').json()['matched'] == 0
         assert c.get('/api/users/admin-directory?archive=archived').json()['matched'] == 1
         assert c.get('/api/users/admin-directory?size=150').status_code == 422
+
+
+def test_search_combines_terms_ranks_login_and_filters_real_presence(app):
+    with db.get_db_connection() as conn:
+        conn.execute("UPDATE users SET email='second@alpha.ru' WHERE username='сотрудник12'")
+        conn.execute("UPDATE users SET email='сотрудник12@example.test' WHERE username='сотрудник01'")
+    with client(app,'parent') as c, client(app,'ordinary') as visitor, client(app,'delegated') as delegate:
+        page='/api/users/admin-directory'
+        found=c.get(page,params={'q':'  ALPHA   СОТРУДНИК12  '}).json()
+        assert [row['username'] for row in found['users']]==['сотрудник12']
+        ranked=c.get(page,params={'q':'СОТРУДНИК12'}).json()
+        assert [row['username'] for row in ranked['users']]==['сотрудник12','сотрудник01']
+        assert c.get(page,params={'q':'сотрудник12 КОНТРОЛЬ'}).json()['matched']==2
+        assert delegate.get('/api/users/page',params={'q':'сотрудник12 КОНТРОЛЬ'}).json()['matched']==0
+        assert visitor.post('/api/me/presence').status_code==204
+        online=c.get(page,params={'presence':'online'}).json()
+        offline=c.get(page,params={'presence':'offline'}).json()
+        assert online['matched']==1 and online['users'][0]['username']=='ordinary'
+        assert offline['matched']==43 and (offline['online'],offline['offline'])==(1,44)
+        assert c.get(page,params={'archive':'archived','presence':'offline'}).json()['matched']==1
+        assert c.get(page,params={'presence':'other'}).status_code==422
 
 
 def test_presence_is_per_account_durable_and_expires_after_disconnect(app,monkeypatch):
@@ -97,23 +119,40 @@ def test_presence_is_per_account_durable_and_expires_after_disconnect(app,monkey
     assert client(app).post('/api/me/presence').status_code == 401
 
 
-@pytest.mark.parametrize('actor,expected', [(None,403),('ordinary',403),('delegated',403),
-                                             ('externalrole',403),('admin',200),('parent',200)])
-def test_service_and_directory_authorization(app,actor,expected):
+@pytest.mark.parametrize('actor,service,directory_code', [
+    (None,403,403),('ordinary',403,403),('externalrole',403,403),
+    ('delegated',200,403),('admin',200,200),('parent',200,200),
+])
+def test_service_and_directory_authorization(app,actor,service,directory_code):
     with client(app,actor) as c:
-        for route in ['/api/users/admin-directory','/api/users/service-center']:
+        for route,expected in [('/api/users/admin-directory',directory_code),('/api/users/service-center',service)]:
             response = c.get(route)
             assert response.status_code == expected
             if expected == 200: assert response.headers['cache-control'] == 'private, no-store'
+        for path in ('/users#service','/users/feedback'):
+            page=c.get(path)
+            assert page.status_code==service
+            if page.status_code==200:
+                assert 'href="#service" data-admin-link="service"' in page.text
+                assert 'data-admin-panel="service"' in page.text and 'src="/static/admin-service.js?' in page.text
+                assert ('data-inspector="true"' in page.text)==(directory_code==200)
         if actor == 'delegated':
             basic = c.get('/api/users/page?size=3').json()
             assert len(basic['users']) == 3 and basic['online'] + basic['offline'] == basic['total']
             assert all('online' in u and 'last_online_at' in u for u in basic['users'])
             assert c.get('/api/users/page?q=Контроль').json()['matched'] == 0
             assert c.get('/api/users/record?username=delegated').status_code == 200
-        if actor in ('parent','admin','delegated'):
-            html=c.get('/users').text
-            assert ('data-admin-panel="service"' in html) == (expected == 200)
+
+
+def test_service_honors_revocation_before_returning_cached_metrics(app):
+    with client(app,'delegated') as c:
+        assert c.get('/api/users/service-center').status_code==200
+        with db.get_db_connection() as conn:
+            conn.execute('DELETE FROM account_managers WHERE user_id=(SELECT id FROM users WHERE username=?)',('delegated',))
+        for path in ('/api/users/service-center','/users','/users/feedback'):
+            response=c.get(path)
+            assert response.status_code==403
+            assert 'cpu_percent' not in response.text
 
 
 def test_service_reports_actual_database_queue_and_unavailable_metrics(app,monkeypatch):

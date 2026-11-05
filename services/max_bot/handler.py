@@ -19,9 +19,15 @@ HELP = ("Нейрона ИИ · MAX\n\n"
         "Нужно отдельное право «Еженедельные презентации».\n"
         "Для поиска остатков напишите название, диаметр или модель. Поиск ЗиП и контактов "
         "пока доступен управляющим аккаунтами с правом на ЗиП РСО.\n\n"
+        "/contacts Чехов — найти ответственных по ОМСУ, РСО или фамилии.\n"
         "/menu — доступные функции\n/help — помощь\n/stop — отключить доступ и подписки. "
         "Пароль от Нейроны боту не отправляйте.")
 
+CONTACT_PAGE_SIZE = 5
+_CONTACT_REQUEST = re.compile(
+    r"\b(?:телефон(?:ы|а)?|контакты|контакт|контактов|ответственн(?:ый|ые|ого|ых)|"
+    r"как связаться|с кем связаться|кому (?:позвонить|звонить))\b", re.I)
+_ELECTRICAL_CONTACT = re.compile(r"\bконтакт(?:ы|ов)?\s+(?:рел[еэ]|силов|электрич|вспомогат|подвижн|неподвижн)",re.I)
 
 
 def text(value, limit=180):
@@ -33,6 +39,7 @@ class BotHandler:
     def __init__(self, store, stock, clock=time.monotonic, *, presentations=None):
         self.store, self.stock, self.clock = store, stock, clock
         self.actions = OrderedDict()
+        self.contact_prompts = OrderedDict()
         self.presentations = presentations
 
     @staticmethod
@@ -113,15 +120,19 @@ class BotHandler:
             if not isinstance(command, str):
                 return None
             if kind == "bot_stopped" or (kind == "message_created" and command.strip() == "/stop"):
+                self.contact_prompts.pop(identity, None)
                 self.store.unlink_max(uid, chat)
                 self.actions = OrderedDict((k, v) for k, v in self.actions.items() if v[1] != identity)
                 return None if kind == "bot_stopped" else self._reply(update, identity, "Доступ MAX отключён. Для повторного подключения получите новый код в Нейроне.")
             self.store.rate_limit("bot-actions", str(uid), 30, 60)
+            if kind == "message_created" and command.lstrip().startswith("/"):
+                self.contact_prompts.pop(identity, None)
             if kind == "bot_started" or command.strip() in {"/start", "/help", "/menu"}:
                 try:
                     account = self.store.authorize(uid, chat)
                 except StoreError:
                     return self._reply(update, identity, HELP)
+                self.contact_prompts.pop(identity, None)
                 return self._menu(update, identity, account)
             if kind == "message_created" and command.strip().startswith("/link"):
                 parts = command.strip().split()
@@ -132,6 +143,7 @@ class BotHandler:
                 return self._reply(update, identity, f"Код принят. Аккаунт MAX: •••• {str(uid)[-4:]}.\nВернитесь в Нейрону, сверьте эти цифры и нажмите «Подтвердить». До подтверждения данные недоступны.")
             account = self.store.authorize(uid, chat)
             if kind == "message_created" and command.strip().lower() in {"/presentations", "презентации", "еженедельные презентации"}:
+                self.contact_prompts.pop(identity, None)
                 return self._presentations(update, identity, account)
             if kind == "message_callback":
                 key = (update.get("callback") or {}).get("payload")
@@ -139,6 +151,7 @@ class BotHandler:
                 if not saved or saved[0] <= self.clock() or saved[1] != identity or saved[2] != account["id"]:
                     return self._reply(update, identity, "Эта кнопка устарела. Отправьте поисковый запрос ещё раз.")
                 action = saved[3]
+                self.contact_prompts.pop(identity, None)
                 if action["kind"] == "presentations":
                     return self._presentations(update, identity, account, action.get("enabled"))
                 if action["kind"] in {"presentation_retry", "presentation_retry_confirm"}:
@@ -146,9 +159,24 @@ class BotHandler:
                 self._stock_permission(account)
                 if action["kind"] == "contacts":
                     return self._contacts(update, identity, account, action)
+                if action["kind"] == "find_contacts":
+                    return self._directory(update, identity, account, action.get("query",""), action.get("page",1))
                 query, page = action["query"], action["page"]
             else:
                 query, page = command.strip(), 1
+                pending = self.contact_prompts.pop(identity, None)
+                contact_mode = bool(pending and pending[0] > self.clock() and pending[1] == account["id"])
+                if (query.split(maxsplit=1) or [""])[0].casefold() == "/contacts":
+                    criteria = query[len("/contacts"):].strip()
+                elif not _ELECTRICAL_CONTACT.search(query) and _CONTACT_REQUEST.search(query):
+                    criteria = "" if re.fullmatch(r"контакты?[?!.,: ]*",query,re.I) else query
+                elif contact_mode and not query.startswith("/"):
+                    criteria = query
+                else:
+                    criteria = None
+                if criteria is not None:
+                    self._stock_permission(account)
+                    return self._directory(update, identity, account, criteria, page)
             if not query or len(query) > 500:
                 return self._reply(update, identity, "Напишите название и характеристики позиции, до 500 символов. Например: «Нужна муфта…».")
             self._stock_permission(account)
@@ -168,7 +196,9 @@ class BotHandler:
             lines.append("Еженедельные презентации: новые файлы из источника по личной подписке.")
             buttons.append(self._button("Еженедельные презентации", identity, account, {"kind": "presentations"}))
         if stock_denial(self.store._account(account["id"])) is None:
-            lines.append("Остатки ЗиП РСО: напишите название, диаметр или модель, чтобы найти наличие и контакт.")
+            lines.append("Для поиска остатков напишите название, диаметр или модель. "
+                         "Для поиска ответственного нажмите «Контакты РСО» или напишите «контакты Чехова».")
+            buttons.append(self._button("Контакты РСО", identity, account, {"kind":"find_contacts"}))
         lines.append("/help — помощь · /stop — отключить MAX")
         return self._reply(update, identity, "\n\n".join(lines), buttons)
 
@@ -273,8 +303,60 @@ class BotHandler:
             lines.append(text(warning, 160))
         return self._reply(update, identity, "\n".join(lines), buttons)
 
+    def _check_contact_access(self, identity, account):
+        current = self.store.authorize(*identity)
+        if current["id"] != account["id"]:
+            raise StoreError("LINK_CHANGED", "Подключённый аккаунт изменился. Начните поиск заново.", 403)
+        self._stock_permission(current)
+
+    def _ask_contact_query(self, update, identity, account):
+        now = self.clock()
+        while self.contact_prompts and (next(iter(self.contact_prompts.values()))[0] <= now
+                                        or len(self.contact_prompts) >= 5000):
+            self.contact_prompts.popitem(last=False)
+        self.contact_prompts[identity] = (now + 900, account["id"])
+        return self._reply(update, identity, "Напишите ОМСУ, название РСО или фамилию ответственного. "
+                           "Например: «Чехов» или «Водоканал». Для возврата к поиску остатков — /menu.")
+
+    def _directory(self, update, identity, account, query, page):
+        if not query:
+            return self._ask_contact_query(update, identity, account)
+        if len(query) > 300:
+            return self._reply(update, identity, "Сократите запрос до 300 символов и отправьте /contacts "
+                               "с названием РСО, ОМСУ или фамилией.")
+        offset = (page - 1) * CONTACT_PAGE_SIZE
+        try:
+            result = self.stock.search_contacts(query, limit=CONTACT_PAGE_SIZE, offset=offset)
+        except StockError as error:
+            if error.code == "INVALID_QUERY":
+                return self._ask_contact_query(update, identity, account)
+            raise
+        self._check_contact_access(identity,account)
+        self.store.audit("contacts","ok")
+        total = result["total"]
+        lines = ["Контакты ответственных от РСО"]
+        if total:
+            lines.append(f"Найдено: {total}.")
+        else:
+            lines.append("Совпадений в справочнике нет. Нажмите «Новый поиск контактов» и попробуйте другую часть названия или фамилии.")
+        for item in result["items"]:
+            place = " · ".join(text(item.get(field),100) for field in ("municipality","organization") if item.get(field))
+            person = " · ".join(text(item.get(field),115) for field in ("person","position") if item.get(field))
+            lines.append(f"\n{place}\n{person or 'Ответственный не указан'}\nТелефон: {text(item.get('phone') or 'не указан',120)}")
+        buttons = []
+        if page>1:
+            buttons.append(self._button("← Предыдущие",identity,account,{"kind":"find_contacts","query":query,"page":page-1}))
+        if offset+CONTACT_PAGE_SIZE<total:
+            buttons.append(self._button("Следующие контакты →",identity,account,{"kind":"find_contacts","query":query,"page":page+1}))
+        if total>CONTACT_PAGE_SIZE:
+            lines.append(f"Страница {page}.")
+        lines.extend(text(warning,130) for warning in result.get("warnings",[])[:2])
+        buttons.append(self._button("Новый поиск контактов",identity,account,{"kind":"find_contacts"}))
+        return self._reply(update,identity,"\n".join(lines),buttons)
+
     def _contacts(self, update, identity, account, action):
         result = self.stock.contacts(action["item_id"], action["municipality_id"])
+        self._check_contact_access(identity,account)
         self.store.audit("contacts", "ok")
         lines = [f"{text(result['item_name'])}\n{text(result['municipality'], 80)} · {text(result['organization'], 120)}"]
         contacts = result["contacts"]
@@ -282,9 +364,12 @@ class BotHandler:
         for contact in contacts[start:start + 5]:
             lines.append(f"\n{text(contact['person'], 140)}\n{text(contact['position'], 120)}\nТелефон: {text(contact['phone'] or 'не указан', 120)}")
         if not contacts:
-            lines.append("Контакт ответственного не указан в системе.")
+            lines.append("Для этой позиции в справочнике не найден ответственный с подтверждённой организацией и ОМСУ.")
         lines.extend(text(warning, 160) for warning in result.get("warnings", [])[:3])
         buttons = []
+        if not contacts:
+            buttons.append(self._button("Искать в справочнике по ОМСУ", identity, account,
+                                        {"kind": "find_contacts", "query": result["municipality"], "page": 1}))
         if start > 0:
             buttons.append(self._button("← Контакты", identity, account, {**action, "page": action["page"] - 1}))
         if len(contacts) > start + 5:

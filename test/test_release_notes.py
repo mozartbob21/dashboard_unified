@@ -21,9 +21,11 @@ ZIP_RELEASE_ID = "2026-11-05-zip-area-unit-v33"
 ZIP_ENTRY_ID = "zip-area-unit"
 AGENT_RELEASE_ID = "2026-11-05-chat-agent-sources-v33"
 AGENT_MINGKH_ENTRY = "chat-agent-mingkh-causes"
+DIRECTORY_RELEASE_ID = "2026-11-05-user-directory-contacts-v33"
+CONTACT_ENTRY = "max-contact-directory"
 CHECKS_RELEASE_ID = "2026-11-05-check-history-v33"
 TREATMENT_ENTRY = "mingkh-treatment-snapshot"
-ADMIN_ENTRIES = {"admin-ai-credentials", "admin-users-service-center"}
+ADMIN_ENTRIES = {"admin-directory-search", "admin-ai-credentials", "admin-users-service-center"}
 OLD_RELEASE_IDS = {"2026-10-23-max-permanent-link-v32", "2026-10-23-presentations-max-v32",
                    "2026-10-23-account-access-v32", "2026-10-22-max-lan-v32", "2026-10-22-max-v32"}
 GENERAL_ENTRY_IDS = {"chat-agent-sources", "checks-history-trends", "login-appearance", "survey-without-interruption", "chat-durable-private", "chat-shared-history"}
@@ -106,16 +108,16 @@ def assert_ordinary_news(payload, *, zips=False, mingkh=False):
 
 def test_deployed_v33_catalog_replaces_previous_versions(app, deployed):
     releases._validate_catalog()
-    assert len(DEPLOYED_RELEASES) == 8
-    assert {note["id"] for note in DEPLOYED_RELEASES} == {AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
+    assert len(DEPLOYED_RELEASES) == 9
+    assert {note["id"] for note in DEPLOYED_RELEASES} == {DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
     assert {note["version"] for note in DEPLOYED_RELEASES} == {"3.3"}
     with api(app, "4") as client:
         response = client.get("/api/releases/pending")
         assert response.status_code == 200
         assert response.headers["cache-control"] == "private, no-store"
         payload = response.json()
-        assert payload["pending_count"] == 6
-        assert entry_ids(payload) == GENERAL_ENTRY_IDS | ADMIN_ENTRIES | {ZIP_ENTRY_ID, "max-stocks-button"}
+        assert payload["pending_count"] == 7
+        assert entry_ids(payload) == GENERAL_ENTRY_IDS | ADMIN_ENTRIES | {ZIP_ENTRY_ID, "max-stocks-button", CONTACT_ENTRY}
         for old_id in OLD_RELEASE_IDS:
             assert client.post(f"/api/releases/{old_id}/read").status_code == 404
     for actor in ("1", "2"):
@@ -135,7 +137,7 @@ def test_max_news_disappears_immediately_after_permission_revoked(app, deployed,
                 conn.execute("DELETE FROM account_managers WHERE user_id=4")
         history = client.get("/api/releases/history").json()
         assert "max-stocks-button" not in entry_ids(history)
-        assert history["pending_count"] == (4 if change == "module" else 5)
+        assert history["pending_count"] == 5
         assert (ZIP_ENTRY_ID in entry_ids(history)) == (change == "manager")
         assert bool("admin-ai-credentials" in entry_ids(history)) == (change == "module")
 
@@ -168,8 +170,9 @@ def test_old_32_receipts_do_not_hide_new_33_notice_across_devices(app, deployed)
             ("local:4", old_id, "2026-10-23T21:00:00Z") for old_id in OLD_RELEASE_IDS])
     with api(app, "4") as client:
         payload = client.get("/api/releases/pending").json()
-        assert payload["pending_count"] == 6
-        assert [note["id"] for note in payload["releases"]] == [AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID]
+        assert payload["pending_count"] == 7
+        assert [note["id"] for note in payload["releases"]] == [DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID]
+        assert client.post(f"/api/releases/{DIRECTORY_RELEASE_ID}/read").status_code == 200
         assert client.post(f"/api/releases/{AGENT_RELEASE_ID}/read").status_code == 200
         assert client.post(f"/api/releases/{CHECKS_RELEASE_ID}/read").status_code == 200
         assert client.post(f"/api/releases/{ZIP_RELEASE_ID}/read").status_code == 200
@@ -198,7 +201,7 @@ def test_each_max_entry_uses_current_grants_and_management_rights(app, deployed)
         conn.execute("UPDATE users SET modules=? WHERE id=4", ('["zips","presentations"]',))
     with api(app, "4") as client:
         assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | PRESENTATION_ENTRY_IDS | ADMIN_ENTRIES | {
-            "max-stocks-button", ZIP_ENTRY_ID}
+            "max-stocks-button", CONTACT_ENTRY, ZIP_ENTRY_ID}
         with db.get_db_connection() as conn:
             conn.execute("DELETE FROM account_managers WHERE user_id=4")
         assert entry_ids(client.get("/api/releases/history").json()) == GENERAL_ENTRY_IDS | PRESENTATION_ENTRY_IDS | {ZIP_ENTRY_ID}

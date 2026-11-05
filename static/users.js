@@ -25,6 +25,11 @@
   const message = document.getElementById('message');
   const list = document.getElementById('userList');
   const search = document.getElementById('userSearch');
+  const archiveFilter = document.getElementById('userArchiveFilter');
+  const presenceFilter = document.getElementById('userPresenceFilter');
+  const clearSearch = document.getElementById('clearUserSearch');
+  const workspace = document.getElementById('userWorkspace');
+  const editor = document.getElementById('userEditor');
   const inspector = document.getElementById('adminConsole').dataset.inspector === 'true';
   let page = 1, pages = 1, total = 0, matched = 0, directoryRequest = 0, searchTimer, currentUsername;
   let users = [], selected = null, isParentManager = false, currentUserId = null;
@@ -84,15 +89,17 @@
     document.getElementById('directoryPage').textContent=`${page} из ${pages}`;
     document.getElementById('directoryPrev').disabled=page<=1;
     document.getElementById('directoryNext').disabled=page>=pages;
+    const focusedId = list.contains(document.activeElement) ? document.activeElement.dataset.userId : null;
     list.replaceChildren();
     if(!shown.length) {
       const empty=document.createElement('p'); empty.className='user-list-empty';
-      empty.textContent=query?'Пользователи не найдены. Попробуйте изменить запрос.':'В этом списке пока нет пользователей.';
+      empty.textContent=query || presenceFilter.value!=='all' || archiveFilter.value!=='current'
+        ? 'Совпадений нет. Измените запрос или фильтры.' : 'В этом списке пока нет пользователей.';
       list.append(empty);
     }
     for (const user of shown) {
       const button=document.createElement('button');
-      button.type='button'; button.className='user-item'; button.classList.toggle('selected',selected?.id===user.id);
+      button.type='button'; button.className='user-item'; button.dataset.userId=String(user.id); button.classList.toggle('selected',selected?.id===user.id);
       button.setAttribute('aria-pressed',String(selected?.id===user.id));
       const name=document.createElement('strong'); name.textContent=user.username;
       const details=document.createElement('small');
@@ -111,13 +118,20 @@
             seen.toLocaleString('ru-RU',{timeZone:'Europe/Moscow',dateStyle:'short',timeStyle:'short'})+' МСК' : 'Нет данных');
         }
       }
-      button.append(heading,details,email,activity); button.addEventListener('click',()=>openUser(user)); list.append(button);
+      const identity=document.createElement('span');
+      identity.className='directory-identity';
+      identity.append(heading,details);
+      button.append(identity,email,activity);
+      button.addEventListener('click',()=>openUser(user));
+      list.append(button);
+      if(focusedId===button.dataset.userId) button.focus({preventScroll:true});
     }
   }
   function openUser(user=null) {
     if (!form.hidden && form.dataset.dirty==='true' && !confirm('Перейти без сохранения изменений?')) return;
     selected=user; clearErrors(); form.reset(); form.hidden=false; form.dataset.dirty='false';
-    document.getElementById('editorEmpty').hidden=true;
+    workspace.classList.add('editor-open');
+    editor.hidden=false;
     const {self,ownModulesOnly,protectedUser}=accountEditPolicy(user,currentUserId,isParentManager);
     document.getElementById('permissionsDetails').open=!user||self;
     form.querySelectorAll('input,button,fieldset').forEach(el=>el.disabled=protectedUser);
@@ -143,13 +157,23 @@
     updateModuleSelection();
     renderList();
     loadActivity(user);
+    document.getElementById('editorTitle').focus();
+    return true;
+  }
+  function closeEditor(){
+    if (form.dataset.dirty==='true' && !confirm('Вернуться к списку без сохранения изменений?')) return;
+    const selectedId=selected?.id;
+    selected=null; clearErrors(); form.reset(); form.dataset.dirty='false'; form.hidden=true;
+    editor.hidden=true; workspace.classList.remove('editor-open'); renderList();
+    const previous=selectedId && list.querySelector('[data-user-id="'+selectedId+'"]');
+    (previous || search).focus();
   }
   function updateModuleSelection(){
     document.getElementById('moduleSelectionCount').textContent=`· выбрано ${form.querySelectorAll('[name=modules]:checked').length}`;
   }
   async function loadUsers() {
     const request=++directoryRequest;
-    const params=new URLSearchParams({page:String(page),size:'25',q:search.value.trim(),archive:document.getElementById('userArchiveFilter').value});
+    const params=new URLSearchParams({page:String(page),size:'25',q:search.value.trim(),archive:archiveFilter.value,presence:presenceFilter.value});
     const data=await api((inspector?'/api/users/admin-directory?':'/api/users/page?')+params);
     if(request!==directoryRequest) return;
     users=data.users; isParentManager=data.is_parent_manager;
@@ -209,8 +233,19 @@
   document.getElementById('activityUsedOnly').addEventListener('change',renderActivityRows);
   document.getElementById('refreshActivity').addEventListener('click',()=>loadActivity(selected));
   function refreshDirectory(){ loadUsers().catch(error=>notify(error.message,true)); }
-  search.addEventListener('input',()=>{++directoryRequest;page=1; clearTimeout(searchTimer); searchTimer=setTimeout(refreshDirectory,200);});
-  document.getElementById('userArchiveFilter').addEventListener('change',()=>{page=1; refreshDirectory();});
+  function filtersChanged(delayed=false){
+    ++directoryRequest; clearTimeout(searchTimer); page=1;
+    clearSearch.hidden=!search.value;
+    if(delayed) searchTimer=setTimeout(refreshDirectory,180); else refreshDirectory();
+  }
+  search.addEventListener('input',()=>filtersChanged(true));
+  search.addEventListener('keydown',event=>{
+    if(event.key==='Escape' && search.value){event.preventDefault(); search.value=''; filtersChanged();}
+  });
+  clearSearch.addEventListener('click',()=>{search.value=''; search.focus(); filtersChanged();});
+  archiveFilter.addEventListener('change',()=>filtersChanged());
+  presenceFilter.addEventListener('change',()=>filtersChanged());
+  document.getElementById('closeUserEditor').addEventListener('click',closeEditor);
   document.getElementById('directoryPrev').addEventListener('click',()=>{page=Math.max(1,page-1);refreshDirectory();});
   document.getElementById('directoryNext').addEventListener('click',()=>{page=Math.min(pages,page+1);refreshDirectory();});
   setInterval(()=>{if(!document.hidden && document.body.dataset.adminSection==='users') refreshDirectory();},30000);
@@ -231,7 +266,7 @@
   });
   document.getElementById('newUser').addEventListener('click',()=>openUser());
   document.getElementById('myModules').addEventListener('click',async()=>{
-    try{openUser(await accountByLogin(currentUsername));document.getElementById('moduleChoices').scrollIntoView({block:'nearest'});}
+    try{if(openUser(await accountByLogin(currentUsername))) document.getElementById('moduleChoices').scrollIntoView({block:'nearest'});}
     catch(error){notify(error.message,true);}
   });
   form.addEventListener('input',()=>{form.dataset.dirty='true';updateModuleSelection();});

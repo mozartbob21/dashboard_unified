@@ -48,13 +48,12 @@ html[data-theme="dark"] .admin-console {
 .admin-console .panel-heading { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .admin-console .panel-heading h2 { margin: 0; }
 .admin-console .admin-tag { display: inline-flex; padding: 4px 9px; border-radius: 7px; color: var(--admin-muted); background: var(--admin-soft); font-size: 11px; font-weight: 600; white-space: nowrap; }
-.admin-console .workspace { display: grid; grid-template-columns: 280px minmax(0,1fr); gap: 20px; align-items: start; }
-.admin-console .user-directory { padding: 20px 16px; }
+.admin-console .workspace { display: grid; grid-template-columns:minmax(0,1fr); gap:20px; align-items:start; }
+.admin-console .user-directory { padding:24px; container: user-directory / inline-size; }
 .admin-console .user-directory .panel-heading { margin: 0 4px 20px; }
 .admin-console .user-directory label { font-size: 12px; color: var(--admin-muted); }
-.admin-console #userSearch { margin-bottom: 14px; }
-.admin-console #userCount { margin: 16px 4px 12px; }
-.admin-console #userList { max-height: 660px; overflow-y: auto; padding: 3px; margin: 0 -3px; scrollbar-width: thin; }
+.admin-console #userCount { margin:0; }
+.admin-console #userList { max-height:min(72vh,740px); overflow-y: auto; padding: 3px; margin: 0 -3px; scrollbar-width: thin; }
 .admin-console .user-item { display: block; width: 100%; text-align: left; color: var(--text); background: transparent; border: 1px solid var(--admin-line); border-radius: 11px; margin-bottom: 8px; padding: 13px; overflow-wrap: anywhere; }
 .admin-console .user-item:hover { background: var(--admin-soft); transform: none; }
 .admin-console .user-item.selected { background: var(--admin-selected); border-color: var(--admin-accent); box-shadow: inset 3px 0 0 var(--admin-accent); }
@@ -63,8 +62,6 @@ html[data-theme="dark"] .admin-console .user-item.selected { background: var(--a
 .admin-console .user-item small { display: block; font-size: 11px; font-weight: 450; color: var(--admin-muted); margin-top: 4px; line-height: 1.5; }
 .admin-console .user-list-empty { margin: 12px 0; padding: 18px 10px; text-align: center; color: var(--admin-muted); font-size: 13px; }
 .admin-console .editor { min-height: 260px; }
-.admin-console .editor-empty-icon { display: grid; place-items: center; width: 48px; height: 48px; background: var(--admin-selected); color: var(--admin-accent); border-radius: 14px; margin: 10px 0 22px; }
-.admin-console .editor-empty-icon svg { width: 26px; height: 26px; }
 .admin-console #editorTitle { overflow-wrap: anywhere; margin-bottom: 6px; }
 .admin-console #editorHint { margin-bottom: 0; }
 .admin-console label { display: block; font-size: 13px; font-weight: 600; line-height: 1.5; }
@@ -173,7 +170,7 @@ html[data-theme="dark"] .admin-console #message.error { background: #432332; col
 .admin-console .admin-skip-link:focus { top: 12px; }
 @media (max-width:1200px) {
   .admin-console .admin-layout { grid-template-columns: 212px minmax(0,1fr); gap: 24px; }
-  .admin-console .workspace { grid-template-columns: 240px minmax(0,1fr); gap: 16px; }
+
   .admin-console .panel { padding: 20px; }
   .admin-console .modules { grid-template-columns: 1fr; }
   .admin-console .credentials-grid { grid-template-columns: minmax(0,1fr); }
@@ -190,7 +187,7 @@ html[data-theme="dark"] .admin-console #message.error { background: #432332; col
   .admin-console .admin-navigation a strong { font-size: 13px; }
   .admin-console .admin-main { padding-top: 0; }
   .admin-console .admin-topbar { margin-bottom: 20px !important; }
-  .admin-console .workspace { grid-template-columns: 270px minmax(0,1fr); }
+
 }
 @media (max-width:720px) {
   .admin-console { padding: 12px; }
@@ -200,7 +197,7 @@ html[data-theme="dark"] .admin-console #message.error { background: #432332; col
   .admin-console .admin-page-heading { margin-bottom: 20px; }
   .admin-console .admin-page-heading p:not(.eyebrow) { font-size: 13px; }
   .admin-console .workspace { grid-template-columns: 1fr; }
-  .admin-console .user-directory #userList { max-height: 275px; }
+
   .admin-console .section-toolbar { align-items: flex-start; flex-direction: column; gap: 12px; }
   .admin-console .section-toolbar button { width: 100%; }
   .admin-console .panel { padding: 18px; border-radius: 15px; }
@@ -257,3 +254,32 @@ html[data-theme="dark"] .admin-console #message.error { background: #432332; col
 .admin-console .service-metrics div { padding:1rem; border:1px solid var(--admin-line); border-radius:12px; background:var(--admin-soft); }
 .admin-console .service-metrics dt { color:var(--admin-muted); font-size:.86rem; }
 .admin-console .service-metrics dd { margin:.5rem 0 0; font-weight:650; overflow-wrap:anywhere; }
+
+/* The directory takes the available width until an account is opened. */
+.admin-console .workspace.editor-open { grid-template-columns:minmax(320px, .9fr) minmax(0, 1.1fr); }
+.admin-console .directory-filters { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; margin-top:18px; }
+.admin-console .directory-query-box { position:relative; }
+.admin-console .directory-query-icon { width:18px; height:18px; position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--admin-muted); pointer-events:none; }
+.admin-console .admin-main #userSearch { padding-inline:40px 48px; }
+.admin-console #userSearch::-webkit-search-cancel-button { appearance:none; }
+.admin-console .admin-main .directory-query-clear { position:absolute; right:1px; top:1px; bottom:1px; background:transparent; color:var(--admin-muted); padding:0; min-height:0; width:42px; font-size:21px; }
+.admin-console .directory-query-clear:hover { color:var(--admin-accent); }
+.admin-console .directory-actions { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin:14px 0 10px; }
+.admin-console .editor-back { margin-bottom:16px; }
+.admin-console .directory-identity { min-width:0; display:block; }
+.admin-console .user-item-heading { overflow-wrap:anywhere; }
+@container user-directory (min-width: 350px) {
+  .admin-console .directory-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .directory-query { grid-column:1/-1; }
+}
+@container user-directory (min-width: 640px) {
+  .admin-console .directory-filters { grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr); }
+  .admin-console .directory-query { grid-column:auto; }
+  .admin-console .user-item { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr); align-items:center; gap:14px; }
+  .admin-console .user-item > small { margin:0; }
+}
+@media (max-width:780px) {
+  .admin-console .workspace.editor-open { grid-template-columns:minmax(0,1fr); }
+  .admin-console .workspace.editor-open .user-directory { display:none; }
+  .admin-console #userList { max-height:none; }
+}

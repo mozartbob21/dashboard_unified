@@ -201,8 +201,8 @@ async def users_page(request: Request):
 @router.get("/api/users/page")
 def users_page_basic(q: str = Query("", max_length=128), archive: Literal["current", "archived", "all"] = "current",
                      page: int = Query(1, ge=1), size: int = Query(25, ge=1, le=100),
-                     actor=Depends(require_account_manager)):
-    return JSONResponse(directory(actor, q=q, archive=archive, page=page, size=size, inspector=False),
+                     presence: Literal["all", "online", "offline"] = "all", actor=Depends(require_account_manager)):
+    return JSONResponse(directory(actor, q=q, archive=archive, page=page, size=size, inspector=False, presence=presence),
                         headers={"Cache-Control": "private, no-store"})
 
 
@@ -217,12 +217,12 @@ def users_record(username: str = Query(..., min_length=1, max_length=32), actor=
 @router.get("/api/users/admin-directory")
 def users_admin_directory(q: str = Query("", max_length=128), archive: Literal["current", "archived", "all"] = "current",
                           page: int = Query(1, ge=1), size: int = Query(25, ge=1, le=100),
-                          actor=Depends(require_inspector)):
-    return JSONResponse(directory(actor, q=q, archive=archive, page=page, size=size, inspector=True),
+                          presence: Literal["all", "online", "offline"] = "all", actor=Depends(require_inspector)):
+    return JSONResponse(directory(actor, q=q, archive=archive, page=page, size=size, inspector=True, presence=presence),
                         headers={"Cache-Control": "private, no-store"})
 
 
-@router.get("/api/users/service-center", dependencies=[Depends(require_inspector)])
+@router.get("/api/users/service-center", dependencies=[Depends(require_account_manager)])
 def users_service_center():
     return JSONResponse(snapshot(), headers={"Cache-Control": "private, no-store"})
 

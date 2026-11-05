@@ -69,3 +69,29 @@ def is_municipality(value):
                                 'москва', 'московская область', 'область', 'нет данных',
                                 'не определен', 'не определено', 'не указан', 'не указано',
                                 '(пусто)', 'прочие', 'неизвестно'})
+
+
+def word_variants(word):
+    variants = {word}
+    if word.endswith(('ий', 'ый', 'ой')):
+        variants.update(word[:-2] + e for e in ('ого', 'ому', 'ом', 'им', 'ым'))
+    elif word.endswith(('ая', 'яя')):
+        variants.update(word[:-2] + e for e in ('ой', 'ей', 'ую', 'юю'))
+    elif word.endswith(('ые', 'ие')):
+        variants.update(word[:-2] + e for e in ('ых', 'их', 'ым', 'им', 'ыми', 'ими'))
+    elif word.endswith('а'):
+        genitive = 'и' if word[:-1].endswith(tuple('гкхжчшщ')) else 'ы'
+        variants.update(word[:-1] + e for e in (genitive, 'е', 'у', 'ой'))
+    elif word.endswith('я'):
+        variants.update(word[:-1] + e for e in ('и', 'е', 'ю', 'ей'))
+    elif word.endswith(('ово', 'ево', 'ино')):
+        variants.update(word[:-1] + e for e in ('а', 'у', 'е', 'ом'))
+    elif word.endswith('ое'):
+        variants.update(word[:-2] + e for e in ('ого', 'ому', 'ом', 'ым'))
+    elif word.endswith(('ы', 'и')):
+        variants.update(word[:-1] + e for e in ('ах', 'ам', 'ами'))
+    elif word.endswith('ь'):
+        variants.update(word[:-1] + e for e in ('и', 'ью', 'я', 'ю', 'ем'))
+    elif re.search(r'[бвгджзклмнпрстфхцчшщ]$', word):
+        variants.update(word + e for e in ('а', 'у', 'е', 'ом'))
+    return sorted(variants)

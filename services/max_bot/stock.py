@@ -86,6 +86,23 @@ def _org_key(value):
     return _plain(value).translate(str.maketrans({"«": '"', "»": '"', "„": '"', "“": '"', "”": '"'}))
 
 
+_LEGAL_FORMS = {
+    "открытое акционерное общество": "оао", "закрытое акционерное общество": "зао",
+    "публичное акционерное общество": "пао", "акционерное общество": "ао",
+    "общество с ограниченной ответственностью": "ооо",
+    "муниципальное унитарное предприятие": "муп", "государственное унитарное предприятие": "гуп",
+}
+
+def _company_identity(value):
+    # Only verified spelling differences; legal forms, branches and digits remain distinct.
+    normalized = _org_key(value).replace('"', ' ')
+    normalized = re.sub(r"\s+", " ", normalized.translate(str.maketrans({"–":"-", "—":"-", "‑":"-"}))).strip()
+    for name, short in _LEGAL_FORMS.items():
+        if normalized.startswith(name + " "):
+            return short + normalized[len(name):]
+    return normalized
+
+
 def _tokens(value, *, query=False):
     normalized = _plain(value)
     # Normalize dimension separators only BETWEEN digits: model letters stay.
@@ -208,6 +225,8 @@ class StockService:
             raise ValueError("stale_days must be 1..365")
         self.published_path = Path(published_path)
         self.contacts_path = Path(contacts_path)
+        from .contact_directory import ContactDirectory
+        self._directory = ContactDirectory(self.contacts_path)
         self.stale_days = stale_days
         self._cache_key = None
         self._cache = None
@@ -267,7 +286,7 @@ class StockService:
                 entry["_tokens"] = _tokens(entry["name"])
                 entry["_search_tokens"] = _search_tokens((*entry["_tokens"], *_tokens(entry["unit"])))
                 rows.append(entry)
-                organizations[entry["_org_key"]].add(muni_key)
+                organizations[_company_identity(entry["organization"])].add(muni_key)
             if grid[1:] and not rows:
                 raise StockError("STOCK_UNAVAILABLE", "Не удалось прочитать позиции опубликованного свода.")
             result = {"rows": rows, "organizations": organizations,
@@ -363,46 +382,7 @@ class StockService:
         row = next((item for item in snapshot["rows"] if item["id"] == item_id and item["municipality_id"] == municipality_id), None)
         if row is None or not row["_municipality_key"]:
             raise StockError("RESULT_NOT_FOUND", "Позиция больше недоступна. Обновите поиск.", 404)
-        payload = _read_json(self.contacts_path, MAX_CONTACT_BYTES, "CONTACTS")
-        source = payload.get("items")
-        if not isinstance(source, list) or len(source) > MAX_CONTACTS or any(not isinstance(item, dict) for item in source):
-            raise StockError("CONTACTS_UNAVAILABLE", "Справочник контактов временно недоступен. Попробуйте позже.")
-        contacts, warnings, seen = [], [], set()
-        ambiguous = False
-        for item in source:
-            organization = _text(item.get("rso"))
-            if not organization or _org_key(organization) != row["_org_key"]:
-                continue
-            municipality = municipality_key(_text(item.get("municipality")))
-            if municipality and municipality != row["_municipality_key"]:
-                continue
-            if not municipality and snapshot["organizations"][row["_org_key"]] != {row["_municipality_key"]}:
-                ambiguous = True
-                continue
-            person, position = _text(item.get("person"), 300), _text(item.get("position"), 300)
-            phone = _text(item.get("phone"), 160)
-            # Old imports sometimes stored a person's name in the phone column.
-            # Never invent or substitute a switchboard number in that case.
-            if not re.search(r"\d", phone) or re.search(r"[<>@]", phone):
-                phone = None
-            identity = (person, position, phone, organization)
-            if identity in seen:
-                continue
-            seen.add(identity)
-            contacts.append({"id": _opaque("c_", row["_org_key"], row["_municipality_key"], *identity),
-                             "person": person, "position": position, "organization": organization, "phone": phone})
-        contacts.sort(key=lambda item: (_plain(item["position"]), _plain(item["person"]), item["id"]))
-        if ambiguous:
-            warnings.append("Для части контактов не указан муниципалитет; принадлежность требует уточнения у администратора.")
-        if not contacts:
-            if not source:
-                warnings.append("Справочник контактов этой Нейроны пуст. Загрузите контакты в разделе «Остатки ЗиП РСО» → «Контакты ответственных от РСО».")
-            else:
-                warnings.append("Контакт ответственного для этой организации и муниципалитета не найден.")
-        elif any(not item["phone"] for item in contacts):
-            warnings.append("Для части ответственных номер телефона не указан в системе.")
-        if len(contacts) > 50:
-            warnings.append("Показаны первые 50 контактов организации. Уточните ответственного в системе.")
-        return {"item_id": item_id, "municipality_id": municipality_id, "municipality": row["municipality"],
-                "organization": row["organization"], "item_name": row["name"], "contacts": contacts[:50],
-                "updated_at": _stamp(payload.get("updated_at")), "warnings": warnings}
+        return self._directory.for_item(row, snapshot["organizations"][_company_identity(row["organization"])])
+
+    def search_contacts(self, query, *, limit=10, offset=0):
+        return self._directory.search(query, limit=limit, offset=offset)

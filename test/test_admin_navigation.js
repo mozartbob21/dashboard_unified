@@ -93,6 +93,7 @@ test('deep links take precedence and legacy feedback starts in feedback without 
   for (const [options, expected] of [
     [{hash: '#feedback'}, 'feedback'], [{initial: 'feedback'}, 'feedback'],
     [{initial: 'feedback', hash: '#integrations'}, 'integrations'],
+    [{hash: '#service'}, 'service'], [{initial: 'feedback', hash: '#service'}, 'service'],
     [{initial: 'unknown', hash: '#unknown'}, 'users']
   ]) {
     const f = fixture(options); f.controller.start(); assertSelected(f, expected);

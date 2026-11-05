@@ -38,7 +38,7 @@ def test_rendered_admin_has_one_active_panel_and_unique_script_targets(section):
     ids = Counter(attrs['id'] for _, attrs in document.elements if 'id' in attrs)
     assert all(count == 1 for count in ids.values()), {name: count for name, count in ids.items() if count != 1}
     panels = [attrs for _, attrs in document.elements if 'data-admin-panel' in attrs]
-    assert {attrs['data-admin-panel'] for attrs in panels} == {'users', 'statistics', 'feedback', 'integrations'}
+    assert {attrs['data-admin-panel'] for attrs in panels} == {'users', 'statistics', 'feedback', 'integrations', 'service'}
     assert [attrs['data-admin-panel'] for attrs in panels if 'hidden' not in attrs] == [section]
     links = [attrs for _, attrs in document.elements if 'data-admin-link' in attrs]
     assert [attrs['data-admin-link'] for attrs in links if attrs.get('aria-current') == 'page'] == [section]

@@ -49,9 +49,9 @@ def heartbeat(user):
             touch(conn, user["id"], time.time())
 
 
-def directory(user, *, q, archive, page, size, inspector, now=None, exact_login=None):
+def directory(user, *, q, archive, page, size, inspector, now=None, exact_login=None, presence="all"):
     timestamp = int(time.time() if now is None else now)
-    active_sql = "(u.is_active=1 AND a.user_id IS NULL AND p.last_seen BETWEEN :cutoff AND :now)"
+    active_sql = "(u.is_active=1 AND a.user_id IS NULL AND p.last_seen IS NOT NULL AND p.last_seen BETWEEN :cutoff AND :now)"
     joined = """FROM users u CROSS JOIN account_control c
         LEFT JOIN account_archives a ON a.user_id=u.id
         LEFT JOIN account_presence p ON p.user_id=u.id
@@ -63,15 +63,23 @@ def directory(user, *, q, archive, page, size, inspector, now=None, exact_login=
     if exact_login is not None:
         filters.append("u.username=:exact_login")
         params["exact_login"] = exact_login
-    if q.strip():
+    if presence in ("online", "offline"):
+        filters.append(active_sql if presence == "online" else "NOT " + active_sql)
+    terms = q.casefold().replace("ё", "е").split()
+    order = "fold(u.username),u.id"
+    if terms:
         fields = ["u.username", "u.email"]
         if inspector:
             fields.append("u.role")
-        filters.append("(" + " OR ".join(f"instr(fold({field}), :q)>0" for field in fields) + ")")
-        params["q"] = q.strip().casefold()
+        for index, term in enumerate(dict.fromkeys(terms)):
+            key = f"term_{index}"
+            filters.append("(" + " OR ".join(f"instr(fold({field}), :{key})>0" for field in fields) + ")")
+            params[key] = term
+        params["query"] = " ".join(terms)
+        order = "CASE WHEN fold(u.username)=:query THEN 0 WHEN instr(fold(u.username), :query)=1 THEN 1 ELSE 2 END," + order
     where = " WHERE " + " AND ".join(filters)
     with get_db_connection() as conn:
-        conn.create_function("fold", 1, lambda text: (text or "").casefold())
+        conn.create_function("fold", 1, lambda text: (text or "").casefold().replace("ё", "е"))
         conn.execute("BEGIN")  # Keep counters and this page in one snapshot.
         totals = conn.execute(f"SELECT count(*), count(CASE WHEN {active_sql} THEN 1 END) {joined} WHERE c.id=1", params).fetchone()
         matched = conn.execute("SELECT count(*) " + joined + where, params).fetchone()[0]
@@ -84,7 +92,7 @@ def directory(user, *, q, archive, page, size, inspector, now=None, exact_login=
             {active_sql} AS online, s.last_seen_at,
             NULLIF(MAX(COALESCE(p.last_seen,0),COALESCE(CAST(strftime('%s',s.last_seen_at) AS INTEGER),0)),0) AS presence_seen
             {joined} LEFT JOIN user_activity s ON s.user_id=u.id AND s.module_id='__platform__'
-            {where} ORDER BY fold(u.username),u.id LIMIT :size OFFSET :offset""", params).fetchall()
+            {where} ORDER BY {order} LIMIT :size OFFSET :offset""", params).fetchall()
     users = []
     for row in rows:
         item = dict(row)
