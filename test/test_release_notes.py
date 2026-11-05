@@ -23,6 +23,7 @@ AGENT_RELEASE_ID = "2026-11-05-chat-agent-sources-v33"
 AGENT_MINGKH_ENTRY = "chat-agent-mingkh-causes"
 DIRECTORY_RELEASE_ID = "2026-11-05-user-directory-contacts-v33"
 CONTACT_ENTRY = "max-contact-directory"
+NEIGHBORS_RELEASE_ID = "2026-11-05-housing-neighbors-agent-v33"
 CHECKS_RELEASE_ID = "2026-11-05-check-history-v33"
 TREATMENT_ENTRY = "mingkh-treatment-snapshot"
 ADMIN_ENTRIES = {"admin-directory-search", "admin-ai-credentials", "admin-users-service-center"}
@@ -100,16 +101,18 @@ def assert_ordinary_news(payload, *, zips=False, mingkh=False):
         expected.insert(0, ZIP_RELEASE_ID)
     expected.insert(0, CHECKS_RELEASE_ID)
     expected.insert(0, AGENT_RELEASE_ID)
+    if mingkh:
+        expected.insert(0, NEIGHBORS_RELEASE_ID)
     assert [note["id"] for note in payload["releases"]] == expected
     assert all(note["version"] == "3.3" for note in payload["releases"])
-    assert entry_ids(payload) == GENERAL_ENTRY_IDS | ({ZIP_ENTRY_ID} if zips else set()) | ({TREATMENT_ENTRY, AGENT_MINGKH_ENTRY} if mingkh else set())
+    assert entry_ids(payload) == GENERAL_ENTRY_IDS | ({ZIP_ENTRY_ID} if zips else set()) | ({TREATMENT_ENTRY, AGENT_MINGKH_ENTRY, "neighbors-agent"} if mingkh else set())
     assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
 
 
 def test_deployed_v33_catalog_replaces_previous_versions(app, deployed):
     releases._validate_catalog()
-    assert len(DEPLOYED_RELEASES) == 9
-    assert {note["id"] for note in DEPLOYED_RELEASES} == {DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
+    assert len(DEPLOYED_RELEASES) == 10
+    assert {note["id"] for note in DEPLOYED_RELEASES} == {NEIGHBORS_RELEASE_ID, DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
     assert {note["version"] for note in DEPLOYED_RELEASES} == {"3.3"}
     with api(app, "4") as client:
         response = client.get("/api/releases/pending")
@@ -192,7 +195,7 @@ def test_keycloak_cannot_receive_local_max_news_even_with_admin_claims(app, depl
         payload = client.get("/api/releases/history").json()
         # Existing Keycloak admin grants include ordinary modules, but never
         # local account management or MAX account linking.
-        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {TREATMENT_ENTRY, AGENT_MINGKH_ENTRY, ZIP_ENTRY_ID, "water-source-details", "water-ai-conclusions", "water-ai-retry-appearance", "omsu-rating", "omsu-rating-methodology-restored"}
+        assert entry_ids(payload) == GENERAL_ENTRY_IDS | {TREATMENT_ENTRY, AGENT_MINGKH_ENTRY, "neighbors-agent", ZIP_ENTRY_ID, "water-source-details", "water-ai-conclusions", "water-ai-retry-appearance", "omsu-rating", "omsu-rating-methodology-restored"}
         assert "max" not in json.dumps(payload, ensure_ascii=False).lower()
 
 
@@ -235,7 +238,7 @@ def test_disabled_bot_hides_presentations_notice_even_with_grant(app, deployed, 
         assert_ordinary_news(client.get("/api/releases/history").json())
 
 
-@pytest.mark.parametrize("module, expected", [("zips", {ZIP_ENTRY_ID}), ("mingkh", {TREATMENT_ENTRY, AGENT_MINGKH_ENTRY}),
+@pytest.mark.parametrize("module, expected", [("zips", {ZIP_ENTRY_ID}), ("mingkh", {TREATMENT_ENTRY, AGENT_MINGKH_ENTRY, "neighbors-agent"}),
                                               ("water-dashboard", {"water-source-details", "water-ai-conclusions", "water-ai-retry-appearance"}),
                                               ("omsu-rating", {"omsu-rating", "omsu-rating-methodology-restored"})])
 def test_v33_module_news_requires_current_module_grant(app, deployed, module, expected):

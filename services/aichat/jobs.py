@@ -50,6 +50,7 @@ def initialize():
     migration = Path(__file__).resolve().parents[2] / 'migrations/20261104_shared_chat.sql'
     with get_db_connection() as conn:
         conn.executescript(migration.read_text(encoding='utf-8'))
+        conn.executescript(migration.with_name('20261105_aichat_agent_artifacts.sql').read_text(encoding='utf-8'))
 
 
 def _requirements(value):
@@ -122,6 +123,10 @@ def _finish(ident, status, result, *, stale_check=False):
             status = 'succeeded' if result.get('ok') else 'failed'
         requirements = _requirements(result) if 'required_modules' in result else sorted(set(_row_requirements(row)) | set(_requirements(result)))
         result = {**result, 'dialog_id': row['dialog_id'], 'required_modules': requirements}
+        workbook = result.pop('_agent_workbook', None)
+        if status == 'succeeded' and workbook is not None:
+            from services.aichat.agents.ratings import publish_file
+            result['artifact'] = publish_file(conn, row, workbook, requirements)
         conn.execute('UPDATE aichat_jobs SET status=?,stage=?,result=?,updated_at=?,required_modules=? WHERE id=?',
                      (status, 'Завершено' if status == 'succeeded' else 'Выполнение остановлено',
                       json.dumps(result, ensure_ascii=False), now, json.dumps(requirements), ident))
@@ -133,6 +138,7 @@ def _finish(ident, status, result, *, stale_check=False):
                                      'response_kind': result.get('response_kind', 'answer'),
                                      'skill_run': result.get('skill_run'), 'module_id': row['module_id'],
                                      'report_sources': result.get('report_sources', []),
+                                     **({'artifact':result['artifact']} if result.get('artifact') else {}),
                                      'report_scope': result.get('report_scope'), 'required_modules': requirements})
             body['updated_at'] = now
             conn.execute('UPDATE aichat_dialogs SET body=?,updated_at=? WHERE id=?', (json.dumps(body, ensure_ascii=False), now, row['dialog_id']))

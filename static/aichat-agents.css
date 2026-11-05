@@ -1,0 +1,35 @@
+.aichat-page .ac-agents-entry[hidden],
+.aichat-page .ac-agents-modal [hidden] {display:none!important}
+.aichat-page .ac-agents-modal {width:min(680px,100%);max-height:calc(100dvh - 36px);overflow:auto;padding:24px;overscroll-behavior:contain}
+.aichat-page .ac-agents-heading,.aichat-page .ac-agents-footer {display:flex;align-items:center;justify-content:space-between;gap:12px}
+.aichat-page .ac-agents-heading h3 {margin:0!important}
+.aichat-page .ac-agents-close {min-width:44px;min-height:44px;font-size:24px;line-height:1;padding:0}
+.aichat-page .ac-agents-status:not(:empty) {margin:12px 0;color:var(--text);font-size:14px}
+.aichat-page .ac-agent-summary {display:flex;align-items:flex-start;gap:12px;margin:14px 0 22px}
+.aichat-page .ac-agent-symbol {display:grid;place-items:center;flex:none;width:40px;height:42px;border-radius:12px;background:var(--ac-soft);color:var(--ac-accent)}
+.aichat-page .ac-agent-symbol svg {width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.aichat-page .ac-agent-summary h4 {font-size:18px;margin:0;color:var(--text);line-height:1.3}
+.aichat-page .ac-agent-summary p,.aichat-page .ac-agent-options p,.aichat-page .ac-agents-footer p,.aichat-page .ac-agent-file-limit {margin:5px 0;color:var(--muted);font-size:13px;line-height:1.5}
+.aichat-page .ac-agent-inputs,.aichat-page .ac-agent-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.aichat-page .ac-agent-form label {display:flex;flex-direction:column;gap:5px;min-width:0;text-align:left;color:var(--text);font-size:13px;font-weight:600}
+.aichat-page .ac-agent-inputs label {padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--ac-soft)}
+.aichat-page .ac-agent-inputs small {flex:1;font-size:12px;font-weight:400;line-height:1.5;color:var(--muted)}
+.aichat-page .ac-agent-form input {width:100%;min-width:0;box-sizing:border-box;min-height:42px;padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:var(--card);color:var(--text);font:inherit}
+.aichat-page .ac-agent-form input[type=file] {overflow:hidden;padding:4px;font-size:12px;background:transparent;border:0}
+.aichat-page .ac-agent-form ::file-selector-button {min-height:38px;padding:5px 8px;margin-right:5px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--text);font:inherit;cursor:pointer}
+.aichat-page .ac-agent-city {margin:16px 0 12px}
+.aichat-page .ac-agent-options {border-block:1px solid var(--border);padding:2px 0}
+.aichat-page .ac-agent-options summary {cursor:pointer;min-height:44px;padding:12px 2px;box-sizing:border-box;font-size:14px;font-weight:600;color:var(--text)}
+.aichat-page .ac-agent-options fieldset {min-width:0;padding:0;border:none;margin:6px 0 12px}
+.aichat-page .ac-agent-options legend {font-weight:600;padding:0;font-size:14px;color:var(--text)}
+.aichat-page .ac-agent-grid {margin-top:6px}
+.aichat-page .ac-agents-footer {margin-top:14px}
+.aichat-page .ac-agents-footer button {min-height:44px;white-space:nowrap}
+.aichat-page .ac-agent-download {display:inline-flex;align-items:center;gap:8px;margin-top:6px;min-height:44px;padding:7px 12px;border-radius:10px;border:1px solid var(--border);color:var(--text);background:var(--ac-soft);text-decoration:none;font-weight:600}
+@media (max-width:600px) {
+  .aichat-page .ac-agents-modal {max-height:calc(100dvh - 20px);padding:16px 14px}
+  .aichat-page .ac-agent-inputs {grid-template-columns:minmax(0,1fr)}
+  .aichat-page .ac-agents-footer {align-items:stretch;flex-direction:column}
+  .aichat-page .ac-agent-summary {margin-bottom:14px}
+  .aichat-page .ac-agent-form input {min-height:44px;font-size:16px}
+}

@@ -1,6 +1,15 @@
 """Reviewed release notes shipped with the application, never generated from Git."""
 
 RELEASES = ({
+    'id': '2026-11-05-housing-neighbors-agent-v33',
+    'version': '3.3',
+    'title': 'ИИ-агенты в чате',
+    'published_at': '2026-11-05T21:00:00+03:00',
+    'entries': ({'id':'neighbors-agent','audience':'module','module_id':'mingkh',
+                 'title':'Рейтинг домов по жалобам и соседям',
+                 'text':'В ИИ-чате откройте «ИИ-агенты» под «Навыками». Приложите справочник координат и книгу жалоб ЕДС и ЕЦУР. '
+                        'Агент покажет дома с наибольшим числом жалоб, расстояния до соседей и сохранит Excel в диалоге.'},),
+}, {
     'id': '2026-11-05-user-directory-contacts-v33',
     'version': '3.3',
     'title': 'Поиск и навигация',

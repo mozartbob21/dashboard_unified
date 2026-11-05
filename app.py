@@ -3152,6 +3152,8 @@ from services.aichat.engine import ask as aichat_ask, GREETING
 from services.aichat.teams import normalize_team, public_catalog
 from services.aichat.job_api import router as aichat_jobs_router
 app.include_router(aichat_jobs_router)
+from services.aichat.agents import ratings as chat_ratings
+app.include_router(chat_ratings.router)
 
 
 def validated_chat_team(value):
@@ -3167,7 +3169,8 @@ async def aichat_teams():
 
 @app.get("/aichat", response_class=HTMLResponse)
 async def aichat_page(request: Request):
-    return templates.TemplateResponse(request, "aichat.html", {"request": request})
+    return templates.TemplateResponse(request, "aichat.html", {"request": request,
+        "show_agents": check_module_access(request.state.user, chat_ratings.MODULE)})
 
 @app.get("/aichat/api/dialogs")
 async def aichat_dialogs(request: Request):
@@ -3285,6 +3288,8 @@ async def aichat_send(request: Request):
     store = SimpleNamespace(**{name: partial(getattr(private_storage, name), owner=owner)
                                for name in ('get_dialog', 'create_dialog', 'set_team', 'append_message')})
     try:
+        if any(field in form for field in ("agent_id","geo_file","complaints_file")):
+            return await chat_ratings.submit(request,form)
         did = form.get("dialog_id") or ""
         d = store.get_dialog(did) if isinstance(did, str) and did else None
         if did and d is None:

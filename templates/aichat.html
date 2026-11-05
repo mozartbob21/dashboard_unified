@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-skills.css') }}?v=20261020-mobile">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-waiting.css') }}?v=20261020-mobile">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-jobs.css') }}?v=20261104">
+<link rel="stylesheet" href="{{ url_for('static', path='aichat-agents.css') }}?v=20261105">
 {% endblock %}
 {% block content %}
 <div class="container">
@@ -35,6 +36,13 @@
       <span><strong>Навыки</strong><small id="skillsEntryHint">Инструменты для ваших задач</small></span>
       <span class="ac-skills-entry-arrow" aria-hidden="true">↗</span>
     </button>
+    {% if show_agents %}
+    <button class="ac-skills-entry ac-agents-entry" id="agentsBtn" type="button" hidden aria-haspopup="dialog" aria-expanded="false" aria-controls="agentsOvl">
+      <span class="ac-skills-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h6v6H5zM14 15h6v6h-6zM8 10v5a2 2 0 0 0 2 2h4M11 7h4a2 2 0 0 1 2 2v6"/></svg></span>
+      <span><strong>ИИ-агенты</strong><small>Расчёты и отчёты</small></span>
+      <span class="ac-skills-entry-arrow" aria-hidden="true">↗</span>
+    </button>
+    {% endif %}
     <div class="ac-history-heading">История диалогов<span>Общая история</span></div>
     <div class="ac-list" id="dlgList"></div>
   </aside>
@@ -121,6 +129,49 @@
 </div>
 
 
+{% if show_agents %}
+<div class="ovl" id="agentsOvl" hidden>
+  <section class="modal ac-agents-modal" role="dialog" aria-modal="true" aria-labelledby="agentsTitle">
+    <header class="ac-agents-heading">
+      <h3 id="agentsTitle">ИИ-агенты</h3>
+      <button class="btn ghost ac-agents-close" type="button" id="agentsClose" aria-label="Закрыть каталог">×</button>
+    </header>
+    <div id="agentsStatus" class="ac-agents-status" role="status" aria-live="polite"></div>
+    <button id="agentsRetry" type="button" class="btn ghost" hidden>Повторить загрузку</button>
+    <form id="agentRatingForm" class="ac-agent-form" hidden>
+      <div class="ac-agent-summary">
+        <span class="ac-agent-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20V9l6-4 6 4v11M15 11l6 3v6M7 11h1m2 0h1m-4 4h1m2 0h1M2 20h20"/></svg></span>
+        <div><h4 id="agentRatingTitle"></h4><p id="agentRatingDescription"></p></div>
+      </div>
+      <div class="ac-agent-inputs">
+        <label for="agentGeoFile">Справочник домов <small>Книга XLSX с кодами МКД, адресами и координатами.</small>
+          <input type="file" id="agentGeoFile" accept=".xlsx" required></label>
+        <label for="agentComplaintsFile">Выгрузка жалоб <small>Книга XLSX с листами «ЕДС» и «Тепловая карта ЕЦУР».</small>
+          <input type="file" id="agentComplaintsFile" accept=".xlsx" required></label>
+      </div>
+      <p class="ac-agent-file-limit">До 8 МБ на файл.</p>
+      <label class="ac-agent-city" for="agentCity">Округ<input id="agentCity" required maxlength="80" type="text" value="Чехов" autocomplete="off"></label>
+      <details class="ac-agent-options" id="agentOptions">
+        <summary>Радиусы поиска и границы округа</summary>
+        <fieldset><legend>Расстояния до соседей, м</legend>
+          <div class="ac-agent-grid"><label for="agentRadius">Основной радиус<input type="number" min="1" step="1" max="49999" id="agentRadius" value="100" required></label>
+            <label for="agentRadiusWide">Расширенный радиус<input type="number" min="1" step="1" max="50000" id="agentRadiusWide" value="200" required></label></div>
+        </fieldset>
+        <fieldset><legend>Границы на карте</legend><p>Адреса с точками вне границ остаются в рейтинге без расчёта расстояний.</p>
+          <div class="ac-agent-grid ac-agent-bounds">
+            <label for="agentWest">Запад, долгота<input type="number" step="any" min="-180" max="180" id="agentWest" value="37.1" required></label>
+            <label for="agentEast">Восток, долгота<input type="number" step="any" min="-180" max="180" id="agentEast" value="37.9" required></label>
+            <label for="agentSouth">Юг, широта<input type="number" step="any" min="-90" max="90" id="agentSouth" value="54.95" required></label>
+            <label for="agentNorth">Север, широта<input type="number" step="any" min="-90" max="90" id="agentNorth" value="55.35" required></label>
+          </div>
+        </fieldset>
+      </details>
+      <div class="ac-agents-footer"><p>Результат и файл Excel появятся в общем диалоге.</p>
+        <button type="submit" id="agentRatingRun" class="btn prim">Рассчитать рейтинг</button></div>
+    </form>
+  </section>
+</div>
+{% endif %}
 <div class="ovl" id="skillsOvl" hidden>
   <section class="modal ac-skills-modal" id="skillsPanel" role="dialog" aria-modal="true" aria-labelledby="skillsTitle" aria-describedby="skillsIntro">
     <div class="ac-skills-heading">
@@ -146,11 +197,12 @@
 <script src="{{ url_for('static', path='aichat-skills.js') }}?v=20261008"></script>
 <script src="{{ url_for('static', path='aichat-waiting.js') }}?v=20261013"></script>
 <script src="{{ url_for('static', path='aichat-jobs.js') }}?v=20261104"></script>
+<script src="{{ url_for('static', path='aichat-agents.js') }}?v=20261105"></script>
 <script>
 var $=function(s){return document.querySelector(s)};
 var chatEl=$("#chat"),ta=$("#ta");
 var currentDid=null,pending=[],busy=false,draftVersion=0;
-var teamUI=null,skillsUI=null,jobsUI=null;
+var teamUI=null,skillsUI=null,jobsUI=null,agentsUI=null;
 var submissions=new Map(),lastSubmission=null,historyVersion=0;
 var waitingFacts={start:function(){},stop:function(){},warm:function(){}};
 try{
@@ -187,7 +239,7 @@ function bindChips(root){
 }
 const readableSourcePaths=new Set(['/mingkh','/mingkh/water-map','/mingkh/treatment','/mingkh/collective',
   '/edds','/ecur','/cds','/water-dashboard','/water-rm','/mgkh-rm','/zips','/cameras','/overdue','/watercontrol','/utnkr','/edo']);
-function appendAssist(content,team,skillRun,sources){
+function appendAssist(content,team,skillRun,sources,artifact){
   var w=document.createElement("div");w.className="ac-msg assist";
   w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона '+window.NeuronaTeams.messageBadge(team)+'</div>'+window.NeuronaSkills.traceHTML(skillRun)+'<div class="bubble">'+fmt(content)+"</div></div>";
   const used=new Set(), links=document.createElement('div');
@@ -200,6 +252,8 @@ function appendAssist(content,team,skillRun,sources){
     links.append(link);
   }
   if(links.childElementCount)w.querySelector('.ac-message-body').append(links);
+  const download=window.NeuronaAgents?.downloadLink(document,artifact);
+  if(download)w.querySelector('.ac-message-body').append(download);
   chatEl.appendChild(w);scroll();
 }
 function appendUser(text,atts,fromHistory){
@@ -228,10 +282,10 @@ async function chatJson(url,options){
   var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},20000);
   try{
     var r=await fetch(url,Object.assign({},options||{},{signal:controller.signal,cache:"no-store"}));
-    if(r.status===401||(r.redirected&&new URL(r.url,location.href).pathname==="/login"))throw new Error("Сессия завершилась. Обновите страницу и войдите снова.");
+    if(r.status===401||(r.redirected&&new URL(r.url,location.href).pathname==="/login"))throw Object.assign(new Error("Сессия завершилась. Обновите страницу и войдите снова."),{status:401});
     var d;
     try{d=await r.json();}catch(error){throw new Error("Не удалось прочитать ответ сервера. Попробуйте ещё раз.");}
-    if(!r.ok)throw new Error(typeof d.detail==="string"?d.detail:typeof d.error==="string"?d.error:"Не удалось выполнить запрос. Попробуйте ещё раз.");
+    if(!r.ok)throw Object.assign(new Error(typeof d.detail==="string"?d.detail:typeof d.error==="string"?d.error:"Не удалось выполнить запрос. Попробуйте ещё раз."),{status:r.status});
     return d;
   }catch(error){
     if(error.name==="AbortError")throw new Error("Сервер пока не ответил. Сохранённые задачи продолжат выполняться.");
@@ -279,7 +333,7 @@ async function refreshDialog(did){
   if(!msgs.length)welcome();
   else msgs.forEach(function(m){
     if(m.role==="user")appendUser(m.content,[],true);
-    else appendAssist(m.content,m.team,m.skill_run,m.report_sources);
+    else appendAssist(m.content,m.team,m.skill_run,m.report_sources,m.artifact);
   });
   if(!nearBottom)chatEl.scrollTop=previousScroll;
   loadDialogs();
@@ -382,6 +436,7 @@ function setBusy(value){
   chatEl.setAttribute("aria-busy",String(value));
   if(teamUI)teamUI.syncBusy();
   if(skillsUI)skillsUI.syncBusy();
+  if(agentsUI)agentsUI.syncBusy();
 }
 $("#newBtn").addEventListener("click",newChat);
 $("#sendBtn").addEventListener("click",function(){send()});
@@ -424,6 +479,7 @@ function closeChatModal(selector){
   $(selector).hidden=true;
   if(selector==="#teamOvl")$("#teamBtn").setAttribute("aria-expanded","false");
   if(selector==="#skillsOvl")$("#skillsBtn").setAttribute("aria-expanded","false");
+  if(selector==="#agentsOvl")$("#agentsBtn").setAttribute("aria-expanded","false");
   if(selector==="#capsOvl")localStorage.setItem("neurona-caps-seen","1");
   if(modalReturnFocus&&modalReturnFocus.isConnected)modalReturnFocus.focus();
 }
@@ -490,10 +546,13 @@ skillsUI=window.NeuronaSkills.create({
 jobsUI=window.NeuronaChatJobs.create(window,{
   onChange:function(state){window.NeuronaChatJobs.render(document,$("#chatJobs"),state,jobsUI,currentDid?null:openDialog);},
   onActivity:function(active){if(active)waitingFacts.start();else waitingFacts.stop();},
-  onDismissed:function(id){submissions.delete(id);if(lastSubmission&&lastSubmission.id===id)lastSubmission=null;},
+  onDismissed:function(id){if(agentsUI)agentsUI.dismiss(id);submissions.delete(id);if(lastSubmission&&lastSubmission.id===id)lastSubmission=null;},
   onAccepted:function(ticket,id){
     var submission=submissions.get(id);
-    if(submission){
+    if(submission&&submission.agent){
+      agentsUI.accept(id);
+      submissions.delete(id);
+    }else if(submission){
       if(ta.value.trim()===submission.text){ta.value="";ta.style.height="auto";}
       pending=pending.filter(function(item){
         if(submission.files.indexOf(item)<0)return true;
@@ -516,6 +575,16 @@ jobsUI=window.NeuronaChatJobs.create(window,{
     loadDialogs();
   }
 });
+agentsUI=window.NeuronaAgents?.create({
+  doc:document, request:chatJson, openModal:openChatModal, closeModal:closeChatModal,
+  isBusy:function(){return busy;}, dialog:function(){return currentDid;}, key:function(){return jobsUI.requestKey();},
+  submit:async function(body,id,title){
+    submissions.set(id,{agent:true,dialog:currentDid});
+    setBusy(true);
+    try{return await jobsUI.submit(body,id,title);}finally{setBusy(false);}
+  }
+});
+agentsUI?.start();
 loadDialogs();renderChips();welcome();
 try{var savedDialog=sessionStorage.getItem("neurona-active-dialog");if(savedDialog)openDialog(savedDialog);}catch(error){}
 if(!localStorage.getItem("neurona-caps-seen")&&!document.querySelector(".aichat-page .ovl:not([hidden])")){fillCapChips();openChatModal("#capsOvl","#capsClose");}
