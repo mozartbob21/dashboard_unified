@@ -2,6 +2,7 @@ import json
 import re
 import sys
 import datetime as _dt
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
@@ -12,6 +13,7 @@ from services.water_dashboard.diagnostics import MESSAGES, SourceReadError, erro
 from services.water_dashboard.config import (
     DEBUG_DIR, HEADLESS, PLAYWRIGHT_PROFILE_DIR, SOURCES,
 )
+_DEFAULT_DEBUG = object()
 
 # Серверная консоль Windows (cp1251) не переживает символы вроде "✓" —
 # переводим stdout в UTF-8, иначе этап nvos прерывался UnicodeEncodeError.
@@ -166,14 +168,17 @@ def _wait_for_content(page):
         pass
 
 
-def _save_browser_diagnostics(page, sid, response, errors):
+def _save_browser_diagnostics(page, sid, response, errors, *, debug_dir=_DEFAULT_DEBUG):
+    debug_dir = DEBUG_DIR if debug_dir is _DEFAULT_DEBUG else debug_dir
+    if debug_dir is None:
+        return
     try:
         diagnostics = {
             'status': response.status if response else None,
             'title': page.title(), 'errors': errors[-30:],
             'body': page.evaluate("() => document.body.outerHTML.slice(0,2000)"),
         }
-        (DEBUG_DIR / f'{sid}-browser.json').write_text(
+        (Path(debug_dir) / f'{sid}-browser.json').write_text(
             json.dumps(diagnostics, ensure_ascii=False, indent=2), encoding='utf-8')
     except Exception:
         # Optional diagnostics must not discard a successful source extraction.
@@ -319,19 +324,25 @@ def _read_meeting_rso(page, source_url):
                         'error': 'Сводка РСО не получена. ' + MESSAGES[error_code(exc)]}}
 
 
-def scrape_all(source_ids=None):
+def scrape_all(source_ids=None, *, profile_dir=None, debug_dir=_DEFAULT_DEBUG, headless=None, on_progress=None):
+    """Collect fixed sources; isolated agent calls supply a disposable profile and no debug files."""
     selected = {source['id'] for source in SOURCES} if source_ids is None else set(source_ids)
     known = {source['id'] for source in SOURCES}
     if not selected or not selected <= known:
         raise ValueError('Unknown or empty water dashboard source selection')
-    DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-    PLAYWRIGHT_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    debug_dir = DEBUG_DIR if debug_dir is _DEFAULT_DEBUG else debug_dir
+    profile_dir = PLAYWRIGHT_PROFILE_DIR if profile_dir is None else Path(profile_dir)
+    headless = HEADLESS if headless is None else bool(headless)
+    if debug_dir is not None:
+        debug_dir = Path(debug_dir)
+        debug_dir.mkdir(parents=True, exist_ok=True)
+    profile_dir.mkdir(parents=True, exist_ok=True)
 
     extractions = {}
 
     with sync_playwright() as p:
         context, browser_name = launch_context(
-            p, profile_dir=PLAYWRIGHT_PROFILE_DIR, headless=HEADLESS,
+            p, profile_dir=profile_dir, headless=headless,
         )
         print(f"STAGE: Браузер для сбора: {browser_name}", flush=True)
         try:
@@ -352,6 +363,8 @@ def scrape_all(source_ids=None):
                 if sid not in selected:
                     continue
                 print(f"STAGE: {src['name']}", flush=True)
+                if on_progress:
+                    on_progress('Читаем источник — ' + src['name'])
                 browser_errors.clear()
                 response = None
                 text = ""
@@ -391,14 +404,15 @@ def scrape_all(source_ids=None):
                     elif sid == "gkh_kontur":
                         extractions[sid].update(_read_kontur_rankings(page, src["url"]))
 
-                    with open(DEBUG_DIR / f"{sid}.json", "w", encoding="utf-8") as f:
-                        json.dump({"url": src["url"], **extractions[sid]},
-                                  f, ensure_ascii=False, indent=2)
+                    if debug_dir is not None:
+                        with open(debug_dir / f"{sid}.json", "w", encoding="utf-8") as f:
+                            json.dump({"url": src["url"], **extractions[sid]},
+                                      f, ensure_ascii=False, indent=2)
 
                     print(f"[saved] {sid}: таблиц={len(tables)}", flush=True)
                 except Exception as e:
-                    print(f"[warn] {sid}: {e}", flush=True)
                     code = error_code(e)
+                    print(f"[warn] {sid}: {code}", flush=True)
                     if any(item.get('resource') == 'script' and item.get('host') == 'yastatic.net'
                            for item in browser_errors):
                         code = 'assets'
@@ -414,7 +428,7 @@ def scrape_all(source_ids=None):
                     extractions[sid] = {"tables": [], "widgets": [], "text": "", "error": MESSAGES[code],
                                         "refresh_text": refresh_text if isinstance(refresh_text, str) else ""}
                 finally:
-                    _save_browser_diagnostics(page, sid, response, browser_errors)
+                    _save_browser_diagnostics(page, sid, response, browser_errors, debug_dir=debug_dir)
 
         finally:
             context.close()

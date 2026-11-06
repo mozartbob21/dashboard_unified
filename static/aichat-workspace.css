@@ -1,0 +1,823 @@
+/* The chat owns one viewport; its history, conversation and context scroll independently. */
+body.aichat-page.ac-workspace-page {
+  --ac-workspace-surface: var(--bg-soft);
+  --ac-workspace-radius: 18px;
+  --ac-workspace-gap: 12px;
+  --ac-history-width: 244px;
+  --ac-context-width: 310px;
+  --ac-focus: rgba(113, 98, 217, .25);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  height: var(--ac-viewport-height, 100dvh);
+  min-height: 0 !important;
+  max-height: var(--ac-viewport-height, 100dvh);
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  background: var(--bg);
+  color: var(--text);
+}
+body.aichat-page.ac-workspace-page::before { content: none; }
+body.aichat-page.ac-workspace-page [hidden] { display: none !important; }
+body.aichat-page.ac-workspace-page .ac-visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+body.aichat-page.ac-workspace-page :is(button, a, summary, input, textarea) { touch-action: manipulation; }
+body.aichat-page.ac-workspace-page :is(button, a, summary, select, input, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--ac-accent);
+  outline-offset: 3px;
+}
+body.aichat-page.ac-workspace-page > .container {
+  flex: 0 0 auto;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: max(12px, env(safe-area-inset-top)) 16px 0 !important;
+}
+body.aichat-page.ac-workspace-page .topbar.unified-shell-topbar {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  min-height: 64px !important;
+  margin: 0 !important;
+  padding: 9px 14px !important;
+  gap: 12px !important;
+  border-radius: var(--ac-workspace-radius) !important;
+  box-shadow: 0 2px 12px rgba(22, 33, 60, .035) !important;
+  background: var(--ac-workspace-surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.aichat-page.ac-workspace-page .topbar .brand {
+  flex: 1 1 auto !important;
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+body.aichat-page.ac-workspace-page .topbar .brand-logo {
+  flex: 0 0 40px;
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+}
+body.aichat-page.ac-workspace-page .topbar .brand-title { font-size: 15px !important; font-weight: 700 !important; }
+body.aichat-page.ac-workspace-page .topbar .brand-subtitle {
+  margin-top: 3px !important;
+  font-size: 12px !important;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+body.aichat-page.ac-workspace-page .topbar .top-actions {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin-left: auto !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+}
+body.aichat-page.ac-workspace-page .topbar .shell-control {
+  min-height: 44px !important;
+  padding: 10px 12px !important;
+  border-radius: 11px !important;
+  font-size: 12px !important;
+  font-weight: 550 !important;
+}
+body.aichat-page.ac-workspace-page .topbar #capsBtn { gap: 7px; }
+body.aichat-page.ac-workspace-page .topbar #capsBtn svg { flex: 0 0 17px; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+body.aichat-page.ac-workspace-page .topbar .system-back-button {
+  color: var(--text) !important;
+  background: var(--bg-soft) !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+body.aichat-page.ac-workspace-page .topbar .neurona-appearance #themeToggle.appearance-trigger {
+  width: auto !important;
+  min-width: 174px !important;
+  min-height: 44px !important;
+  height: 44px !important;
+  padding: 6px 10px !important;
+  gap: 8px !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+}
+body.aichat-page.ac-workspace-page .topbar #themeToggle .theme-toggle-copy small { font-size: 12px !important; }
+body.aichat-page.ac-workspace-page .topbar #themeToggle .theme-toggle-text { font-size: 12px !important; }
+body.aichat-page.ac-workspace-page .ac-wrap {
+  display: grid;
+  grid-template-columns: var(--ac-history-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
+  height: auto;
+  gap: var(--ac-workspace-gap);
+  padding: 12px 16px max(14px, env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+body.aichat-page.ac-workspace-page :is(.ac-side.card, .ac-main.card, .ac-context.card) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  margin: 0 !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--ac-workspace-radius) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--ac-workspace-surface) !important;
+  box-shadow: 0 3px 18px rgba(22, 33, 60, .025) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html[data-glass="on"] body.aichat-page.ac-workspace-page :is(.ac-side.card, .ac-main.card, .ac-context.card) {
+  background: var(--ac-workspace-surface) !important;
+  box-shadow: 0 3px 18px rgba(22, 33, 60, .025) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html[data-glass="on"] body.aichat-page.ac-workspace-page .topbar.unified-shell-topbar {
+  background: var(--card-strong) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+body.aichat-page.ac-workspace-page :is(.ac-side, .ac-main, .ac-context)::before,
+body.aichat-page.ac-workspace-page :is(.ac-side, .ac-main, .ac-context)::after { content: none !important; }
+body.aichat-page.ac-workspace-page .ac-side.card { gap: 10px; padding: 12px !important; }
+body.aichat-page.ac-workspace-page :is(.ac-side-heading, .ac-context-heading) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  min-height: 38px;
+  gap: 8px;
+}
+body.aichat-page.ac-workspace-page :is(.ac-side-heading, .ac-context-heading) h2 {
+  margin: 0;
+  padding: 0;
+  color: var(--text) !important;
+  font-size: 14px !important;
+  font-weight: 650;
+  line-height: 1.5 !important;
+  letter-spacing: 0;
+}
+body.aichat-page.ac-workspace-page :is(.ac-icon-button, #historyClose, #contextClose, #historyToggle, #reportClose) {
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 21px;
+  line-height: 1;
+}
+body.aichat-page.ac-workspace-page :is(.ac-icon-button, #historyClose, #contextClose, #historyToggle, #reportClose):hover {
+  background: var(--ac-soft);
+  color: var(--text);
+}
+body.aichat-page.ac-workspace-page :is(.ac-icon-button, #historyToggle, #contextToggle) svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+body.aichat-page.ac-workspace-page :is(#historyClose, #historyToggle) { display: none; }
+body.aichat-page.ac-workspace-page .ac-new {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 13px;
+  border-radius: 11px;
+  background: #6c5bc3;
+  box-shadow: 0 3px 8px rgba(108, 91, 195, .12);
+  font-size: 14px;
+}
+body.aichat-page.ac-workspace-page .ac-new:hover { background: #6050b4; }
+body.aichat-page.ac-workspace-page .ac-history-search { position: relative; flex: 0 0 auto; }
+body.aichat-page.ac-workspace-page #historySearch {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 10px 38px 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: none;
+}
+body.aichat-page.ac-workspace-page #historySearch::placeholder { color: var(--muted); opacity: .9; }
+body.aichat-page.ac-workspace-page #historySearch::-webkit-search-cancel-button { -webkit-appearance: none; }
+body.aichat-page.ac-workspace-page #historyClear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 20px;
+}
+body.aichat-page.ac-workspace-page .ac-history-meta {
+  flex: 0 0 auto;
+  margin: 1px 3px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+body.aichat-page.ac-workspace-page #dlgList {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
+  gap: 4px;
+  padding: 2px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+body.aichat-page.ac-workspace-page .dlg { border-radius: 10px; }
+body.aichat-page.ac-workspace-page .dlg.active { border-color: var(--ac-focus); box-shadow: inset 2px 0 0 var(--ac-accent); }
+body.aichat-page.ac-workspace-page .dlg-open { min-height: 63px; padding: 11px 40px 11px 11px; }
+body.aichat-page.ac-workspace-page .dlg .t { font-size: 14px; font-weight: 600; }
+body.aichat-page.ac-workspace-page .dlg .p { margin-top: 3px; font-size: 12px; }
+body.aichat-page.ac-workspace-page .dlg .del { top: 8px; right: 0; font-size: 18px; }
+body.aichat-page.ac-workspace-page .ac-history-empty { margin: 12px 7px; font-size: 14px; }
+body.aichat-page.ac-workspace-page .ac-toolbox {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  max-height: min(40vh, 300px);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+body.aichat-page.ac-workspace-page .ac-toolbox > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  gap: 8px;
+  padding: 8px 4px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+body.aichat-page.ac-workspace-page .ac-toolbox > summary::-webkit-details-marker { display: none; }
+body.aichat-page.ac-workspace-page .ac-toolbox > summary::after { content: "⌄"; font-size: 15px; }
+body.aichat-page.ac-workspace-page .ac-toolbox > summary svg { display: none; }
+body.aichat-page.ac-workspace-page .ac-toolbox[open] > summary::after { transform: rotate(180deg); }
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-hub, .ac-team-entry, .ac-skills-entry) {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  margin: 2px 0;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: 550;
+}
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-hub, .ac-team-entry, .ac-skills-entry):hover { background: var(--ac-soft); }
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-team-entry, .ac-skills-entry) > span:nth-child(2) {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-team-entry, .ac-skills-entry) strong { font-size: 14px; font-weight: 550; }
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-team-entry, .ac-skills-entry) small { display: none; }
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-team-entry-icon, .ac-skills-entry-icon) {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--ac-accent);
+  background: var(--ac-soft);
+}
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-team-entry-icon, .ac-skills-entry-icon) svg { width: 19px; height: 19px; }
+body.aichat-page.ac-workspace-page .ac-toolbox :is(.ac-team-entry-arrow, .ac-skills-entry-arrow) { align-self: center; font-size: 14px; }
+body.aichat-page.ac-workspace-page .ac-conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  min-height: 68px;
+  gap: 12px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+}
+body.aichat-page.ac-workspace-page .ac-conversation-copy { flex: 1; min-width: 0; }
+body.aichat-page.ac-workspace-page #conversationTitle {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text) !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+  letter-spacing: -.015em;
+  font-weight: 650;
+}
+body.aichat-page.ac-workspace-page .ac-conversation-header :is(p, small) {
+  display: block;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+body.aichat-page.ac-workspace-page .ac-conversation-copy > span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+body.aichat-page.ac-workspace-page #contextToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 44px;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+body.aichat-page.ac-workspace-page #contextToggle:hover,
+body.aichat-page.ac-workspace-page #contextToggle[aria-expanded="true"] {
+  background: var(--ac-soft);
+  border-color: var(--ac-focus);
+  color: var(--text);
+}
+body.aichat-page.ac-workspace-page #taskCount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 6px;
+  color: var(--ac-accent);
+  background: var(--ac-soft);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+body.aichat-page.ac-workspace-page .ac-chat {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  gap: 27px;
+  padding: 26px clamp(18px, 3.2vw, 52px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+body.aichat-page.ac-workspace-page .ac-msg { max-width: 920px; }
+body.aichat-page.ac-workspace-page .ac-message-body { max-width: min(100% - 44px, 80ch); }
+body.aichat-page.ac-workspace-page .ac-msg.assist .ac-message-body { width: 100%; }
+body.aichat-page.ac-workspace-page .ava { border-radius: 9px; margin-top: 24px; background: transparent; border-color: transparent; }
+body.aichat-page.ac-workspace-page .ac-author { font-size: 12px; letter-spacing: .015em; }
+body.aichat-page.ac-workspace-page .bubble { font-size: 14px; line-height: 1.78; }
+body.aichat-page.ac-workspace-page .assist .bubble {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+body.aichat-page.ac-workspace-page .user .bubble {
+  padding: 14px 18px;
+  border-color: var(--ac-focus);
+  border-radius: 15px 4px 15px 15px;
+  background: var(--ac-soft);
+  color: var(--text);
+}
+body.aichat-page.ac-workspace-page .user .att-chip { background: var(--ac-soft); border-color: var(--ac-focus); }
+body.aichat-page.ac-workspace-page .typing .bubble { padding: 12px 0; }
+body.aichat-page.ac-workspace-page .bubble .ac-text-heading { font-size: 15px !important; }
+body.aichat-page.ac-workspace-page .ac-table-wrap table { font-size: 12px; }
+body.aichat-page.ac-workspace-page .ac-table-wrap :is(th, td) { padding: 10px 12px; }
+body.aichat-page.ac-workspace-page :is(.ac-source-links a, .ac-report-open) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.5;
+  text-decoration: none;
+}
+body.aichat-page.ac-workspace-page :is(.ac-source-links a, .ac-report-open):hover { border-color: var(--ac-focus); background: var(--ac-soft); }
+body.aichat-page.ac-workspace-page .ac-source-links { gap: 6px; margin-top: 12px; }
+body.aichat-page.ac-workspace-page .ac-report-open { margin-top: 12px; color: var(--ac-accent); }
+body.aichat-page.ac-workspace-page .welcome { max-width: 690px; padding: 20px 0 32px; }
+body.aichat-page.ac-workspace-page .ac-welcome-mark { width: 50px; height: 50px; margin-bottom: 22px; padding: 7px; border-radius: 15px; }
+body.aichat-page.ac-workspace-page .welcome h2 { max-width: 650px; font-size: clamp(23px, 2.2vw, 31px) !important; line-height: 1.24 !important; letter-spacing: -.03em; }
+body.aichat-page.ac-workspace-page .welcome p { max-width: 58ch; margin-bottom: 25px; font-size: 14px; line-height: 1.75; }
+body.aichat-page.ac-workspace-page .welcome .cap-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: none; gap: 9px; }
+body.aichat-page.ac-workspace-page .welcome .chip { min-height: 58px; padding: 12px 14px; border-radius: 11px; background: transparent; font-size: 14px; line-height: 1.65; }
+body.aichat-page.ac-workspace-page .welcome .chip:hover { background: var(--ac-soft); }
+body.aichat-page.ac-workspace-page .ac-compose {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 1040px;
+  min-height: 0;
+  padding: 10px clamp(18px, 3.2vw, 52px) 16px;
+  background: var(--ac-workspace-surface);
+}
+body.aichat-page.ac-workspace-page .ac-input { border-radius: 15px; padding: 7px; background: var(--ac-workspace-surface); box-shadow: 0 3px 14px rgba(25, 34, 60, .035); }
+body.aichat-page.ac-workspace-page .ac-input:focus-within { border-color: var(--ac-accent); box-shadow: 0 0 0 3px var(--ac-focus); }
+body.aichat-page.ac-workspace-page #ta { min-height: 44px; max-height: 140px; padding: 10px 4px; color: var(--text); }
+body.aichat-page.ac-workspace-page .ac-send { background: #6c5bc3; }
+body.aichat-page.ac-workspace-page .ac-shortcuts { margin: 0 0 7px; }
+body.aichat-page.ac-workspace-page .ac-shortcuts summary { min-height: 44px; padding: 8px 2px; font-size: 12px; }
+body.aichat-page.ac-workspace-page .ac-quick { max-height: 104px; padding-top: 2px; }
+body.aichat-page.ac-workspace-page .ac-quick .chip { min-height: 44px; font-size: 12px; }
+body.aichat-page.ac-workspace-page .ac-hint { margin: 9px 3px 0; gap: 10px; font-size: 12px; line-height: 1.5; }
+body.aichat-page.ac-workspace-page .ac-pend { max-height: 82px; }
+body.aichat-page.ac-workspace-page .ac-pend:not(:empty) { padding-bottom: 8px; }
+body.aichat-page.ac-workspace-page .ac-team-strip { padding: 10px 22px; gap: 12px; }
+body.aichat-page.ac-workspace-page .ac-team-strip-actions button { min-height: 44px; font-size: 12px; }
+body.aichat-page.ac-workspace-page :is(.ac-report-note, .ac-job-meta, .ac-job-updated, .ac-team-eyebrow, .ac-team-answer-badge, #teamActiveRoles, .ac-waiting-fact small, .ac-skill-wait-note, .ac-skill-step-kind, .ac-skill-step-status, .ac-skill-trace, .ac-skill-trace-label) { font-size: 12px; }
+body.aichat-page.ac-workspace-page :is(.ac-job-title, .ac-team-strip-info strong, .ac-skill-activity-heading strong) { font-size: 14px; }
+body.aichat-page.ac-workspace-page .ac-jobs { max-height: min(28vh, 200px); padding: 8px 22px; }
+body.aichat-page.ac-workspace-page .ac-job-card { margin: 4px 0; padding: 10px 12px; border-radius: 10px; background: var(--ac-workspace-surface); }
+body.aichat-page.ac-workspace-page .ac-waiting-fact { max-height: 130px; margin: 0 22px 6px; padding: 11px 46px 11px 14px; overflow: auto; border-radius: 11px; }
+body.aichat-page.ac-workspace-page .ac-waiting-fact p { font-size: 12px; }
+body.aichat-page.ac-workspace-page .ac-context.card { gap: 16px; padding: 12px 16px 18px !important; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+body.aichat-page.ac-workspace-page .ac-context-heading { gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+body.aichat-page.ac-workspace-page .ac-context-heading h2 { font-size: 14px !important; }
+body.aichat-page.ac-workspace-page .ac-context-section { min-width: 0; }
+body.aichat-page.ac-workspace-page .ac-context-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+body.aichat-page.ac-workspace-page .ac-context-value {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.65;
+}
+body.aichat-page.ac-workspace-page .ac-context-params {
+  display: grid;
+  grid-template-columns: minmax(80px, .75fr) minmax(0, 1fr);
+  gap: 7px 12px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+}
+body.aichat-page.ac-workspace-page .ac-context-params dt { color: var(--muted); }
+body.aichat-page.ac-workspace-page .ac-context-params dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+body.aichat-page.ac-workspace-page .ac-context-params :is(dt, dd) { margin-bottom: 0; font-size: 12px; font-weight: 400; }
+body.aichat-page.ac-workspace-page .ac-context-stage {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  margin: 8px 0 0;
+  padding: 3px 7px;
+  border: 1px solid var(--ac-focus);
+  border-radius: 6px;
+  color: var(--ac-accent);
+  background: var(--ac-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+body.aichat-page.ac-workspace-page .ac-plan-steps { list-style: none; margin: 0; padding: 0; }
+body.aichat-page.ac-workspace-page .ac-plan-step {
+  position: relative;
+  margin: 0;
+  padding: 3px 0 18px 23px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+body.aichat-page.ac-workspace-page .ac-plan-step:last-child { border-left-color: transparent; padding-bottom: 0; }
+body.aichat-page.ac-workspace-page .ac-plan-step::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 7px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--ac-workspace-surface);
+}
+body.aichat-page.ac-workspace-page .ac-plan-step[data-status="running"]::before { border-color: var(--ac-accent); background: var(--ac-accent); box-shadow: 0 0 0 3px var(--ac-soft); }
+body.aichat-page.ac-workspace-page .ac-plan-step[data-status="succeeded"]::before { border-color: #45a187; background: #45a187; }
+body.aichat-page.ac-workspace-page .ac-plan-step:is([data-status="failed"], [data-status="partial"], [data-status="interrupted"], [data-status="timed_out"])::before { border-color: #c99043; background: #c99043; }
+body.aichat-page.ac-workspace-page .ac-plan-step-title { display: block; color: var(--text); font-size: 14px; font-weight: 600; line-height: 1.6; }
+body.aichat-page.ac-workspace-page .ac-plan-step-status { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+body.aichat-page.ac-workspace-page .ac-plan-step-details { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+body.aichat-page.ac-workspace-page .ac-context #chatJobs {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+body.aichat-page.ac-workspace-page .ac-context .ac-job-card { margin: 0 0 10px; padding: 12px; }
+body.aichat-page.ac-workspace-page .ac-context .ac-job-button { max-width: 100%; margin-right: 4px; padding-inline: 10px; font-size: 14px; }
+body.aichat-page.ac-workspace-page .ac-task-activity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  min-height: 44px;
+  gap: 12px;
+  margin: 0 22px 4px;
+  padding: 10px 13px;
+  border: 1px solid var(--ac-focus);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--ac-soft);
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: left;
+}
+body.aichat-page.ac-workspace-page .ac-task-activity:hover { border-color: var(--ac-accent); }
+body.aichat-page.ac-workspace-page .ac-activity-dot { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--ac-accent); }
+body.aichat-page.ac-workspace-page .ac-task-activity svg { flex: 0 0 17px; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+body.aichat-page.ac-workspace-page #workspaceActivityText { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+body.aichat-page.ac-workspace-page .ac-context :is(h3, h4) { margin: 0 0 9px; color: var(--text); font-size: 12px !important; font-weight: 650; line-height: 1.5; }
+body.aichat-page.ac-workspace-page .ac-context :is(p, li, small) { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+body.aichat-page.ac-workspace-page :is(#workspaceTaskSummary, #workspaceContextEmpty) {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+body.aichat-page.ac-workspace-page #workspaceTaskSummary:empty { display: none; }
+body.aichat-page.ac-workspace-page #workspaceContextEmpty { padding: 20px 14px; }
+body.aichat-page.ac-workspace-page #workspaceContextEmpty svg { display: block; width: 28px; height: 28px; margin-bottom: 14px; fill: none; stroke: var(--ac-accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+body.aichat-page.ac-workspace-page #workspaceContextEmpty strong { display: block; margin-bottom: 6px; color: var(--text); font-size: 14px; font-weight: 550; }
+body.aichat-page.ac-workspace-page #workspaceContextContent { color: var(--text); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+body.aichat-page.ac-workspace-page #workspaceContextContent > * + * { margin-top: 10px; }
+body.aichat-page.ac-workspace-page #workspaceSources { display: flex; flex-direction: column; gap: 8px; }
+body.aichat-page.ac-workspace-page #workspaceSources a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.6;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+body.aichat-page.ac-workspace-page #workspaceSources a:hover { background: var(--ac-soft); border-color: var(--ac-focus); }
+body.aichat-page.ac-workspace-page .ac-workspace-backdrop { position: fixed; inset: 0; z-index: 120; padding: 0; border: 0; background: rgba(12, 18, 34, .42); }
+body.aichat-page.ac-workspace-page .ac-report-overlay { z-index: 1200; padding: 24px; background: rgba(10, 16, 30, .56); }
+body.aichat-page.ac-workspace-page .modal.ac-report-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1260px, 100%);
+  max-width: none;
+  height: min(900px, calc(var(--ac-viewport-height, 100dvh) - 48px));
+  max-height: calc(var(--ac-viewport-height, 100dvh) - 48px);
+  padding: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--ac-workspace-surface);
+}
+body.aichat-page.ac-workspace-page .ac-report-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  min-height: 76px;
+  gap: 16px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+body.aichat-page.ac-workspace-page .ac-report-toolbar > div { min-width: 0; }
+body.aichat-page.ac-workspace-page .ac-report-eyebrow { display: block; margin-bottom: 3px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+body.aichat-page.ac-workspace-page #reportTitle { margin: 0; color: var(--text) !important; font-size: 18px !important; line-height: 1.45; letter-spacing: -.015em; }
+body.aichat-page.ac-workspace-page .ac-report-toolbar p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+body.aichat-page.ac-workspace-page .ac-report-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 8px; }
+body.aichat-page.ac-workspace-page #reportCopy { min-height: 44px; max-width: 320px; padding: 10px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--ac-workspace-surface); color: var(--text); font-size: 14px; line-height: 1.5; white-space: normal; }
+body.aichat-page.ac-workspace-page .ac-report-content { flex: 1 1 0; min-height: 0; padding: 28px 36px 48px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+body.aichat-page.ac-workspace-page .ac-report-content .bubble { width: 100%; max-width: 1140px; margin: 0 auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--text); font-size: 15px; line-height: 1.8; }
+body.aichat-page.ac-workspace-page .ac-report-content .ac-text-heading { font-size: 18px !important; }
+body.aichat-page.ac-workspace-page .ac-report-content .ac-table-wrap { margin: 20px 0; border-radius: 12px; }
+body.aichat-page.ac-workspace-page .ac-report-content .ac-table-wrap table { font-size: 14px; line-height: 1.65; }
+body.aichat-page.ac-workspace-page .ac-report-content .ac-table-wrap :is(th, td) { min-width: 110px; max-width: 440px; padding: 13px 16px; }
+body.aichat-page.ac-workspace-page .ac-report-content .ac-table-wrap th { position: sticky; top: 0; background: var(--bg-soft); }
+body.aichat-page.ac-workspace-page .ac-report-content .ac-source-links { max-width: 1140px; margin: 24px auto 0; padding-top: 16px; border-top: 1px solid var(--border); }
+@media (min-width: 1200px) {
+  body.aichat-page.ac-workspace-page.ac-context-visible .ac-wrap { grid-template-columns: var(--ac-history-width) minmax(0, 1fr) var(--ac-context-width); }
+}
+@media (min-width: 1600px) {
+  body.aichat-page.ac-workspace-page { --ac-history-width: 268px; --ac-context-width: 336px; }
+  body.aichat-page.ac-workspace-page .ac-chat { padding-top: 36px; padding-bottom: 36px; }
+  body.aichat-page.ac-workspace-page .bubble { font-size: 15px; }
+}
+@media (max-width: 1199px) {
+  body.aichat-page.ac-workspace-page { --ac-history-width: 226px; }
+  body.aichat-page.ac-workspace-page .ac-context.card {
+    position: fixed;
+    z-index: 130;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: min(360px, calc(100vw - 32px));
+    max-height: calc(var(--ac-viewport-height, 100dvh) - 24px);
+    box-shadow: 0 16px 64px rgba(0, 0, 0, .2) !important;
+  }
+  body.aichat-page.ac-workspace-page .topbar .brand-subtitle { max-width: 29vw; }
+  body.aichat-page.ac-workspace-page .ac-conversation-header { padding: 11px 18px; }
+  body.aichat-page.ac-workspace-page .ac-hint { flex-wrap: wrap; gap: 2px 8px; }
+}
+@media (max-width: 759px) {
+  body.aichat-page.ac-workspace-page { --ac-workspace-radius: 14px; }
+  body.aichat-page.ac-workspace-page > .container { padding: max(6px, env(safe-area-inset-top)) 8px 0 !important; }
+  body.aichat-page.ac-workspace-page .topbar.unified-shell-topbar { min-height: 58px !important; padding: 6px 8px !important; gap: 6px !important; border-radius: 14px !important; }
+  body.aichat-page.ac-workspace-page .topbar .brand { flex: 1 1 auto !important; width: auto !important; gap: 8px !important; }
+  body.aichat-page.ac-workspace-page .topbar .brand-logo { width: 32px !important; height: 32px !important; flex: 0 0 32px; border-radius: 9px !important; }
+  body.aichat-page.ac-workspace-page .topbar .brand-title { font-size: 14px !important; line-height: 1.25 !important; white-space: nowrap; }
+  body.aichat-page.ac-workspace-page .topbar .brand-subtitle { max-width: 32vw; font-size: 12px !important; margin-top: 2px !important; }
+  body.aichat-page.ac-workspace-page .topbar .top-actions { flex: 0 0 auto !important; width: auto !important; margin-left: 0 !important; justify-content: flex-end !important; gap: 3px !important; }
+  body.aichat-page.ac-workspace-page .topbar :is(#capsBtn, .system-back-button) { display: inline-flex !important; flex: 0 0 44px; align-items: center; justify-content: center; width: 44px; min-width: 44px !important; height: 44px; min-height: 44px !important; padding: 10px !important; overflow: hidden; font-size: 0 !important; border-color: transparent !important; background: transparent !important; }
+  body.aichat-page.ac-workspace-page .topbar #capsBtn::before { content: "?"; display: grid; place-items: center; width: 19px; height: 19px; border: 1.5px solid currentColor; border-radius: 50%; font-size: 12px; font-weight: 650; }
+  body.aichat-page.ac-workspace-page .topbar #capsBtn > * { display: none; }
+  body.aichat-page.ac-workspace-page .topbar .system-back-button::before { content: "←"; font-size: 21px; }
+  body.aichat-page.ac-workspace-page .topbar .neurona-appearance #themeToggle.appearance-trigger { min-width: 44px !important; width: 44px !important; min-height: 44px !important; height: 44px !important; padding: 7px !important; gap: 0 !important; border-color: transparent !important; background: transparent !important; justify-content: center !important; }
+  body.aichat-page.ac-workspace-page .topbar .neurona-appearance #themeToggle :is(.theme-toggle-copy, .theme-toggle-text, .theme-toggle-arrow) { display: none !important; }
+  body.aichat-page.ac-workspace-page .topbar #themeToggle .appearance-trigger-icon { width: 28px !important; height: 28px !important; flex: 0 0 28px !important; border-radius: 8px; }
+  body.aichat-page.ac-workspace-page .ac-wrap { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); flex: 1 1 0; gap: 0; min-height: 0; padding: 7px 8px max(8px, env(safe-area-inset-bottom)); }
+  body.aichat-page.ac-workspace-page .ac-main.card { min-height: 0; height: auto; border-radius: 14px !important; }
+  body.aichat-page.ac-workspace-page .ac-side.card {
+    display: none;
+    position: fixed;
+    z-index: 130;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: min(318px, calc(100vw - 32px));
+    max-height: calc(var(--ac-viewport-height, 100dvh) - 16px);
+    gap: 9px;
+    padding: 12px !important;
+    border-radius: 16px !important;
+    box-shadow: 0 16px 64px rgba(0, 0, 0, .2) !important;
+  }
+  body.aichat-page.ac-workspace-page[data-workspace-panel="history"] .ac-side.card { display: flex; }
+  body.aichat-page.ac-workspace-page :is(#historyClose, #historyToggle) { display: inline-flex; }
+  body.aichat-page.ac-workspace-page #historySearch { font-size: 16px; }
+  body.aichat-page.ac-workspace-page .ac-context.card { top: max(8px, env(safe-area-inset-top)); right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); max-height: calc(var(--ac-viewport-height, 100dvh) - 16px); border-radius: 16px !important; }
+  body.aichat-page.ac-workspace-page .ac-conversation-header { min-height: 61px; padding: 8px 10px; gap: 8px; }
+  body.aichat-page.ac-workspace-page #historyToggle { border-color: transparent; margin-left: -2px; }
+  body.aichat-page.ac-workspace-page #conversationTitle { font-size: 14px !important; }
+  body.aichat-page.ac-workspace-page .ac-conversation-header :is(p, small) { font-size: 12px; }
+  body.aichat-page.ac-workspace-page .ac-conversation-copy > span { font-size: 12px; }
+  body.aichat-page.ac-workspace-page #contextToggle { min-height: 44px; gap: 5px; padding: 7px 9px; font-size: 12px; }
+  body.aichat-page.ac-workspace-page #contextToggle .ac-context-extra { display: none; }
+  body.aichat-page.ac-workspace-page .ac-chat { flex: 1 1 0; min-height: 0; max-height: none; padding: 20px 16px; gap: 24px; }
+  body.aichat-page.ac-workspace-page .ac-msg { gap: 8px; }
+  body.aichat-page.ac-workspace-page .ava { display: none; }
+  body.aichat-page.ac-workspace-page .ac-message-body { max-width: 100%; }
+  body.aichat-page.ac-workspace-page .user .ac-message-body { max-width: 94%; }
+  body.aichat-page.ac-workspace-page .bubble { font-size: 14px; line-height: 1.75; }
+  body.aichat-page.ac-workspace-page .user .bubble { padding: 12px 14px; }
+  body.aichat-page.ac-workspace-page .welcome { padding: 12px 2px 20px; }
+  body.aichat-page.ac-workspace-page .ac-welcome-mark { width: 44px; height: 44px; margin-bottom: 17px; padding: 5px; border-radius: 13px; }
+  body.aichat-page.ac-workspace-page .welcome h2 { font-size: 24px !important; }
+  body.aichat-page.ac-workspace-page .welcome p { margin-bottom: 20px; font-size: 14px; line-height: 1.75; }
+  body.aichat-page.ac-workspace-page .welcome .cap-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  body.aichat-page.ac-workspace-page .welcome .chip { min-height: 62px; padding: 10px 11px; font-size: 14px; }
+  body.aichat-page.ac-workspace-page .ac-compose { max-width: none; padding: 4px 10px 10px; }
+  body.aichat-page.ac-workspace-page .ac-input { gap: 4px; padding: 5px; border-radius: 13px; }
+  body.aichat-page.ac-workspace-page #ta { font-size: 16px; line-height: 1.5; max-height: min(140px, 25vh); }
+  body.aichat-page.ac-workspace-page .ac-shortcuts { margin-bottom: 2px; }
+  body.aichat-page.ac-workspace-page .ac-shortcuts summary { font-size: 12px; min-height: 44px; }
+  body.aichat-page.ac-workspace-page .ac-quick { max-height: 96px; }
+  body.aichat-page.ac-workspace-page .ac-hint { justify-content: center; margin-top: 7px; font-size: 12px; text-align: center; }
+  body.aichat-page.ac-workspace-page .ac-hint > span:first-child { display: none; }
+  body.aichat-page.ac-workspace-page .ac-pend { max-height: 76px; }
+  body.aichat-page.ac-workspace-page .ac-team-strip { flex-wrap: nowrap; padding: 8px 12px; gap: 8px; }
+  body.aichat-page.ac-workspace-page .ac-team-strip-info { flex: 1; min-width: 0; width: auto; }
+  body.aichat-page.ac-workspace-page .ac-team-strip-actions { flex: 0 0 auto; gap: 4px; }
+  body.aichat-page.ac-workspace-page .ac-team-strip-actions button { padding: 6px 8px; font-size: 12px; }
+  body.aichat-page.ac-workspace-page .ac-team-strip-info strong { font-size: 12px; }
+  body.aichat-page.ac-workspace-page #teamActiveRoles { max-width: 35vw; font-size: 12px; }
+  body.aichat-page.ac-workspace-page .ac-jobs { max-height: min(26vh, 168px); padding: 6px 10px; }
+  body.aichat-page.ac-workspace-page .ac-job-card { padding: 9px 10px; }
+  body.aichat-page.ac-workspace-page .ac-job-title { font-size: 14px; }
+  body.aichat-page.ac-workspace-page .ac-waiting-fact { max-height: 96px; margin: 0 10px 5px; padding: 10px 42px 10px 12px; }
+  body.aichat-page.ac-workspace-page .ac-waiting-fact-heading { font-size: 12px; }
+  body.aichat-page.ac-workspace-page .ac-waiting-fact p { margin: 4px 0; font-size: 12px; }
+  body.aichat-page.ac-workspace-page .ac-task-activity { margin: 0 10px 4px; padding: 10px 12px; font-size: 14px; }
+  body.aichat-page.ac-workspace-page .ac-report-overlay { padding: 0; }
+  body.aichat-page.ac-workspace-page .modal.ac-report-modal { width: 100%; height: var(--ac-viewport-height, 100dvh); max-height: var(--ac-viewport-height, 100dvh); border: 0; border-radius: 0; }
+  body.aichat-page.ac-workspace-page .ac-report-toolbar { min-height: 70px; gap: 8px; padding: max(10px, env(safe-area-inset-top)) 12px 10px; }
+  body.aichat-page.ac-workspace-page #reportTitle { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 15px !important; }
+  body.aichat-page.ac-workspace-page .ac-report-toolbar p { font-size: 12px; }
+  body.aichat-page.ac-workspace-page .ac-report-actions { gap: 5px; }
+  body.aichat-page.ac-workspace-page #reportCopy { max-width: min(160px, 44vw); padding: 9px 10px; font-size: 14px; }
+  body.aichat-page.ac-workspace-page .ac-report-content { padding: 22px 18px max(32px, env(safe-area-inset-bottom)); }
+  body.aichat-page.ac-workspace-page .ac-report-content .bubble { font-size: 14px; }
+  body.aichat-page.ac-workspace-page .ac-report-content .ac-table-wrap table { font-size: 12px; }
+  body.aichat-page.ac-workspace-page .ac-report-content .ac-table-wrap :is(th, td) { min-width: 105px; padding: 11px 12px; }
+}
+@media (max-width: 380px) {
+  body.aichat-page.ac-workspace-page .topbar .brand-subtitle { display: none; }
+  body.aichat-page.ac-workspace-page .topbar .brand { gap: 6px !important; }
+  body.aichat-page.ac-workspace-page .topbar .brand-title { font-size: 14px !important; }
+  body.aichat-page.ac-workspace-page .ac-conversation-header { gap: 5px; padding-inline: 8px; }
+  body.aichat-page.ac-workspace-page #contextToggle { padding-inline: 8px; font-size: 12px; }
+  body.aichat-page.ac-workspace-page .welcome .cap-chips { grid-template-columns: 1fr; }
+  body.aichat-page.ac-workspace-page .welcome .chip { min-height: 48px; }
+  body.aichat-page.ac-workspace-page .ac-report-toolbar p { display: none; }
+}
+@media (max-height: 620px) {
+  body.aichat-page.ac-workspace-page .ac-side.card { overflow-y: auto; }
+  body.aichat-page.ac-workspace-page #dlgList { flex: 1 0 120px; min-height: 120px; }
+  body.aichat-page.ac-workspace-page .ac-chat { padding-block: 16px; }
+  body.aichat-page.ac-workspace-page .welcome { margin-top: 0; }
+  body.aichat-page.ac-workspace-page .ac-shortcuts { margin-bottom: 0; }
+  body.aichat-page.ac-workspace-page .ac-shortcuts:not([open]) > summary { min-height: 44px; padding-block: 5px; }
+  body.aichat-page.ac-workspace-page .ac-waiting-fact { max-height: 78px; }
+  body.aichat-page.ac-workspace-page .ac-jobs { max-height: 24vh; }
+}
+/* Preserve reading room beside the on-screen composer on short landscape phones. */
+@media (max-height: 500px) and (orientation: landscape) {
+  body.aichat-page.ac-workspace-page > .container { padding-top: max(4px, env(safe-area-inset-top)) !important; }
+  body.aichat-page.ac-workspace-page .topbar.unified-shell-topbar { min-height: 48px !important; padding-block: 1px !important; }
+  body.aichat-page.ac-workspace-page .topbar .brand-subtitle { display: none; }
+  body.aichat-page.ac-workspace-page .ac-wrap { padding-top: 4px; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  body.aichat-page.ac-workspace-page .ac-conversation-header { min-height: 48px; padding-block: 1px; }
+  body.aichat-page.ac-workspace-page .ac-conversation-copy > span,
+  body.aichat-page.ac-workspace-page .ac-welcome-mark,
+  body.aichat-page.ac-workspace-page .ac-hint,
+  body.aichat-page.ac-workspace-page .ac-shortcuts:not([open]) { display: none; }
+  body.aichat-page.ac-workspace-page .ac-chat { padding-block: 12px; }
+  body.aichat-page.ac-workspace-page .welcome { padding-top: 0; }
+  body.aichat-page.ac-workspace-page .ac-compose { padding-top: 4px; padding-bottom: 8px; }
+}
+/* Virtual keyboards can shrink visualViewport without changing CSS media queries. */
+body.aichat-page.ac-workspace-page.ac-keyboard-open .ac-shortcuts,
+body.aichat-page.ac-workspace-page.ac-keyboard-open .ac-hint,
+body.aichat-page.ac-workspace-page.ac-keyboard-open .ac-waiting-fact { display: none; }
+body.aichat-page.ac-workspace-page.ac-keyboard-open .ac-compose { padding-top: 7px; }
+body.aichat-page.ac-workspace-page.ac-keyboard-open .ac-jobs { max-height: 86px; }
+@media (hover: none) {
+  body.aichat-page.ac-workspace-page .dlg .del { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.aichat-page.ac-workspace-page *,
+  body.aichat-page.ac-workspace-page *::before,
+  body.aichat-page.ac-workspace-page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-glass="on"] body.aichat-page.ac-workspace-page .topbar.unified-shell-topbar { background: var(--ac-workspace-surface) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+}

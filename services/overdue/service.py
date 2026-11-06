@@ -5,6 +5,8 @@ import re
 import shutil
 import time
 from datetime import datetime
+from dataclasses import dataclass
+from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
@@ -31,14 +33,32 @@ BLOCKED_HOST_PARTS = [
 ]
 
 
-def prepare_dirs():
-    PLAYWRIGHT_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    DEBUG_ENV_DIR.mkdir(parents=True, exist_ok=True)
+@dataclass(frozen=True)
+class RunPaths:
+    """Per-invocation work files; default callers keep the module's existing paths."""
+    profile: Path
+    debug: Path
+    responses: Path
 
-    if RESPONSES_DIR.exists():
-        shutil.rmtree(RESPONSES_DIR)
+    @classmethod
+    def isolated(cls, directory):
+        root = Path(directory)
+        return cls(root / 'browser-profile', root / 'debug', root / 'responses')
 
-    RESPONSES_DIR.mkdir(parents=True, exist_ok=True)
+
+def _paths(paths=None):
+    return paths or RunPaths(PLAYWRIGHT_PROFILE_DIR, DEBUG_ENV_DIR, RESPONSES_DIR)
+
+
+def prepare_dirs(paths=None):
+    paths = _paths(paths)
+    paths.profile.mkdir(parents=True, exist_ok=True)
+    paths.debug.mkdir(parents=True, exist_ok=True)
+
+    if paths.responses.exists():
+        shutil.rmtree(paths.responses)
+
+    paths.responses.mkdir(parents=True, exist_ok=True)
 
 
 def is_blocked_url(url: str) -> bool:
@@ -54,16 +74,18 @@ def looks_like_useful_json(data) -> bool:
     return False
 
 
-def try_launch_context(playwright):
+def try_launch_context(playwright, paths=None, headless=None, quiet=False):
+    paths = _paths(paths)
     errors = []
+    emit = (lambda *args, **kwargs: None) if quiet else print
 
     launch_variants = [
         {
             "name": "channel=chrome",
             "kwargs": {
-                "user_data_dir": str(PLAYWRIGHT_PROFILE_DIR),
+                "user_data_dir": str(paths.profile),
                 "channel": "chrome",
-                "headless": HEADLESS,
+                "headless": HEADLESS if headless is None else headless,
                 "viewport": {"width": 1440, "height": 1100},
                 "args": [
                     "--disable-blink-features=AutomationControlled",
@@ -74,8 +96,8 @@ def try_launch_context(playwright):
         {
             "name": "playwright chromium fallback",
             "kwargs": {
-                "user_data_dir": str(PLAYWRIGHT_PROFILE_DIR),
-                "headless": HEADLESS,
+                "user_data_dir": str(paths.profile),
+                "headless": HEADLESS if headless is None else headless,
                 "viewport": {"width": 1440, "height": 1100},
                 "args": [
                     "--disable-blink-features=AutomationControlled",
@@ -87,9 +109,9 @@ def try_launch_context(playwright):
 
     for variant in launch_variants:
         try:
-            print(f"[browser] trying: {variant['name']}")
+            emit(f"[browser] trying: {variant['name']}")
             context = playwright.chromium.launch_persistent_context(**variant["kwargs"])
-            print(f"[browser] success: {variant['name']}")
+            emit(f"[browser] success: {variant['name']}")
             return context, variant["name"]
         except Exception as e:
             errors.append(f"{variant['name']}: {e}")
@@ -101,31 +123,35 @@ def try_launch_context(playwright):
     )
 
 
-def fetch_dashboard_data():
-    prepare_dirs()
+def fetch_dashboard_data(paths=None, *, headless=None, quiet=False, max_capture_bytes=None, max_wait_seconds=None):
+    paths = _paths(paths)
+    prepare_dirs(paths)
+    emit = (lambda *args, **kwargs: None) if quiet else print
 
-    screenshot_file = DEBUG_ENV_DIR / "dashboard_page.png"
-    html_file = DEBUG_ENV_DIR / "dashboard_page.html"
+    screenshot_file = paths.debug / "dashboard_page.png"
+    html_file = paths.debug / "dashboard_page.html"
 
     screenshot_web_path = "data/overdue/debug/dashboard_page.png"
     html_web_path = "data/overdue/debug/dashboard_page.html"
 
     saved_files = []
     saved_count = 0
+    captured_bytes = 0
 
     state = {
         "public_entry_seen": False,
         "dash_state_seen": False,
         "chart_run_count": 0,
         "last_useful_response_ts": None,
+        "capture_limit_hit": False,
     }
 
     with sync_playwright() as p:
-        context, browser_name = try_launch_context(p)
+        context, browser_name = try_launch_context(p, paths, headless, quiet)
         page = context.pages[0] if context.pages else context.new_page()
 
         def handle_response(response):
-            nonlocal saved_count
+            nonlocal saved_count, captured_bytes
 
             try:
                 url = response.url
@@ -145,21 +171,34 @@ def fetch_dashboard_data():
                 if not looks_like_useful_json(data):
                     return
 
+                encoded = None
+                if max_capture_bytes is not None:
+                    encoded = json.dumps({"url": url, "status": response.status,
+                                          "content_type": content_type, "data": data}, ensure_ascii=False)
+                    encoded_size = len(encoded.encode('utf-8'))
+                    if saved_count >= 256 or captured_bytes + encoded_size > max_capture_bytes:
+                        state['capture_limit_hit'] = True
+                        return
+                    captured_bytes += encoded_size
+
                 saved_count += 1
-                file_path = RESPONSES_DIR / f"{saved_count:03d}.json"
+                file_path = paths.responses / f"{saved_count:03d}.json"
 
                 with open(file_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {
-                            "url": url,
-                            "status": response.status,
-                            "content_type": content_type,
-                            "data": data,
-                        },
-                        f,
-                        ensure_ascii=False,
-                        indent=2,
-                    )
+                    if encoded is not None:
+                        f.write(encoded)
+                    else:
+                        json.dump(
+                            {
+                                "url": url,
+                                "status": response.status,
+                                "content_type": content_type,
+                                "data": data,
+                            },
+                            f,
+                            ensure_ascii=False,
+                            indent=2,
+                        )
 
                 saved_files.append(str(file_path.resolve()))
                 state["last_useful_response_ts"] = time.time()
@@ -173,22 +212,22 @@ def fetch_dashboard_data():
                 if "/charts/api/run" in lower_url:
                     state["chart_run_count"] += 1
 
-                print(f"[saved] {saved_count:03d} {url}")
+                emit(f"[saved] {saved_count:03d} {url}")
 
             except Exception:
                 pass
 
         page.on("response", handle_response)
 
-        print(f"[open] {DASHBOARD_URL}")
-        print(f"[browser] using: {browser_name}")
+        emit(f"[open] {DASHBOARD_URL}")
+        emit(f"[browser] using: {browser_name}")
         page.goto(DASHBOARD_URL, wait_until="domcontentloaded", timeout=120000)
 
-        print("")
-        print("Если нужно — пройдите капчу / авторизацию вручную в окне браузера.")
-        print("Ожидание завершится автоматически, когда дашборд догрузится.")
-        print(f"Максимальный таймаут: {MAX_WAIT_SECONDS} сек.")
-        print("")
+        emit("")
+        emit("Если нужно — пройдите капчу / авторизацию вручную в окне браузера.")
+        emit("Ожидание завершится автоматически, когда дашборд догрузится.")
+        emit(f"Максимальный таймаут: {MAX_WAIT_SECONDS} сек.")
+        emit("")
 
         start_ts = time.time()
 
@@ -208,11 +247,11 @@ def fetch_dashboard_data():
             )
 
             if enough_data_loaded and idle_enough:
-                print("[wait] Данные загружены, завершаем ожидание.")
+                emit("[wait] Данные загружены, завершаем ожидание.")
                 break
 
-            if elapsed >= MAX_WAIT_SECONDS:
-                print("[wait] Достигнут максимальный таймаут.")
+            if elapsed >= (MAX_WAIT_SECONDS if max_wait_seconds is None else max_wait_seconds):
+                emit("[wait] Достигнут максимальный таймаут.")
                 break
 
             page.wait_for_timeout(1000)
@@ -233,7 +272,7 @@ def fetch_dashboard_data():
         try:
             stabilize_page(page)
             page.screenshot(path=str(screenshot_file), full_page=True)
-            print(f"[saved] screenshot: {screenshot_file}")
+            emit(f"[saved] screenshot: {screenshot_file}")
         except Exception:
             pass
 
@@ -340,27 +379,27 @@ def fetch_dashboard_data():
                 }
                 """
             )
-            dom_items_file = DEBUG_ENV_DIR / "omsu_dom_items.json"
+            dom_items_file = paths.debug / "omsu_dom_items.json"
             with open(dom_items_file, "w", encoding="utf-8") as f:
                 json.dump(dom_items, f, ensure_ascii=False, indent=2)
 
-            print(
+            emit(
                 "[saved] DOM ОМСУ items:",
                 len(dom_items.get("items", [])),
                 dom_items_file,
             )
         except Exception as e:
-            print(f"[warn] DOM ОМСУ extract failed: {e}")
+            emit(f"[warn] DOM ОМСУ extract failed: {e}")
 
         context.close()
 
-    print(f"[done] saved JSON responses: {saved_count}")
+    emit(f"[done] saved JSON responses: {saved_count}")
 
     return {
         "screenshot_path": screenshot_web_path,
         "screenshot_paths": [screenshot_web_path],
         "html_path": html_web_path,
-        "responses_dir": str(RESPONSES_DIR.resolve()),
+        "responses_dir": str(paths.responses.resolve()),
         "response_files": saved_files,
         "saved_json_count": saved_count,
         "final_url": final_url,
@@ -368,15 +407,17 @@ def fetch_dashboard_data():
         "public_entry_seen": state["public_entry_seen"],
         "dash_state_seen": state["dash_state_seen"],
         "chart_run_count": state["chart_run_count"],
+        "capture_limit_hit": state["capture_limit_hit"],
     }
 
 
-def load_wrappers():
+def load_wrappers(paths=None):
+    paths = _paths(paths)
     wrappers = []
-    if not RESPONSES_DIR.exists():
+    if not paths.responses.exists():
         return wrappers
 
-    for file_path in sorted(RESPONSES_DIR.glob("*.json")):
+    for file_path in sorted(paths.responses.glob("*.json")):
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 wrapper = json.load(f)

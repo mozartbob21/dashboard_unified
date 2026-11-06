@@ -4,7 +4,7 @@ import html
 import datetime as dt
 import threading
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from html.parser import HTMLParser
 
 import requests
@@ -73,13 +73,40 @@ def _looks_like_login(text: str, url: str) -> bool:
     return ("j_password" in text) or ("/login" in url.lower())
 
 
-def dobrodel_login(email: str, password: str):
-    s = requests.Session()
+def _login_request(session, method, url, *, strict=False, **kwargs):
+    if not strict:
+        return getattr(session, method.lower())(url, **kwargs)
+    expected = urlsplit(BASE)
+    for _ in range(6):
+        target = urlsplit(url)
+        if (target.scheme != 'https' or target.hostname != expected.hostname or
+                target.port not in (None, 443) or target.username or target.password):
+            raise requests.RequestException('Неожиданный адрес входа источника.')
+        kwargs['allow_redirects'] = False
+        response = getattr(session, method.lower())(url, **kwargs)
+        if response.status_code not in (301, 302, 303, 307, 308):
+            return response
+        location = response.headers.get('Location')
+        if not location:
+            raise requests.RequestException('Не подтверждено перенаправление источника.')
+        url = urljoin(url, location)
+        if response.status_code in (301, 302, 303) and method.lower() == 'post':
+            method = 'get'
+            kwargs.pop('data', None)
+    raise requests.RequestException('Слишком много перенаправлений источника.')
+
+
+def dobrodel_login(email: str, password: str, *, session=None, strict=False):
+    s = session if session is not None else requests.Session()
+    if strict:
+        s.trust_env = False
     s.headers.update({"User-Agent": UA})
     try:
-        r = s.get(LOGIN_PAGE, timeout=30)
+        r = _login_request(s, 'get', LOGIN_PAGE, timeout=30, strict=strict)
     except requests.RequestException as e:
         return None, f"Портал недоступен: {e.__class__.__name__}. Проверьте сеть/VPN."
+    if strict and r.status_code != 200:
+        return None, 'Страница входа не получена.'
 
     p = _FormParser()
     try:
@@ -95,13 +122,15 @@ def dobrodel_login(email: str, password: str):
         "_spring_security_remember_me": "on",
     })
     try:
-        r2 = s.post(action, data=data, timeout=30, allow_redirects=True, headers={"Referer": r.url})
+        r2 = _login_request(s, 'post', action, data=data, timeout=30, allow_redirects=True, headers={"Referer": r.url}, strict=strict)
     except requests.RequestException as e:
         return None, f"Сбой при входе: {e.__class__.__name__}."
+    if strict and r2.status_code != 200:
+        return None, 'Вход не подтверждён ответом сервера.'
 
     if _looks_like_login(r2.text, r2.url) and action != urljoin(BASE, "/login"):
         try:
-            r2 = s.post(urljoin(BASE, "/login"), data=data, timeout=30, allow_redirects=True, headers={"Referer": r.url})
+            r2 = _login_request(s, 'post', urljoin(BASE, "/login"), data=data, timeout=30, allow_redirects=True, headers={"Referer": r.url}, strict=strict)
         except requests.RequestException:
             pass
 
@@ -109,7 +138,9 @@ def dobrodel_login(email: str, password: str):
         return None, "Неверный логин или пароль от ДоброДела."
 
     try:
-        r3 = s.get(REPORT_PAGE, timeout=30)
+        r3 = _login_request(s, 'get', REPORT_PAGE, timeout=30, strict=strict)
+        if strict and r3.status_code != 200:
+            return None, 'Проверка доступа к отчёту не подтверждена.'
         if _looks_like_login(r3.text, r3.url):
             return None, "Вход не подтвердился (портал вернул страницу логина)."
     except requests.RequestException as e:
@@ -124,15 +155,21 @@ def clean(v):
     return html.unescape(str(v)).strip()
 
 
-def fetch_report(s: requests.Session):
+def fetch_report(s: requests.Session, *, max_pages=None, max_rows=None, page_size=None, today=None, strict=False):
     all_recs, idx = [], 0
-    today = dt.date.today().isoformat()
+    today = (today or dt.date.today()).isoformat()
+    page_size = PAGE_SIZE if page_size is None else page_size
+    if (type(page_size) is not int or page_size < 1 or
+            any(value is not None and (type(value) is not int or value < 1) for value in (max_pages, max_rows))):
+        raise ValueError('Некорректные пределы выгрузки.')
 
     while True:
+        if max_pages is not None and idx >= max_pages:
+            return None, 'Не подтверждена полнота выгрузки: достигнут предел страниц.'
         params = {
             "orderBy": "ID",
             "page": idx,
-            "size": PAGE_SIZE,
+            "size": page_size,
             "filters.curators": CURATOR,
             "filters.statuses": STATUSES,
             "filters.deadlineAfter": today,
@@ -141,7 +178,7 @@ def fetch_report(s: requests.Session):
             params["filters.districts"] = DISTRICTS
 
         try:
-            r = s.get(REPORT_API, params=params, timeout=60, headers={
+            r = s.get(REPORT_API, params=params, timeout=60, **({'allow_redirects': False} if strict else {}), headers={
                 "Accept": "application/json",
                 "X-Requested-With": "XMLHttpRequest",
                 "Referer": REPORT_PAGE,
@@ -170,9 +207,12 @@ def fetch_report(s: requests.Session):
         if not batch:
             break
 
+        if max_rows is not None and len(all_recs) + len(batch) > max_rows:
+            return None, 'Не подтверждена полнота выгрузки: достигнут предел строк.'
+
         all_recs += batch
         print(f"[ECUR] …страница {idx + 1}: +{len(batch)} (всего {len(all_recs)})", flush=True)
-        if len(batch) < PAGE_SIZE:
+        if len(batch) < page_size:
             break
         idx += 1
 

@@ -306,13 +306,14 @@ def normalize_snapshot(snapshot):
     return result
 
 
-def build_snapshot(extractions, source_ids=None):
+def build_snapshot(extractions, source_ids=None, *, persist=True):
+    """Build a verified projection; transient queries neither read nor write a saved snapshot."""
     from services.water_dashboard.config import SOURCES
     from services.water_dashboard.metrics import source_metrics, primary_available
     import os
     import tempfile
     prev = {}
-    if SNAPSHOT_FILE.exists():
+    if persist and SNAPSHOT_FILE.exists():
         try:
             prev = json.loads(SNAPSHOT_FILE.read_text(encoding='utf-8'))
         except (ValueError, OSError):
@@ -390,6 +391,8 @@ def build_snapshot(extractions, source_ids=None):
         'bottoms': {k: bottom5(table, k) for k in ('resVS','sysVS','tasks','sysKR','resKR')},
     }
     snap = normalize_snapshot(snap)
+    if not persist:
+        return snap
     SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=SNAPSHOT_FILE.parent, suffix='.tmp')
     try:

@@ -135,7 +135,7 @@ SZO_RE = re.compile(r"(\d+)\s*СЗО", re.IGNORECASE)
 PEOPLE_RE = re.compile(r"(\d[\d\s\.]*)\s*(?:чел\.?|человек|жител)", re.IGNORECASE)
 BRIGADE_RE = re.compile(r"(\d+)\s*чел\.?", re.IGNORECASE)
 TECH_RE = re.compile(r"(\d+)\s*ед\.\s*техник", re.IGNORECASE)
-DEADLINE_RE = re.compile(r"(?:до|к|план[^\n]{0,30})\s*([01]?\d|2[0-3]):([0-5]\d)", re.IGNORECASE)
+DEADLINE_RE = re.compile(r"(?:до|к|план[^\n]{0,30}?)\s*(?<!\d)([01]?\d|2[0-3]):([0-5]\d)", re.IGNORECASE)
 
 
 def _clean(text):

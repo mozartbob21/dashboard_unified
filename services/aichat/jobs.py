@@ -23,6 +23,8 @@ HEARTBEAT_SECONDS = 10
 STALE_SECONDS = 90
 MODEL_SECONDS = 65 * 60  # Includes two bounded model attempts and preparation.
 BLOCK_SECONDS = 2 * 60 * 60
+PLAN_SECONDS = 6 * 60 * 60  # At most three existing block runs, never an unlimited lease.
+PENDING_SECONDS = 24 * 60 * 60
 _workers = set()
 _lock = threading.Lock()
 
@@ -121,6 +123,22 @@ def _finish(ident, status, result, *, stale_check=False):
             result = checkpoint
             result['answer'] += '\n\nПодготовка вывода ИИ была прервана. Результат блока сохранён.'
             status = 'succeeded' if result.get('ok') else 'failed'
+        elif (checkpoint and checkpoint.get('_agent_plan_state') and
+              (stale_check or (status != 'succeeded' and not isinstance(result.get('agent_plan'), dict)))):
+            # A completed first step is not a completed comparison. Keep the
+            # actual saved evidence without replaying a possibly started action.
+            failure = result.get('answer', '')
+            result = {**checkpoint, 'ok': False, 'response_kind': 'error',
+                      'answer': '\n\n'.join(part for part in (checkpoint.get('answer', ''), failure) if part)}
+            plan = result.get('agent_plan')
+            if isinstance(plan, dict):
+                plan = {**plan, 'status': status}
+                if isinstance(plan.get('steps'), list):
+                    plan['steps'] = [{**item, 'status': status} if isinstance(item, dict) and
+                                     item.get('status') in ('queued', 'pending', 'running') else item
+                                     for item in plan['steps']]
+                result['agent_plan'] = plan
+            result.pop('_agent_plan_state', None)
         requirements = _requirements(result) if 'required_modules' in result else sorted(set(_row_requirements(row)) | set(_requirements(result)))
         result = {**result, 'dialog_id': row['dialog_id'], 'required_modules': requirements}
         workbook = result.pop('_agent_workbook', None)
@@ -139,6 +157,8 @@ def _finish(ident, status, result, *, stale_check=False):
                                      'skill_run': result.get('skill_run'), 'module_id': row['module_id'],
                                      'report_sources': result.get('report_sources', []),
                                      **({'artifact':result['artifact']} if result.get('artifact') else {}),
+                                     **{key: result[key] for key in ('agent_plan', 'agent_pending')
+                                        if isinstance(result.get(key), dict)},
                                      'report_scope': result.get('report_scope'), 'required_modules': requirements})
             body['updated_at'] = now
             conn.execute('UPDATE aichat_dialogs SET body=?,updated_at=? WHERE id=?', (json.dumps(body, ensure_ascii=False), now, row['dialog_id']))
@@ -169,6 +189,65 @@ def checkpoint(ident, result):
         conn.execute("UPDATE aichat_jobs SET result=?,updated_at=?,required_modules=? WHERE id=? AND status='running'",
                      (json.dumps({**result, 'block_confirmed': True, 'required_modules': required}, ensure_ascii=False),
                       time.time(), json.dumps(required), ident))
+
+
+def plan_checkpoint(ident, result):
+    """Save partial server-built agent evidence in the existing task receipt.
+
+    Unlike ``checkpoint``, this must never turn recovery into a success. The
+    caller validates the plan and passes bounded, secret-free data. Provenance
+    may widen while the plan runs, but must not discard earlier requirements.
+    """
+    if not isinstance(result, dict) or not isinstance(result.get('agent_plan'), dict):
+        raise ValueError('Нужен проверенный план задачи.')
+    with get_db_connection() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute('SELECT * FROM aichat_jobs WHERE id=?', (ident,)).fetchone()
+        now = time.time()
+        if not row or row['status'] != 'running' or row['deadline'] <= now:
+            return False
+        required = sorted(set(_row_requirements(row)) | set(_requirements(result)))
+        value = {**result, '_agent_plan_state': True, 'ok': False, 'required_modules': required}
+        value.pop('block_confirmed', None)
+        conn.execute('UPDATE aichat_jobs SET result=?,updated_at=?,required_modules=? WHERE id=?',
+                     (json.dumps(value, ensure_ascii=False, allow_nan=False), now, json.dumps(required), ident))
+    return True
+
+
+def set_budget(ident, seconds):
+    """Bound total task duration from acceptance; never revive an expired job."""
+    if type(seconds) is not int or not 1 <= seconds <= PLAN_SECONDS:
+        raise ValueError('Недопустимый предел времени задачи.')
+    now = time.time()
+    with get_db_connection() as conn:
+        return bool(conn.execute("""UPDATE aichat_jobs SET deadline=MAX(deadline,created_at+?)
+            WHERE id=? AND status IN ('queued','running') AND deadline>?""",
+                                 (seconds, ident, now)).rowcount)
+
+
+def latest_pending(user, dialog_id):
+    """Return only the latest server-authored clarification in a shared chat.
+
+    A newer answer, revoked rights or an old clarification terminates the
+    continuation. The orchestrator must validate the returned schema again.
+    """
+    owner = account_key(user)
+    if not isinstance(dialog_id, str) or not dialog_id:
+        return None
+    dialog = storage.get_dialog(dialog_id, owner)
+    if not dialog:
+        return None
+    message = next((item for item in reversed(dialog.get('messages', []))
+                    if item.get('role') == 'assistant'), None)
+    if not message or not storage.can_view(user, message):
+        return None
+    stamp = message.get('ts')
+    if type(stamp) not in (int, float) or not time.time() - PENDING_SECONDS <= stamp <= time.time() + 60:
+        return None
+    pending = message.get('agent_pending')
+    if message.get('response_kind') != 'clarification' or not isinstance(pending, dict):
+        return None
+    return json.loads(json.dumps(pending, ensure_ascii=False))
 
 
 def submit(user, key, payload, *, dialog_id='', title='Новый чат', team=None, module_id=None,

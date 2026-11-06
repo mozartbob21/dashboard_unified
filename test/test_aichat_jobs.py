@@ -334,20 +334,22 @@ def test_end_to_end_chat_proposes_confirms_runs_and_uses_actual_result(actual_ch
     response = http.post('/aichat/api/send', data=form)
     assert response.status_code == 202
     parent = wait_done(response.json()['job_id'])
-    assert parent['result']['action']['module_id'] == 'edo'
+    assert parent['result']['action']['kind'] == 'agent_plan'
+    assert parent['result']['action']['plan']['steps'][0]['tool'] == 'refresh:edo'
     assert calls == [] and model.call_count == 0  # Proposal cannot start collection.
     confirmed = http.post('/aichat/api/jobs/' + parent['job_id'] + '/confirm', json={})
     assert confirmed.status_code == 202
     done = wait_done(confirmed.json()['job_id'])
     assert done['status'] == 'succeeded' and done['result']['ok']
-    assert done['result']['evidence']['sources'][0]['matching_rows'] == 2
-    assert len(calls) == 1 and model.call_count == 1
-    assert 'две записи' in done['result']['answer']
+    actual = done['result']['agent_plan']['steps'][0]['result']
+    assert actual['evidence']['sources'][0]['matching_rows'] == 2
+    assert len(calls) == 1 and model.call_count == 0
+    assert '2' in done['result']['answer']
     assert http.post('/aichat/api/send', data=form).json()['job_id'] == parent['job_id']
     assert http.post('/aichat/api/jobs/' + parent['job_id'] + '/confirm', json={}).json()['job_id'] == done['job_id']
     assert len(calls) == 1
     dialog = http.get('/aichat/api/dialogs/' + done['dialog_id']).json()
-    assert 'две записи' in dialog['messages'][-1]['content']
+    assert dialog['messages'][-1]['content'] == done['result']['answer']
 
 
 @pytest.mark.parametrize('text', ['Запусти ЦДС', 'Запусти камеры', 'Запусти ЦДС за 31.02.2026'])

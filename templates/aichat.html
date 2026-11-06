@@ -1,30 +1,36 @@
 {% extends "base_module.html" %}
 {% block title %}Нейрона — ИИ-чат{% endblock %}
-{% block body_class %}compact-module-page aichat-page{% endblock %}
+{% block body_class %}compact-module-page aichat-page ac-workspace-page{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', path='aichat.css') }}?v=20261020-mobile">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-skills.css') }}?v=20261020-mobile">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-waiting.css') }}?v=20261020-mobile">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-jobs.css') }}?v=20261104">
 <link rel="stylesheet" href="{{ url_for('static', path='aichat-agents.css') }}?v=20261105">
+<link rel="stylesheet" href="{{ url_for('static', path='aichat-workspace.css') }}?v=20261106-workspace">
 {% endblock %}
 {% block content %}
 <div class="container">
 <header class="topbar">
   <div class="brand">
-    <img src="{{ url_for('static', path='logo.svg') }}" class="brand-logo" alt="">
+    <img src="{{ url_for('static', path='logo.svg') }}" class="brand-logo" alt="Логотип Нейроны">
     <div><div class="brand-title">Нейрона ИИ</div><div class="brand-subtitle">ИИ-чат · ваш рабочий помощник</div></div>
   </div>
   <div class="top-actions">
-    <button class="secondary-button" id="capsBtn" type="button">Возможности чата</button>
+    <button class="secondary-button" id="capsBtn" type="button" aria-label="Возможности чата"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3h.01"/></svg><span>Возможности</span></button>
     <a href="/" class="secondary-button" style="text-decoration:none">← Главная</a>
   </div>
 </header>
 </div>
 
 <div class="ac-wrap">
-  <aside class="ac-side card" aria-label="История диалогов">
+  <aside class="ac-side card" id="acSidebar" aria-label="История диалогов">
+    <div class="ac-side-heading"><h2>Диалоги</h2><button id="historyClose" class="ac-icon-button" type="button" aria-label="Закрыть историю"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
     <button class="ac-new" id="newBtn" type="button">＋ Новый чат</button>
+    <div class="ac-history-search"><label class="ac-visually-hidden" for="historySearch">Поиск в истории диалогов</label><input id="historySearch" type="search" placeholder="Найти диалог…" autocomplete="off"><button id="historyClear" class="ac-icon-button" type="button" aria-label="Очистить поиск" hidden>×</button></div>
+    <p class="ac-history-meta" id="historySearchStatus" role="status"></p>
+    <div class="ac-list" id="dlgList"></div>
+    <details class="ac-toolbox" open><summary>Инструменты <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></summary><div class="ac-toolbox-content">
     <a class="ac-hub" href="/prompthub">ПромтХаб <span aria-hidden="true">↗</span></a>
     <button class="ac-team-entry" id="teamBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="teamOvl">
       <span class="ac-team-entry-icon" id="teamEntryIcon" aria-hidden="true"></span>
@@ -43,35 +49,55 @@
       <span class="ac-skills-entry-arrow" aria-hidden="true">↗</span>
     </button>
     {% endif %}
-    <div class="ac-history-heading">История диалогов<span>Общая история</span></div>
-    <div class="ac-list" id="dlgList"></div>
+    </div></details>
   </aside>
 
   <main class="ac-main card">
+    <header class="ac-conversation-header">
+      <button id="historyToggle" class="ac-icon-button" type="button" aria-label="Открыть историю диалогов" aria-expanded="false" aria-controls="acSidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+      <div class="ac-conversation-copy"><h1 id="conversationTitle">Новый диалог</h1><span>Рабочий помощник</span></div>
+      <button id="contextToggle" class="ac-context-toggle" type="button" aria-label="Задачи и источники" aria-expanded="false" aria-controls="acContext"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 2 2 4-4M13 6h7M4 13h6m3 0h7M4 19h6m3 0h7"/></svg><span>Задачи<span class="ac-context-extra"> и источники</span></span><span id="taskCount" hidden></span></button>
+    </header>
     <div class="ac-team-strip" id="teamStrip" hidden>
       <div class="ac-team-strip-info"><span class="ac-team-eyebrow">ИИ-команда</span><strong id="teamActiveName"></strong><span id="teamActiveRoles"></span></div>
       <div class="ac-team-strip-actions"><button type="button" id="teamEdit">Состав команды</button><button type="button" id="teamReset" aria-label="Переключиться в обычный чат">Обычный чат</button></div>
     </div>
     <div class="ac-chat" id="chat" role="log" aria-label="Сообщения чата" aria-live="polite" aria-relevant="additions"></div>
-    <div id="chatJobs" class="ac-jobs" aria-label="Задачи чата" hidden></div>
+    <button id="workspaceActivity" class="ac-task-activity" type="button" hidden aria-controls="acContext"><span class="ac-activity-dot" aria-hidden="true"></span><span id="workspaceActivityText" role="status"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
     <aside id="waitingFacts" class="ac-waiting-fact" aria-label="Интересные факты во время ожидания" hidden>
       <div class="ac-waiting-fact-heading"><strong>Пока Нейрона готовит ответ</strong><span data-fact-topic></span></div>
       <p data-fact-text></p><small>Подготовлено ИИ</small>
       <button type="button" data-fact-close aria-label="Скрыть факты до следующего запроса" title="Скрыть факты">×</button>
     </aside>
-    <div class="ac-compose">
+    <div class="ac-compose" id="compose">
     <details class="ac-shortcuts"><summary>Быстрые запросы <span aria-hidden="true">⌄</span></summary><div class="ac-quick" id="quickBar"></div></details>
     <div class="ac-pend" id="pendRow" aria-label="Прикреплённые файлы"></div>
     <div class="ac-input">
       <button class="ac-plus" id="plusBtn" type="button" title="Прикрепить файл" aria-label="Прикрепить файл"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 7-7a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L13 3" transform="translate(1 -1) scale(.9)"/><path d="m8 13 7-7a2 2 0 0 1 3 3l-8 8"/></svg></button>
       <input type="file" id="fileIn" multiple hidden accept=".txt,.md,.csv,.docx,.xls,.xlsx,.pptx,.pdf">
-      <textarea id="ta" rows="1" aria-label="Сообщение Нейроне" placeholder="Задайте вопрос или опишите задачу…"></textarea>
+        <textarea id="ta" rows="1" aria-label="Сообщение Нейроне" placeholder="Опишите задачу…" enterkeyhint="enter"></textarea>
       <button class="ac-send" id="sendBtn" type="button" title="Отправить сообщение" aria-label="Отправить сообщение"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>
     </div>
     <p class="ac-report-note" id="contextNote" role="status" hidden></p>
-    <div class="ac-hint" id="sendHint"><span>Enter — отправить · Shift+Enter — новая строка</span><span>Общие диалоги · данные блоков доступны по вашим правам</span></div>
+    <div class="ac-hint" id="sendHint"><span class="ac-keyboard-hint">Enter — отправить · Shift+Enter — новая строка</span><span>Доступ к данным — по вашим правам</span></div>
     </div>
   </main>
+  <aside id="acContext" class="ac-context card" aria-label="Задачи и источники" hidden>
+    <div class="ac-context-heading"><h2>Задачи и источники</h2><button id="contextClose" class="ac-icon-button" type="button" aria-label="Закрыть панель задач"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+    <div id="workspaceTaskSummary" class="ac-context-section"></div>
+    <div id="chatJobs" class="ac-jobs" aria-label="Управление задачами чата" hidden></div>
+    <div id="workspaceContextEmpty" class="ac-context-empty"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8m-8 4h8m-8 4h5"/></svg><strong>Здесь будет ход работы</strong><p>Попросите проверить блок или проанализировать данные. Этапы, выбранные параметры и источники появятся в этой панели.</p></div>
+    <div id="workspaceContextContent" class="ac-context-section"></div>
+    <div id="workspaceSources" class="ac-context-section"></div>
+  </aside>
+</div>
+<button type="button" id="workspaceBackdrop" class="ac-workspace-backdrop" aria-label="Закрыть боковую панель" hidden></button>
+
+<div class="ovl ac-report-overlay" id="reportOvl" hidden>
+  <section class="modal ac-report-modal" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+    <header class="ac-report-toolbar"><div><span class="ac-report-eyebrow">Нейрона · результат</span><h3 id="reportTitle">Просмотр отчёта</h3></div><div class="ac-report-actions"><button type="button" id="reportCopy" class="btn ghost">Копировать текст</button><button id="reportClose" type="button" class="ac-icon-button" aria-label="Закрыть отчёт"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div></header>
+    <div id="reportContent" class="ac-report-content"></div>
+  </section>
 </div>
 
 
@@ -196,13 +222,15 @@
 <script src="{{ url_for('static', path='aichat-teams.js') }}?v=20261007"></script>
 <script src="{{ url_for('static', path='aichat-skills.js') }}?v=20261008"></script>
 <script src="{{ url_for('static', path='aichat-waiting.js') }}?v=20261013"></script>
-<script src="{{ url_for('static', path='aichat-jobs.js') }}?v=20261104"></script>
+<script src="{{ url_for('static', path='aichat-jobs.js') }}?v=20261106-workspace"></script>
 <script src="{{ url_for('static', path='aichat-agents.js') }}?v=20261105"></script>
+<script src="{{ url_for('static', path='aichat-workspace.js') }}?v=20261106-workspace"></script>
 <script>
 var $=function(s){return document.querySelector(s)};
 var chatEl=$("#chat"),ta=$("#ta");
 var currentDid=null,pending=[],busy=false,draftVersion=0;
-var teamUI=null,skillsUI=null,jobsUI=null,agentsUI=null;
+var teamUI=null,skillsUI=null,jobsUI=null,agentsUI=null,workspaceUI=null;
+var dialogItems=[],dialogsVersion=0;
 var submissions=new Map(),lastSubmission=null,historyVersion=0;
 var waitingFacts={start:function(){},stop:function(){},warm:function(){}};
 try{
@@ -212,7 +240,7 @@ try{
 var customCmds=[];
 try{customCmds=JSON.parse(localStorage.getItem("neurona-quick-cmds")||"[]");if(!Array.isArray(customCmds))customCmds=[];}catch(error){}
 var STD=[{t:"Помоги составить деловое письмо"},{t:"Объясни сложную тему простыми словами"},{t:"Дай краткий отчёт по всем блокам"}];
-var EXAMPLES=["Помоги составить деловое письмо","Объясни, как работает нейросеть","Дай краткий отчёт по всем блокам","Дай отчёт по Власихе в ЕДДС и МинЖКХ","Посчитай 18% от 245 000","Сравни план и факт в прикреплённой таблице"];
+var EXAMPLES=["Посмотри заполненность данных по Чехову","Сравни жалобы МинЖКХ за два периода","Суммируй текст","Помоги составить деловое письмо"];
 
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
 function fmt(s){return window.NeuronaChatFormat.render(s)}
@@ -225,10 +253,8 @@ function prepareDraft(text){
 }
 
 function welcomeHTML(){
-  return '<div class="welcome" id="welcome"><div class="ac-welcome-mark"><img src="/static/logo.svg" alt=""></div><h2>Нейрона — ваш ИИ-помощник</h2>'+
-  '<p>Отвечу на вопросы, помогу с текстом, идеями и файлами. '+
-  'Для отчёта по платформе просто назовите блоки и муниципалитеты — нужные данные добавятся автоматически. '+
-  'Навыки помогут с расчётами и разбором прикреплённых данных: их можно включить в меню слева.</p>'+
+  return '<div class="welcome" id="welcome"><div class="ac-welcome-mark"><img src="/static/logo.svg" alt=""></div><h2>Какую задачу решим?</h2>'+
+  '<p>Опишите, что хотите узнать. Нейрона подберёт доступный инструмент, уточнит параметры и покажет ход работы. Здесь же можно обсудить вопрос или поработать с текстом.</p>'+
   '<div class="cap-chips" id="wChips"></div></div>';
 }
 function bindChips(root){
@@ -238,8 +264,8 @@ function bindChips(root){
   });
 }
 const readableSourcePaths=new Set(['/mingkh','/mingkh/water-map','/mingkh/treatment','/mingkh/collective',
-  '/edds','/ecur','/cds','/water-dashboard','/water-rm','/mgkh-rm','/zips','/cameras','/overdue','/watercontrol','/utnkr','/edo']);
-function appendAssist(content,team,skillRun,sources,artifact){
+  '/edds','/ecur','/cds','/water-dashboard','/water-rm','/mgkh-rm','/zips','/cameras','/overdue','/watercontrol','/utnkr','/edo','/omsu-rating','/summarizer']);
+function appendAssist(content,team,skillRun,sources,artifact,message){
   var w=document.createElement("div");w.className="ac-msg assist";
   w.innerHTML='<div class="ava"><img src="/static/logo.svg" alt=""></div><div class="ac-message-body"><div class="ac-author">Нейрона '+window.NeuronaTeams.messageBadge(team)+'</div>'+window.NeuronaSkills.traceHTML(skillRun)+'<div class="bubble">'+fmt(content)+"</div></div>";
   const used=new Set(), links=document.createElement('div');
@@ -254,6 +280,7 @@ function appendAssist(content,team,skillRun,sources,artifact){
   if(links.childElementCount)w.querySelector('.ac-message-body').append(links);
   const download=window.NeuronaAgents?.downloadLink(document,artifact);
   if(download)w.querySelector('.ac-message-body').append(download);
+  if(workspaceUI)workspaceUI.decorateMessage(w,message||{role:'assistant',content:content,report_sources:sources,artifact:artifact});
   chatEl.appendChild(w);scroll();
 }
 function appendUser(text,atts,fromHistory){
@@ -282,7 +309,11 @@ async function chatJson(url,options){
   var controller=new AbortController(),timer=setTimeout(function(){controller.abort();},20000);
   try{
     var r=await fetch(url,Object.assign({},options||{},{signal:controller.signal,cache:"no-store"}));
-    if(r.status===401||(r.redirected&&new URL(r.url,location.href).pathname==="/login"))throw Object.assign(new Error("Сессия завершилась. Обновите страницу и войдите снова."),{status:401});
+    if(r.status===401||(r.redirected&&new URL(r.url,location.href).pathname==="/login")){
+      if(workspaceUI)workspaceUI.reset();
+      chatEl.replaceChildren();dialogItems=[];renderDialogList();
+      throw Object.assign(new Error("Сессия завершилась. Обновите страницу и войдите снова."),{status:401});
+    }
     var d;
     try{d=await r.json();}catch(error){throw new Error("Не удалось прочитать ответ сервера. Попробуйте ещё раз.");}
     if(!r.ok)throw Object.assign(new Error(typeof d.detail==="string"?d.detail:typeof d.error==="string"?d.error:"Не удалось выполнить запрос. Попробуйте ещё раз."),{status:r.status});
@@ -293,14 +324,23 @@ async function chatJson(url,options){
   }finally{clearTimeout(timer);}
 }
 async function loadDialogs(){
-  var d;
+  var d,version=++dialogsVersion;
   try{d=await chatJson("/aichat/api/dialogs");}catch(error){$("#dlgList").innerHTML='<p class="ac-history-empty">'+esc(error.message)+'</p>';return;}
-
-  var list=$("#dlgList");list.innerHTML=(d.items||[]).length?"":'<p class="ac-history-empty">Здесь появятся общие диалоги с Нейроной.</p>';
-  (d.items||[]).forEach(function(it){
+  if(version!==dialogsVersion)return;
+  dialogItems=Array.isArray(d.items)?d.items:[];renderDialogList();
+}
+function dialogLabel(value){return value==='Общий диалог'?'Диалог':String(value||'Новый диалог');}
+function renderDialogList(){
+  var query=$("#historySearch").value.trim().toLocaleLowerCase('ru').replace(/ё/g,'е');
+  var items=dialogItems.filter(function(it){return !query||(dialogLabel(it.title)+' '+String(it.preview||'')).toLocaleLowerCase('ru').replace(/ё/g,'е').includes(query)});
+  var list=$("#dlgList");list.replaceChildren();$("#historyClear").hidden=!query;
+  $("#historySearchStatus").textContent=query?'Найдено: '+items.length:dialogItems.length?'Последние диалоги':'';
+  if(!items.length){var empty=document.createElement('p');empty.className='ac-history-empty';empty.textContent=query?'Ничего не найдено. Попробуйте другое название.':'Здесь появятся ваши диалоги с Нейроной.';list.appendChild(empty);}
+  items.forEach(function(it){
     var el=document.createElement("div");
     el.className="dlg"+(it.id===currentDid?" active":"");
-    el.innerHTML='<button class="dlg-open" type="button" title="'+esc(it.title)+'" aria-current="'+(it.id===currentDid?'true':'false')+'"><span class="t">'+esc(it.title)+'</span><span class="p">'+esc(it.preview||"Нет сообщений")+'</span></button><button class="del" type="button" title="Удалить диалог" aria-label="Удалить диалог: '+esc(it.title)+'">×</button>';
+    var title=dialogLabel(it.title);
+    el.innerHTML='<button class="dlg-open" type="button" title="'+esc(title)+'" aria-current="'+(it.id===currentDid?'true':'false')+'"><span class="t">'+esc(title)+'</span><span class="p">'+esc(it.preview||"Нет сообщений")+'</span></button><button class="del" type="button" title="Удалить диалог" aria-label="Удалить диалог: '+esc(title)+'">×</button>';
     el.querySelector(".dlg-open").addEventListener("click",function(){if(!busy)openDialog(it.id)});
     el.querySelector(".del").addEventListener("click",async function(ev){
       ev.stopPropagation();if(busy)return;setBusy(true);
@@ -319,28 +359,32 @@ function welcome(){chatEl.innerHTML=welcomeHTML();bindChips(chatEl);
 }
 function selectDialog(did){
   currentDid=did;historyVersion++;
+  if(workspaceUI){var item=dialogItems.find(function(it){return it.id===did});workspaceUI.select(did,item?dialogLabel(item.title):did?'Диалог':'Новый диалог');}
   try{if(did)sessionStorage.setItem("neurona-active-dialog",did);else sessionStorage.removeItem("neurona-active-dialog");}catch(error){}
   if(jobsUI)jobsUI.select(did);
 }
 async function refreshDialog(did){
   if(!did||did!==currentDid)return;
   var version=++historyVersion;
-  var d=await chatJson("/aichat/api/dialogs/"+encodeURIComponent(did));
+  var d;
+  try{d=await chatJson("/aichat/api/dialogs/"+encodeURIComponent(did));}
+  catch(error){if(currentDid===did&&version===historyVersion&&(error.status===401||error.status===403||error.status===404)){if(workspaceUI)workspaceUI.setDialog(null);chatEl.replaceChildren();}throw error;}
   if(currentDid!==did||version!==historyVersion)return;
   var nearBottom=chatEl.scrollHeight-chatEl.scrollTop-chatEl.clientHeight<100,previousScroll=chatEl.scrollTop;
   teamUI.restore(d.team||null);chatEl.innerHTML="";
+  if(workspaceUI)workspaceUI.setDialog(d);
   var msgs=d.messages||[];
   if(!msgs.length)welcome();
   else msgs.forEach(function(m){
     if(m.role==="user")appendUser(m.content,[],true);
-    else appendAssist(m.content,m.team,m.skill_run,m.report_sources,m.artifact);
+    else appendAssist(m.content,m.team,m.skill_run,m.report_sources,m.artifact,m);
   });
   if(!nearBottom)chatEl.scrollTop=previousScroll;
   loadDialogs();
 }
 async function openDialog(did){
   if(busy)return;
-  setBusy(true);$("#contextNote").hidden=true;selectDialog(did);
+  setBusy(true);$("#contextNote").hidden=true;chatEl.replaceChildren();selectDialog(did);
   try{await refreshDialog(did);}
   catch(error){$("#contextNote").textContent=error.message;$("#contextNote").hidden=false;}
   finally{setBusy(false);}
@@ -439,9 +483,11 @@ function setBusy(value){
   if(agentsUI)agentsUI.syncBusy();
 }
 $("#newBtn").addEventListener("click",newChat);
+$("#historySearch").addEventListener("input",renderDialogList);
+$("#historyClear").addEventListener("click",function(){$("#historySearch").value='';renderDialogList();$("#historySearch").focus();});
 $("#sendBtn").addEventListener("click",function(){send()});
 ta.addEventListener("keydown",function(e){
-  if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();send();}
+  if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&!window.matchMedia('(pointer: coarse)').matches){e.preventDefault();send();}
 });
 ta.addEventListener("input",function(){draftVersion++;ta.style.height="auto";ta.style.height=Math.min(ta.scrollHeight,140)+"px";});
 $("#plusBtn").addEventListener("click",function(){$("#fileIn").click()});
@@ -469,6 +515,7 @@ function fillCapChips(){
 
 var modalReturnFocus=null;
 function openChatModal(selector,focusSelector){
+  if(workspaceUI&&selector!=="#reportOvl")workspaceUI.closePanel();
   modalReturnFocus=document.activeElement;
   $(selector).hidden=false;
   $(focusSelector).focus();
@@ -480,7 +527,6 @@ function closeChatModal(selector){
   if(selector==="#teamOvl")$("#teamBtn").setAttribute("aria-expanded","false");
   if(selector==="#skillsOvl")$("#skillsBtn").setAttribute("aria-expanded","false");
   if(selector==="#agentsOvl")$("#agentsBtn").setAttribute("aria-expanded","false");
-  if(selector==="#capsOvl")localStorage.setItem("neurona-caps-seen","1");
   if(modalReturnFocus&&modalReturnFocus.isConnected)modalReturnFocus.focus();
 }
 document.addEventListener("keydown",function(e){
@@ -543,8 +589,15 @@ skillsUI=window.NeuronaSkills.create({
   openModal:openChatModal,
   closeModal:closeChatModal
 });
+workspaceUI=window.NeuronaWorkspace.create(window,{openDialog:openDialog,openModal:openChatModal,closeModal:closeChatModal,format:fmt});
 jobsUI=window.NeuronaChatJobs.create(window,{
-  onChange:function(state){window.NeuronaChatJobs.render(document,$("#chatJobs"),state,jobsUI,currentDid?null:openDialog);},
+  onChange:function(state){window.NeuronaChatJobs.render(document,$("#chatJobs"),state,jobsUI,currentDid?null:openDialog);workspaceUI.setJobs(state);},
+  onUnauthorized:function(){
+    historyVersion++;dialogsVersion++;currentDid=null;
+    workspaceUI.reset();chatEl.replaceChildren();dialogItems=[];renderDialogList();
+    try{sessionStorage.removeItem("neurona-active-dialog");}catch(e){}
+    setBusy(false);$("#contextNote").textContent="Сеанс завершён. Войдите в систему снова; введённый текст сохранён на этой странице.";$("#contextNote").hidden=false;
+  },
   onActivity:function(active){if(active)waitingFacts.start();else waitingFacts.stop();},
   onDismissed:function(id){if(agentsUI)agentsUI.dismiss(id);submissions.delete(id);if(lastSubmission&&lastSubmission.id===id)lastSubmission=null;},
   onAccepted:function(ticket,id){
@@ -587,7 +640,6 @@ agentsUI=window.NeuronaAgents?.create({
 agentsUI?.start();
 loadDialogs();renderChips();welcome();
 try{var savedDialog=sessionStorage.getItem("neurona-active-dialog");if(savedDialog)openDialog(savedDialog);}catch(error){}
-if(!localStorage.getItem("neurona-caps-seen")&&!document.querySelector(".aichat-page .ovl:not([hidden])")){fillCapChips();openChatModal("#capsOvl","#capsClose");}
 </script>
 
 {% endblock %}

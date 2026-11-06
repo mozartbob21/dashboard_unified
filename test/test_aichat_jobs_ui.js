@@ -109,6 +109,45 @@ test('authorisation failure stops polling and does not pretend task completed',a
   assert.equal(h.calls.length,1);assert.match(h.states.at(-1).connection,/Сессия завершилась/);h.ui.destroy();
 });
 
+test('session expiry clears cached jobs and uncertain drafts before notifying the page',async()=>{
+  let expired=false,unauthorized=0,terminal=0,snapshot;
+  const activity=[];
+  const h=harness(async(url,options)=>options?.method==='POST'?reply({detail:'offline'},503):
+    expired?reply({detail:'login'},401):reply({items:[job()]}), {
+    onActivity:value=>activity.push(value),onTerminal:()=>terminal++,
+    onUnauthorized:error=>{unauthorized++;assert.equal(error.status,401);snapshot=h.states.at(-1);}
+  });
+  await h.tick(0);await h.ui.submit(new FormData(),'uncertain-request','Секретный запрос');
+  assert.equal(h.states.at(-1).jobs.length,1);assert.equal(h.states.at(-1).pending.length,1);
+  expired=true;await h.tick(0);
+  assert.equal(unauthorized,1);assert.deepEqual(snapshot.jobs,[]);assert.deepEqual(snapshot.pending,[]);
+  assert.equal(snapshot.lastUpdated,'');assert.deepEqual(activity,[true,false]);assert.equal(terminal,0);
+  const count=h.calls.length;
+  await h.ui.confirm('job-one');await h.ui.retry('uncertain-request');await h.ui.submit(new FormData(),'new-request','Новое');
+  await h.tick(60000);assert.equal(h.calls.length,count);assert.equal(h.events.online,undefined);h.ui.destroy();
+});
+
+test('an accepted response arriving after session expiry cannot restore private data',async()=>{
+  let release,accepted=0,unauthorized=0;
+  const h=harness(async(url,options)=>options?.method==='POST'?
+    new Promise(resolve=>{release=()=>resolve(reply(job('queued')));}):reply({detail:'login'},401),
+    {onAccepted:()=>accepted++,onUnauthorized:()=>unauthorized++});
+  const sending=h.ui.submit(new FormData(),'pending-request','Текст запроса');await settle();
+  await h.tick(0);release();assert.equal(await sending,null);
+  assert.equal(unauthorized,1);assert.equal(accepted,0);assert.deepEqual(h.states.at(-1).jobs,[]);
+  assert.deepEqual(h.states.at(-1).pending,[]);h.ui.destroy();
+});
+
+test('send and confirmation 401 use the same expiry path without a retry action',async()=>{
+  for(const operation of ['submit','confirm']) {
+    let unauthorized=0;
+    const h=harness(async()=>reply({detail:'login'},401),{onUnauthorized:()=>unauthorized++});
+    if(operation==='submit')await h.ui.submit(new FormData(),'request-key','Текст');else await h.ui.confirm('proposal');
+    assert.equal(unauthorized,1);assert.deepEqual(h.states.at(-1).jobs,[]);assert.deepEqual(h.states.at(-1).pending,[]);
+    assert.equal(h.ui.confirming('proposal'),false);await h.tick(30000);assert.equal(h.calls.length,1);h.ui.destroy();
+  }
+});
+
 test('terminal history read failure is retried without rerunning task',async()=>{
   let reads=0;
   const h=harness(async()=>reply({items:[job('succeeded')]}),{onTerminal:()=>{reads++;if(reads===1)throw new Error('history offline');}});

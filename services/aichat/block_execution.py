@@ -238,7 +238,7 @@ def execute(user, module_id, params, *, run_id, on_progress=None, run_subprocess
             evidence = _evidence(module_id)
             sources = evidence.get('sources') or []
             if sources and all(source.get('status') == 'saved' for source in sources):
-                result.update(evidence=evidence, fresh_result=True)
+                result.update(evidence=evidence, fresh_result=True, _output_version=list(after))
                 result['answer'] += ' Новый сохранённый результат подтверждён.'
         except Exception:
             pass

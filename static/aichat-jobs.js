@@ -41,6 +41,7 @@
     let dialog = null, generation = 0, timer = null, destroyed = false, fetching = false;
     let failures = 0, connection = '', lastUpdated = '', jobs = [], pending = new Map();
     let terminalSeen = new Set(), running = false, confirmations = new Map();
+    let unauthorized = false;
     function notify() {
       const active = jobs.some(job => ACTIVE.has(job.status));
       if (active !== running) { running = active;options.onActivity?.(active); }
@@ -51,6 +52,14 @@
     function schedule(delay) {
       env.clearTimeout(timer);
       if (!destroyed) timer = env.setTimeout(refresh, delay);
+    }
+    function expireSession(error) {
+      if (unauthorized) return;
+      unauthorized = true;destroyed = true;generation++;
+      env.clearTimeout(timer);env.removeEventListener?.('online', online);
+      jobs = [];pending.clear();confirmations.clear();terminalSeen.clear();
+      connection = error.message;lastUpdated = '';notify();
+      options.onUnauthorized?.(error);
     }
     async function refresh() {
       if (destroyed || fetching) return;
@@ -68,10 +77,10 @@
         if (version === generation) completed.forEach(job => terminalSeen.add(job.job_id));
       } catch(error) {
         if (version !== generation || destroyed) return;
+        if (error.status === 401) { expireSession(error);return; }
         failures++;
-        connection = error.status === 401 ? error.message : 'Связь с сервером прервана. Проверим статус снова; повторного запуска не будет.';
+        connection = 'Связь с сервером прервана. Проверим статус снова; повторного запуска не будет.';
         notify();
-        if (error.status === 401) { destroyed = true;options.onActivity?.(false); }
       } finally {
         fetching = false;
         schedule(failures ? Math.min(10000, 2000 * Math.pow(2, Math.min(failures - 1, 3))) :
@@ -79,11 +88,12 @@
       }
     }
     async function deliver(item) {
-      if (item.sending) return null;
+      if (destroyed || item.sending) return null;
       item.sending = true;item.error = '';notify();
       try {
         const ticket = await request(env, '/aichat/api/send', {method:'POST', body:item.body,
           headers:{Accept:'application/json'}});
+        if (destroyed) return null;
         if (!ticket || typeof ticket.job_id !== 'string' || typeof ticket.dialog_id !== 'string') {
           throw new Error('Сервер не подтвердил принятие задачи.');
         }
@@ -95,6 +105,8 @@
         notify();schedule(0);
         return ticket;
       } catch(error) {
+        if (destroyed) return null;
+        if (error.status === 401) { expireSession(error);return null; }
         item.sending = false;
         item.retryable = !error.status || error.status >= 500 || error.status === 429;
         item.error = item.retryable ? 'Ответ о приёме не получен. Проверьте список задач или повторите отправку этой кнопкой — идентификатор запроса сохранён.' : error.message;
@@ -103,6 +115,7 @@
       }
     }
     function submit(body, id, text) {
+      if (destroyed) return Promise.resolve(null);
       id = id || requestKey(env);
       if (!pending.has(id)) {
         body.set('background', 'true');body.set('request_id', id);
@@ -112,11 +125,12 @@
       return deliver(pending.get(id));
     }
     async function confirm(id) {
-      if (confirmations.get(id)) return null;
+      if (destroyed || confirmations.get(id)) return null;
       confirmations.set(id, true);notify();
       try {
         const ticket = await request(env, '/aichat/api/jobs/' + encodeURIComponent(id) + '/confirm', {
           method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+        if (destroyed) return null;
         if (!ticket || typeof ticket.job_id !== 'string' || typeof ticket.dialog_id !== 'string') {
           throw new Error('Сервер не подтвердил состояние проверки. Повторите подтверждение, чтобы получить сохранённый статус.');
         }
@@ -125,9 +139,11 @@
         await options.onAccepted?.(ticket);
         connection = '';schedule(0);return ticket;
       } catch(error) {
+        if (destroyed) return null;
+        if (error.status === 401) { expireSession(error);return null; }
         connection = error.status ? error.message : 'Подтверждение запуска не получено. Можно повторить подтверждение: сервер сохранит одну задачу.';
         return null;
-      } finally { confirmations.delete(id);notify(); }
+      } finally { confirmations.delete(id);if (!destroyed) notify(); }
     }
     function select(id) {
       dialog = id || null;generation++;jobs = [];terminalSeen = new Set();notify();schedule(0);
@@ -163,7 +179,7 @@
       card.appendChild(el('strong', 'ac-job-title', action ? action.label || 'Запуск блока' : LABELS[job.status]));
       card.appendChild(el('p', '', action ? action.summary || 'Проверьте параметры и подтвердите запуск.' : job.stage || LABELS[job.status]));
       const meta = el('div', 'ac-job-meta', 'Задача ' + job.job_id.slice(0, 8));card.appendChild(meta);
-      if (action) card.appendChild(button(controller.confirming(job.job_id) ? 'Подтверждаем…' : 'Запустить блок',
+      if (action) card.appendChild(button(controller.confirming(job.job_id) ? 'Подтверждаем…' : action.kind === 'agent_plan' ? 'Запустить план' : 'Запустить блок',
         'confirm-' + job.job_id, () => controller.confirm(job.job_id), controller.confirming(job.job_id)));
       if (openDialog) card.appendChild(button('Открыть диалог', 'open-' + job.job_id, () => openDialog(job.dialog_id)));
       fragment.appendChild(card);

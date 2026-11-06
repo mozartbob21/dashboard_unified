@@ -88,7 +88,7 @@ class CollectivePortal:
         except (ValueError, KeyError, TypeError):
             raise PortalError('Портал вернул неожиданный формат коллективных обращений.') from None
 
-    def fetch(self, start, end):
+    def fetch(self, start, end, *, today=None):
         kurators = []
         for row in self.query('q_vedom_kurat'):
             if CURATOR not in str(row[1] or '').lower():
@@ -101,5 +101,5 @@ class CollectivePortal:
         # Fail the refresh so the browser retains its previous, correctly labelled snapshot.
         if not kurators:
             raise PortalError('Не удалось найти куратора МИНЖКХ в справочнике портала. Проверьте доступ или изменения справочника.')
-        rows = self.query('q_download', query_params(start, end, kurators))
+        rows = self.query('q_download', query_params(start, end, kurators, today=today))
         return kurators, rows

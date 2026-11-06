@@ -3354,6 +3354,7 @@ async def aichat_send(request: Request):
         d = store.get_dialog(did)
 
     async def respond(publish):
+        nonlocal user, allowed
         from services.aichat.skill_trace import normalize_run, step as public_step
         from services.aichat.report_context import wants_context, to_prompt
         from services.aichat.uploads import extract_bounded, UploadTextError
@@ -3414,6 +3415,29 @@ async def aichat_send(request: Request):
                     'selection': report.get('selection'), 'clarification': report.get('clarification')}
 
         try:
+            if background and not attachments and explicit != 'false':
+                from services.aichat import action_planner, orchestrator
+                user = jobs.current_user(user)
+                pending = jobs.latest_pending(user, dialog_id)
+                if pending is None:
+                    previous_answer = next((message for message in reversed(visible_history) if message.get('role') == 'assistant'), {})
+                    pending = action_planner.continuation_context(previous_answer)
+                decision = await asyncio.to_thread(action_planner.plan, text, user, pending=pending,
+                                                  selection=selection, include_context=explicit)
+                if decision is not None:
+                    requirements = decision['required_modules']
+                    used_modules.update(requirements)
+                    report = {'selection': {'agent_action': 'execution_plan', 'modules': requirements}, 'sources': []}
+                    save_user()
+                    if decision['kind'] == 'clarify':
+                        return {'dialog_id': dialog_id, 'ok': True, 'team': team,
+                                'response_kind': 'clarification', 'answer': decision['message'],
+                                'required_modules': requirements, 'agent_pending': decision.get('pending')}
+                    if decision['requires_confirmation']:
+                        return {'dialog_id': dialog_id, 'team': team,
+                                **orchestrator.proposal(decision['plan'], requirements)}
+                    outcome = await asyncio.to_thread(orchestrator.execute, user, decision['plan'], ticket, emit)
+                    return {'dialog_id': dialog_id, 'team': team, **outcome}
             if background:
                 from services.aichat import block_execution
                 # Only the original user text can propose an operation. Neither

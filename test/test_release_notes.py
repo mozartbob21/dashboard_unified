@@ -13,6 +13,8 @@ from services.release_catalog import RELEASES as DEPLOYED_RELEASES
 from utils import db
 
 
+WORKSPACE_RELEASE_ID = "2026-11-06-chat-workspace-v33"
+PLAN_RELEASE_ID = "2026-11-06-chat-action-plans-v33"
 RELEASE_ID = "2026-10-15-v3"
 BASE_RELEASE_ID = "2026-10-26-v33"
 CHAT_JOBS_RELEASE_ID = "2026-11-04-chat-jobs-v33"
@@ -29,7 +31,7 @@ TREATMENT_ENTRY = "mingkh-treatment-snapshot"
 ADMIN_ENTRIES = {"admin-directory-search", "admin-ai-credentials", "admin-users-service-center"}
 OLD_RELEASE_IDS = {"2026-10-23-max-permanent-link-v32", "2026-10-23-presentations-max-v32",
                    "2026-10-23-account-access-v32", "2026-10-22-max-lan-v32", "2026-10-22-max-v32"}
-GENERAL_ENTRY_IDS = {"chat-agent-sources", "checks-history-trends", "login-appearance", "survey-without-interruption", "chat-durable-private", "chat-shared-history"}
+GENERAL_ENTRY_IDS = {"chat-workspace", "chat-action-plans", "chat-agent-sources", "checks-history-trends", "login-appearance", "survey-without-interruption", "chat-durable-private", "chat-shared-history"}
 PRESENTATION_ENTRY_IDS = {"max-presentations-button", "max-pdf-confirmed-delivery"}
 CATALOG = (
     {"id": "2026-10-15-test", "version": "15.10.2026", "title": "Обновление сервиса",
@@ -103,6 +105,8 @@ def assert_ordinary_news(payload, *, zips=False, mingkh=False):
     expected.insert(0, AGENT_RELEASE_ID)
     if mingkh:
         expected.insert(0, NEIGHBORS_RELEASE_ID)
+    expected.insert(0, PLAN_RELEASE_ID)
+    expected.insert(0, WORKSPACE_RELEASE_ID)
     assert [note["id"] for note in payload["releases"]] == expected
     assert all(note["version"] == "3.3" for note in payload["releases"])
     assert entry_ids(payload) == GENERAL_ENTRY_IDS | ({ZIP_ENTRY_ID} if zips else set()) | ({TREATMENT_ENTRY, AGENT_MINGKH_ENTRY, "neighbors-agent"} if mingkh else set())
@@ -111,15 +115,15 @@ def assert_ordinary_news(payload, *, zips=False, mingkh=False):
 
 def test_deployed_v33_catalog_replaces_previous_versions(app, deployed):
     releases._validate_catalog()
-    assert len(DEPLOYED_RELEASES) == 10
-    assert {note["id"] for note in DEPLOYED_RELEASES} == {NEIGHBORS_RELEASE_ID, DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
+    assert len(DEPLOYED_RELEASES) == 12
+    assert {note["id"] for note in DEPLOYED_RELEASES} == {WORKSPACE_RELEASE_ID, PLAN_RELEASE_ID, NEIGHBORS_RELEASE_ID, DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID, "2026-10-26-dashboard-retry-v33", "2026-10-28-omsu-rating-parity-v33"}
     assert {note["version"] for note in DEPLOYED_RELEASES} == {"3.3"}
     with api(app, "4") as client:
         response = client.get("/api/releases/pending")
         assert response.status_code == 200
         assert response.headers["cache-control"] == "private, no-store"
         payload = response.json()
-        assert payload["pending_count"] == 7
+        assert payload["pending_count"] == 9
         assert entry_ids(payload) == GENERAL_ENTRY_IDS | ADMIN_ENTRIES | {ZIP_ENTRY_ID, "max-stocks-button", CONTACT_ENTRY}
         for old_id in OLD_RELEASE_IDS:
             assert client.post(f"/api/releases/{old_id}/read").status_code == 404
@@ -140,7 +144,7 @@ def test_max_news_disappears_immediately_after_permission_revoked(app, deployed,
                 conn.execute("DELETE FROM account_managers WHERE user_id=4")
         history = client.get("/api/releases/history").json()
         assert "max-stocks-button" not in entry_ids(history)
-        assert history["pending_count"] == 5
+        assert history["pending_count"] == 7
         assert (ZIP_ENTRY_ID in entry_ids(history)) == (change == "manager")
         assert bool("admin-ai-credentials" in entry_ids(history)) == (change == "module")
 
@@ -173,8 +177,10 @@ def test_old_32_receipts_do_not_hide_new_33_notice_across_devices(app, deployed)
             ("local:4", old_id, "2026-10-23T21:00:00Z") for old_id in OLD_RELEASE_IDS])
     with api(app, "4") as client:
         payload = client.get("/api/releases/pending").json()
-        assert payload["pending_count"] == 7
-        assert [note["id"] for note in payload["releases"]] == [DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID]
+        assert payload["pending_count"] == 9
+        assert [note["id"] for note in payload["releases"]] == [WORKSPACE_RELEASE_ID, PLAN_RELEASE_ID, DIRECTORY_RELEASE_ID, AGENT_RELEASE_ID, CHECKS_RELEASE_ID, ZIP_RELEASE_ID, CURRENT_RELEASE_ID, CHAT_JOBS_RELEASE_ID, BASE_RELEASE_ID]
+        assert client.post(f"/api/releases/{WORKSPACE_RELEASE_ID}/read").status_code == 200
+        assert client.post(f"/api/releases/{PLAN_RELEASE_ID}/read").status_code == 200
         assert client.post(f"/api/releases/{DIRECTORY_RELEASE_ID}/read").status_code == 200
         assert client.post(f"/api/releases/{AGENT_RELEASE_ID}/read").status_code == 200
         assert client.post(f"/api/releases/{CHECKS_RELEASE_ID}/read").status_code == 200
@@ -440,7 +446,7 @@ def test_old_receipts_do_not_keep_previous_versions_in_history(app, monkeypatch)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 200
         monkeypatch.setattr(releases, "RELEASES", DEPLOYED_RELEASES)
         history = client.get("/api/releases/history").json()
-        assert history["pending_count"] == 6
+        assert history["pending_count"] == 8
         assert_ordinary_news(history, zips=True)
         assert client.post(f"/api/releases/{RELEASE_ID}/read").status_code == 404
 

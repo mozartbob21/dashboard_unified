@@ -46,7 +46,7 @@ def _request_text(question):
                 r'(?:' + date_range + r'|сегодня|вчера|позавчера|завтра|послезавтра)', value):
             return ' ' + value + ' '
         return ' '
-    q = re.sub(r'`[^`]*`|«[^»]*»|“[^”]*”|"[^"\n]*"', quoted_period, q)
+    q = re.sub(r'`[^`]*`|«[^»]*»|“[^”]*”|‘[^’]*’|\'[^\'\n]*\'|"[^"\n]*"', quoted_period, q)
     return q
 
 

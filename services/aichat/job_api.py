@@ -19,6 +19,12 @@ def blocks(user=Depends(identity)):
     return {'items': block_execution.catalog(user)}
 
 
+@router.get('/tools')
+def tools(user=Depends(identity)):
+    from . import tool_catalog
+    return JSONResponse({'items': tool_catalog.catalog(user), 'blocks': tool_catalog.inventory(user)}, headers={'Cache-Control': 'private, no-store'})
+
+
 @router.get('/jobs')
 def list_jobs(dialog_id: str = None, user=Depends(identity)):
     return JSONResponse({'items': jobs.list_jobs(user, dialog_id)}, headers={'Cache-Control': 'private, no-store'})
@@ -42,6 +48,27 @@ async def confirm(ident: str, request: Request, user=Depends(identity)):
     proposal = (parent.get('result') or {}).get('action')
     if parent['status'] != 'succeeded' or not isinstance(proposal, dict):
         raise HTTPException(409, 'В этом сообщении нет ожидающего подтверждения запуска.')
+    if proposal.get('kind') == 'agent_plan':
+        from . import action_planner, orchestrator, tool_catalog
+        try:
+            plan = action_planner.validate_plan(jobs.current_user(user), proposal.get('plan'))
+        except block_execution.AccessDenied as exc:
+            raise HTTPException(403, str(exc)) from None
+        except block_execution.InvalidParameters as exc:
+            raise HTTPException(400, str(exc)) from None
+        specs = [tool_catalog.spec(step['tool']) for step in plan['steps']]
+        if not any(item['requires_confirmation'] for item in specs):
+            raise HTTPException(409, 'Этот план не требует подтверждения запуска.')
+        requirements = sorted({item['module_id'] for item in specs})
+        # Preserve global single-module dedup for a one-step launch. Multi-step
+        # plans also reuse the existing runners' cross-process execution locks.
+        module_id = specs[0].get('runner_module') if len(specs) == 1 else None
+        ticket, fresh = jobs.submit(user, 'confirm_' + ident, {'proposal': ident},
+                                   dialog_id=parent['dialog_id'], module_id=module_id,
+                                   confirmation_id=ident, required_modules=requirements)
+        if fresh:
+            jobs.start(ticket, lambda publish: orchestrator.execute(user, plan, ticket, publish, confirmed=True))
+        return JSONResponse(ticket, status_code=202, headers={'Cache-Control': 'private, no-store'})
     module_id, params = proposal.get('module_id'), proposal.get('params')
     try:
         params = block_execution.validate(user, module_id, params)
